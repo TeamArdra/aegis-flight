@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import platform
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,26 @@ _SIM = dict(mg.sim_cases())
 _LIVE = {n: (s, v) for n, s, v in mg.live_cases()}
 
 
+# The fixture was generated on x86-64. Float results can differ in the last bit on another CPU / libm (measured on a
+# Raspberry Pi 3B+: ML-off decisions of all 48 simulator cases were byte-identical to x86, but ~1% of the
+# internal feature values differ by <= 4.4e-16), so off x86 the guard compares what is portable: the parsed messages,
+# the parser statistics, the decision summary (counts, attack types, alerts) and, with ML off, the full
+# ThreatAssessment hashes. The detector / feature layers and the ML-on assessments stay bit-exact on x86 only.
+_STRICT = platform.machine().lower() in ("x86_64", "amd64")
+
+
+def _compare(got: dict, want: dict, ml: bool) -> None:
+    if _STRICT:
+        assert got == want
+        return
+    portable = ("parse", "stats") if ml else ("parse", "stats", "assess")
+    for k in portable:
+        assert got["digests"].get(k) == want["digests"].get(k), k
+    summary = ("alerts", "attack_types", "n_decisions", "n_messages", "threat_decisions")
+    for k in summary:
+        assert got.get(k) == want.get(k), k
+
+
 def _run(name: str, ml: bool) -> dict:
     if name in _SIM:
         return mg.run_sim_case(_SIM[name], ml)
@@ -42,12 +63,12 @@ def _params(key: str):
 
 @pytest.mark.parametrize("name", _params("no_ml"))
 def test_golden_ml_off(name):
-    assert _run(name, False) == GOLD["no_ml"][name]
+    _compare(_run(name, False), GOLD["no_ml"][name], ml=False)
 
 
 @pytest.mark.parametrize("name", _params("ml"))
 def test_golden_ml_on(name):
-    assert _run(name, True) == GOLD["ml"][name]
+    _compare(_run(name, True), GOLD["ml"][name], ml=True)
 
 
 def test_fixture_covers_every_attack_mode_and_live_scenario():

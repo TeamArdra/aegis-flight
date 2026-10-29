@@ -199,3 +199,47 @@ bridge refused to start; the flag is now in the script (the gate itself is uncha
 What this does not show: single runs per scenario, a simulated autopilot, loopback with no radio loss or latency, a
 pymavlink pilot and attacker, one loaded Windows host, no real hardware and nothing on a Raspberry Pi. It shows
 equal counters and outcomes, not equal timing under load.
+
+## Raspberry Pi 3 Model B+ (measured 2026-10-29)
+
+Board: Raspberry Pi 3 Model B+ Rev 1.3 (4 x Cortex-A53 at 1.4 GHz, 905 MB RAM), Debian aarch64, Python 3.13.5, numpy 2.5.4,
+scikit-learn 1.9.1 (same versions as the development PC), bridge and detection dependencies only (no dashboard libraries).
+The board reported `throttled=0x50000` (under-voltage and throttling occurred at some point since boot), so these numbers
+may be slightly pessimistic. This is a Pi 3B+, not a Pi Zero 2 W; nothing was measured on a Zero 2 W or in flight.
+
+**Correctness on ARM Linux.** All 48 simulator cases (10,800 decisions, ML off) give decisions byte-identical to the x86 PC
+(threat, severity, attack class, score to the last digit, alert, evidence). About 1% of internal feature values differ in the
+last bits (130 of 14,850 ML-feature values on 6 cases, max 4.4e-16 absolute / 2.6e-15 relative), a CPU / libm effect that never
+reached a decision. So the bit-exact golden hashes of the feature and detector layers hold on x86 only; off x86
+`tests/unit/test_golden_equivalence.py` compares the parsed messages, parser statistics, decision summaries and (ML off) the
+full assessments. Unit tests on the Pi: 1,027 passed, the 8 errors need the dashboard libraries that were deliberately not
+installed, the forwarding equivalence guard, the serial framer tests and the Linux-only serial tests all passed (272 in those files).
+
+**Detection pipeline (host = this Pi), microseconds, p50 / p95:**
+
+| Operation | ML off | ML on |
+|---|---:|---:|
+| whole decision tick | 452 / 949 | 3,401 / 4,200 |
+| feature extraction per decision | 196 / 408 | 345 / 512 |
+| anomaly detector | 9 / 15 | 2,545 / 3,141 |
+| parse per datagram | 96 / 143 | 93 / 121 |
+
+At 5 decisions per second that is about 0.2% (ML off) to 1.7% (ML on) of one core. Process RSS 105 MiB (ML off) and 192 MiB (ML on).
+
+**Forwarding path:** X.25 CRC of a 263-byte frame 7.4 us; the serial framer handles about 1.5 MB/s (a 57,600-baud radio is
+about 5.8 kB/s); per-frame inline policy 3.4 us (down) and 27 us (up, the uplink does the control checks), full bridge handling
+of one frame 46 us (down) and 72 us (up) p50 in `active-ips`.
+
+**Bridge soak over real Linux serial devices** (`scripts/pi_soak.py`: pseudo-terminal pairs, the synthetic benign stream replayed
+in real time, a 1 Hz GCS heartbeat and a trusted DO_SET_MODE every 10 s; the bridge's own CPU and memory, ML off):
+
+| Posture | Downlink | Frames lost | Bridge CPU (of one core) | Peak RSS | Per-frame latency p50 / p95 |
+|---|---:|---:|---:|---:|---:|
+| passive | 135 frames/s, 60 s | 0 down, 0 up | 28% | 61 MiB | 127 / 441 us |
+| active-ips | 135 frames/s, 60 s | 0 down, 0 up | 25% | 62 MiB | 157 / 333 us |
+| active-ips | 405 frames/s, 30 s | 1 down, 1 up (end-of-run drain) | 40% | 62 MiB | 144 / 327 us |
+
+No frame was dropped by the bridge and the tap never overflowed. What this does not show: a real UART or radio (pseudo-terminals
+have no baud-rate pacing), a flight, the management channel and signing on the Pi, or any Pi other than a 3B+. A first soak
+showed apparent uplink drops and "contested sender" alarms; the cause was the test rig sending every frame with sequence
+number 0 (pymavlink's `pack()` does not advance the counter), which the bridge correctly treated as a replay. Fixed in the rig.
