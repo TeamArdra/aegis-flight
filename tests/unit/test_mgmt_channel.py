@@ -816,3 +816,17 @@ def test_ground_ids_does_not_flag_bridge_management_frames():
             alerts.append(a)
     assert alerts == []
     assert pipe.last_frame is not None and pipe.last_frame.max_seq_gap == 0
+
+
+def test_dropped_mode_change_label_names_the_requested_mode():
+    """Found in SITL: a forged DO_SET_MODE(LAND) was announced only as 'blocked DO_SET_MODE'."""
+    from aegisflight.hal.mgmt_channel import drop_label
+
+    m = _enc(66, 190)
+    do_set_mode = bytes(m.command_long_encode(1, 1, 176, 0, 1, 9, 0, 0, 0, 0, 0).pack(m))
+    set_mode = bytes(m.set_mode_encode(1, 1, 9).pack(m))
+    unknown = bytes(m.command_long_encode(1, 1, 176, 0, 1, 77, 0, 0, 0, 0, 0).pack(m))
+    assert drop_label(do_set_mode, 66, 76, "up") == "DO_SET_MODE(LAND) sys66"
+    assert drop_label(set_mode, 66, 11, "up") == "SET_MODE(LAND) sys66"
+    assert drop_label(unknown, 66, 76, "up") == "DO_SET_MODE sys66"
+    assert len(format_action("QUARANTINE", "")) <= 50 and len("AEGIS: blocked DO_SET_MODE(STABILIZE) sys255 x99") <= 50

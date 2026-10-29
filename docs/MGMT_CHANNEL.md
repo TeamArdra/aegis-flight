@@ -16,7 +16,7 @@ counter and signer for the 1/191 stream).
 
 | Direction | Message | Content |
 |---|---|---|
-| bridge -> ground | STATUSTEXT (253) | `AEGIS: COMMAND_INJECTION HIGH sys66` (alert), `AEGIS: blocked LAND sys66 x3`, `AEGIS: set ALT_HOLD (GPS fault)`, `AEGIS: quarantine sys42`, `AEGIS: posture ACTIVE_IPS`, `AEGIS: cmd denied: ...`, `AEGIS: mgmt control LOCKED 60s (bad signatures)`. <= 50 bytes. Severity: CRITICAL 2, HIGH 3, SUSPICIOUS 4, WATCH 5 (actions 5, drops 4) |
+| bridge -> ground | STATUSTEXT (253) | `AEGIS: COMMAND_INJECTION HIGH sys66` (alert), `AEGIS: blocked DO_SET_MODE(LAND) sys66 x3` (the drop label is the MAV_CMD or message name; a forged mode change also names the requested ArduCopter mode), `AEGIS: set ALT_HOLD (GPS fault)`, `AEGIS: quarantine sys42`, `AEGIS: posture ACTIVE_IPS`, `AEGIS: cmd denied: ...`, `AEGIS: mgmt control LOCKED 60s (bad signatures)`. <= 50 bytes. Severity: CRITICAL 2, HIGH 3, SUSPICIOUS 4, WATCH 5 (actions 5, drops 4) |
 | bridge -> ground | MEMORY_VECT (249) | status, marker address `0xAE57` / ver 1 / type 1 (the cross-end summary is `0xAE15` / 1 / 0), 32-byte payload below |
 | ground -> bridge | COMMAND_LONG (76) | `MAV_CMD_USER_1` (31010), target_system = vehicle sysid, target_component = 191 |
 | bridge -> ground | COMMAND_ACK (77) | answer to the command |
@@ -90,3 +90,38 @@ signing enforcement, no log retrieval, no firmware or parameter access. Keys and
 If the bridge process dies the channel is gone too (see `docs/MINIMAL_BUILD.md`). A jammed or cut radio silences it. The
 STATUSTEXT/MEMORY_VECT frames of an UNSIGNED link can be forged or suppressed by whoever can transmit on the radio; with a flight
 key the ground rejects unsigned or invalid ones.
+
+## SITL evidence
+
+Harness (`scripts/ardupilot/inline_demo/`): `run_mgmt.sh <label> on|off`, `mgmt_drive.py` (driver), `hub_mgmt.py` (loopback hub with
+a per-second byte meter that separates the management stream, sysid 1 / compid 191, from flight telemetry, and a read/write port
+5803 for the ground dashboard), `fc_tap.py` (a counting tap on the bridge-to-FC link). ArduCopter SITL, UNSIGNED flight link
+(`--allow-unsigned`), separate management key, ground `aegis serve --source serial` on the hub. The `on` run was done 4 times
+(1 early run was discarded: my driver sent two commands within 1 s and hit the rate limit); the table is the last 3 (v2-v4),
+which agree unless a range is given. One `off` reference run (`--mgmt-status-interval 0 --gcs-alerts off`, no keys).
+
+| Test | Result (single SITL run each, repeated as noted) |
+|---|---|
+| (a) forged LAND (DO_SET_MODE + SET_MODE to mode 9) from sysid 66, active-ips | ground `bridge_remote.recent` showed `AEGIS: COMMAND_INJECTION SUSP sys66` after 0.1-0.2 s and `blocked DO_SET_MODE(LAND) sys66 xN` after 0.7-0.8 s; status age 1.1-1.4 s; posture, counters (`dropped_up`, `alerts`) and flags matched the bridge's own `/status` |
+| (b) same attack in `passive` | alert arrived; the forged frames reached the FC as designed for passive; `fc_tap` saw 0 frames from 1/191, 0 MAV_CMD_USER_1, 0 `AEGIS` STATUSTEXT, 0 MEMORY_VECT sent to the FC in that window |
+| (c) control from the ground | passive -> advisory -> active-ips (`allow_unsigned`) accepted (0.2-0.3 s to the ACK); active-ips -> passive: first call `confirm_required`, second with confirm accepted; lowering with the lock file present: denied "posture locked"; wrong-key frames x3: no ACK; a byte-identical replay of a valid command: no ACK; 3 valid commands within 150 ms: 1 accepted, 2 DENIED rate-limited; 5 wrong-key frames: `AEGIS: mgmt control LOCKED` announced, a valid command during the lock DENIED (locked); after 60 s a valid command was accepted again |
+| (d) audit log | hash chain verified, 20 entries (4 posture changes, 7 accepted, 4 denied, 1 confirm-required, 3 ignored bad-signature lines, 1 lockout; bad-signature lines are audited at most 1/s, the total is a counter) |
+| (e) bytes/s at the hub (management stream only) | nominal 24 B/s (one unsigned 48 B status per 2 s; signed it is 61 B per 2 s); 15 s forged-command flood at 20 Hz x2: 133.5-133.6 B/s averaged over the 18 s window (2403-2405 B; peak 1 s 204-247 B, which is the 300 B initial bucket); whole run 41 B/s. The worst-case bound 300 + 150 T B held. The cross-end summary (not in the budget) added a separate 35-37 B/s |
+| (f) flight telemetry unaffected | forced forged flood: forwarded_down 2461 vs 2464, dropped_up 590 vs 590 (on vs off); other downlink 4786 vs 4764 B/s nominal, 4793 vs 4777 B/s in the flood; the pilot's 28 (on) / 10 (off) mode commands were all ACKed; the ground IDS stored 0 events in on and off runs (management frames in all postures, a ground restart included), no sequence-gap alarm |
+| (g) management link lost (ground `aegis serve` killed ~15 s) | bridge stayed in active-ips and kept blocking (dropped_up 606 -> 622 during the outage); management frames kept being sent (no listener); after the dashboard restart the alert arrived again (status age 0.9 s), posture still active-ips |
+
+Bugs found and fixed here: an announced drop of a forged mode change said only `blocked DO_SET_MODE` (the examples in this doc said
+`blocked LAND`, which only a real MAV_CMD_NAV_LAND produces); the label now names the requested mode (`hal/mgmt_channel.py`,
+regression test `test_dropped_mode_change_label_names_the_requested_mode`).
+
+Design limits seen: two operator commands within 1 s: the second is DENIED (rate limited), the dashboard does not queue them; a
+replayed or wrong-key frame counts toward the 5-frame lockout, so whoever can transmit on the radio can lock the ground out of
+control for 60 s (the alerts and status keep flowing); with `--gcs-alerts off` one `posture` notice is still sent; the active-ips
+counter-frames to the FC (COMMAND_LONG from 1/191) are the IPS's own mitigation, not management traffic, and their number differs
+between runs.
+
+What this does and does not show: single runs on a simulated autopilot (ArduCopter SITL), a loopback TCP hub (no radio, no
+latency, loss, jamming or 57,600 baud limit: the bytes/s are counted bytes, not airtime), one pilot script and one attacker script
+instead of real ground-station software, an unsigned flight link (the signed-alert path with `--signing-key-file` was not run
+here), one machine and clock. It does not show behaviour under packet loss, real companion-computer load, long soak runs, or
+authentication strength beyond the cases listed.

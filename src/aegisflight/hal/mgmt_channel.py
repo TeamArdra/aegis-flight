@@ -782,6 +782,19 @@ class MgmtChannel:
                 "budget_bytes_per_s": self.budget.rate}
 
 
+_COPTER_MODES = {0: "STABILIZE", 2: "ALT_HOLD", 3: "AUTO", 4: "GUIDED", 5: "LOITER", 6: "RTL", 9: "LAND", 16: "POSHOLD"}
+
+
+def _target_mode(raw: bytes, msgid: int, cmd: dict[str, Any] | None) -> str | None:
+    """ArduCopter mode name a dropped DO_SET_MODE / SET_MODE asked for (so 'blocked DO_SET_MODE(LAND)' says what the
+    forger wanted, not only the message type); ``None`` for anything else or an unknown mode number."""
+    if cmd is not None and cmd["command"] == 176:  # MAV_CMD_DO_SET_MODE: param2 = custom mode
+        return _COPTER_MODES.get(int(cmd["params"][1]))
+    if msgid == 11 and len(raw) >= 10:  # SET_MODE: custom_mode u32 first in the payload
+        return _COPTER_MODES.get(int.from_bytes(_payload(raw, 6)[:4], "little"))
+    return None
+
+
 def drop_label(raw: bytes, sysid: int, msgid: int, direction: str) -> str:
     """Short label of a dropped frame: the MAV_CMD name for a COMMAND_LONG/INT, else the message name."""
     name = None
@@ -792,5 +805,8 @@ def drop_label(raw: bytes, sysid: int, msgid: int, direction: str) -> str:
     else:
         cls = mav2.mavlink_map.get(msgid)
         name = getattr(cls, "msgname", None) or f"MSG{msgid}"
+    mode = _target_mode(raw, msgid, c)
+    if mode:
+        name = f"{name}({mode})"
     prefix = "down " if direction == "down" else ""
     return f"{prefix}{name} sys{sysid}"
