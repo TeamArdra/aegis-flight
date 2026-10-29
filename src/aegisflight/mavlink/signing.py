@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import struct
 import time
+from binascii import crc_hqx
 from dataclasses import dataclass
 
 from pymavlink.dialects.v20 import common as mav2
@@ -19,14 +20,23 @@ MAVLINK_SIGNATURE_LEN = 13
 MAVLINK_EPOCH_UNIX_S = 1_420_070_400
 
 
-def _x25_crc(data: bytes, initial: int = 0xFFFF) -> int:
-    """Compute X.25 CRC-16 used by MAVLink frame checksums."""
-    crc = initial
-    for byte in data:
-        tmp = byte ^ (crc & 0xFF)
-        tmp = (tmp ^ (tmp << 4)) & 0xFF
-        crc = ((crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)) & 0xFFFF
-    return crc
+# X.25 / MCRF4XX (reflected CRC-16, poly 0x1021, init 0xFFFF) computed by the C implementation of the non-reflected
+# CRC-CCITT in the standard library: a reflected CRC equals the plain one over bit-reversed input bytes, with the
+# initial value and the result bit-reversed too. Bit-identical to the bytewise Python loop (tests compare them
+# against an independent bit-level reference); roughly 10-20x faster than any pure-Python loop, no dependency.
+_BITREV = bytes(int(f"{i:08b}"[::-1], 2) for i in range(256))
+
+
+def x25_crc(data: bytes | bytearray, initial: int = 0xFFFF) -> int:
+    """Compute X.25 CRC-16 used by MAVLink frame checksums (chain with ``initial`` for multi-part input)."""
+    if type(data) is not bytes and type(data) is not bytearray:
+        data = bytes(data)
+    rev = _BITREV
+    c = crc_hqx(data.translate(rev), (rev[initial & 0xFF] << 8) | rev[(initial >> 8) & 0xFF])
+    return (rev[c & 0xFF] << 8) | rev[c >> 8]
+
+
+_x25_crc = x25_crc
 
 
 def _lookup_crc_extra(msgid: int) -> int | None:

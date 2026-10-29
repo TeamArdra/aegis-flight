@@ -85,7 +85,7 @@ ML_FEATURES = (
 )
 
 
-@dataclass
+@dataclass(slots=True)
 class CommandEvent:
     recv_time: float
     sysid: int
@@ -94,7 +94,7 @@ class CommandEvent:
     params: tuple[float, ...] = ()
 
 
-@dataclass
+@dataclass(slots=True)
 class FeatureFrame:
     t: float
     snapshot: TelemetrySnapshot
@@ -224,6 +224,10 @@ class FeatureExtractor:
 
         # network bookkeeping
         self._recv_times: deque[float] = deque(maxlen=2000)
+        # appends so far / index of the latest append that was EARLIER than its predecessor: while
+        # that pair is out of the deque the deque is non-decreasing and a window is a plain suffix
+        self._recv_n = 0
+        self._recv_dec_n = -(2**62)
         self._seq_state: dict[tuple[int, int], int] = {}
         self._seq_gap: dict[tuple[int, int], int] = {}
         self._sources: dict[tuple[int, int], int] = {}
@@ -248,9 +252,14 @@ class FeatureExtractor:
         self._snr_t = -1e9
 
         # navigation bookkeeping
-        self._resid_incs: deque[tuple[float, float]] = deque(maxlen=_RESID_WINDOW)
-        self._cusum_incs: deque[tuple[float, float, float]] = deque(maxlen=60)  # (inc_n, inc_e, dt)
-        # per-increment estimator tags, aligned 1:1 with _resid_incs (appended together):
+        # residual increments as parallel deques (sum() over a deque of floats == the old sum over
+        # tuple components: same values, same order, no generator frames)
+        self._resid_n: deque[float] = deque(maxlen=_RESID_WINDOW)
+        self._resid_e: deque[float] = deque(maxlen=_RESID_WINDOW)
+        self._cusum_n: deque[float] = deque(maxlen=60)  # long-horizon (inc_n, inc_e, dt)
+        self._cusum_e: deque[float] = deque(maxlen=60)
+        self._cusum_dt: deque[float] = deque(maxlen=60)
+        # per-increment estimator tags, aligned 1:1 with _resid_n / _resid_e (appended together):
         # (tag, raw unclamped residual magnitude, v_n*dt, v_e*dt, measured d_n, measured d_e);
         # the last four are kept for gated increments only (0.0 otherwise)
         self._resid_tags: deque[tuple[int, float, float, float, float, float]] = deque(maxlen=_RESID_WINDOW)
@@ -280,7 +289,11 @@ class FeatureExtractor:
     def update(self, msg: MessageEnvelope) -> None:
         t = msg.recv_time
         src = (msg.sysid, msg.compid)
-        self._recv_times.append(t)
+        rts = self._recv_times
+        if rts and t < rts[-1]:
+            self._recv_dec_n = self._recv_n
+        self._recv_n += 1
+        rts.append(t)
         self._sources[src] = self._sources.get(src, 0) + 1
         if msg.signed:
             self._signed += 1
@@ -424,7 +437,9 @@ class FeatureExtractor:
             t0, lat0, lon0 = self._last_fix
             dt = t - t0
             if dt > _LINK_GAP_S:
-                self._cusum_incs.clear()  # outage: re-anchor long-horizon CUSUM buffer
+                self._cusum_n.clear()  # outage: re-anchor long-horizon CUSUM buffer
+                self._cusum_e.clear()
+                self._cusum_dt.clear()
             elif dt > 1e-6:
                 # measured displacement (local NE metres)
                 dn = math.radians(lat - lat0) * EARTH_RADIUS_M
@@ -437,8 +452,11 @@ class FeatureExtractor:
                     scale = _RESID_CLAMP_M / mag
                     inc_n *= scale
                     inc_e *= scale
-                self._resid_incs.append((inc_n, inc_e))
-                self._cusum_incs.append((inc_n, inc_e, dt))
+                self._resid_n.append(inc_n)
+                self._resid_e.append(inc_e)
+                self._cusum_n.append(inc_n)
+                self._cusum_e.append(inc_e)
+                self._cusum_dt.append(dt)
                 if gated:
                     self._resid_tags.append((_INC_GATED, mag, vx * dt, vy * dt, dn, de))
                 else:
@@ -450,17 +468,15 @@ class FeatureExtractor:
         self._vel_hist.append((t, vx, vy))
 
     def _position_residual(self) -> float:
-        rn = sum(i[0] for i in self._resid_incs)
-        re = sum(i[1] for i in self._resid_incs)
-        return math.hypot(rn, re)
+        return math.hypot(sum(self._resid_n), sum(self._resid_e))
 
     def _cusum_residual(self) -> float:
         """2D telescoping Page-Hinkley / CUSUM residual over the extended horizon."""
-        if not self._cusum_incs:
+        if not self._cusum_n:
             return 0.0
-        rn = sum(i[0] for i in self._cusum_incs)
-        re = sum(i[1] for i in self._cusum_incs)
-        total_dt = sum(i[2] for i in self._cusum_incs)
+        rn = sum(self._cusum_n)
+        re = sum(self._cusum_e)
+        total_dt = sum(self._cusum_dt)
         mag = math.hypot(rn, re)
         # Subtract telescoping GPS position endpoint jitter (~1.6m) + velocity slack (0.04 m/s)
         slack = 1.6 + 0.04 * total_dt
@@ -471,7 +487,8 @@ class FeatureExtractor:
             return pos_residual, 0.0, 0.0  # no EKF_STATUS_REPORT ever: nothing below runs
         if not any(g[0] != _INC_NORMAL for g in self._resid_tags):
             return pos_residual, 0.0, 0.0  # nothing gated or transitional: exactly pos_residual_m
-        keep = [inc for inc, g in zip(self._resid_incs, self._resid_tags, strict=True) if g[0] == _INC_NORMAL]
+        keep = [(n, e) for n, e, g in zip(self._resid_n, self._resid_e, self._resid_tags, strict=True)
+                if g[0] == _INC_NORMAL]
         nav = math.hypot(sum(i[0] for i in keep), sum(i[1] for i in keep))
         step = max((g[1] for g in self._resid_tags if g[0] != _INC_NORMAL), default=0.0)
         gated = [g[2:] for g in self._resid_tags if g[0] == _INC_GATED]
@@ -491,16 +508,30 @@ class FeatureExtractor:
         snap.t = t
 
         # ---- network ----
-        window = [rt for rt in self._recv_times if rt >= t - self.rate_window_s]
+        cutoff = t - self.rate_window_s
+        rts = self._recv_times
+        if self._recv_n - self._recv_dec_n > rts.maxlen:
+            # the deque is non-decreasing: the window is its suffix, already sorted -- walk back from
+            # the newest entry instead of scanning (and twice sorting) up to 2000 timestamps
+            window = []
+            for rt in reversed(rts):
+                if rt < cutoff:
+                    break
+                window.append(rt)
+            window.reverse()
+            ordered = window
+        else:
+            window = [rt for rt in rts if rt >= cutoff]
+            ordered = sorted(window)
         msg_rate = len(window) / self.rate_window_s if self.rate_window_s > 0 else 0.0
         deltas = [
             (b - a) * 1000.0
-            for a, b in zip(sorted(window), sorted(window)[1:], strict=False)
+            for a, b in zip(ordered, ordered[1:], strict=False)
             if b - a >= 0
         ]
         ia_mean = sum(deltas) / len(deltas) if deltas else 0.0
         ia_jit = (
-            (sum((d - ia_mean) ** 2 for d in deltas) / len(deltas)) ** 0.5 if deltas else 0.0
+            (sum([(d - ia_mean) ** 2 for d in deltas]) / len(deltas)) ** 0.5 if deltas else 0.0
         )
         max_gap = max(self._seq_gap.values(), default=0)
         total = self._signed + self._unsigned
@@ -573,7 +604,8 @@ class FeatureExtractor:
                 m_known, m_xt, m_wd, m_seq = True, mev[0], mev[1], mev[2]
 
         # ---- command ----
-        recent = [c for c in self._commands if c.recv_time >= t - self.cmd_window_s]
+        cmds_cut = t - self.cmd_window_s
+        recent = [c for c in self._commands if c.recv_time >= cmds_cut] if self._commands else []
         cmd_rate = len(recent) / self.cmd_window_s if self.cmd_window_s > 0 else 0.0
 
         return FeatureFrame(

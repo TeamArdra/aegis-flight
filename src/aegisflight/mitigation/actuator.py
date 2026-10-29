@@ -5,19 +5,9 @@ from __future__ import annotations
 from pymavlink.dialects.v20 import common as mav2
 
 from ..mavlink.codec import COPTER_MODES
-from ..mavlink.signing import MavlinkSignatureVerifier
+from ..mavlink.signing import MavlinkSignatureVerifier, x25_crc  # noqa: F401 - x25_crc re-exported
 
 MAV_CMD_DO_AUX_FUNCTION = getattr(mav2, "MAV_CMD_DO_AUX_FUNCTION", 218)
-
-
-def x25_crc(data: bytes, initial: int = 0xFFFF) -> int:
-    """Compute X.25 CRC-16 used by MAVLink frame checksums."""
-    crc = initial
-    for byte in data:
-        tmp = byte ^ (crc & 0xFF)
-        tmp = (tmp ^ (tmp << 4)) & 0xFF
-        crc = ((crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)) & 0xFFFF
-    return crc
 
 
 class MavlinkActuator:

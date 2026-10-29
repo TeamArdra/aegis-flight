@@ -1,0 +1,170 @@
+{
+ "frames_down": 3200,
+ "frames_up": 110,
+ "stream_bytes": 103196,
+ "crc_x25_30B": {
+  "n": 20000,
+  "p50_us": 2.6,
+  "p95_us": 2.7,
+  "mean_us": 2.625,
+  "max_us": 18.6,
+  "bulk_mean_us": 2.638
+ },
+ "crc_x25_263B": {
+  "n": 4000,
+  "p50_us": 17.7,
+  "p95_us": 18.6,
+  "mean_us": 17.772,
+  "max_us": 40.8,
+  "bulk_mean_us": 17.327
+ },
+ "framer_feed_read64": {
+  "bytes_per_s": 8710140,
+  "MB_per_s": 8.71,
+  "us_per_frame": 3.702
+ },
+ "framer_feed_read256": {
+  "bytes_per_s": 9117301,
+  "MB_per_s": 9.117,
+  "us_per_frame": 3.537
+ },
+ "framer_feed_read4096": {
+  "bytes_per_s": 9203738,
+  "MB_per_s": 9.204,
+  "us_per_frame": 3.504
+ },
+ "framer_feed_call_256B": {
+  "n": 404,
+  "p50_us": 29.0,
+  "p95_us": 30.2,
+  "mean_us": 28.544,
+  "max_us": 51.0,
+  "bulk_mean_us": 27.834
+ },
+ "framer_feed_1frame": {
+  "n": 3200,
+  "p50_us": 3.8,
+  "p95_us": 4.9,
+  "mean_us": 3.975,
+  "max_us": 20.6,
+  "bulk_mean_us": 3.872
+ },
+ "split_frames_1frame": {
+  "n": 16000,
+  "p50_us": 1.3,
+  "p95_us": 1.4,
+  "mean_us": 1.279,
+  "max_us": 20.5,
+  "bulk_mean_us": 1.184
+ },
+ "split_frames_3frames": {
+  "n": 5330,
+  "p50_us": 3.4,
+  "p95_us": 3.7,
+  "mean_us": 3.471,
+  "max_us": 22.7,
+  "bulk_mean_us": 3.465
+ },
+ "policy_down_passive": {
+  "n": 16000,
+  "p50_us": 0.3,
+  "p95_us": 1.3,
+  "mean_us": 0.493,
+  "max_us": 19.4,
+  "bulk_mean_us": 0.428
+ },
+ "policy_up_passive": {
+  "n": 550,
+  "p50_us": 0.2,
+  "p95_us": 0.3,
+  "mean_us": 0.203,
+  "max_us": 4.9,
+  "bulk_mean_us": 0.121
+ },
+ "policy_down_active-ips": {
+  "n": 16000,
+  "p50_us": 0.4,
+  "p95_us": 1.3,
+  "mean_us": 0.53,
+  "max_us": 20.1,
+  "bulk_mean_us": 0.464
+ },
+ "policy_up_active-ips": {
+  "n": 550,
+  "p50_us": 3.4,
+  "p95_us": 7.0,
+  "mean_us": 3.992,
+  "max_us": 60.1,
+  "bulk_mean_us": 3.772
+ },
+ "frame_context_create": {
+  "n": 20000,
+  "p50_us": 1.1,
+  "p95_us": 1.2,
+  "mean_us": 1.096,
+  "max_us": 11.7,
+  "bulk_mean_us": 1.057
+ },
+ "bridge_handle_down_passive": {
+  "n": 16000,
+  "p50_us": 4.2,
+  "p95_us": 5.4,
+  "mean_us": 4.401,
+  "max_us": 104.3,
+  "bulk_mean_us": 4.328
+ },
+ "bridge_handle_up_passive": {
+  "n": 550,
+  "p50_us": 3.8,
+  "p95_us": 4.9,
+  "mean_us": 4.532,
+  "max_us": 245.7,
+  "bulk_mean_us": 4.068
+ },
+ "bridge_handle_down_active-ips": {
+  "n": 16000,
+  "p50_us": 4.3,
+  "p95_us": 5.5,
+  "mean_us": 4.484,
+  "max_us": 134.4,
+  "bulk_mean_us": 4.414
+ },
+ "bridge_handle_up_active-ips": {
+  "n": 550,
+  "p50_us": 8.1,
+  "p95_us": 17.9,
+  "mean_us": 9.251,
+  "max_us": 66.3,
+  "bulk_mean_us": 9.707
+ },
+ "mgmt_text_emit": {
+  "n": 1000,
+  "p50_us": 8.8,
+  "p95_us": 9.6,
+  "mean_us": 9.143,
+  "max_us": 146.9,
+  "bulk_mean_us": 8.526
+ },
+ "mgmt_status_emit": {
+  "n": 1000,
+  "p50_us": 41.7,
+  "p95_us": 44.7,
+  "mean_us": 42.879,
+  "max_us": 529.9,
+  "bulk_mean_us": 43.765
+ },
+ "memory": {
+  "bridge_passive": {
+   "peak_bytes_over_baseline": 114312,
+   "retained_bytes": 113576
+  },
+  "bridge_active-ips": {
+   "peak_bytes_over_baseline": 121811,
+   "retained_bytes": 120763
+  },
+  "framer_4096B_reads": {
+   "peak_bytes_over_baseline": 18432,
+   "retained_bytes": 689
+  }
+ }
+}

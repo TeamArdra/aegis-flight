@@ -64,7 +64,7 @@ class FlightState:
     phase: FlightPhase = FlightPhase.GROUND
 
 
-@dataclass
+@dataclass(slots=True)
 class MessageEnvelope:
     """A single decoded MAVLink message plus link/transport metadata.
 
@@ -83,7 +83,7 @@ class MessageEnvelope:
     fields: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(slots=True)
 class TelemetrySnapshot:
     """Observed telemetry as reconstructed by the IDS from MAVLink messages.
 

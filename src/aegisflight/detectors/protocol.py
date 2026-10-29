@@ -9,11 +9,16 @@ the strongest sub-score.
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from ..core.enums import AttackType, DetectorName
 from ..core.types import DetectorResult
 from ..features.extractor import FeatureFrame
-from ..mavlink.codec import command_name_from_id
+from ..mavlink.codec import command_name_from_id as _command_name_from_id
 from .base import Detector, ramp
+
+# the MAV_CMD id -> name table is static, but the lookup scans ``dir(mavlink)`` (~0.3 ms): memoise it
+command_name_from_id = lru_cache(maxsize=1024)(_command_name_from_id)
 
 _NEVER_SEEN_S = 999.0  # FeatureExtractor sentinel age for "no such message received yet"
 

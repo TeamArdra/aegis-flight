@@ -303,36 +303,40 @@ class InlineIpsBridge:
         if not frames:
             return 0
         n = 0
-        hook = self.policy.down if direction == "down" else self.policy.up
-        dest = self.gcs if direction == "down" else self.fc
+        down = direction == "down"
+        policy = self.policy
+        hook = policy.down if down else policy.up
+        send = (self.gcs if down else self.fc).send
+        tap_push = self.tap.push
+        lat_append = self._lat_us.append
+        perf_ns = time.perf_counter_ns
         for fr in frames:
-            if direction == "up" and fr.msgid == 76 and (req := is_mgmt_command(fr.raw)) is not None:
+            if not down and fr.msgid == 76 and (req := is_mgmt_command(fr.raw)) is not None:
                 self.mgmt.handle_command(fr.raw, req)  # consumed: never forwarded to the FC, never tapped
                 n += 1
                 continue
-            t0 = time.perf_counter_ns()
-            self.tap.push(stamp, fr.raw)  # the detectors always see the original
-            ctx = FrameContext(direction=direction, raw=fr.raw, recv_ns=stamp, sysid=fr.sysid,  # type: ignore[arg-type]
-                               compid=fr.compid, seq=fr.seq, msgid=fr.msgid, signed=fr.signed)
+            t0 = perf_ns()
+            tap_push(stamp, fr.raw)  # the detectors always see the original
+            ctx = FrameContext(direction, fr.raw, stamp, fr.sysid, fr.compid, fr.seq, fr.msgid, fr.signed)  # type: ignore[arg-type]
             try:
                 out = hook(ctx)
             except Exception:  # noqa: BLE001 - never stop forwarding
-                self.policy.hook_errors += 1
+                policy.hook_errors += 1
                 out = [fr.raw]
-            if direction == "down":
+            if down:
                 self.frames_down += 1
             else:
                 self.frames_up += 1
             if not out:
-                if direction == "down":
+                if down:
                     self.dropped_down += 1
                 else:
                     self.dropped_up += 1
                 with contextlib.suppress(Exception):
                     self.mgmt.note_drop(drop_label(fr.raw, fr.sysid, fr.msgid, direction))
             for raw in out:
-                if dest.send(raw):
-                    if direction == "down":
+                if send(raw):
+                    if down:
                         self.forwarded_down += 1
                         if fr.msgid == GPI_MSGID:
                             self._last_gpi = raw
@@ -340,7 +344,7 @@ class InlineIpsBridge:
                         self.forwarded_up += 1
                 else:
                     self.send_failures += 1
-            self._lat_us.append((time.perf_counter_ns() - t0) / 1000.0)
+            lat_append((perf_ns() - t0) / 1000.0)
             n += 1
         return n
 

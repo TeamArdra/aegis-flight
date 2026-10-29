@@ -117,6 +117,19 @@ def _payload(raw: bytes, signed_len: int = 0) -> bytes | None:
     return None
 
 
+_ZEROS40 = bytes(40)
+
+
+def _payload_crc32(raw: bytes) -> int:
+    """``zlib.crc32(_payload(raw) or raw)`` without building the zero-padded copy (CRC-32 chains over the padding)."""
+    if raw:
+        if raw[0] == _V2 and len(raw) >= 12:
+            return zlib.crc32(_ZEROS40, zlib.crc32(raw[10:10 + raw[1]]))
+        if raw[0] == _V1 and len(raw) >= 8:
+            return zlib.crc32(_ZEROS40, zlib.crc32(raw[6:6 + raw[1]]))
+    return zlib.crc32(raw)
+
+
 def _command(raw: bytes, msgid: int) -> tuple[int, float, float] | None:
     """``(command, param1, param2)`` of a COMMAND_LONG / COMMAND_INT frame."""
     p = _payload(raw)
@@ -428,7 +441,8 @@ class InlinePolicy:
     def _observe_dual(self, ctx: FrameContext) -> None:
         """Same (sysid, compid) and same seq but a different payload within 2 s: two transmitters share the identity."""
         key = (ctx.sysid, ctx.compid)
-        h = zlib.crc32(_payload(ctx.raw) or ctx.raw)
+        h = _payload_crc32(ctx.raw)
+        seq = ctx.seq
         now = self._clock()
         with self._lock:
             ring = self._recent.get(key)
@@ -436,8 +450,12 @@ class InlinePolicy:
                 if len(self._recent) >= 256:
                     self._recent.pop(next(iter(self._recent)))
                 ring = self._recent[key] = deque(maxlen=32)
-            hit = any(now - t <= 2.0 and s == ctx.seq and ph != h for t, s, ph in ring)
-            ring.append((now, ctx.seq, h))
+            hit = False
+            for t, s, ph in ring:
+                if s == seq and ph != h and now - t <= 2.0:
+                    hit = True
+                    break
+            ring.append((now, seq, h))
             if not hit:
                 return
             was = now < self._contested_until.get(key, 0.0)

@@ -22,6 +22,7 @@ Missing/incompatible model => the detector degrades to a no-op (score 0).
 from __future__ import annotations
 
 import math
+from operator import attrgetter
 from pathlib import Path
 
 import joblib
@@ -58,12 +59,120 @@ def combined_anomaly_raw(bundle: dict, X: np.ndarray) -> np.ndarray:
     Xs = scaler.transform(X)
 
     iso = -model.score_samples(Xs)  # higher => more anomalous
+    return _combine(bundle, iso, Xs)
+
+
+def _combine(bundle: dict, iso: np.ndarray, Xs: np.ndarray) -> np.ndarray:
+    """``max(iso_z, maha_z)`` from the Isolation-Forest score and the standardised rows."""
     iso_z = (iso - bundle["iso_mean"]) / max(1e-9, bundle["iso_std"])
 
     maha = np.linalg.norm(Xs, axis=1)  # scaled features are z-scores
     maha_z = (maha - bundle["maha_mean"]) / max(1e-9, bundle["maha_std"])
 
     return np.maximum(iso_z, maha_z)
+
+
+class _FastScorer:
+    """Single-row replica of ``StandardScaler.transform`` + ``IsolationForest.score_samples``.
+
+    ``score_samples`` on one row costs ~12 ms (joblib dispatch, per-tree validation, warning
+    context managers); this walks the same fitted trees directly. It is bit-identical by
+    construction (same float32 cast of the input, same ``<=`` threshold test, the per-leaf
+    ``decision_path_length + average_path_length - 1.0`` terms taken from the fitted model and
+    added left to right in tree order, the same numpy ``divide`` / ``2 **`` finish) and is
+    verified against the real sklearn call on probe rows before first use (:func:`_fast_scorer`);
+    a mismatch, an unknown model layout or a non-finite input falls back to sklearn.
+    """
+
+    def __init__(self, model, scaler) -> None:
+        n_feat = int(model.n_features_in_)
+        if model._max_features != n_feat:
+            raise ValueError("feature subsampling")
+        self.mean = np.asarray(scaler.mean_, dtype=np.float64)
+        self.scale = np.asarray(scaler.scale_, dtype=np.float64)
+        if not (scaler.with_mean and scaler.with_std) or self.mean.shape != (n_feat,):
+            raise ValueError("scaler layout")
+        from sklearn.ensemble._iforest import _average_path_length  # noqa: PLC0415
+
+        # flat node tables of all trees (plain lists: ~25k nodes for 200 trees, ~3 MB; typed arrays
+        # would save ~2 MB but made the walk ~30 % slower)
+        feat: list[int] = []
+        thr: list[float] = []
+        left: list[int] = []
+        right: list[int] = []
+        val: list[float] = []
+        roots: list[int] = []
+        off = 0
+        for i, est in enumerate(model.estimators_):
+            t = est.tree_
+            contrib = model._decision_path_lengths[i] + model._average_path_length_per_tree[i] - 1.0
+            roots.append(off)
+            feat += t.feature.tolist()
+            thr += t.threshold.tolist()
+            left += [(-1 if c == -1 else c + off) for c in t.children_left.tolist()]
+            right += [(-1 if c == -1 else c + off) for c in t.children_right.tolist()]
+            val += np.asarray(contrib, dtype=np.float64).tolist()
+            off += t.node_count
+        self.feat, self.thr, self.left, self.right, self.val = feat, thr, left, right, val
+        self.roots = roots
+        self.n_feat = n_feat
+        self.denominator = len(model.estimators_) * _average_path_length([model._max_samples])
+
+    def transform(self, vec: np.ndarray) -> np.ndarray:
+        return (vec - self.mean) / self.scale
+
+    def iso(self, Xs: np.ndarray) -> np.ndarray | None:
+        """``-model.score_samples(Xs)`` for one row (shape (1, n)); None if not finite in float32."""
+        x32 = Xs.astype(np.float32)
+        if not np.isfinite(x32).all():
+            return None
+        x = x32[0].tolist()
+        feat, thr, left, right, val = self.feat, self.thr, self.left, self.right, self.val
+        total = 0.0
+        for n in self.roots:
+            while True:
+                lc = left[n]
+                if lc < 0:
+                    break
+                n = lc if x[feat[n]] <= thr[n] else right[n]
+            total += val[n]
+        depths = np.array([total])
+        scores = 2 ** (-np.divide(depths, self.denominator, out=np.ones_like(depths),
+                                  where=self.denominator != 0))
+        return scores  # == -(-scores): sklearn returns -scores and the caller negates it
+
+
+_FAST_CACHE: dict[tuple, _FastScorer | None] = {}
+
+
+def _fast_scorer(path: Path | None, bundle: dict) -> _FastScorer | None:
+    """The verified fast scorer for this model file (built once per process), else None."""
+    try:
+        st = path.stat() if path is not None else None
+        key = (str(path.resolve()), st.st_mtime_ns, st.st_size) if st is not None else None
+    except OSError:
+        key = None
+    if key is not None and key in _FAST_CACHE:
+        return _FAST_CACHE[key]
+    fast: _FastScorer | None
+    try:
+        fast = _FastScorer(bundle["model"], bundle["scaler"])
+        rs = np.random.RandomState(20261029)
+        probes = [rs.randn(1, fast.n_feat) * k for k in (0.5, 1.0, 1.0, 2.0, 3.0, 5.0, 10.0, 40.0)]
+        probes += [fast.mean[None, :] + rs.randn(1, fast.n_feat) * fast.scale * 2.0 for _ in range(4)]
+        probes.append(np.zeros((1, fast.n_feat)))
+        for raw in probes:
+            xs = bundle["scaler"].transform(raw)
+            iso = fast.iso(xs)
+            if (iso is None or not np.array_equal(xs, fast.transform(raw))
+                    or not np.array_equal(iso, -bundle["model"].score_samples(xs))):
+                fast = None
+                break
+    except Exception:  # noqa: BLE001 - any unexpected model layout => stay on the sklearn path
+        fast = None
+    if key is not None:
+        _FAST_CACHE[key] = fast
+    return fast
 
 
 class AnomalyDetector(Detector):
@@ -83,11 +192,17 @@ class AnomalyDetector(Detector):
         self.model_path = path
         self.bundle: dict | None = None
         self._ticks = 0
+        self._fast: _FastScorer | None = None
+        self._fast_bundle: dict | None = None
+        self._get_features = attrgetter(*ML_FEATURES)
         if path is not None and path.exists():
             try:
                 self.bundle = joblib.load(path)
             except Exception:  # noqa: BLE001 - corrupt/incompatible model => degrade
                 self.bundle = None
+            else:
+                self._fast = _fast_scorer(path, self.bundle)
+                self._fast_bundle = self.bundle
 
     @property
     def available(self) -> bool:
@@ -104,14 +219,25 @@ class AnomalyDetector(Detector):
 
         thr = self.bundle["score_thr"]
         scale = self.bundle["score_scale"]
-        vec = np.array([[float(getattr(frame, n)) for n in ML_FEATURES]])
-        raw = float(combined_anomaly_raw(self.bundle, vec)[0])
+        vec = np.array([[float(v) for v in self._get_features(frame)]])
+        fast = self._fast if self._fast_bundle is self.bundle else None
+        iso = Xs = None
+        if fast is not None and np.isfinite(vec).all():
+            Xs = fast.transform(vec)
+            iso = fast.iso(Xs)
+        if iso is not None:
+            raw = float(_combine(self.bundle, iso, Xs)[0])
+            z = Xs[0]
+        else:
+            raw = float(combined_anomaly_raw(self.bundle, vec)[0])
+            z = None
         norm = 1.0 / (1.0 + math.exp(-(raw - thr) / max(1e-6, scale)))
         signals["anomaly_raw"] = raw
         signals["anomaly_score"] = norm
 
         # Attribute to the most-deviating standardised feature.
-        z = self.bundle["scaler"].transform(vec)[0]
+        if z is None:
+            z = self.bundle["scaler"].transform(vec)[0]
         idx = int(np.argmax(np.abs(z)))
         top_feat = ML_FEATURES[idx]
         attack = FEATURE_ATTACK_MAP.get(top_feat, AttackType.GPS_SPOOFING)
