@@ -29,19 +29,26 @@ import tty
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+FLIGHT_KEY = bytes(range(32))  # throwaway test keys, never real ones
+MGMT_KEY = bytes(range(1, 33))
 sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(REPO / "scripts"))
 
 
-def _emulators(master_a: int, master_b: int, seconds: float, mult: float, q) -> None:
+def _emulators(master_a: int, master_b: int, seconds: float, mult: float, q, signing: bool = False, mgmt: bool = False) -> None:
     from pymavlink.dialects.v20 import common as mav2
 
     import make_golden as mg
+    from aegisflight.hal.mgmt_channel import build_command_frame, decode_mgmt_frame
+    from aegisflight.mavlink.signing import MavlinkSignatureVerifier
     from aegisflight.proxy.transport import split_frames
 
     frames = mg.gen_stream("benign", 5, 70.0)
     stop = threading.Event()
-    counts = {"fc_sent": 0, "gcs_rx": 0, "gcs_sent": 0, "fc_rx": 0}
+    counts = {"fc_sent": 0, "gcs_rx": 0, "gcs_sent": 0, "fc_rx": 0, "mgmt_status": 0, "mgmt_text": 0, "mgmt_ack_ok": 0,
+              "mgmt_ack_other": 0, "mgmt_bytes": 0, "mgmt_cmds_sent": 0}
+    flight_signer = MavlinkSignatureVerifier(FLIGHT_KEY) if signing else None
+    mgmt_signer = MavlinkSignatureVerifier(MGMT_KEY)
 
     def fc_writer() -> None:
         t0 = time.monotonic()
@@ -63,7 +70,20 @@ def _emulators(master_a: int, master_b: int, seconds: float, mult: float, q) -> 
             except OSError:
                 return
             # frames the bridge itself adds toward the GCS (alerts, status, cross-end summary) come from comp 191/192
-            counts[key] += sum(1 for fr in split_frames(data, 4096)[0] if fr.compid not in (191, 192))
+            for fr in split_frames(data, 4096)[0]:
+                if fr.compid in (191, 192):
+                    if key == "gcs_rx":
+                        counts["mgmt_bytes"] += len(fr.raw)
+                        d = decode_mgmt_frame(fr.raw)
+                        if d is not None:
+                            if d["kind"] == "status":
+                                counts["mgmt_status"] += 1
+                            elif d["kind"] == "text":
+                                counts["mgmt_text"] += 1
+                            elif d["kind"] == "ack":
+                                counts["mgmt_ack_ok" if d["result"] == 0 else "mgmt_ack_other"] += 1
+                else:
+                    counts[key] += 1
 
     def gcs_writer() -> None:
         enc = mav2.MAVLink(None, srcSystem=255, srcComponent=190)
@@ -78,8 +98,15 @@ def _emulators(master_a: int, master_b: int, seconds: float, mult: float, q) -> 
             if k % 10 == 5:
                 cmd = enc.command_long_encode(1, 1, 176, 0, 1, 5, 0, 0, 0, 0, 0).pack(enc)
                 enc.seq = (enc.seq + 1) % 256
-                os.write(master_b, bytes(cmd))
+                cmd = bytes(cmd)
+                if flight_signer is not None:
+                    cmd = flight_signer.sign_frame(cmd, link_id=0)
+                os.write(master_b, cmd)
                 counts["gcs_sent"] += 1
+            if mgmt and k in (5, 15, 25):  # raise to advisory, raise to active-ips, then ask for a status now
+                op, posture = {5: (1, 1), 15: (1, 2), 25: (3, 0)}[k]
+                os.write(master_b, build_command_frame(MGMT_KEY, op, posture, allow_unsigned=not signing, signer=mgmt_signer))
+                counts["mgmt_cmds_sent"] += 1
             k += 1
 
     threads = [threading.Thread(target=f, daemon=True) for f in (fc_writer, gcs_writer)]
@@ -98,6 +125,8 @@ def main() -> int:
     ap.add_argument("--seconds", type=float, default=60.0)
     ap.add_argument("--rate-mult", type=float, default=5.0)
     ap.add_argument("--mode", choices=["passive", "advisory", "active-ips"], default="active-ips")
+    ap.add_argument("--signing", action="store_true", help="flight-link signing: the bridge verifies signed GCS commands")
+    ap.add_argument("--mgmt", action="store_true", help="management channel control: signed posture commands from the GCS side")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
 
@@ -114,10 +143,11 @@ def main() -> int:
     gcs = SerialMavlinkTransport(os.ttyname(slave_b), baudrate=115200, accept_unverified_ids=True)
     ctx = mp.get_context("fork")
     q = ctx.Queue()
-    child = ctx.Process(target=_emulators, args=(master_a, master_b, a.seconds, a.rate_mult, q))
+    child = ctx.Process(target=_emulators, args=(master_a, master_b, a.seconds, a.rate_mult, q, a.signing, a.mgmt))
     fc.start()
     gcs.start()
-    bridge = InlineIpsBridge(fc, gcs, mode=a.mode)
+    bridge = InlineIpsBridge(fc, gcs, mode=a.mode, secret_key=FLIGHT_KEY if a.signing else None,
+                             mgmt_key=MGMT_KEY if a.mgmt else None)
     bridge.start()
     proc = psutil.Process()
     cpu0, wall0 = sum(proc.cpu_times()[:2]), time.monotonic()
@@ -144,6 +174,10 @@ def main() -> int:
         "analyser": {k: st["analyser"][k] for k in ("decisions", "alerts", "errors")},
         "policy": {k: v for k, v in st["policy"].items() if k.startswith(("dropped", "suspect", "contested", "resyncs", "hook"))},
         "bridge_dropped": {"down": st["frames"]["dropped_down"], "up": st["frames"]["dropped_up"]},
+        "management": {k: counts[k] for k in ("mgmt_cmds_sent", "mgmt_ack_ok", "mgmt_ack_other", "mgmt_status",
+                                               "mgmt_text")} | {"bytes_per_s": round(counts["mgmt_bytes"] / a.seconds, 1),
+                                                                "final_posture": st["mode"]},
+        "signing": a.signing,
         "tap_overflow": st["frames"]["tap_overflow"], "send_failures": st["frames"]["send_failures"],
     }
     print(json.dumps(res, indent=2))

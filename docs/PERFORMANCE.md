@@ -243,3 +243,10 @@ No frame was dropped by the bridge and the tap never overflowed. What this does 
 have no baud-rate pacing), a flight, the management channel and signing on the Pi, or any Pi other than a 3B+. A first soak
 showed apparent uplink drops and "contested sender" alarms; the cause was the test rig sending every frame with sequence
 number 0 (pymavlink's `pack()` does not advance the counter), which the bridge correctly treated as a replay. Fixed in the rig.
+
+**Pi 3B+ soak with signing and the management channel on** (`scripts/pi_soak.py --signing --mgmt`; throwaway test keys): 135
+frames/s for 60 s in `active-ips`: 0 frames lost either way, bridge CPU 32% of one core, 61 MiB, per-frame latency p50 / p95 / max
+183 / 379 / 3,371 us. Signed GCS commands were verified and forwarded (0 signature drops); management traffic on the radio side
+averaged 126 B/s including the cross-end summary (30 status messages and 44 alert/action texts in 60 s); 3 signed posture
+commands from the ground side were answered (a lowering from `active-ips` correctly asked for its second confirmation; the other
+two were accepted). Pseudo-terminals, a Pi 3B+, ML off: not a radio or flight test.
