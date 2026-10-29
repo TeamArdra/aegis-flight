@@ -54,6 +54,8 @@ class SourceSpec:
     defense_mode: str = "passive"
     # optional 32-byte MAVLink signing key file: authenticates the bridge cross-end summary (detectors/crossend.py)
     signing_key_file: str | None = None
+    # optional 32-byte MANAGEMENT key: enables sending the signed control command to the ips-bridge (hal/mgmt_channel.py)
+    mgmt_key_file: str | None = None
 
     def __post_init__(self) -> None:
         if self.kind not in KINDS:
@@ -129,6 +131,7 @@ class SourceSpec:
         if d.get("config_dir") and Path(d["config_dir"]).is_absolute():
             d["config_dir"] = Path(d["config_dir"]).name
         d["signing_key_file"] = bool(self.signing_key_file)  # never record a local path
+        d["mgmt_key_file"] = bool(self.mgmt_key_file)
         d.update(environment=self.environment, physical=self.physical, ml=self.ml_enabled)
         if self.kind == "serial" and self.physical:
             d["usb"] = serial_port_identity(self.port)
@@ -181,6 +184,7 @@ def spec_from_env(env: dict[str, str] | None = None) -> SourceSpec:
         gcs_notify_port=int(e.get("AEGIS_GCS_NOTIFY_PORT") or "14550"),
         defense_mode=e.get("AEGIS_DEFENSE_MODE", "passive") or "passive",
         signing_key_file=e.get("AEGIS_SIGNING_KEY_FILE") or None,
+        mgmt_key_file=e.get("AEGIS_MGMT_KEY_FILE") or None,
     )
 
 
@@ -213,10 +217,12 @@ class LiveFeed:
     own counters (``None`` for replay). ``close()`` stops the producer and closes the transport.
     """
 
-    def __init__(self, spec: SourceSpec, sample_rate_hz: float) -> None:
+    def __init__(self, spec: SourceSpec, sample_rate_hz: float,
+                 raw_tap: Callable[[list[tuple[int, bytes]]], None] | None = None) -> None:
         if spec.kind == "sim":
             raise ValueError("LiveFeed is for non-simulated sources")
         self.spec = spec
+        self.raw_tap = raw_tap  # sees every polled (stamp, bytes) batch of a live transport (management channel)
         self.rate = sample_rate_hz
         self.transport: Any = None
         self.source: Any = None
@@ -254,6 +260,20 @@ class LiveFeed:
                     if s.speed > 0:
                         time.sleep(dt / s.speed)
                     yield tick
+
+        if self.raw_tap is not None and self.transport is not None and hasattr(self.transport, "poll"):
+            orig_poll, tap = self.transport.poll, self.raw_tap
+
+            def tapped_poll() -> Any:
+                batch = orig_poll()
+                try:
+                    if batch:
+                        tap(batch)
+                except Exception:  # noqa: BLE001 - the tap never disturbs the IDS feed
+                    pass
+                return batch
+
+            self.transport.poll = tapped_poll
 
         def run() -> None:
             try:

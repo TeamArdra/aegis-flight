@@ -94,7 +94,7 @@ export default function App() {
         </section>
 
         {live.environment && live.environment !== "SIM" && <ChecksPanel checks={live.checks} />}
-        <BridgePanel url={bridge.url} st={bridge.st} bad={bridge.bad} setSt={bridge.setSt} />
+        <BridgePanel remote={live.bridgeRemote} url={bridge.url} st={bridge.st} bad={bridge.bad} setSt={bridge.setSt} />
 
         {/* 2. secondary: runtime performance · attack-vector coverage */}
         <section className="secondary">

@@ -186,6 +186,12 @@ class LiveEngine:
             from ..detectors.crossend import load_signing_key
             self._signing_key = load_signing_key(self.spec.signing_key_file)
         self.signing_configured = self._signing_key is not None
+        mgmt_key = None
+        if self.spec.mgmt_key_file:
+            from ..detectors.crossend import load_signing_key
+            mgmt_key = load_signing_key(self.spec.mgmt_key_file)
+        from .bridge_remote import BridgeRemote
+        self.bridge_remote = BridgeRemote(flight_key=self._signing_key, mgmt_key=mgmt_key)
         self.unsigned_acknowledged = False
         self.mitigation = MitigationController(mode=DefenseMode(self.spec.defense_mode), secret_key=self._signing_key)
         self._run_seq = 0
@@ -247,7 +253,8 @@ class LiveEngine:
             self._gen = self.source.stream()
         else:
             self.source = None
-            self.feed = LiveFeed(self.spec, 1.0 / self.dt)
+            self.feed = LiveFeed(self.spec, 1.0 / self.dt,
+                                 raw_tap=self.bridge_remote.feed_batch if self.spec.kind in ("serial", "udp") else None)
         self.store = EventStore(self.db_path)
         self.gcs_notifier = None
         if getattr(self.spec, "gcs_notify", False):
@@ -273,7 +280,8 @@ class LiveEngine:
             self._task = asyncio.create_task(self._loop())
             return
         if self.feed is None or self.feed.ended:
-            self.feed = LiveFeed(self.spec, 1.0 / self.dt)
+            self.feed = LiveFeed(self.spec, 1.0 / self.dt,
+                                 raw_tap=self.bridge_remote.feed_batch if self.spec.kind in ("serial", "udp") else None)
             self._feed_ended = False
         # Unbounded on purpose: a dropped tick would lose its frames and shift the tick-count decision
         # cadence. The producer thread hands each tick to this loop; nothing is ever dropped or reordered.
@@ -425,6 +433,27 @@ class LiveEngine:
                 self._last_mitigation_action.sanitize_alt = False
                 self._last_mitigation_action.ekf_switched = False
         return {"mode": self.mitigation.mode.value}
+
+    def control_writable(self) -> bool:
+        """True only for a live serial / UDP transport that can carry the management command (never SIM / replay)."""
+        return (self.spec.kind in ("serial", "udp") and self.feed is not None
+                and getattr(self.feed, "transport", None) is not None and not self.feed.ended)
+
+    def bridge_remote_info(self) -> dict:
+        return self.bridge_remote.snapshot(control_available=self.control_writable())
+
+    def send_bridge_posture(self, mode: str, allow_unsigned: bool = False, confirm: bool = False) -> dict:
+        """Build, sign and send the posture command on the live transport. The ACK updates ``last_command``."""
+        from ..hal.mgmt_channel import OP_SET_POSTURE
+        frame = self.bridge_remote.build_command(OP_SET_POSTURE, mode, allow_unsigned, confirm)
+        try:
+            ok = bool(self.feed.transport.send(frame))
+        except Exception:  # noqa: BLE001
+            ok = False
+        if not ok:
+            self.bridge_remote.mark_failed("could not write to the radio link")
+            return {"ok": False, "error": "send_failed"}
+        return {"ok": True, "pending": True}
 
     def topology_info(self) -> dict:
         """Detected topology (read-only): derived from the source and what the link has actually shown."""
@@ -989,6 +1018,7 @@ class LiveEngine:
             "topology": self.topology,
             "topology_reasons": self.topology_reasons,
             "topology_info": self.topology_info(),
+            "bridge_remote": self.bridge_remote_info(),
             "link": self.link_status(),
             "run_id": self._run_id,
             "t": round(t, 2),
@@ -1035,6 +1065,7 @@ class LiveEngine:
             "topology": self.topology,
             "topology_reasons": self.topology_reasons,
             "topology_info": self.topology_info(),
+            "bridge_remote": self.bridge_remote_info(),
             "mitigation": self._last_mitigation_action.to_dict() if self._last_mitigation_action else self._initial_mitigation_dict(),
             "link": self.link_status(),
             "sim_time_s": round(self._sim_t, 1),

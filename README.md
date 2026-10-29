@@ -386,6 +386,7 @@ Detailed technical specifications and engineering logs:
 - [**Threat Model Specification**](docs/THREAT_MODEL.md): threat model and attack taxonomy.
 - [**Red-team audit**](docs/REDTEAM_AUDIT_STAGE2.md): withdrawn self-assessment (reasons inside).
 - [**Inline IPS bridge**](docs/INLINE_IPS.md) — Topology B: filtering hostile frames before the autopilot.
+- [**In-band management channel**](docs/MGMT_CHANNEL.md) — alerts, status and signed posture control over the telemetry radio (150 B/s budget); [**minimal build**](docs/MINIMAL_BUILD.md) — FC + GPS + radio + cheap Pi (wiring options, risks; nothing measured on hardware).
 - [**Testing & Quality Assurance**](docs/TESTING.md) — Test taxonomy and verification methodology.
 - [**API & WebSocket Specification**](docs/API.md) — REST endpoints and telemetry schemas.
 

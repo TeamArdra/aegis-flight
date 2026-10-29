@@ -3,7 +3,7 @@ import { useEffect, useReducer, useRef } from "react";
 import { api, wsUrl } from "../services/api";
 import { acceptFix, nextOrigin, type LatLon } from "../lib/geo";
 import type {
-  AlertRow, DefenseMode, Checks, Environment, LinkStatus, Metrics, MitigationInfo, SourceInfo, Telemetry, Threat, TopologyInfo, Update,
+  AlertRow, BridgeRemote, DefenseMode, Checks, Environment, LinkStatus, Metrics, MitigationInfo, SourceInfo, Telemetry, Threat, TopologyInfo, Update,
 } from "../types";
 
 export interface LiveState {
@@ -16,6 +16,7 @@ export interface LiveState {
   link: LinkStatus | null;
   runId: string | null;
   checks: Checks | null; // null for SIM
+  bridgeRemote: BridgeRemote | null; // in-band bridge report over the radio
   origin: LatLon | null; // first valid fix of the current run (local-frame origin)
   eventsCount: number | null; // persisted alerts of the current run
   updateAgeS: number | null; // seconds since the last WebSocket update (backend freshness)
@@ -49,6 +50,7 @@ interface ReducerState {
   link: LinkStatus | null;
   runId: string | null;
   checks: Checks | null;
+  bridgeRemote: BridgeRemote | null;
   origin: LatLon | null;
   eventsCount: number | null;
   lastUpdate: number | null;
@@ -79,6 +81,7 @@ const initialState: ReducerState = {
   link: null,
   runId: null,
   checks: null,
+  bridgeRemote: null,
   origin: null,
   eventsCount: null,
   lastUpdate: null,
@@ -127,6 +130,7 @@ function liveReducer(state: ReducerState, action: Action): ReducerState {
         signing: st?.signing ?? state.signing,
         topologyInfo: st?.topology_info ?? state.topologyInfo,
         mitigation: st?.mitigation ?? state.mitigation,
+        bridgeRemote: st?.bridge_remote ?? state.bridgeRemote,
         link: st?.link && (last == null || Date.now() - last > 1000) ? st.link : state.link,
       };
     }
@@ -192,6 +196,7 @@ function liveReducer(state: ReducerState, action: Action): ReducerState {
         link: msg.link ?? state.link,
         runId: msg.run_id ?? state.runId,
         checks: msg.checks ?? null,
+        bridgeRemote: msg.bridge_remote ?? state.bridgeRemote,
         origin: org.origin,
         t: msg.t,
         telemetry: msg.telemetry,
@@ -301,6 +306,7 @@ export function useLiveData(): LiveState {
     link: state.link,
     runId: state.runId,
     checks: state.checks,
+    bridgeRemote: state.bridgeRemote,
     origin: state.origin,
     eventsCount: state.eventsCount,
     updateAgeS: last == null ? null : Math.max(0, (state.now - last) / 1000),

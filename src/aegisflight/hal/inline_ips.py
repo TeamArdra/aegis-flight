@@ -17,8 +17,12 @@ Design rules
   (``InlinePolicy.dynamic_ttl_s``), so a stalled analyser means transparent forwarding.
 * The detectors see the ORIGINAL frames (before any drop or rewrite), so an attack is still detected
   while it is being filtered.
-* ``PASSIVE`` / ``ADVISORY`` forward every frame byte-identically; only ``ACTIVE_IPS`` enforces. ADVISORY
-  sends nothing to the vehicle either; STATUSTEXT goes to the GCS side only.
+* ``PASSIVE`` / ``ADVISORY`` forward every frame byte-identically; only ``ACTIVE_IPS`` enforces. Neither ever
+  sends anything to the vehicle: the controller's counter-frames (including its own STATUSTEXT) are sent only in
+  ``ACTIVE_IPS``. In EVERY posture the bridge does send, to the GCS side only, the cross-end summary and the in-band
+  management traffic (alert / action STATUSTEXTs, a compact status MEMORY_VECT, COMMAND_ACKs; ``hal/mgmt_channel.py``),
+  and it CONSUMES the signed management control frames (COMMAND_LONG MAV_CMD_USER_1 to component 191) coming from the
+  GCS instead of forwarding them to the vehicle: the only uplink frames it ever withholds in PASSIVE / ADVISORY.
 * Unframeable bytes are dropped by the transports (counted there); no valid frame is altered unless a rule fires.
 * A hook exception forwards the original frame (fail-open, counted in ``policy.hook_errors``).
 
@@ -48,7 +52,6 @@ from ..detectors.crossend import (
     gpi_from_frame,
     pack_summary,
 )
-from ..mavlink.signing import MavlinkSignatureVerifier
 from ..mitigation.actuator import MavlinkActuator
 from ..mitigation.controller import MitigationController
 from ..mitigation.inline_policy import InlinePolicy
@@ -57,6 +60,7 @@ from ..pipeline import IDSPipeline
 from ..proxy.hooks import FrameContext
 from ..proxy.transport import split_frames
 from ..sources.mavlink_live import LiveMavlinkSource
+from .mgmt_channel import FrameSender, MgmtChannel, drop_label, is_mgmt_command
 
 
 class BridgeTransport(Protocol):
@@ -128,6 +132,16 @@ class InlineIpsBridge:
         contested_policy: str = "alert",
         replay_memory: int = 4096,
         on_alarm: Callable[[str], None] | None = None,
+        gcs_alerts: bool = True,
+        alert_min_interval_s: float = 2.0,
+        mgmt_status_interval_s: float = 2.0,
+        mgmt_max_bytes_per_s: float = 150.0,
+        mgmt_key: bytes | None = None,
+        mgmt_state_path: str | None = None,
+        lock_posture_file: str | None = None,
+        audit_log_path: str | None = None,
+        unsigned_acknowledged: bool = False,
+        mgmt_clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.fc, self.gcs = fc, gcs
         self._secret_key = secret_key
@@ -162,10 +176,19 @@ class InlineIpsBridge:
         self._last_gpi: bytes | None = None
         self._last_gpi_sent: bytes | None = None
         self._crossend_next_ns = 0
-        self._crossend_enc = mav2.MAVLink(None, srcSystem=1, srcComponent=191)
-        self._crossend_enc.robust_parsing = True
-        self._crossend_signer = MavlinkSignatureVerifier(secret_key) if secret_key is not None else None
+        # ONE encoder / sequence counter / signer for the whole sysid 1 compid 191 stream (cross-end + management)
+        self._sender = FrameSender(secret_key)
         self.crossend_sent = 0
+        self.unsigned_acknowledged = bool(unsigned_acknowledged)
+        self._last_analyse_wall: float | None = None
+        self._seen_action: dict[str, Any] | None = None
+        vsys = vehicle_sysids if vehicle_sysids is not None else tuple(proto.get("expected_sysids", (1,)))
+        self.mgmt = MgmtChannel(
+            self.gcs.send, self._sender, self, alerts_enabled=gcs_alerts, alert_min_interval_s=alert_min_interval_s,
+            status_interval_s=mgmt_status_interval_s, max_bytes_per_s=mgmt_max_bytes_per_s, mgmt_key=mgmt_key,
+            flight_signing=secret_key is not None, vehicle_sysid=vsys[0],
+            state_path=mgmt_state_path, audit_path=audit_log_path, lock_posture_file=lock_posture_file,
+            clock=mgmt_clock)
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
         self._source: LiveMavlinkSource | None = None
@@ -212,10 +235,44 @@ class InlineIpsBridge:
     def __exit__(self, *exc: object) -> None:
         self.close()
 
-    def set_mode(self, mode: DefenseMode | str) -> None:
+    def set_mode(self, mode: DefenseMode | str, origin: str = "local") -> None:
         """Operator posture change. Leaving ACTIVE_IPS clears every enforcement state at once."""
+        before = self.controller.mode
         self.controller.set_mode(mode)
         self.policy.set_enforce(self.controller.mode == DefenseMode.ACTIVE_IPS)
+        if self.controller.mode != DefenseMode.ACTIVE_IPS:
+            self.unsigned_acknowledged = False
+        if self.controller.mode != before:
+            self.mgmt.posture_changed(self.controller.mode.value, origin)
+
+    # -- management channel host interface (hal/mgmt_channel.py) -------------- #
+
+    def mgmt_snapshot(self) -> dict[str, Any]:
+        def link_up(tr: Any, seen: int) -> bool:
+            c = getattr(tr, "connected", None)
+            return c if isinstance(c, bool) else seen > 0
+
+        st = self.policy.stats()
+        stalled = self._last_analyse_wall is not None and time.monotonic() - self._last_analyse_wall > 5.0
+        return {
+            "posture": self.controller.mode.value, "topology": "A+B", "state": self.controller.state.value,
+            "flags": {"signing": self._secret_key is not None,
+                      "analyser_ok": self.analyser_errors == 0 and not stalled,
+                      "fc_link": link_up(self.fc, self.frames_down), "gcs_link": link_up(self.gcs, self.frames_up),
+                      "contested": bool(st.get("contested_sources")), "unsigned_ack": self.unsigned_acknowledged},
+            "forwarded": self.forwarded_down + self.forwarded_up, "dropped_up": self.dropped_up,
+            "alerts": self.alerts, "counter_frames": self.counter_frames_sent, "hook_errors": self.policy.hook_errors}
+
+    def mgmt_set_posture(self, mode: str, allow_unsigned: bool) -> None:
+        self.set_mode(mode, origin="remote")
+        if DefenseMode(mode) == DefenseMode.ACTIVE_IPS and self._secret_key is None and allow_unsigned:
+            self.unsigned_acknowledged = True
+
+    def mgmt_ack_alarms(self) -> None:
+        pol = self.policy
+        with pol._lock:
+            pol._contested_until.clear()
+            pol._alarms.clear()
 
     # -- forwarding ---------------------------------------------------------- #
 
@@ -227,6 +284,7 @@ class InlineIpsBridge:
         for stamp, data in self.gcs.poll():
             n += self._handle(stamp, data, "up")
         self._send_alarms()
+        self.mgmt.service()
         return n
 
     def _send_alarms(self) -> None:
@@ -248,6 +306,10 @@ class InlineIpsBridge:
         hook = self.policy.down if direction == "down" else self.policy.up
         dest = self.gcs if direction == "down" else self.fc
         for fr in frames:
+            if direction == "up" and fr.msgid == 76 and (req := is_mgmt_command(fr.raw)) is not None:
+                self.mgmt.handle_command(fr.raw, req)  # consumed: never forwarded to the FC, never tapped
+                n += 1
+                continue
             t0 = time.perf_counter_ns()
             self.tap.push(stamp, fr.raw)  # the detectors always see the original
             ctx = FrameContext(direction=direction, raw=fr.raw, recv_ns=stamp, sysid=fr.sysid,  # type: ignore[arg-type]
@@ -266,6 +328,8 @@ class InlineIpsBridge:
                     self.dropped_down += 1
                 else:
                     self.dropped_up += 1
+                with contextlib.suppress(Exception):
+                    self.mgmt.note_drop(drop_label(fr.raw, fr.sysid, fr.msgid, direction))
             for raw in out:
                 if dest.send(raw):
                     if direction == "down":
@@ -294,6 +358,7 @@ class InlineIpsBridge:
 
     def analyse_tick(self, tick: Any) -> None:
         """Process one tick: detect, run the controller, push its state into the policy, send counter-frames."""
+        self._last_analyse_wall = time.monotonic()
         self.emit_crossend()
         assessment = self.pipeline.process_tick(tick)
         if assessment is None or self.pipeline.last_frame is None:
@@ -302,8 +367,12 @@ class InlineIpsBridge:
         act = self.controller.step(self.pipeline.last_frame, assessment)
         self.last_summary = act.summary
         self.policy.touch()
+        self._announce_actions()
         if assessment.is_alert:
             self.alerts += 1
+            rogue = getattr(getattr(act, "params", None), "rogue_sysids", ())
+            with contextlib.suppress(Exception):
+                self.mgmt.alert(assessment.attack_type.value, assessment.severity.value, rogue[0] if rogue else None)
             if self.store is not None:
                 with contextlib.suppress(Exception):
                     self.store.log_event(assessment, self.run_id)
@@ -316,6 +385,21 @@ class InlineIpsBridge:
                     self.counter_frames_sent += 1
                 else:
                     self.send_failures += 1
+
+    def _announce_actions(self) -> None:
+        """One short STATUSTEXT per NEW controller action (the history is capped: new entries are found by identity)."""
+        hist = getattr(self.controller, "action_history", None) or []
+        start = 0
+        if self._seen_action is not None:
+            for i in range(len(hist) - 1, -1, -1):
+                if hist[i] is self._seen_action:
+                    start = i + 1
+                    break
+        for entry in hist[start:]:
+            with contextlib.suppress(Exception):
+                self.mgmt.action(str(entry.get("tag", "")), str(entry.get("detail", "")))
+        if hist:
+            self._seen_action = hist[-1]
 
     def emit_crossend(self) -> bool:
         """Send ONE summary of the latest forwarded GLOBAL_POSITION_INT to the GCS transport (never the FC, never the
@@ -331,15 +415,13 @@ class InlineIpsBridge:
         if vals is None:
             return False
         self._last_gpi_sent = raw
-        self._crossend_enc.seq = self.crossend_sent % 256
-        msg = self._crossend_enc.memory_vect_encode(MARKER_ADDRESS, MARKER_VER, MARKER_TYPE,
-                                                    pack_summary(vals, self._secret_key))
-        frame = bytes(msg.pack(self._crossend_enc))
-        if self._crossend_signer is not None:
-            frame = self._crossend_signer.sign_frame(frame)
-        if self.gcs.send(frame):
-            self.crossend_sent += 1
-            return True
+        with self._sender.lock:
+            frame = self._sender.build(lambda e: e.memory_vect_encode(
+                MARKER_ADDRESS, MARKER_VER, MARKER_TYPE, pack_summary(vals, self._secret_key)))
+            if self.gcs.send(frame):
+                self._sender.commit()
+                self.crossend_sent += 1
+                return True
         self.send_failures += 1
         return False
 
@@ -379,6 +461,7 @@ class InlineIpsBridge:
                          "counter_frames_sent": self.counter_frames_sent, "alarms_sent": self.alarms_sent, "crossend_sent": self.crossend_sent, "summary": self.last_summary,
                          "ekf_secondary": self.controller.ekf_secondary_available},
             "last_error": self.last_error,
+            "mgmt": self.mgmt.stats(),
             "topology": self.topology_info(),
         }
 

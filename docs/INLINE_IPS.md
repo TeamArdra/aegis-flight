@@ -23,7 +23,7 @@ transports, and one run over real transports on loopback sockets).
 ## Postures
 | Posture | Behaviour |
 |---|---|
-| `passive` (default) / `advisory` | every frame is forwarded byte-identically in both directions; nothing is dropped or sent |
+| `passive` (default) / `advisory` | every frame is forwarded byte-identically in both directions; nothing is dropped and NOTHING is ever sent to the flight controller. The bridge does send, to the GCS side only, the cross-end summary and the in-band management traffic (STATUSTEXT alerts/actions, status MEMORY_VECT, COMMAND_ACKs, see below); the only uplink frames it withholds are the signed management commands addressed to it. `advisory` differs from `passive` only in posture label: there is no separate advisory STATUSTEXT path |
 | `active-ips` | static uplink rules + controller-driven downlink rules + counter-frames to the FC |
 
 The operator chooses the posture (`--defense-mode`, or `InlineIpsBridge.set_mode`); leaving `active-ips` clears all enforcement.
@@ -130,6 +130,15 @@ The dashboard does not offer a topology selector. `status()` (and `GET /status`)
 one). `uplink_visible` is true once frames were seen from the GCS side or the GCS link is connected;
 `can_block_frames` needs `active-ips` with both links up; `can_send_counter_commands` needs `active-ips` with the FC
 link up. A single-port `aegis serve` sidecar is reported as kind `A` (cannot block frames). See `docs/API.md`.
+
+## In-band management channel (radio)
+
+On a drone whose only link to the ground is the telemetry radio, the bridge also reports and takes signed controls over that
+radio with standard MAVLink 2 messages: every IDS alert and IPS action as a short `AEGIS:` STATUSTEXT, a 32-byte status
+MEMORY_VECT every 2 s, and signed `MAV_CMD_USER_1` posture commands answered by COMMAND_ACK, all under one byte budget
+(150 B/s default). Flags: `--gcs-alerts`, `--alert-min-interval`, `--mgmt-status-interval`, `--mgmt-max-bytes-per-s`,
+`--mgmt-key-file`, `--mgmt-state`, `--lock-posture-file`, `--audit-log`. `status()` carries a `mgmt` counters block. Full
+description: `docs/MGMT_CHANNEL.md`; wiring and limits: `docs/MINIMAL_BUILD.md`.
 
 ## Status endpoint
 

@@ -198,6 +198,7 @@ export interface Update {
   mitigation?: MitigationInfo;
   link: LinkStatus;
   checks?: Checks | null;
+  bridge_remote?: BridgeRemote | null;
   run_id: string;
   t: number;
   telemetry: Telemetry;
@@ -266,4 +267,24 @@ export interface Metrics {
   event_log: { count: number; chain_ok: boolean };
   ml_available: boolean;
   environment?: Environment;
+}
+
+// In-band bridge report decoded by the backend from the telemetry radio (bridge_remote in /api/status and WS updates).
+export type BridgeCommandResult = "accepted" | "denied" | "confirm_required" | "timeout" | "failed" | "pending";
+export interface BridgeRemote {
+  present: boolean;
+  age_s: number | null;
+  posture: DefenseMode | null;
+  topology: "A" | "A+B" | null;
+  state: string | null;
+  flags: {
+    signing: boolean; analyser_ok: boolean; fc_link: boolean; gcs_link: boolean;
+    contested: boolean; unsigned_ack: boolean; control_enabled: boolean;
+  };
+  counters: { forwarded: number; dropped_up: number; alerts: number; counter_frames: number; hook_errors: number };
+  last_alert: string | null;
+  last_action: string | null;
+  last_command: { op: string; result: BridgeCommandResult; detail: string; age_s: number } | null;
+  control_available: boolean;
+  recent: Array<{ t: number; text: string }>;
 }

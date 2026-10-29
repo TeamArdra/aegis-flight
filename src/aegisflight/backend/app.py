@@ -282,6 +282,35 @@ def set_defense_mode(payload: dict, request: Request) -> JSONResponse:
     return JSONResponse(content={"ok": True, **res})
 
 
+@app.post("/api/bridge/posture")
+def bridge_posture(payload: dict, request: Request) -> JSONResponse:
+    """Ask the remote ips-bridge (over the telemetry radio, in-band) to change its posture. Signed with the
+    management key; the answer arrives as a COMMAND_ACK and shows in ``bridge_remote.last_command``."""
+    if (auth_err := _require_control_auth(request)) is not None:
+        return auth_err
+    body = payload if isinstance(payload, dict) else {}
+    mode = body.get("mode")
+    if mode not in ("passive", "advisory", "active-ips"):
+        return JSONResponse(status_code=400, content={"ok": False, "error": f"unknown mode '{mode}'",
+                                                      "choices": ["passive", "advisory", "active-ips"]})
+    for k in ("allow_unsigned", "confirm"):
+        if body.get(k) is not None and not isinstance(body.get(k), bool):
+            return JSONResponse(status_code=400, content={"ok": False, "error": f"{k} must be a boolean"})
+    eng = get_engine()
+    if not eng.control_writable() or eng.bridge_remote.mgmt_key is None:
+        return JSONResponse(status_code=403, content={
+            "ok": False, "error": "control_unavailable",
+            "message": "needs a live serial/udp source and --mgmt-key-file; replay and simulation never send"})
+    allow_unsigned = body.get("allow_unsigned") is True
+    if mode == "active-ips" and not allow_unsigned and eng.bridge_remote.bridge_signing() is False:
+        return JSONResponse(status_code=409, content={
+            "ok": False, "error": "signing_required",
+            "message": "Unsigned links cannot stop a counter-tracking forger; provision a key and start with "
+                       "--signing-key-file, or acknowledge the risk to proceed unsigned."})
+    res = eng.send_bridge_posture(mode, allow_unsigned=allow_unsigned, confirm=body.get("confirm") is True)
+    return JSONResponse(status_code=200 if res.get("ok") else 502, content=res)
+
+
 @app.post("/api/defense/override")
 def defense_override(payload: dict, request: Request) -> JSONResponse:
     if (auth_err := _require_control_auth(request)) is not None:

@@ -156,14 +156,16 @@ def _cmd_serve(args: argparse.Namespace) -> int:
                           defense_mode=args.defense_mode,
                           gcs_notify=args.gcs_notify, gcs_notify_host=args.gcs_notify_host,
                           gcs_notify_port=args.gcs_notify_port,
-                          signing_key_file=getattr(args, "signing_key_file", None))
-        if spec.signing_key_file:
-            from ..detectors.crossend import load_signing_key
+                          signing_key_file=getattr(args, "signing_key_file", None),
+                          mgmt_key_file=getattr(args, "mgmt_key_file", None))
+        for flag, path in (("--signing-key-file", spec.signing_key_file), ("--mgmt-key-file", spec.mgmt_key_file)):
+            if path:
+                from ..detectors.crossend import load_signing_key
 
-            try:
-                load_signing_key(spec.signing_key_file)
-            except (OSError, ValueError, UnicodeDecodeError) as exc:
-                raise ValueError(f"bad --signing-key-file: {exc}") from exc
+                try:
+                    load_signing_key(path)
+                except (OSError, ValueError, UnicodeDecodeError) as exc:
+                    raise ValueError(f"bad {flag}: {exc}") from exc
     except ValueError as exc:
         print(f"aegis serve: {exc}", file=sys.stderr)
         return 2
@@ -186,6 +188,10 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         os.environ["AEGIS_SIGNING_KEY_FILE"] = spec.signing_key_file
     else:
         os.environ.pop("AEGIS_SIGNING_KEY_FILE", None)
+    if spec.mgmt_key_file:
+        os.environ["AEGIS_MGMT_KEY_FILE"] = spec.mgmt_key_file
+    else:
+        os.environ.pop("AEGIS_MGMT_KEY_FILE", None)
     print(f"aegis serve: source {spec.environment} ({spec.describe()['label']}) on http://{args.host}:{args.port}")
     uvicorn.run("aegisflight.backend.app:app", host=args.host, port=args.port, reload=args.reload)
     return 0
@@ -219,6 +225,16 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                 raise ValueError("key must be 32 bytes")
         except (OSError, ValueError, UnicodeDecodeError) as exc:
             print(f"aegis ips-bridge: bad --signing-key-file: {exc}", file=sys.stderr)
+            return 2
+    mgmt_key = None
+    if args.mgmt_key_file:
+        try:
+            raw = Path(args.mgmt_key_file).read_bytes()
+            mgmt_key = raw if len(raw) == 32 else bytes.fromhex(raw.decode("ascii").strip())
+            if len(mgmt_key) != 32:
+                raise ValueError("key must be 32 bytes")
+        except (OSError, ValueError, UnicodeDecodeError) as exc:
+            print(f"aegis ips-bridge: bad --mgmt-key-file: {exc}", file=sys.stderr)
             return 2
     if args.defense_mode == "active-ips" and key is None and not args.allow_unsigned:
         print("aegis ips-bridge: refusing --defense-mode active-ips without --signing-key-file: an unsigned link "
@@ -262,6 +278,12 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                              signing_max_age_s=args.signing_max_age_s, signing_state_path=args.signing_state,
                              ekf_secondary=args.ekf_secondary, crossend_interval_s=args.crossend_interval,
                              contested_policy=args.contested_policy, replay_memory=args.replay_memory,
+                             gcs_alerts=args.gcs_alerts == "on", alert_min_interval_s=args.alert_min_interval,
+                             mgmt_status_interval_s=args.mgmt_status_interval,
+                             mgmt_max_bytes_per_s=args.mgmt_max_bytes_per_s, mgmt_key=mgmt_key,
+                             mgmt_state_path=args.mgmt_state, lock_posture_file=args.lock_posture_file,
+                             audit_log_path=args.audit_log,
+                             unsigned_acknowledged=args.allow_unsigned and key is None and args.defense_mode == "active-ips",
                              on_alarm=lambda m: print(f"aegis ips-bridge: ALARM {m}", flush=True))
     fc.start()
     gcs.start()
@@ -363,6 +385,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="defense engine posture: passive (IDS only, zero bytes sent), advisory (GCS alerts), active-ips (autonomous mitigation)")
     sv.add_argument("--signing-key-file", default=None,
                     help="32-byte MAVLink-2 key (raw or 64 hex chars) used to authenticate the ips-bridge cross-end summary")
+    sv.add_argument("--mgmt-key-file", default=None,
+                    help="32-byte MANAGEMENT key (separate from the flight key): enables sending the signed in-band "
+                         "posture command to the ips-bridge over the radio (live serial/udp source only)")
     sv.set_defaults(func=_cmd_serve)
 
     ib = sub.add_parser("ips-bridge", help="inline IPS between a flight controller port and a GCS/radio port")
@@ -396,6 +421,20 @@ def build_parser() -> argparse.ArgumentParser:
                          "sensitive/control frames from that source in flight (can block the real pilot; forced disarm passes)")
     ib.add_argument("--replay-memory", type=int, default=4096,
                     help="unsigned link: number of forwarded sensitive frames remembered for the byte-identical replay filter")
+    ib.add_argument("--gcs-alerts", choices=["on", "off"], default="on",
+                    help="send IDS alerts / IPS actions as short AEGIS: STATUSTEXTs to the GCS side (never the FC)")
+    ib.add_argument("--alert-min-interval", type=float, default=2.0,
+                    help="at most one alert STATUSTEXT per attack type per this many seconds (escalations bypass)")
+    ib.add_argument("--mgmt-status-interval", type=float, default=2.0,
+                    help="seconds between compact status MEMORY_VECTs to the GCS side (0 = off)")
+    ib.add_argument("--mgmt-max-bytes-per-s", type=float, default=150.0,
+                    help="byte budget for ALL management traffic (alerts, actions, status, ACKs)")
+    ib.add_argument("--mgmt-key-file", default=None,
+                    help="32-byte MANAGEMENT key (raw or 64 hex), independent of the flight key; none = remote control disabled")
+    ib.add_argument("--mgmt-state", default=None, help="persisted anti-replay state of the management channel")
+    ib.add_argument("--lock-posture-file", default=None,
+                    help="while this file exists remote commands can only RAISE the posture (local override)")
+    ib.add_argument("--audit-log", default=None, help="hash-chained JSONL audit log of management commands")
     ib.add_argument("--config-dir", default=None)
     ib.add_argument("--db", default=None, help="log alerts to this SQLite hash-chain store")
     ib.add_argument("--seconds", type=float, default=None, help="run time (default: until Ctrl-C)")

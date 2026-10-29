@@ -236,6 +236,25 @@ thread that appends the alerts.
 - SIM data is a simulation. A BENCH source is receive-only bench telemetry, not
   flight data, and its alerts describe that link (see `docs/DETECTION.md`).
 
+## Remote bridge (`bridge_remote`, `POST /api/bridge/posture`)
+
+`GET /api/status` and every WebSocket update carry `bridge_remote`, decoded from the in-band management frames of the live
+radio stream (sysid 1, compid 191/192; `docs/MGMT_CHANNEL.md`):
+`{"present", "age_s", "posture", "topology", "state", "flags": {"signing", "analyser_ok", "fc_link", "gcs_link", "contested",
+"unsigned_ack", "control_enabled"}, "counters": {"forwarded", "dropped_up", "alerts", "counter_frames", "hook_errors"},
+"last_alert", "last_action", "last_command": {"op", "result": "accepted|denied|confirm_required|timeout|failed|pending",
+"detail", "age_s"} | null, "control_available", "recent": [{"t", "text"}] (last 20), "authenticated"}`. `present` is false (and the
+rest empty) for SIM, replay, or when nothing was heard for 10 s. `authenticated` is true only with `--signing-key-file`.
+
+`aegis serve --mgmt-key-file PATH` (32-byte key, separate from the flight key) enables control: `control_available` is true only
+with that key AND a live serial/udp transport. `POST /api/bridge/posture` body `{"mode": "passive|advisory|active-ips",
+"allow_unsigned"?: bool, "confirm"?: bool}` builds and signs the command, sends it on the live transport and returns
+`{"ok": true, "pending": true}`; the bridge's COMMAND_ACK updates `last_command`. Errors: `400` bad body, `403
+control_unavailable` (no management key, or replay/SIM/no transport), `409 signing_required` (same wording as
+`/api/defense/mode`; when the BRIDGE reports no signing key and `allow_unsigned` is not true), `502 send_failed`. Lowering from
+`active-ips` is two-step: the first call yields `last_command.result == "confirm_required"`, repeat with `"confirm": true`
+within 10 s. The usual origin / `AEGIS_API_TOKEN` checks apply.
+
 ## Signing gate (`/api/defense/mode`)
 
 `GET /api/status` and every WebSocket update carry `signing: {"configured": bool}` (true when `aegis serve` got
