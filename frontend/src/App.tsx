@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { SettingsModal } from "./components/SettingsModal";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ControlPanel } from "./components/ControlPanel";
@@ -25,7 +25,11 @@ export default function App() {
   const chainOk = m?.event_log.chain_ok !== false;
   // every source label below comes from the backend's own report (environment + link state)
   const env = envView(live.environment);
-  const lv = linkView(live.link, live.connected, live.updateAgeS, live.environment);
+  const lv = useMemo(
+    () => linkView(live.link, live.connected, live.updateAgeS, live.environment),
+    [live.link, live.connected, live.updateAgeS, live.environment],
+  );
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
   useEffect(() => {
     document.title = `AegisFlight — UAV IDS (${env.badge})`;
   }, [env.badge]);
@@ -39,7 +43,7 @@ export default function App() {
         env={env}
         link={lv}
         defenseMode={live.defenseMode}
-        onSettings={() => setSettingsOpen(true)}
+        onSettings={openSettings}
       />
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       <SourceBar

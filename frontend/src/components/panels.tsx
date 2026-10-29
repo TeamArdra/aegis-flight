@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { DefenseMode, MitigationInfo, Telemetry, Threat } from "../types";
 import { THREAT_THRESHOLD } from "../lib/constants";
 import { classifyEvidence, SOURCE_LABEL, type EvidenceSource } from "../lib/evidence";
@@ -10,7 +11,7 @@ const DETECTOR_LABELS: Record<string, string> = {
 };
 
 /* ------------------------------------------------------------------ threat */
-export function ThreatPanel({ threat }: { threat: Threat | null }) {
+function ThreatPanelImpl({ threat }: { threat: Threat | null }) {
   const active = !!threat?.threat;
   const sev = active ? threat!.severity : "NORMAL";
   const score = threat?.threat_score ?? 0;
@@ -72,7 +73,7 @@ export function ThreatPanel({ threat }: { threat: Threat | null }) {
 }
 
 /* --------------------------------------------------------------- detectors */
-export function DetectorPanel({ threat }: { threat: Threat | null }) {
+function DetectorPanelImpl({ threat }: { threat: Threat | null }) {
   const scores = threat?.detector_scores ?? {};
   const keys = Object.keys(DETECTOR_LABELS);
   const max = Math.max(0, ...keys.map((k) => scores[k] ?? 0));
@@ -103,7 +104,7 @@ export function DetectorPanel({ threat }: { threat: Threat | null }) {
 }
 
 /* ---------------------------------------------------------------- evidence */
-export function EvidencePanel({ threat }: { threat: Threat | null }) {
+function EvidencePanelImpl({ threat }: { threat: Threat | null }) {
   const ev = threat?.threat ? threat.evidence : [];
 
   // Group evidence lines by their (derived) detector source for a forensic read.
@@ -153,7 +154,7 @@ function n(x: number | null | undefined, d = 1): string {
   return x == null ? "—" : x.toFixed(d);
 }
 
-export function TelemetryPanel({
+function TelemetryPanelImpl({
   tele,
   sanitized,
   note,
@@ -267,3 +268,9 @@ export function TelemetryPanel({
     </div>
   );
 }
+
+// memoised: the dashboard state changes at 10 Hz, these panels re-render only when their own props change
+export const ThreatPanel = memo(ThreatPanelImpl);
+export const DetectorPanel = memo(DetectorPanelImpl);
+export const EvidencePanel = memo(EvidencePanelImpl);
+export const TelemetryPanel = memo(TelemetryPanelImpl);

@@ -78,7 +78,7 @@ def main():
     console = mavutil.mavlink_connection("tcp:127.0.0.1:5760", source_system=254, source_component=190)
     console.wait_heartbeat(timeout=30)
     start([AEGIS, "ips-bridge", "--fc-port", "socket://127.0.0.1:5762", "--fc-baud", "115200",
-           "--gcs-port", "socket://127.0.0.1:5800", "--gcs-baud", "115200", "--allow-url", "--defense-mode", MODE,
+           "--gcs-port", "socket://127.0.0.1:5800", "--gcs-baud", "115200", "--allow-url", "--allow-unsigned", "--defense-mode", MODE,
            "--config-dir", CFG, "--status-port", "8090", "--db", f"{D}/gpsbridge_{LABEL}.sqlite",
            "--seconds", "400"], "bridge")
     time.sleep(4)

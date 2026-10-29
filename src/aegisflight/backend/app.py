@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import contextlib
 import hmac
+import json
 import math
 import os
 import re
@@ -337,6 +338,23 @@ def get_topology() -> dict:
 # --------------------------------------------------------------------------- #
 # WebSocket — live telemetry + threat stream
 # --------------------------------------------------------------------------- #
+_WS_TEXT_CACHE: list = [None, None]  # [last message object, its JSON text]: N clients share one serialisation
+
+
+def _ws_text(msg: object) -> str:
+    """Exactly what ``WebSocket.send_json`` would send, computed once per broadcast message object.
+
+    ``_broadcast`` puts the same dict into every subscriber queue and the engine never mutates it afterwards,
+    so the text is identical for every client (the cache holds the object itself, so its id cannot be reused).
+    """
+    c = _WS_TEXT_CACHE
+    if c[0] is msg:
+        return c[1]
+    text = json.dumps(msg, separators=(",", ":"), ensure_ascii=False)
+    c[0], c[1] = msg, text
+    return text
+
+
 @app.websocket("/ws/telemetry")
 async def ws_telemetry(ws: WebSocket) -> None:
     # CORS does not apply to WebSockets: refuse a browser Origin that is not this machine. No Origin
@@ -351,7 +369,7 @@ async def ws_telemetry(ws: WebSocket) -> None:
     try:
         while True:
             msg = await q.get()
-            await ws.send_json(msg)
+            await ws.send_text(_ws_text(msg))
     except WebSocketDisconnect:
         pass
     except Exception:  # noqa: BLE001 - client vanished mid-send

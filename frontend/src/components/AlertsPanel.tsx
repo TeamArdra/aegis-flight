@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import type { AlertRow } from "../types";
 import { sourcesOf, SOURCE_LABEL } from "../lib/evidence";
 import { api } from "../services/api";
 
 // `alerts`: the current run's alerts as persisted in the hash-chained event log (/api/events), newest first.
-export function AlertsPanel({ alerts, emptyText, count, environment }: {
+function AlertsPanelImpl({ alerts, emptyText, count, environment }: {
   alerts: AlertRow[];
   emptyText: string;
   count: number | null;
@@ -120,3 +120,6 @@ export function AlertsPanel({ alerts, emptyText, count, environment }: {
     </div>
   );
 }
+
+// memoised: the dashboard state changes at 10 Hz, these panels re-render only when their own props change
+export const AlertsPanel = memo(AlertsPanelImpl);

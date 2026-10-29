@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import { getBridgeToken, getBridgeUrl, setBridgePosture } from "../services/api";
 import { controlHint, signingText } from "../lib/posture";
 import { ActiveIpsDialog } from "./ActiveIpsDialog";
@@ -11,7 +11,7 @@ const POSTURES: DefenseMode[] = ["passive", "advisory", "active-ips"];
 const f = (v: number | null | undefined, d = 2) => (typeof v === "number" && Number.isFinite(v) ? v.toFixed(d) : "—");
 
 // Backend-computed checks for non-SIM sources (mission path, cross-end, receiver health).
-export function ChecksPanel({ checks }: { checks: Checks | null }) {
+function ChecksPanelImpl({ checks }: { checks: Checks | null }) {
   if (!checks) {
     return (
       <div className="panel" data-testid="checks-panel">
@@ -67,7 +67,7 @@ export function useBridge() {
 }
 
 // Prefers the in-band report (telemetry radio); falls back to the optional HTTP bridge URL.
-export function BridgePanel({ remote, url, st, bad, setSt }: { remote?: BridgeRemote | null; url: string | null; st: BridgeStatus | null; bad: boolean; setSt?: (s: BridgeStatus) => void }) {
+function BridgePanelImpl({ remote, url, st, bad, setSt }: { remote?: BridgeRemote | null; url: string | null; st: BridgeStatus | null; bad: boolean; setSt?: (s: BridgeStatus) => void }) {
   const src = selectBridgeSource(remote, url);
   if (src === "inband" && remote) return <InbandBridgePanel remote={remote} />;
   if (src === "http") return <HttpBridgePanel url={url} st={st} bad={bad} setSt={setSt} />;
@@ -146,3 +146,7 @@ function HttpBridgePanel({ url, st, bad, setSt }: { url: string | null; st: Brid
     </div>
   );
 }
+
+// memoised: the dashboard state changes at 10 Hz, these panels re-render only when their own props change
+export const ChecksPanel = memo(ChecksPanelImpl);
+export const BridgePanel = memo(BridgePanelImpl);

@@ -132,6 +132,7 @@ class LiveEngine:
                  model_path: str = "models/isoforest.joblib", spec: SourceSpec | None = None) -> None:
         self.spec = spec or SourceSpec()
         self.is_sim = self.spec.kind == "sim"
+        self._source_desc_base = self.spec.describe()  # SourceSpec is frozen
         self.cfg = cfg or load_config(self.spec.config_dir)
         self.cfg.simulation["duration_s"] = _LIVE_DURATION_S
         # ML: Stage-1 behaviour for SIM; never for real/replayed telemetry (SourceSpec refuses it)
@@ -975,7 +976,7 @@ class LiveEngine:
         }
 
     def _make_update(self, t: float, assessment) -> dict:
-        source_desc = dict(self.spec.describe())
+        source_desc = dict(self._source_desc_base)  # frozen spec: describe() is constant, built once
         source_desc["defense_mode"] = self.mitigation.mode.value
         raw_tele = self.pipeline._telemetry_dict()
         sanitized_tele = dict(raw_tele)

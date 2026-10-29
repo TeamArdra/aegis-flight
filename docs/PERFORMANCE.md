@@ -130,3 +130,72 @@ about 0.5 us); bypassing `FrameContext` for the passive policy (would not honour
 array-based latency ring (saves memory but makes every `append` a Python-level call, i.e. slower); management
 emission (dominated by pymavlink encoding and HMAC, off the per-frame path); inlining the framer scan loop (under 10 %
 for a harder-to-read loop). Management-channel files, `status_server.py` and `hooks.py` were not changed.
+
+## Dashboard
+
+Scope: `backend/engine.py`, `backend/app.py`, `frontend/`. Rule: no change in what the operator sees or in any number shown.
+
+Guard (recorded before any change): `tests/integration/test_dashboard_payload_guard.py` drives `LiveEngine._process` on a deterministic SIM run
+(attack, mode switch to active-ips, attack cleared; 441 updates) and a REPLAY of a SYNTHETIC tlog (fix loss; 400 updates), canonicalises every
+`update` exactly as `ws.send_json` does and checks a sha256 of the sequence plus explicit values. Only wall-clock leaves are masked
+(`run_id`, `threat.latency_ms`). `scripts/perf_bench_backend.py` measures per-tick `_process` / `_make_update`, JSON size and time, CPU and peak memory.
+
+Backend (400 ticks, min of 3): `_make_update` about 57-74 us before, 59-60 us after (the cached `SourceSpec.describe()` is within noise); JSON
+payload 3.7 kB (SIM) / 4.3 kB (REPLAY) per update, unchanged byte for byte. The per-tick cost is dominated by the pipeline, outside this scope.
+Real change: `/ws/telemetry` serialises each broadcast message once and shares the text between all connected clients (was one `json.dumps` of
+about 55-80 us per client per message); output identical to `send_json`. Skipped: slimmer "unchanged field" payloads (the frontend replaces
+whole sub-objects per message, and the contract must stay identical), caching topology / bridge_remote (age fields are time dependent, the
+saving is under 10 us), caching `MitigationAction.to_dict()` (the action is mutated in place by `set_defense_mode`).
+
+Frontend: sub-objects of each update (source, signing, topology, mitigation, link, checks, telemetry, threat) keep their previous reference when
+deeply equal (`lib/stable.ts`), history arrays are appended without copying when nothing is added (`grow`, same caps 400 / 240), the heavy
+panels are `React.memo`, the track projection is incremental (`projectTrackInc`, element-for-element equal to `projectTrack`) and MapPanel's
+path strings are memoised. A differential run of the old and new reducers over 6000 random updates gave identical JSON state; after the first
+update `source`, `signing`, `topologyInfo` and `mitigation` changed reference 0 more times (previously every update), so the panels that
+depend only on them stop re-rendering. Bundle: JS 235.72 kB (73.69 kB gzip) before, 237.72 kB (74.46 kB gzip) after (helpers + memo wrappers);
+CSS unchanged at 26.41 kB. No avoidable weight was found (React and ReactDOM dominate; no new dependencies).
+
+## SITL regression after performance work
+
+The detection and forwarding optimisations above (Isolation Forest scorer, extractor, X.25 CRC, framer, inline policy)
+were re-checked against ArduCopter SITL with the maintained harness in `scripts/ardupilot/inline_demo/`, one run per
+scenario, current code, same flights and attackers as the earlier evidence in `docs/INLINE_IPS.md` and
+`docs/MGMT_CHANNEL.md`. Guards `test_golden_equivalence.py` and `test_forwarding_equivalence.py` pass. No functional
+regression was found and no source file was changed.
+
+| Scenario | Earlier numbers | Now | |
+|---|---|---|---|
+| Unsigned: own-counter forged LAND | 10 dropped, no LAND | 10 dropped (`dropped_provenance`), no LAND | identical |
+| Unsigned: replay of captured SET_MODE | 3 dropped | 3 dropped | identical |
+| Unsigned: counter-tracking forger | passes (LAND reached FC), contested alarm | passes (LAND), 10 contested events, 1 alarm | identical |
+| Unsigned: pilot restart lock-out | 3.4 / 3.5 s, 1 resync | 3.7 s (second command), 1 resync | similar (+0.2 s, 1 s granularity of the pilot script) |
+| Unsigned: downlink dropped | 0 | 0 of 24,461 | identical |
+| Unsigned: totals | 206/204 forwarded, 15/16 `dropped_provenance` | 206 forwarded, 16 `dropped_provenance` | identical |
+| Signing: unsigned / wrong-key / replay dropped | 40 / 10 / 3 | 40 / 10 / 3 | identical |
+| Signing: signed pilot, uplink | 70 in, 17 forwarded, 53 dropped; `signed_ok` 16 | 70 / 17 / 53; `signed_ok` 16 | identical |
+| Signing: downlink / cross-end | 24,386 and 24,524 fwd, 0 dropped; 168-169 matched, 0 mismatches | 23,852 fwd, 0 dropped; 165 matched, 0 mismatches | identical (counts vary with flight length) |
+| Management: alert / blocked-action latency | 0.1-0.2 s / 0.7-0.8 s | 0.2 s / 0.7 s | identical within range |
+| Management: status age | 1.1-1.4 s | 1.0 s | identical |
+| Management: control (raise, confirm-lower, lock file, 5-frame lockout, rate limit), audit chain | as in MGMT_CHANNEL.md, 20 entries | same results, chain verified, 20 entries (4 posture, 7 accepted, 4 denied, 1 confirm, 3 ignored, 1 lockout) | identical |
+| Management: bandwidth, nominal / 18 s flood avg | 24 B/s / 133.5 B/s (peak 204-247) | 24.0 B/s / 141.5 B/s (peak 190) | within 150 B/s |
+| GPS glitch ~111 m, active-ips: first detection | +0.7 s | +0.5 s | same order |
+| GPS: CRITICAL | +12.7 s | +12.5 s | same |
+| GPS: ALT_HOLD | +3.9 s after fault (3.0 s after confirmation) | +3.75 s after fault | same; modes seen 0, 4, 2 only, no forbidden mode |
+| GPS: benign flight | no alert in flight (3 on the ground) | 3 alerts before takeoff, none after | identical |
+| Ground-side IDS (late-connecting `aegis serve`) | 1 alert (heading rule), 0 `DOS` | 0 events with the repo profile (management run); 1 and 4 heading-rule alerts with the old SITL profile; 0 `DOS` everywhere | no DOS storm |
+| Bridge per-frame latency p50 / p95 / max | 16 / 48 / 2,000 us | 42-66 / 176-312 / 4,000-6,400 us | slower, see below |
+
+Latency. `/status` `latency_us` is the time to forward one frame including socket sends, with the 20,000-sample ring. It
+is 2.6x to 4x the earlier figures in all three bridge runs. This is not attributed to the code: during these runs the
+host was shared with other work (dashboard benchmarking, browsers; a 14-31 % CPU load sample), and the same host ran
+`scripts/perf_bench_forwarding.py` about 40 % slower than the table above (bridge `_handle` down 5.5 us against 3.9-4.2
+us, management status emit 60 us against 42 us) with the same code. The `/status` figure is wall-clock inside a Python
+process competing with SITL, the hub, pilot, attacker and ground IDS processes, so it is sensitive to host load. It
+should be re-measured on an idle host before it is quoted.
+
+Harness note: `gps_response.py` predates the signing gate and did not pass `--allow-unsigned` for `active-ips`, so the
+bridge refused to start; the flag is now in the script (the gate itself is unchanged and working).
+
+What this does not show: single runs per scenario, a simulated autopilot, loopback with no radio loss or latency, a
+pymavlink pilot and attacker, one loaded Windows host, no real hardware and nothing on a Raspberry Pi. It shows
+equal counters and outcomes, not equal timing under load.
