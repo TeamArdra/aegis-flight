@@ -285,6 +285,9 @@ class InlinePolicy:
         self.observed_bad_signature = 0
         self.observed_replay = 0
         self._observed_pending: list[tuple[str, bytes, int, int]] = []
+        self.dropped_forged_down = 0
+        self.observed_forged_down = 0
+        self._down_signed: dict[tuple[int, int], int] = {}  # (sysid, compid) -> valid signed frames seen
         self.rewritten = 0
         self.hook_errors = 0
 
@@ -353,9 +356,44 @@ class InlinePolicy:
 
     # -- hooks --------------------------------------------------------------- #
 
+    SIGNED_SOURCE_MIN = 20  # valid signed frames before a source counts as "signs its frames"
+
+    def _down_forged(self, ctx: FrameContext) -> str | None:
+        """Signed link: a source that has been signing its frames and now sends an unsigned (or badly signed) one is a forgery.
+
+        The vehicle's own telemetry is signed on a signed link, so an attacker without the key (a man in the middle on the
+        flight-controller link, a rogue component) cannot produce frames that pass. A source is only judged after it was seen
+        signing, so links or components that never sign are left alone. Replayed-timestamp verdicts are ignored (reordering).
+        """
+        v = self._verifier
+        assert v is not None
+        src = (ctx.sysid, ctx.compid)
+        n = self._down_signed.get(src, 0)
+        if not ctx.signed:
+            return "unsigned" if n >= self.SIGNED_SOURCE_MIN else None
+        res = v.verify_frame(ctx.raw)
+        if res.valid:
+            if n < self.SIGNED_SOURCE_MIN + 5:
+                if len(self._down_signed) >= 256 and src not in self._down_signed:
+                    self._down_signed.pop(next(iter(self._down_signed)))
+                self._down_signed[src] = n + 1
+            return None
+        if n >= self.SIGNED_SOURCE_MIN and res.signed and not res.replayed:
+            return "bad_signature"
+        return None
+
     def down(self, ctx: FrameContext) -> list[bytes]:
         """FC -> GCS."""
         try:
+            if self._verifier is not None:
+                forged = self._down_forged(ctx)
+                if forged:
+                    if self.enforce:
+                        self.dropped_forged_down += 1
+                        return []  # never reaches the GCS and never feeds the learned vehicle state
+                    self.observed_forged_down += 1
+                    if len(self._observed_pending) < 64:
+                        self._observed_pending.append((forged, ctx.raw, ctx.sysid, ctx.msgid))
             self._learn_state(ctx)
             if not self.enforce or not self.dynamic_fresh or not self.sanitizer.active:
                 return [ctx.raw]
@@ -550,7 +588,8 @@ class InlinePolicy:
 
     def observed_stats(self) -> dict[str, int]:
         """Report-only signature verdicts (IDS / advisory postures); kept apart from stats() so the forwarding guard is untouched."""
-        return {"unsigned": self.observed_unsigned, "bad_signature": self.observed_bad_signature, "replay": self.observed_replay}
+        return {"unsigned": self.observed_unsigned, "bad_signature": self.observed_bad_signature, "replay": self.observed_replay,
+                "forged_down_observed": self.observed_forged_down, "forged_down_dropped": self.dropped_forged_down}
 
     def take_observed(self) -> list[tuple[str, bytes, int, int]]:
         """Pending report-only verdicts (``verdict, raw, sysid, msgid``), cleared on read. Forwarding thread only."""

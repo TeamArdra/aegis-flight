@@ -915,7 +915,7 @@ def test_ids_and_advisory_report_signing_failures_but_forward_everything(mode):
     b.pump_once()
     assert fc.sent == [unsigned, wrong_key, valid, valid]            # nothing dropped, nothing rewritten: the bridge only reports
     st = b.status()
-    assert st["signing_observed"] == {"unsigned": 1, "bad_signature": 1, "replay": 1}
+    assert st["signing_observed"] == {"unsigned": 1, "bad_signature": 1, "replay": 1, "forged_down_observed": 0, "forged_down_dropped": 0}
     assert st["frames"]["dropped_up"] == 0
     tx = texts(gcs)
     assert any(t.startswith("AEGIS: unsigned") and "sys66" in t for t in tx), tx
@@ -928,4 +928,46 @@ def test_active_ips_still_blocks_and_does_not_double_report():
     b, fc, gcs, clock = make_bridge(mode="active-ips", secret_key=KEY_F)
     gcs.feed(_forged_cmd(66))
     b.pump_once()
-    assert fc.sent == [] and b.status()["signing_observed"] == {"unsigned": 0, "bad_signature": 0, "replay": 0}
+    assert fc.sent == [] and b.status()["signing_observed"] == {"unsigned": 0, "bad_signature": 0, "replay": 0, "forged_down_observed": 0, "forged_down_dropped": 0}
+
+
+# --------------------------------------------------------------------------- #
+# forged vehicle telemetry on a signed link (man in the middle without the key)
+# --------------------------------------------------------------------------- #
+def _gpi(sysid: int = 1, comp: int = 1) -> bytes:
+    enc = mav2.MAVLink(None, srcSystem=sysid, srcComponent=comp)
+    return bytes(enc.global_position_int_encode(0, 129716000, 775946000, 920000, 30000, 0, 0, 0, 0).pack(enc))
+
+
+@pytest.mark.parametrize("mode", ["passive", "advisory", "active-ips"])
+def test_unsigned_telemetry_from_a_source_that_signs_is_a_forgery(mode):
+    b, fc, gcs, clock = make_bridge(mode=mode, secret_key=KEY_F)
+    good = MavlinkSignatureVerifier(KEY_F)
+    real = [good.sign_frame(_gpi(), link_id=1) for _ in range(25)]       # the vehicle signs its telemetry
+    fc.feed(*real)
+    b.pump_once()
+    assert gcs.sent[:25] == real                                           # genuine signed telemetry always passes
+    forged = _gpi()                                                        # same sysid / compid, no signature
+    stranger = _gpi(sysid=77)                                              # a source that never signed: left alone
+    wrong = MavlinkSignatureVerifier(WRONG).sign_frame(_gpi(), link_id=1)  # signed, but not with the link key
+    fc.feed(forged, stranger, wrong)
+    b.pump_once()
+    clock.t += 2.0
+    b.pump_once()
+    sent = gcs.sent
+    st = b.status()["signing_observed"]
+    assert stranger in sent
+    if mode == "active-ips":
+        assert forged not in sent and wrong not in sent and st["forged_down_dropped"] == 2
+        assert any(t.startswith("AEGIS: blocked down GLOBAL_POSITION_INT") for t in texts(gcs)), texts(gcs)
+    else:
+        assert forged in sent and wrong in sent and st["forged_down_observed"] == 2 and st["forged_down_dropped"] == 0
+        assert any(t.startswith("AEGIS: unsigned down GLOBAL_POSITION_INT") for t in texts(gcs)), texts(gcs)
+
+
+def test_link_that_never_signs_is_never_judged():
+    b, fc, gcs, clock = make_bridge(mode="active-ips", secret_key=KEY_F)
+    frames = [_gpi() for _ in range(40)]
+    fc.feed(*frames)
+    b.pump_once()
+    assert gcs.sent[:40] == frames
