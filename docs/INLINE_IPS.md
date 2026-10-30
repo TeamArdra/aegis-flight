@@ -378,7 +378,8 @@ latency are worst-case. Details: `docs/RADIO_TEST_RESULTS.md`, section "Pi 3B+ i
 | Battery step, +3 V | NOT detected (known limit) |
 | Frozen attitude at hover | NOT detected (needs speed above 2 m/s; known limit) |
 | One firmware byte flipped | FIRMWARE_INTEGRITY INVALID within about 5 s; pilot takeover required |
-| Management channel | advisory, then active-ips accepted (0.26 s); wrong-key and replayed commands get no ack; 60 s lockout; audit chain 20 entries verified |
+\1| Real radio, signing (rsg1) | 10 signed accepted; 40 unsigned, 10 wrong key, 3 replay dropped; mode GUIDED; 4,929 of 4,929 downlink forwarded |
+| Real radio, GPS glitch (rgps1) | GPS_SPOOFING HIGH +0.8 s; ALT_HOLD +4.0 s; no AUTO, RTL or LOITER; gps_recovered +22.8 s |
 
 These are software results on a Pi with no radio. They do not replace the real-radio phases in `docs/RADIO_TEST.md`, which
-are not yet run.
+are only partly run. Real-radio note (2026-10-30, MicoAir LR900 pair, ACTIVE_IPS): rad2 (`--allow-unsigned`) gave 9,792 of 9,801 frames sent by the bridge at the ground (9 in flight), 567 of 567 uplink frames to the bridge, and forged LAND and a flood from sysid 66 stopped at the bridge. rsg1 (signing key on the Pi) gave 40 unsigned, 10 wrong-key and 3 replayed frames dropped with the mode unchanged. rgps1 gave a GPS glitch detected at +0.8 s with ALT_HOLD at +4.0 s and no forbidden mode. Not run over the radio: passive and advisory postures, ground-side management commands, firmware tamper, unplug and replug recovery, the long soak, range, and the stale and future signing timestamps. Details: `docs/RADIO_TEST_RESULTS.md`, real-radio session section.

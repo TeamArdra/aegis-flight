@@ -1,13 +1,14 @@
 # Real-radio test of the inline IPS bridge
 
 > **Status (2026-10-30):** tooling written. The unit tests `tests/unit/test_radio_*.py` exist but were not re-run in this
-> documentation pass. Real-radio phases 1-9: **not yet run**. The radio link is not yet usable: in the first attempt 0
-> echoes came back, and in a later transfer one 32-byte pattern arrived intact (Pi to laptop, 115,200 baud) but the other
-> direction never arrived. A Pi-in-the-loop run (no radio) on 2026-10-30 exposed a rate-learner false positive in
-> ACTIVE_IPS, fixed afterwards. Measured facts and the bench log are in `docs/RADIO_TEST_RESULTS.md`.
+> documentation pass. The real radio is a MicoAir LR900 pair, configured and carrying data both ways. Measured runs over the
+> radio exist for phase 1 (baseline), phases 2 and 3 (ACTIVE_IPS only), phases 4 and 5 (ACTIVE_IPS, partly), phase 6
+> (signing, partly) and phase 7 (budget only). None of these is a clean pass against the plan's written criteria; section 11
+> gives the judgement per phase. Phases 8 and 9, and the passive and advisory postures over the radio, have not been run.
+> Measured facts are in `docs/RADIO_TEST_RESULTS.md`.
 
 This is the test plan, rig description and tool reference for running `aegis ips-bridge` on a Raspberry Pi 3B+ between a
-pair of real telemetry radios (SiK-type firmware assumed, not yet confirmed) and an ArduCopter SITL on a laptop. Results are logged separately in
+pair of MicoAir LR900 900 MHz telemetry radios (not SiK: no AT command set) and an ArduCopter SITL on a laptop. Results are logged separately in
 `docs/RADIO_TEST_RESULTS.md`. **At the time of writing no run of this plan has been recorded; nothing in this file is a
 measurement.** Numbers in the "pass" lines are acceptance thresholds chosen for this plan, not observed values.
 
@@ -85,10 +86,10 @@ would not. Record the laptop-to-Pi RTT (`ping ardra.local`, over the cable) in t
 | Laptop Wi-Fi IP | 10.36.150.220 (re-check with `ipconfig` on the day; DHCP can change it) |
 | Pi | Raspberry Pi 3B+ Rev 1.3, reached over a direct Ethernet cable at `ardra.local` = 169.254.225.172 (link-local; measured 2026-10-30). The earlier Wi-Fi address 10.36.150.82 is no longer used by this plan. SSH user `ardra`, Debian aarch64, kernel 6.18.50 |
 | Pi serial driver | `cp210x` kernel module, loaded (measured 2026-10-30); user `ardra` is in group `dialout` (measured) |
-| Radios | Two 900 MHz radios (measured 2026-10-30). USB descriptors are identical generic CP2102 (`10c4:ea60`, serial `0001`, 100 mA), so the model and firmware cannot be read from USB; read them from the unit labels. No AT or `+++` reply from either at 1,200-230,400 baud. Not confirmed to be SiK-type firmware (see `RADIO_TEST_RESULTS.md`, Bench log update) |
+| Radios | MicoAir LR900 (module `900M LORA TELEMETRY RADIO`, firmware 1.1.4, hardware 1.1), 900 MHz, measured 2026-10-30. Not SiK: no AT command set, so `+++` and `ATI` never answer. USB id CP2102 (`10c4:ea60`, serial `0001`, 100 mA). Configure with MicoAssistant v0.9.23 (section 3, item 10) |
 | Pi radio device | `/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0` (kernel node `/dev/ttyUSB0`, measured 2026-10-30) |
 | Laptop radio device | `COM3`, Silicon Labs CP210x driver 11.6.0.420, signed, device status OK (measured 2026-10-30) |
-| Radio serial baud | 57,600 or 115,200: **to be confirmed by `com_probe.py` (phase 0)**. Not confirmed. 2026-10-30: no echo at either baud in the first attempt; one 32-byte transfer arrived intact Pi to laptop at 115,200 and garbled at 57,600; 115,200 is a hypothesis only. |
+| Radio serial baud | 115,200 on both units (measured 2026-10-30: BAUDRATE and USB_BAUD set to 115200). 57,600 was the wrong setting in the first session. The phase 0 result is not in the measured summary. |
 | Bridge software on the Pi | Python 3.13.5 and a venv at `~/aegis_test/venv` with pyserial 3.5 (measured 2026-10-30; other packages in the venv not recorded). `pi_bridge_run.sh` uses `PYTHON=python3` unless set: use `PYTHON=$HOME/aegis_test/venv/bin/python`, and confirm the bridge imports from that venv before phase 0. |
 
 Both radios report identical USB descriptors (measured 2026-10-30: generic CP2102, `10c4:ea60`, serial `0001`), so the by-id path of the Pi radio is only unique while one such
@@ -142,13 +143,21 @@ Do these once, before phase 0. None of them is done by the test tools.
    occurred since boot (bits 16 and 18). The kernel log showed repeated `Undervoltage detected`. Until the supply is fixed,
    Pi timing and CPU figures are worst-case and must be labelled so. Use a 5 V, 2.5 A or larger supply and a short, thick
    cable; the radio on the Pi's USB port draws from the same 5 V. Later on 2026-10-30 the Pi read `0x50000` (history only) during the Pi-in-the-loop run. Do not record a timing figure from a run whose
-   current-state bits (low nibble) are set.
+   current-state bits (low nibble) are set. The real-radio session rad2 (section 11) still recorded under-voltage flags.
 7. **Clocks.** The Pi has no real-time clock, and on 2026-10-30 it was about 2.5 h behind the laptop with no time sync. Sync both machines (NTP, over the cable or Wi-Fi) before phase 6. Signing timestamps and
    `--signing-max-age-s` depend on the bridge clock being right.
 8. **Key files for phases 6 and 7.** Generate throwaway 32-byte keys on the bench (flight key and a separate management
    key), keep them outside the repo, copy the Pi's copies with `scp`, `chmod 600`. Do not reuse any real key.
 9. **Output directory.** Choose a run directory outside the repo or one that is git-ignored (default `radio_test_out`).
    Nothing in this test is pushed to GitHub.
+10. **Radio configuration (MicoAir LR900, measured 2026-10-30).** Use MicoAssistant v0.9.23 (Windows; vendor download
+    `MicoAssistant_EN.zip`, 26.07 MB, from micoair.com/downloads). Connect to the radio's COM port (115,200 baud worked). On
+    the Radio page use READ, change, WRITE, then unplug the USB cable, reconnect and READ again to verify. WRITE reports
+    `WRITE RADIO SETUP SUCCESS, REBOOT TO TAKE EFFECT`: the settings apply after the power-cycle. Target settings, the same on
+    both units except CHAN_MODE: MODE DUPLEX, POWER MAX (bench only, see section 8), ADDR 1000, BAUDRATE 115200, RATE HIGH
+    (2.1 KB/s), CHANNEL 0, USB_BAUD 115200. CHAN_MODE is `FHSS_GROUND` on the PC-side radio (laptop, COM3) and `FHSS_AIR` on
+    the flight-controller-side radio (Pi). A steady green LED means link up (vendor). The 2026-10-30 one-way link was caused
+    by one unit at CHAN_MODE AUTO and 57,600 baud and the other at FHSS_AIR and 115,200 baud: never mix these settings.
 
 ## 4. Test plan
 
@@ -162,9 +171,9 @@ bridge is started on the Pi with `pi_bridge_run.sh` (section 5) or by hand:
 
 ```
 aegis ips-bridge \
-  --gcs-port /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0 --gcs-baud 57600 \
+  --gcs-port /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0 --gcs-baud 115200 \
   --fc-port socket://127.0.0.1:5762 --allow-url \
-  --defense-mode passive --status-port 8765 --allow-unsigned \
+  --defense-mode passive --status-port 8765 --allow-unsigned --config-dir configs/ardupilot_copter \
   --db ~/radio_test/ips.sqlite --audit-log ~/radio_test/audit.jsonl
 ```
 
@@ -181,7 +190,7 @@ aegis ips-bridge \
 * **Pass:** port opens; at least 3 CRC-valid MAVLink frames at some baud (default `--min-frames 3`); the best baud is
   recorded in `p0_probe.json` (`best_baud`) and used for every later phase on both sides. Also record `vcgencmd
   get_throttled`, laptop-to-Pi RTT over the cable, and the radio settings read separately (for example with the vendor's
-  configuration tool: serial speed, air speed, net id, TX power). Expected time: 5 minutes.
+  configuration tool, MicoAssistant: BAUDRATE, USB_BAUD, CHAN_MODE, RATE, ADDR, CHANNEL, POWER). Expected time: 5 minutes.
 * **Fail means:** exit 2, port busy: another process owns COM3. Exit 1, no frames at any baud: radios not linked, wrong
   net id, Pi side silent, or the SITL is not streaming; see section 7. A pass at a baud other than the one assumed means
   the Pi side must be started with the same baud.
@@ -200,7 +209,7 @@ aegis ips-bridge \
   at most 1 %; a p50 RTT is recorded. Recorded, with no pass limit: RTT p50/p95/p99/max per rate, loss per rate, the saturation point
   (first rate with more than 5 % loss, or a p95 RTT above 3 times that of the lowest rate) and `max_clean_fps`. Step (b) is recorded:
   a link that loses more than a few percent of frames makes every later result unreliable (this threshold is a plan guideline, not
-  coded). Also compare the load against the serial ceiling: 57,600 baud 8N1 is about 5.7 kB/s each way. Expected time: 15 minutes.
+  coded). Also compare the load against the serial ceiling: 57,600 baud 8N1 is about 5.7 kB/s each way; 115,200 is about 11.5 kB/s. The measured clean throughput of the LR900 pair at 115,200 was about 1.0-1.05 KB/s each way, so the radio, not the serial line, is the limit (section 11). Expected time: 15 minutes.
 * **Fail means:** exit 1, loss above 1 % even at 5 fps, or no echo (exit 1, "echo path alive" fails: relay not running, wrong baud). This is a
   radio, power, placement, air-rate or USB problem and not a bridge problem; fix it before going on. Exit 2: port busy.
 
@@ -418,7 +427,7 @@ Runs on the Pi; stdlib and pyserial only. A dumb byte relay used for the baselin
 
 ```
 python3 pi_relay.py --radio /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0 \
-    --baud 57600 --mode pass --other socket://127.0.0.1:5762 --stats-file relay_stats.json
+    --baud 115200 --mode pass --other socket://127.0.0.1:5762 --stats-file relay_stats.json
 ```
 
 Stats keys: `mode`, `uptime_s`, `bytes_radio_rx`, `bytes_radio_tx`, `bytes_other_rx`, `bytes_other_tx`, `frames_from_radio`,
@@ -445,7 +454,7 @@ uplink to the serial port in 64-byte chunks with a 10 ms pause (a ceiling a litt
 | Argument | Default | Meaning |
 |---|---|---|
 | `--port` | required | ground radio serial port, for example `COM3` |
-| `--baud` | 57600 | radio baud (the value phase 0 found) |
+| `--baud` | 57600 | radio baud (the value phase 0 found; 115200 for the LR900 pair) |
 | `--capture-dir` | required | directory for `downlink.cap` and `uplink.cap` |
 | `--host` | `127.0.0.1` | bind address |
 | `--gcs-port` / `--obs-port` / `--stats-port` | 5801 / 5802 / 5803 | listeners |
@@ -453,7 +462,7 @@ uplink to the serial port in 64-byte chunks with a 10 ms pause (a ceiling a litt
 | `--client-queue` | 512 | queued chunks per TCP client before drop-oldest |
 
 ```
-python scripts/radio_test/radio_hub.py --port COM3 --baud 57600 --capture-dir radio_test_out/<run>/hub
+python scripts/radio_test/radio_hub.py --port COM3 --baud 115200 --capture-dir radio_test_out/<run>/hub
 ```
 
 Stats JSON (port 5803; for example read it with a one-shot TCP client): `uptime_s`, `port`, `baud`, `serial_connected`,
@@ -482,7 +491,7 @@ target so zero-truncation never changes the length) at each offered rate and mat
 | `--out` | `radio_test_out` | run directory |
 
 ```
-python scripts/radio_test/link_baseline.py --port COM3 --baud 57600 --rates 5,10,20,40 --out radio_test_out/<run>
+python scripts/radio_test/link_baseline.py --port COM3 --baud 115200 --rates 5,10,20,40 --out radio_test_out/<run>
 ```
 
 Outputs: `p1_baseline.json` (checks `port opened`, `echo path alive`, `loss <= 1% at lowest rate`, `rtt p50 recorded`; metrics
@@ -558,13 +567,21 @@ and the mode events). It does not attack, change posture or restart the bridge.
 | `--auto-items` | 3 | mission items flown in AUTO (0 = all) |
 | `--retries` | 1 | resends of an unacknowledged command |
 | `--mode-via-message` | off | use SET_MODE instead of DO_SET_MODE |
-| `--no-streams` | off | do not request data streams or SR1 rates |
+| `--no-streams` | off | do not request data streams or SR1 rates (on ArduCopter 4.7.1 the SR1 writes have no effect) |
 | `--arming-check-off` | off | set ARMING_CHECK=0 first (SITL) |
 | `--home-lat` / `--home-lon` | 12.9716 / 77.5946 | SITL home position |
 | `--ping-count` | 10 | latency probes |
 | `--param-timeout` / `--ack-timeout` / `--link-timeout` | 240 / 5 / 30 s | timeouts |
 
 Exit 0 when every check passed; 1 otherwise, including an interrupted session; 2 for a bad `--stages` value.
+
+**Stream requests on the LR900 pair.** By default the tool asks for ALL streams at 5 Hz (`REQUEST_DATA_STREAM`) and also
+sets the SR1_* parameters (5 Hz and 2 Hz). ArduCopter 4.7.1 has no SRn_* parameters (they were removed), so those writes
+changed nothing; this was the cause of the rad1 result (no position data, no takeoff). The LR900 pair carries about
+1.0-1.05 KB/s clean, so the ALL-streams request is too much. Use `--no-streams` (this turns off both requests) and request
+the low rates instead, as `scripts/ardupilot/inline_demo/pi/radio_pilot.py` does: POSITION 2 Hz, EXTRA1 2 Hz, EXTRA2 1 Hz,
+EXTENDED_STATUS 1 Hz, EXTRA3 1 Hz, all others 0. The measured rad2 session used that set. Per-channel rates on ArduCopter
+4.7.1 are the MAVn_* parameters (see `scripts/ardupilot/ap_netns_run_passive.sh`).
 
 ### `mgmt_radio.py` (verified against file)
 
@@ -638,7 +655,7 @@ Starts, stops and inspects `aegis ips-bridge` on the Pi, with the radio as the G
 No sudo. Configuration is by environment variable; the command is `start`, `stop`, `kill` or `status`.
 
 ```
-LAPTOP_IP=127.0.0.1 MODE=advisory BAUD=57600 ./pi_bridge_run.sh start   # the SSH tunnel's Pi end (section 3, item 3)
+LAPTOP_IP=127.0.0.1 MODE=advisory BAUD=115200 ./pi_bridge_run.sh start   # the SSH tunnel's Pi end (section 3, item 3)
 ./pi_bridge_run.sh status
 ./pi_bridge_run.sh kill      # SIGKILL the bridge only (phase 8); the monitor keeps running and records the loss
 ./pi_bridge_run.sh stop      # SIGTERM (KeyboardInterrupt in the bridge), SIGKILL after 10 s, then stops the monitor
@@ -648,7 +665,7 @@ LAPTOP_IP=127.0.0.1 MODE=advisory BAUD=57600 ./pi_bridge_run.sh start   # the SS
 |---|---|---|
 | `LAPTOP_IP` | required for `start` | host of the FC TCP port as the Pi sees it: `127.0.0.1` through the SSH tunnel |
 | `FC_PORT_NUM` | 5762 | SITL TCP port used as the FC link |
-| `BAUD` | 57600 | radio baud (`--gcs-baud`) |
+| `BAUD` | 57600 | radio baud (`--gcs-baud`); use 115200 for the LR900 pair |
 | `MODE` | `passive` | `passive`, `advisory` or `active-ips` |
 | `GCS_PORT` | the by-id CP2102 path above | radio device |
 | `STATUS_PORT` | 8765 | bridge status API on 127.0.0.1 |
@@ -658,7 +675,7 @@ LAPTOP_IP=127.0.0.1 MODE=advisory BAUD=57600 ./pi_bridge_run.sh start   # the SS
 | `REPO` | `~/aegis_test` | repo copy on the Pi (`laptop_ctl.py deploy` puts it there) |
 | `PYTHON` | `python3` | interpreter for the bridge and the monitor. Use `$HOME/aegis_test/venv/bin/python` (venv measured 2026-10-30, section 2) |
 | `MONITOR` | 1 | also start `pi_monitor.py` against the bridge pid |
-| `EXTRA_ARGS` | unset | extra `ips-bridge` flags, word-split |
+| `EXTRA_ARGS` | unset | extra `ips-bridge` flags, word-split. The script passes no `--config-dir`, so the Stage-1 default profile is used; for phase 3 set `EXTRA_ARGS="--config-dir configs/ardupilot_copter"` |
 
 It always passes `--allow-url --status-port --status-interval 5` and per-run `--signing-state`, `--mgmt-state`, `--audit-log` files in the
 run directory (so a new `start` begins with new state files: a restart in phase 8 that must keep the old signing state has to
@@ -666,6 +683,17 @@ reuse the old files through `EXTRA_ARGS`; see the note in phase 8). The run dire
 `vcgencmd get_throttled`, no key contents), `latency_timer.txt`, `pi_monitor.jsonl` and its log. `start` waits 3 s and fails (exit 1,
 log tail printed) if the bridge exited; exit 2 for bad usage or a missing radio device or repo. Key paths are recorded as yes/no only. Pid files `bridge.pid` and `monitor.pid` in `RUN_ROOT` are checked against `/proc`
 before any signal is sent. `status` and `kill` exit 1 when no bridge is running; `stop` exits 0.
+
+### `pi_bridge.sh` (verified against file, 2026-10-30)
+
+The bench-run wrapper used by `scripts/ardupilot/inline_demo/pi/run_radio_pi.sh` and by the tunnel runs. `laptop_ctl.py deploy`
+copies it to `~/aegis_test/pi_bridge.sh`. Usage: `[FCPORT=5762] [SECS=900] [GCSPORT=socket://127.0.0.1:5800] [GCSBAUD=115200]
+pi_bridge.sh LABEL MODE [extra ips-bridge args]`. It runs the Pi venv (`venv/bin/python`, section 2) with `ips-bridge
+--fc-port socket://127.0.0.1:FCPORT --fc-baud 115200 --gcs-port GCSPORT --gcs-baud GCSBAUD --allow-url --config-dir
+configs/ardupilot_copter --status-port 8090 --db ~/aegis_runs/LABEL/bridge.sqlite --seconds SECS`, then the extra arguments,
+and writes `bridge.log` in the run directory. The pid goes to `~/aegis_runs/wifi_bridge.pid` (the name is historical). It has
+no stop command: `--seconds` ends the run. With the default GCSPORT the GCS side is the hub through the second `ssh -R` tunnel
+(the no-radio runs). With a device path (`/dev/serial/by-id/...`) it is the air radio.
 
 ### `laptop_ctl.py` (verified against file)
 
@@ -686,7 +714,7 @@ host and user default to 10.36.150.82 and `ardra`, overridable with `ARDRA_HOST`
 ```
 set ARDRA_KEY=C:\keys\ardra_key        (PowerShell: $env:ARDRA_KEY = "C:\keys\ardra_key")
 python scripts/radio_test/laptop_ctl.py deploy
-python scripts/radio_test/laptop_ctl.py start --mode advisory --baud 57600 --laptop-ip 127.0.0.1
+python scripts/radio_test/laptop_ctl.py start --mode advisory --baud 115200 --laptop-ip 127.0.0.1
 python scripts/radio_test/laptop_ctl.py status
 python scripts/radio_test/laptop_ctl.py pull-logs --out radio_test_out/<run>/pi
 ```
@@ -761,7 +789,13 @@ the commit, so add the commit hash and rig configuration by hand. The headline n
 | High frame loss at 57,600 baud | serial ceiling about 5.7 kB/s each way: ArduCopter telemetry after stream requests, plus the bridge's cross-end summary (about 61 B/s signed) and management traffic (up to 150 B/s), can fill it; the air rate may also be below the serial rate | lower the SITL stream rates, or use 115,200 on both radios and both ends, and compare with phase 1 |
 | Signed commands rejected as replay or stale | clocks differ (the Pi has no RTC); `--signing-state` holds a timestamp ahead of the sender's clock | sync NTP on both; reset the state file on the bench only; see the "future" note in phase 6 |
 | Valid management command gets no ACK | no management key, command rate limit (1 per second), 60 s lockout after 5 bad frames, replayed state | check `--mgmt-key-file`, wait 60 s, check the audit log |
-| No echo, no AT or `+++` reply, filler bytes on the serial line (seen 2026-10-30, see `RADIO_TEST_RESULTS.md`, Bench log and update) | not confirmed. Measured: no AT reply at 1,200-230,400 baud (N/E/O, 1-2 stop bits); the laptop radio streams filler bytes; one 32-byte transfer intact Pi to laptop at 115,200 only. Hypotheses only: UART baud 115,200; one UART direction dead on a unit; units not standard SiK firmware | not yet tested. Read the model from the unit labels, then the vendor tool; then repeat phase 0 at 115,200 |
+| No `OK` to `+++` or `ATI` (2026-10-30) | Not an error. The radios are MicoAir LR900 units, which have no AT command set. Earlier AT probes could never succeed | configure with MicoAssistant (section 3, item 10); do not use AT probes on this pair |
+| One-way data, filler bytes on the serial line, or garbled transfer (2026-10-30) | the two units were configured differently: one CHAN_MODE AUTO at 57,600 baud, the other FHSS_AIR at 115,200 baud (measured root cause) | set both units as in section 3, item 10; power-cycle; READ to verify on each unit |
+| Settings written but unchanged | a WRITE applies only after the power-cycle | unplug the USB cable, reconnect, READ to verify (MicoAssistant) |
+| Bridge or hub sees junk, or the link does not come up at all | USB baud (`USB_BAUD`) differs from the bridge `--gcs-baud` or the hub `--baud` | `USB_BAUD` must equal `--gcs-baud` and `--baud`: 115200 for this pair |
+| Frames OK at low rate, losses from about 60 fps | clean throughput about 1.0-1.05 KB/s each way; saturation at 60 fps (30.5 % loss, measured) | lower the stream rates (section 5, `--no-streams`) |
+| No position data and no takeoff with SR1 parameters only (rad1, 2026-10-30) | ArduCopter 4.7.1 has no SRn_* parameters, so SR1_* writes changed nothing (measured). Stream rates come from REQUEST_DATA_STREAM or MAVn_* | send REQUEST_DATA_STREAM at the low rates (`radio_pilot.py` set) |
+| Hub counts about 15,000 "bad segments" on the downlink | non-MAVLink filler bytes between frames from the radio (measured in rad2) | harmless: the hub resyncs; do not count as frame loss without the frame counts |
 | Pi radio drops off the USB bus | Pi under-voltage resets the bus (2026-10-30: the first drop came right after a logged under-voltage dip) | check `dmesg` for `Undervoltage detected` and `vcgencmd get_throttled` (`0x50000` = occurred earlier; `0x50005` = happening now); fix the supply (5 V, 2.5 A or more, short thick cable) before any timing run |
 | Bridge sheds its own telemetry, or false DoS alerts after a GCS connects in `active-ips` (fixed 2026-10-30) | the rate learner read a step in message rate (about 1 to 135 msg/s) as a flood; the flood gatekeeper also shed the vehicle's own sysid | check `dropped_dynamic` and the analyser alert count in `/status`; a run with downlink drops is failed, not a radio result. Fix: commit `e1ceb76` and the learner-extension change after it |
 | `pkill -f` run over ssh kills the ssh shell itself (seen on the Pi, 2026-10-30) | a pattern that also appears in the ssh command line matches the shell that launched it | start and stop processes with pid files and kill by pid, as `pi_bridge_run.sh` does; never `pkill -f` a pattern that the same ssh command contains |
@@ -774,7 +808,7 @@ the commit, so add the commit hash and rig configuration by hand. The headline n
   keys and logs stay on the two machines.
 * **Hostile traffic is bench-only,** on the user's own radio pair and own SITL, in an isolated bench setting. The attack
   tools transmit forged MAVLink on the radio frequency: run them only with both radios on the bench and no other
-  MAVLink system in range, observe the radio regulations of the band the units use, and do not point them at anything that
+  MAVLink system in range, observe the radio regulations of the band the units use (the LR900 pair is 900 MHz; 890-915 MHz is not licence-free in every country; the bench uses POWER MAX, so lower POWER for bench work where local rules require it), and do not point them at anything that
   is not this rig.
 * **The Pi is not shut down or rebooted by any tool.** Power-off is the user's own `sudo shutdown -h now` on the Pi (a reboot in
   phase 8 is likewise the user's action: `laptop_ctl.py reboot-pi` only prints the command unless `--yes-reboot` is given).
@@ -788,9 +822,9 @@ the commit, so add the commit hash and rig configuration by hand. The headline n
 ## 9. Known limitations and what a pass would and would not let us claim
 
 * The FC link is a TCP socket to SITL, carried over the Ethernet cable inside an SSH reverse tunnel, not a UART. Latency and jitter on that hop are not those of a real FC.
-* Pi power: the supply was under-voltage on 2026-10-30 (`docs/RADIO_TEST_RESULTS.md`), so Pi figures taken from that supply are worst-case. The Pi radio also dropped off the USB bus twice that day.
+* Pi power: the supply was under-voltage on 2026-10-30 (`docs/RADIO_TEST_RESULTS.md`), so Pi figures taken from that supply are worst-case. The Pi radio also dropped off the USB bus twice that day, and the real-radio session rad2 still recorded under-voltage flags.
 * Pi-in-the-loop runs (bridge on the Pi, SITL and hub on the laptop, no radio) are software checks of the bridge over the cable, not radio results. They are logged in `docs/RADIO_TEST_RESULTS.md`.
-* One radio pair (both 900 MHz; model not yet read from the labels), a few metres apart: loss and latency are bench figures, not a link budget.
+* One MicoAir LR900 pair (900 MHz, POWER MAX, firmware 1.1.4), a few metres apart. Its clean throughput is about 1.0-1.05 KB/s each way with the settings in section 3, item 10: loss and latency are bench figures, not a link budget.
 * One pilot and one attacker tool (pymavlink scripts), not real ground-station software. The attacker script reads the hub's observer port, not a capture file; a real attacker would need a sniffer.
 * Counter-tracking attacks on an unsigned link are expected to get through (`docs/INLINE_IPS.md`); signing is the only
   defence, and signing has still not been run against a real autopilot's own implementation beyond SITL's.
@@ -814,7 +848,7 @@ Ethernet cable, and no radio in the path. Measured results, with the full detail
 (13.0 s telemetry outage with a manual restart), a tunnel cut (one 11.8 s gap, the bridge reconnected without a restart), the
 GPS ladder, a 1,800 s soak, the attack set and the management channel. Known limits seen: a battery step and a frozen attitude
 at hover were not detected, and a scripted GPS drift of about 1 m/s was not detected. The Pi was throttled during the soak, so its CPU
-and latency figures are worst-case. These are not phase results: phases 1 to 9 still need the radio.
+and latency figures are worst-case. These are not phase results. The real-radio status is in section 11.
 
 **CLI and behaviour notes that affect this plan:**
 
@@ -835,3 +869,40 @@ and latency figures are worst-case. These are not phase results: phases 1 to 9 s
   step and extends its window once.
 * The soak's forged-LAND schedule was affected by a harness bug (the attacker socket was not drained). Only the first of five
   attempts reached the bridge. Count attempts that reached the bridge, not attempts sent.
+
+## 11. Real-radio status (2026-10-30, MicoAir LR900 pair)
+
+Measured figures and session detail are in `RADIO_TEST_RESULTS.md`, section "Real-radio session, 2026-10-30". Summary: the
+earlier one-way data was a configuration mismatch between the two units (section 3, item 10), now fixed. Over the radio at
+115,200 baud the link baseline was clean up to 40 frames/s (about 1.0-1.05 KB/s each way). Three real-radio sessions ran in
+ACTIVE_IPS: rad2 (240 s flight), rsg1 (signing) and rgps1 (GPS glitch).
+
+The judgement below is conservative. It is made against the plan's written criteria, not the coordinator's PASS labels.
+"NOT PASS as written" means a criterion was not run or not met.
+
+| Phase | Posture over the radio | Judgement |
+|---|---|---|
+| 0 preflight | not reported | Not reported in the session summary. |
+| 1 baseline | no bridge | Meets the stated check on the measured items: echo path alive, 0 % loss at 5 frames/s, RTT recorded. The step (b) relay-versus-hub comparison is not in the summary. |
+| 2 passive forwarding | ACTIVE_IPS only | **NOT PASS as written.** Passive was not run over the radio. Forwarding was measured in ACTIVE_IPS (rad2: 9,792 of 9,801 frames at the ground; rsg1: 4,929 of 4,929). |
+| 3 pilot operation | ACTIVE_IPS only | **NOT PASS as written.** Advisory was not run. 14 benign probes in one posture, against at least 30 per posture repeated 3 times. |
+| 4 detection | ACTIVE_IPS only | **NOT PASS as written.** Advisory was not run; the plan expects forged frames to reach the FC in that posture. Alerts were raised. |
+| 5 prevention | ACTIVE_IPS | **PARTLY.** Measured: forged LAND and flood from sysid 66 (rad2), and the GPS glitch (rgps1). Not run over the radio: the sudden-glitch pilot-override variant, the trusted forced disarm, the 1 m/s drift (a known miss) and jamming. The ALT_HOLD timing against confirmation cannot be evaluated from the summary. |
+| 6 signing | ACTIVE_IPS, signing key on the Pi | **PARTLY.** Measured: unsigned, wrong-key and replayed frames dropped, mode unchanged (rsg1). Not run: stale and future timestamps, the ACTIVE_IPS signing gate exit code, signing with delay or jitter beyond the radio's own one-way delay (about 30 ms). |
+| 7 management channel | ACTIVE_IPS (budget only, rad2) | **PARTLY.** Management traffic measured: 9,688 B over 361 s (about 27 B/s), 1 budget denial. Ground-side commands and their ACK latency were not run over the radio. |
+| 8 failure and recovery | none | **NOT RUN** over the radio. |
+| 9 soak | none | **NOT RUN** over the radio. The longest real-radio session with a stated duration was 361 s. |
+
+**Not yet run over the radio (stated plainly):**
+
+* the passive and advisory postures;
+* management-channel control from the ground (commands and their ACKs; these were run only on the Ethernet-tunnel setup);
+* firmware tamper over the radio;
+* radio unplug and replug recovery, and bridge restart recovery over the radio;
+* the 30 to 60 minute soak;
+* range;
+* signing: stale and future timestamps, the signing gate, and delay or jitter beyond the radio's own one-way delay;
+* GPS: the pilot-override variant, the 1 m/s drift (known miss) and jamming.
+
+**Correction to an earlier line of this section:** the management budget was previously written as measured in passive. It
+was measured in ACTIVE_IPS (rad2).
