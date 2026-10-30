@@ -1,15 +1,22 @@
 # Real-radio test of the inline IPS bridge
 
-> **Status (2026-10-30):** tooling written. The unit tests `tests/unit/test_radio_*.py` exist but were not re-run in this
+> **Status (2026-10-30, updated 2026-10-31):** tooling written. The unit tests `tests/unit/test_radio_*.py` exist but were not re-run in this
 > documentation pass. The real radio is a MicoAir LR900 pair, configured and carrying data both ways. Measured runs over the
 > radio exist for phase 1 (baseline), phases 2 and 3 (ACTIVE_IPS only), phases 4 and 5 (ACTIVE_IPS, and passive, advisory and active-ips in the randomised campaign; partly), phase 6
 > (signing, partly) and phase 7 (budget only). None of these is a clean pass against the plan's written criteria; section 11
 > gives the judgement per phase. Phase 8 has three measured cases over the radio (bridge kill and manual restart, rlong1; air-radio unplug, unp1; Pi soft reboot with cron auto-start, rbt1) and phase 9 a 20-minute run; neither passes as written. The passive and advisory postures were run over the radio only inside the randomised signed campaign; a plain passive and advisory pilot and forwarding run has not been done.
 > Measured facts are in `docs/RADIO_TEST_RESULTS.md`.
+>
+> **Real Pixhawk (2026-10-30/31):** a real Pixhawk 6X on a Raspberry Pi 5 (bench, disarmed, propellers removed) was run through the
+> bridge over the same radio pair. The results touched phases 2 to 9. They are summarised against this plan in
+> `docs/RADIO_TEST_RESULTS.md` (section "Real Pixhawk 6X on a Pi 5, 2026-10-31"). None of phases 2 to 9 passes as written.
+> Signing was run once on the real Pixhawk over USB, with the bridge as the enforcement point (phase 6, partly met; enforcement at the
+> flight controller not tested). The 1,500 s Pi 5 soak (phase 9) completed, but it is 25 minutes long and the bridge changed the vehicle's
+> mode through false GPS alerts. Neither passes as written.
 
 This is the test plan, rig description and tool reference for running `aegis ips-bridge` on a Raspberry Pi 3B+ between a
 pair of MicoAir LR900 900 MHz telemetry radios (not SiK: no AT command set) and an ArduCopter SITL on a laptop. Results are logged separately in
-`docs/RADIO_TEST_RESULTS.md`. **At the time of writing no run of this plan has been recorded; nothing in this file is a
+`docs/RADIO_TEST_RESULTS.md`. **This plan was written before any run. The runs are recorded in `docs/RADIO_TEST_RESULTS.md`; nothing in this file is a
 measurement.** Numbers in the "pass" lines are acceptance thresholds chosen for this plan, not observed values.
 
 Related: `docs/INLINE_IPS.md` (bridge, postures, signing), `docs/MGMT_CHANNEL.md` (in-band alerts and control),
@@ -46,10 +53,13 @@ pilot operation, detection, prevention, signing, the management channel, failure
 ArduCopter SITL on the laptop stands in for the flight controller. The SITL is a faithful ArduCopter code base but the
 transport it sits behind is a TCP socket, so the FC link in this rig never loses bytes or adds serial latency. It can stall and add delay instead: the Ethernet cable, and TCP inside the SSH tunnel (section 2).
 
+On 2026-10-31 a real Pixhawk 6X was also run on a bench, connected by USB rather than a UART, with the vehicle disarmed and the
+propellers removed. That is a bench check, not a flight, and it does not test the UART. See `docs/REAL_PIXHAWK_TEST.md`.
+
 ## 2. Rig
 
 ```
- LAPTOP (Windows 10, Wi-Fi 10.36.150.220, Ethernet to Pi)                      RASPBERRY PI 3B+ (Ethernet, ardra.local 169.254.225.172, user ardra)
+ LAPTOP (Windows 10, Wi-Fi <laptop-ip>, Ethernet to Pi)                      RASPBERRY PI 3B+ (Ethernet, ardra.local <pi-link-local-ip>, user ardra)
  +-------------------------------------------------------+                    +-------------------------------------------+
  | ArduCopter SITL                                       |                    |  aegis ips-bridge                         |
  |   SERIAL0  tcp 5760  (holder / signing setup)         |                    |    --gcs-port /dev/serial/by-id/          |
@@ -83,8 +93,8 @@ would not. Record the laptop-to-Pi RTT (`ping ardra.local`, over the cable) in t
 
 | Item | Value |
 |---|---|
-| Laptop Wi-Fi IP | 10.36.150.220 (re-check with `ipconfig` on the day; DHCP can change it) |
-| Pi | Raspberry Pi 3B+ Rev 1.3, reached over a direct Ethernet cable at `ardra.local` = 169.254.225.172 (link-local; measured 2026-10-30). The earlier Wi-Fi address 10.36.150.82 is no longer used by this plan. SSH user `ardra`, Debian aarch64, kernel 6.18.50 |
+| Laptop Wi-Fi IP | <laptop-ip> (re-check with `ipconfig` on the day; DHCP can change it) |
+| Pi | Raspberry Pi 3B+ Rev 1.3, reached over a direct Ethernet cable at `ardra.local` = <pi-link-local-ip> (link-local; measured 2026-10-30). The earlier Wi-Fi address <pi-ip> is no longer used by this plan. SSH user `ardra`, Debian aarch64, kernel 6.18.50 |
 | Pi serial driver | `cp210x` kernel module, loaded (measured 2026-10-30); user `ardra` is in group `dialout` (measured) |
 | Radios | MicoAir LR900 (module `900M LORA TELEMETRY RADIO`, firmware 1.1.4, hardware 1.1), 900 MHz, measured 2026-10-30. Not SiK: no AT command set, so `+++` and `ATI` never answer. USB id CP2102 (`10c4:ea60`, serial `0001`, 100 mA). Configure with MicoAssistant v0.9.23 (section 3, item 10) |
 | Pi radio device | `/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0` (kernel node `/dev/ttyUSB0`, measured 2026-10-30) |
@@ -94,6 +104,10 @@ would not. Record the laptop-to-Pi RTT (`ping ardra.local`, over the cable) in t
 
 Both radios report identical USB descriptors (measured 2026-10-30: generic CP2102, `10c4:ea60`, serial `0001`), so the by-id path of the Pi radio is only unique while one such
 adapter is plugged into the Pi. Do not plug a second CP2102 into the Pi.
+
+**Companion for the real-Pixhawk runs (2026-10-31):** a Raspberry Pi 5 (Raspberry Pi OS Lite, Debian 13, Python 3.13), with the
+Pixhawk on USB at `/dev/ttyACM0`. The Pi 3B+ above dropped off the network when the Pixhawk's USB port was opened, so it was replaced
+for those runs. See `docs/REAL_PIXHAWK_TEST.md`.
 
 ### How the topology auto-detect labels this rig
 
@@ -181,6 +195,8 @@ aegis ips-bridge \
 
 ### Phase 0: preflight and probe
 
+> **Status 2026-10-31 (real Pixhawk on a Pi 5):** not run with the real Pixhawk. No judgement changed.
+
 * **Goal:** prove the radio link carries valid MAVLink, find its baud, and prove nothing else owns the port.
 * **Steps:** start SITL with a client on SERIAL0 (SITL needs one before it opens SERIAL1, `docs/INLINE_IPS.md`) and make
   sure it streams telemetry to the radio side. With the Pi side running a plain relay in `pass` mode to SITL 5762
@@ -195,6 +211,8 @@ aegis ips-bridge \
   the Pi side must be started with the same baud.
 
 ### Phase 1: link baseline without the bridge
+
+> **Status 2026-10-31 (real Pixhawk on a Pi 5):** not run with the real Pixhawk. The 2026-10-30 judgement stands (`RADIO_TEST_RESULTS.md`, section 11).
 
 * **Goal:** measure what the radio pair alone does (loss, round-trip time, saturation), so the bridge's effect can be isolated later.
 * **Steps:** `radio_hub` must NOT be running (both it and `link_baseline.py` open COM3). (a) On the Pi run
@@ -214,6 +232,8 @@ aegis ips-bridge \
 
 ### Phase 2: bridge, passive forwarding
 
+> **Status 2026-10-31 (real Pixhawk on a Pi 5):** partly run. Passive for 60 s with the real Pixhawk (0 drops) and 45 s of ground traffic over the radio. Not the 10-minute run, and no latency comparison with phase 1. **NOT PASS as written.** See `RADIO_TEST_RESULTS.md`, section "Real Pixhawk 6X on a Pi 5, 2026-10-31".
+
 * **Goal:** the bridge in `passive` forwards both directions byte-identically over the real link, with latency and loss
   compared against phase 1.
 * **Steps:** stop the relay, start the bridge in `passive`, run the pilot idle (heartbeat only) and then a normal
@@ -231,6 +251,8 @@ aegis ips-bridge \
   or the USB-serial timer (section 3, item 5) before it points at the bridge.
 
 ### Phase 3: normal pilot operation (ADVISORY and ACTIVE_IPS)
+
+> **Status 2026-10-31 (real Pixhawk on a Pi 5):** partly run, bench only. Benign advisory and active-ips traffic with 0 legitimate drops, and 13 of 14 steps of the legitimate-traffic suite. No arm, takeoff or flight, and fewer than 30 probes per posture. The 1,500 s active-ips soak (phase 9) sent 457 counter-commands from false GPS alerts, so the phase 3 rule against actuation from false alerts is not met. **NOT PASS as written.**
 
 * **Goal:** a legitimate pilot can do ordinary operations through the bridge with no legitimate command dropped and no
   actuation caused by false alerts.
@@ -252,6 +274,8 @@ aegis ips-bridge \
 
 ### Phase 4: detection
 
+> **Status 2026-10-31 (real Pixhawk on a Pi 5):** partly run in advisory, from the first runs (invalid; unconfirmed, see `RADIO_TEST_RESULTS.md`). Forged LAND and the flood were announced. Force-disarm, LOITER and replay were not announced separately (alert back-off may explain this; not verified). Per-attack latency was not recorded. **NOT PASS as written.**
+
 * **Goal:** each attack is detected and reported to the ground over the radio while the bridge is in `advisory` (so the
   forged frames are expected to reach the FC; the test shows detection, not prevention).
 * **Steps:** bridge in `advisory`, aircraft airborne in GUIDED. From a second client on the hub (sysid 66 unless stated),
@@ -269,6 +293,8 @@ aegis ips-bridge \
   management-budget problem (phase 7); an attack not alerted at all is a detection gap, recorded as a result, not hidden.
 
 ### Phase 5: prevention in ACTIVE_IPS
+
+> **Status 2026-10-31 (real Pixhawk on a Pi 5):** partly run in active-ips with `--allow-unsigned`. Forged LAND, force-disarm, LOITER, flood and replay were blocked with the mode unchanged, and pilot commands passed. A forged RTL with its own counter passed on the ground, and a counter-tracking forger passed (known limit). The GPS ladder, the trusted forced disarm and the pilot override were not run on the real Pixhawk. In the signed run (phase 6, one key, over USB) 0 of 7 forged or replayed events reached the vehicle; that run is recorded under phase 6. **NOT PASS as written (partly met).**
 
 * **Goal:** `active-ips` drops hostile frames before the FC, never the pilot's, and the GPS ladder acts as documented.
 * **Steps:** bridge in `active-ips` (`--allow-unsigned`), aircraft airborne in GUIDED. Repeat the phase 4 attacks. Then
@@ -289,6 +315,8 @@ aegis ips-bridge \
   (detection time from the alert log).
 
 ### Phase 6: MAVLink-2 signing over real latency
+
+> **Status 2026-10-31 (real Pixhawk on a Pi 5):** **partly run**, over USB, with the bridge as the enforcement point (one run, one key). Unsigned, wrong-key and replayed frames were dropped with the mode unchanged, and a legitimately signed set-mode passed. Not tested: enforcement at the flight controller (USB does not show it), stale and future timestamps, the signing gate exit code, and the count of acknowledged signed commands (not recorded). **NOT PASS as written (partly met).** See `RADIO_TEST_RESULTS.md`, section "Real Pixhawk 6X on a Pi 5, 2026-10-31".
 
 * **Goal:** with a flight key, forged, unsigned, wrongly keyed, replayed and stale frames are dropped, legitimately signed
   frames pass, and the `active-ips` signing gate holds, over real radio latency and reordering-free serial.
@@ -313,6 +341,8 @@ aegis ips-bridge \
 
 ### Phase 7: management channel over the radio
 
+> **Status 2026-10-31 (real Pixhawk on a Pi 5):** partly run over the radio. Posture commands, bad-frame rejection and ACK signatures passed; nominal management traffic 81.8 B/s against 150 B/s. Flood-window bytes, alert latency, status age and ACK latency are not recorded. The flight controller was the real Pixhawk 6X on the Pi 5, over the radio. **PARTLY.**
+
 * **Goal:** the in-band channel works over a real radio inside its byte budget, without hurting flight telemetry.
 * **Steps:** bridge with a flight key (or `--allow-unsigned`), a separate management key (`--mgmt-key-file`),
   `--mgmt-state`, `--audit-log`. Ground side: `aegis serve --source serial` on the hub's observer port, or the tool's own
@@ -332,6 +362,8 @@ aegis ips-bridge \
   and lockout (5 bad frames in 60 s lock control for 60 s).
 
 ### Phase 8: failure and recovery
+
+> **Status 2026-10-31 (real Pixhawk on a Pi 5):** **NOT RUN** on the real Pixhawk. The radio unplug and replug and the Pi power cut are still to do.
 
 * **Goal:** measure what happens, and how long the link is out, in the failures an installed bridge will see.
 * **Steps (each one measured with the aircraft on the ground or hovering in SITL, pilot heartbeat running):**
@@ -354,6 +386,8 @@ aegis ips-bridge \
 
 ### Phase 9: soak
 
+> **Status 2026-10-31 (real Pixhawk on a Pi 5):** run. A 1,500 s (25 min) soak in active-ips with the real Pixhawk completed: 0 dropped either way, 0 send failures, no heartbeat gap over 3 s, RSS flat, no throttle flags. It also raised 207 alerts and sent 457 counter-commands from the unfixed GPS false-alarm issue, which changed the vehicle's mode (disarmed). The plan asks for 30 to 60 minutes, and the phase 3 rule against actuation from false alerts is not met in this run. **NOT PASS as written (partly met).**
+
 * **Goal:** the bridge and link run for 30 to 60 minutes with a realistic load without drift in loss, latency, memory or
   Pi health.
 * **Steps:** bridge in `active-ips` with a flight key and the management channel on; a flight session in a loop (hover and
@@ -373,7 +407,7 @@ aegis ips-bridge \
 `flight_session.py` runs only the pilot-side stages (`link_up`, `params`, `mission`, `arm_takeoff`, `modes`, `auto_mission`,
 `land`; section 5). It does not inject attacks, does not switch the bridge posture and does not restart the bridge into the
 signed configuration. Posture changes over the management channel are made by `mgmt_radio.py` (phase 7). The attack steps
-of phases 4 to 6 need `attacks.py`, which is not in the repository yet. So no single flight covers phases 3 to 6 as an
+of phases 4 to 6 need `attacks.py`, which is in the repository but unfinished and has never been run. So no single flight covers phases 3 to 6 as an
 earlier version of this plan described. Run each phase separately and record each one separately.
 
 ## 5. Tool reference
@@ -381,7 +415,7 @@ earlier version of this plan described. Run each phase separately and record eac
 All tools live in `scripts/radio_test/` (a package; `results.py` is the shared schema). They import `results` as a top-level
 module, so run them from that directory or with it on `PYTHONPATH` (`com_probe.py` does `from results import PhaseResult`).
 Phase tools write `<out>/<phase>.json`; exit codes are 0 pass, non-zero fail unless stated. Entries marked **interface as
-designed, verify against file** were not yet present in the repository on 2026-10-30. Only `legit_probe.py` is still absent; its entry keeps the marker. `attacks.py` appeared that day and was checked. The other entries were checked against their files on 2026-10-30: arguments, defaults, exit codes and outputs.
+designed, verify against file** were not yet present in the repository on 2026-10-30. `legit_probe.py` is now in the repository too (committed in `95399be`) but has never been run, so its entry keeps the marker. `attacks.py` appeared that day and was checked. The other entries were checked against their files on 2026-10-30: arguments, defaults, exit codes and outputs.
 
 ### `results.py` (verified against file)
 
@@ -501,6 +535,10 @@ add higher `--rates` (for example 100,200) to look for saturation.
 
 ### `attacks.py` (appeared in the repository on 2026-10-30; checked against the file)
 
+> **Note (2026-10-31):** this file is in the repository (committed in `95399be`, marked unfinished there) and has never been run.
+> The record of the 2026-10-30 runs does not say which tool sent their attack frames. The real-Pixhawk attack runs used
+> `scripts/ardupilot/real_pixhawk/` (`px_attack.py`, `px_track_forger.py`); see `docs/REAL_PIXHAWK_TEST.md`.
+
 Injects one hostile scenario per run through the hub's GCS port (read/write) as an untrusted sysid (default 77), alongside a
 continuous trusted-sysid heartbeat and command stream (default sysid 255). It watches the hub's observer port (read-only,
 5802 by default) for the vehicle's HEARTBEAT `custom_mode` and armed bit, and for `AEGIS:` STATUSTEXT alerts.
@@ -537,6 +575,9 @@ command sent after the attack gets through). Exit 0 when all checks pass; 1 when
 or a precondition (usually a key file) is not met.
 
 ### `legit_probe.py` **(not in the repository on 2026-10-30; interface as designed, unverified)**
+
+> **Note (2026-10-31):** this file is in the repository (committed in `95399be`) and has never been run. The real-Pixhawk
+> runs used `px_legit.py` and `px_params.py` in `scripts/ardupilot/real_pixhawk/` instead.
 
 Steady legitimate pilot traffic: a 1 Hz heartbeat and a harmless command (for example `DO_SET_MODE(GUIDED)` as sysid 255)
 at a fixed interval, recording the acknowledgement and its latency per command. Used in phases 3, 5, 8 and 9 to count
@@ -724,7 +765,7 @@ Randomised, overlapping attack campaign over the real radio, on a signed link, a
 laptop from `C:/afsitl` (it reads `C:/afsitl/sign.key` and `wrong.key`, and writes `C:/afsitl/campaign_<label>.json`; the paths
 are specific to the bench laptop).
 
-    campaign.py <label> <posture> <seed>      (env PI_KEY and REPO; optional PI_SSH, default ardra@169.254.225.172)
+    campaign.py <label> <posture> <seed>      (env PI_KEY and REPO; optional PI_SSH, default ardra@<pi-link-local-ip>)
 
 `<posture>` is `passive`, `advisory` or `active-ips`. The seed (`random.Random(seed)`) sets the event order and timing, so the same
 seed gives comparable runs across postures. Events (11): forged_land, forged_force_disarm (sysid 66), forged_rtl_spoof255,
@@ -758,7 +799,7 @@ it writes the status and monitor summaries and an event list from the bridge's S
 ### `laptop_ctl.py` (verified against file)
 
 Laptop-side helper that drives the Pi over `ssh`/`scp` (BatchMode, so it never prompts; key from `ARDRA_KEY` or `--key`;
-host and user default to 10.36.150.82 and `ardra`, overridable with `ARDRA_HOST`/`ARDRA_USER` or `--host`/`--user`). 10.36.150.82 is the old Wi-Fi address: for the wired link use `ardra.local` (`--host ardra.local` or `ARDRA_HOST=ardra.local`). It runs
+host and user default to <pi-ip> and `ardra`, overridable with `ARDRA_HOST`/`ARDRA_USER` or `--host`/`--user`). <pi-ip> is the old Wi-Fi address: for the wired link use `ardra.local` (`--host ardra.local` or `ARDRA_HOST=ardra.local`). It runs
 `pi_bridge_run.sh` on the Pi; it does not start or stop `radio_hub` and does not touch the firewall.
 
 | Subcommand | Effect |
@@ -861,6 +902,9 @@ the commit, so add the commit hash and rig configuration by hand. The headline n
 | `pkill -f` run over ssh kills the ssh shell itself (seen on the Pi, 2026-10-30) | a pattern that also appears in the ssh command line matches the shell that launched it | start and stop processes with pid files and kill by pid, as `pi_bridge_run.sh` does; never `pkill -f` a pattern that the same ssh command contains |
 | SITL does not open 5762 | SITL waits for a client on SERIAL0 first | start the holder client on 5760 |
 | Pi `vcgencmd get_throttled` shows `0x50005` | under-voltage and throttling happening now (low nibble = now; `0x50000` = history only) | do not run timing phases until it reads `0x0` or history only; see section 3, item 6 |
+| Pi 3B+ drops off the network when the Pixhawk's USB port is opened (3 of 3, 2026-10-30/31) | not established; an earlier boot also showed under-voltage | use a Pi 5 (no drop on 2026-10-31); see `docs/REAL_PIXHAWK_TEST.md` |
+| Snapshot restore prints RESTORED but a hidden `SCR_USER*` parameter changed (2026-10-31) | the snapshot and the restore compare only the parameters the vehicle lists; `SCR_USER1..6` are not in that list | a snapshot cannot cover them: restore them by name and read them back (`docs/REAL_PIXHAWK_TEST.md`, section 5) |
+| A read with a signing key set gets no answer although the vehicle is answering (2026-10-31) | pymavlink silently drops the vehicle's unsigned replies when a key is set | check with an unsigned read; `px_signing.py` now accepts unsigned replies |
 
 ## 8. Safety and scope
 
@@ -882,6 +926,7 @@ the commit, so add the commit hash and rig configuration by hand. The headline n
 ## 9. Known limitations and what a pass would and would not let us claim
 
 * The FC link is a TCP socket to SITL, carried over the Ethernet cable inside an SSH reverse tunnel, not a UART. Latency and jitter on that hop are not those of a real FC.
+* The 2026-10-31 real-Pixhawk runs connected the flight controller by USB (CDC) to a Pi 5, on a bench with the vehicle disarmed. They are not flight results and do not test a UART.
 * Pi power: the supply was under-voltage on 2026-10-30 (`docs/RADIO_TEST_RESULTS.md`), so Pi figures taken from that supply are worst-case. The Pi radio also dropped off the USB bus twice that day, and the real-radio session rad2 still recorded under-voltage flags.
 * Pi-in-the-loop runs (bridge on the Pi, SITL and hub on the laptop, no radio) are software checks of the bridge over the cable, not radio results. They are logged in `docs/RADIO_TEST_RESULTS.md`.
 * One MicoAir LR900 pair (900 MHz, POWER MAX, firmware 1.1.4), a few metres apart. Its clean throughput is about 1.0-1.05 KB/s each way with the settings in section 3, item 10: loss and latency are bench figures, not a link budget.
@@ -951,6 +996,8 @@ The judgement below is conservative. It is made against the plan's written crite
 | 7 management channel | ACTIVE_IPS (budget only, rad2) | **PARTLY.** Management traffic measured: 9,688 B over 361 s (about 27 B/s), 1 budget denial. Ground-side commands and their ACK latency were not run over the radio. |
 | 8 failure and recovery | ACTIVE_IPS, three cases (rlong1, unp1, rbt1) | **NOT PASS as written; three of five cases run.** Bridge kill and manual restart: 27.6 s gap; 24,701 downlink forwarded after restart, 0 dropped. Air-radio unplug for 16 s: one 16.0 s gap; the bridge stayed up and reconnected on its own; 414 frames not written during the outage. Pi soft reboot with cron auto-start (a variant: the plan says by-hand start): 71.5 s pilot gap; FC and GCS links back about 70 s after the reboot command; no manual step after the reboot command. Not run over the radio: laptop (ground) radio unplug, repeated or longer unplugs, unplug during an attack, hard power cut of the Pi, the by-hand Pi reboot, SITL drop and restart, signed-restart replay, systemd-managed start (unit untested). |
 | 9 soak | ACTIVE_IPS, 20 minutes (rlong1) | **NOT PASS as written; partly met.** 20 minutes, against 30 to 60 required. Met: RSS flat (slope 0.063 MiB/min, no growth flag); 59 of 59 benign probes acknowledged; forged LAND dropped. Not shown: the new-throttle-bit check, hook_errors for the run, loss and latency for the first versus last 10 minutes. |
+
+**Real Pixhawk on a Pi 5 (2026-10-31).** Summarised in `docs/RADIO_TEST_RESULTS.md`, section "Real Pixhawk 6X on a Pi 5, 2026-10-31", against the plan's criteria. On the bench, disarmed: passive and advisory benign traffic with 0 drops; the attack sequence on the unsigned link, where active-ips blocked the forged LAND, force-disarm, LOITER, flood and replay, while a counter-tracking forger and an on-ground RTL spoof passed; the legitimate-traffic suite (13 of 14 steps); management-channel commands over the radio; and a firmware-tamper check over the radio. Signing was run once over USB with the bridge as the enforcement point (phase 6, partly met; flight-controller enforcement not tested). Not run on the real Pixhawk: the radio unplug and power cut (phase 8). The 1,500 s soak completed (phase 9, partly met; see the results file).
 
 **Not yet run over the radio (stated plainly):**
 

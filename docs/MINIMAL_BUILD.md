@@ -1,8 +1,10 @@
 # Minimal build: flight controller + GPS + telemetry radio + cheap onboard computer
 
-The target is a cheap drone whose only link to the ground is the telemetry radio. Nothing below has been measured on real
-hardware: the Pi's CPU/latency headroom is **not measured**, and the software has only run on a PC (synthetic frames,
-loopback sockets, ArduCopter SITL).
+The target is a cheap drone whose only link to the ground is the telemetry radio. Parts of this have now run on real
+hardware, on a bench and not in flight: a Pixhawk 6X on USB to a Raspberry Pi 5, over a MicoAir LR900 radio pair, with the
+vehicle disarmed (2026-10-31; see `docs/REAL_PIXHAWK_TEST.md`). The wiring below, with the flight controller on a UART TELEM
+port, has not been tested. Pi CPU and latency figures exist for a Pi 3B+ (in the loop, under throttling during the soak) and
+for a Pi 5 bench soak (1,500 s, completed; see `docs/INLINE_IPS.md`). They are not flight figures and are not a headroom claim for a Pi Zero 2 W.
 
 ## Two wirings
 
@@ -58,11 +60,29 @@ WantedBy=multi-user.target
   The restart gap is a link outage; the bridge itself fails open per frame and its policy rules lapse if the analyser stalls,
   but a dead process forwards nothing. Measured on a Pi 3B+ on 2026-10-30 (Pi-in-the-loop, no radio): a hard kill
   (`kill -9`) followed by a manual restart gave a telemetry outage of 13.0 s (11 s dead, about 2 s start-up). The systemd
-  `Restart=always` path above was not measured.
+  `Restart=always` path above was not measured. The bench used a user crontab `@reboot` entry instead (`scripts/radio_test/pi_autostart.sh`);
+  the systemd unit `scripts/radio_test/aegis-bridge.service` is provided but was not installed or tested.
 
   Optional firmware check (code commit e8d08d3): add `--firmware-dir /etc/aegis/firmware --firmware-recheck-s 30` to
   `ExecStart`, with the manifest made by `aegis fw-manifest /etc/aegis/firmware`. The manifest is not signed: a rewriter of
   both the binary and the manifest defeats it. Without `--firmware-dir` the firmware verdict stays UNKNOWN.
+
+## Pi 5 bench deployment (2026-10-31)
+
+What the bench used, and what it does not show:
+
+| | Bench (2026-10-31) | Wiring 1 (above) |
+|---|---|---|
+| Flight-controller link | Pixhawk 6X on USB (`/dev/ttyACM0`) | FC TELEM UART |
+| Radio | MicoAir LR900 pair on USB, 115,200 baud | Telemetry radio on a USB-serial adapter |
+| Companion | Raspberry Pi 5 | Raspberry Pi |
+| Flight | None (disarmed, propellers removed) | Flight |
+
+* The packages, the `--allow-unsigned` gate and the unsigned-link limits are in `docs/INLINE_IPS.md`, section "Pi deployment notes (Pi 5, bench, 2026-10-31)".
+* The bench bridge was not run under systemd. A user crontab `@reboot` entry started it on the Pi 3B+ (phase 8, rbt1). The systemd unit in `scripts/radio_test/aegis-bridge.service` is untested.
+* A hard power loss of the Pi (SD-card behaviour) has not been tested on the real link. Phase 8 is not run on the real Pixhawk. The no-bypass limit above still applies.
+* Signing on this bench was enforced by the bridge, over USB. The flight controller's own enforcement was not tested; that needs a UART or telemetry port wired to the Pi.
+* Active-ips on this bench, with the unfixed GPS false-alarm issue, sent 457 counter-commands in a 1,500 s soak and held a disarmed vehicle in ALT_HOLD. This is a limit on flight use of active-ips until the GPS issue is fixed.
 
 ## Provisioning (all at the bench)
 

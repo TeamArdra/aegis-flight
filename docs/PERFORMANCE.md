@@ -3,7 +3,7 @@
 ## Detection pipeline
 
 Scope: `parse -> FeatureExtractor -> 4 detectors -> fusion -> ThreatAssessment`
-(`IDSPipeline.process_tick`). **Nothing here was measured on a Raspberry Pi.** All numbers are from the
+(`IDSPipeline.process_tick`). **Nothing in this subsection was measured on a Raspberry Pi** (the Pi 3B+ figures are in the Raspberry Pi section below). All numbers are from the
 development host (Windows 10, CPython 3.14, numpy/scikit-learn as installed in `C:\afvenv`); treat the
 **relative** gains as the result and the absolute microseconds as host-specific.
 
@@ -80,7 +80,7 @@ Relative gain: whole decision tick **~50x with ML** (12.5 ms -> 0.24 ms) and **~
 
 Scope: the inline (Raspberry-Pi-side) forwarding path: serial stream framer, CRC, `split_frames`, `FrameContext`,
 `InlinePolicy.up/down`, bridge `_handle`, management emission. **Host numbers only (Windows, CPython 3.14, one run
-each, about +-10 % run-to-run noise); nothing was measured on a Raspberry Pi.** Per-call numbers include one
+each, about +-10 % run-to-run noise); the Raspberry Pi 3B+ figures for this path are in the section below.** Per-call numbers include one
 `perf_counter_ns` pair (about 0.1-0.2 us). Reproduce with `python scripts/perf_bench_forwarding.py` (`--profile` for
 cProfile); raw results in `artifacts/perf/forwarding_before.json` / `forwarding_after1.json`.
 
@@ -250,3 +250,5 @@ frames/s for 60 s in `active-ips`: 0 frames lost either way, bridge CPU 32% of o
 averaged 126 B/s including the cross-end summary (30 status messages and 44 alert/action texts in 60 s); 3 signed posture
 commands from the ground side were answered (a lowering from `active-ips` correctly asked for its second confirmation; the other
 two were accepted). Pseudo-terminals, a Pi 3B+, ML off: not a radio or flight test.
+
+**Later (2026-10-30/31):** the same Pi 3B+ ran the bridge over the real LR900 radio pair with ArduCopter SITL on the laptop (`docs/RADIO_TEST_RESULTS.md`). On 2026-10-31 a Raspberry Pi 5 ran the bridge with a real Pixhawk 6X on USB, disarmed; those results are in `docs/RADIO_TEST_RESULTS.md`, section "Real Pixhawk 6X on a Pi 5, 2026-10-31". Those later figures are not repeated in this file. The Pi 5 bench soak (1,500 s) completed; its result is in `docs/RADIO_TEST_RESULTS.md`.

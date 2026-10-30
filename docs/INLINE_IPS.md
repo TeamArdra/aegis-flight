@@ -85,7 +85,7 @@ recomputes the CRC; if nothing needs changing it forwards the original bytes.
 - Host micro-benchmark (this PC, no real I/O, 15,000 frames through the policy): p50 ~3 us, p95 ~4 us per frame.
   That is policy cost only. Serial latency, the analyser's decision time (17.7 ms mean with ML on) and anything on a
   companion computer are **not measured**.
-- **Not tested against a real flight controller, a radio or SITL.** Do the first run with the aircraft restrained.
+- **Tested against ArduCopter SITL, over a real LR900 radio pair (2026-10-30), and against a real Pixhawk 6X on a bench with a Pi 5 (2026-10-31; disarmed, propellers removed, USB link).** Not flown. Any first flight should be restrained. See `docs/REAL_PIXHAWK_TEST.md`.
 - **No hardware bypass.** Both ports end in this process; if the companion loses power or the process dies the link is
   cut. A relay or splitter that connects FC and radio directly when the companion is down is required for flight.
 - Without a signing key, trust is by sysid and an attacker who claims sysid 255 passes; use signing and set
@@ -355,7 +355,7 @@ explicit choice:
   status API is reachable from the network.
 - `GET /status` also returns `signing: {configured, unsigned_acknowledged}` and `control: {enabled}`.
 
-Real-radio test (not yet passed on the radio): see [docs/RADIO_TEST.md](RADIO_TEST.md).
+Real-radio tests: see [docs/RADIO_TEST.md](RADIO_TEST.md) and [docs/RADIO_TEST_RESULTS.md](RADIO_TEST_RESULTS.md). None of the radio phases passes as written yet. Signing was run once on the real Pixhawk over USB, with the bridge as the enforcement point (see the last section).
 
 ## Raspberry Pi 3B+ verification
 
@@ -378,10 +378,67 @@ latency are worst-case. Details: `docs/RADIO_TEST_RESULTS.md`, section "Pi 3B+ i
 | Battery step, +3 V | NOT detected (known limit) |
 | Frozen attitude at hover | NOT detected (needs speed above 2 m/s; known limit) |
 | One firmware byte flipped | FIRMWARE_INTEGRITY INVALID within about 5 s; pilot takeover required |
-\1| Real radio, signing (rsg1) | 10 signed accepted; 40 unsigned, 10 wrong key, 3 replay dropped; mode GUIDED; 4,929 of 4,929 downlink forwarded |
+| Real radio, signing (rsg1) | 10 signed accepted; 40 unsigned, 10 wrong key, 3 replay dropped; mode GUIDED; 4,929 of 4,929 downlink forwarded |
 | Real radio, GPS glitch (rgps1) | GPS_SPOOFING HIGH +0.8 s; ALT_HOLD +4.0 s; no AUTO, RTL or LOITER; gps_recovered +22.8 s |
 | Real radio, bridge kill and manual restart (rlong1) | 27.6 s telemetry gap (25 s dead); 24,701 downlink forwarded after restart, 0 dropped; state NOMINAL |
-\1\1\1\1| Real radio, GPS ladder on a signed link after the clock fix (cid) | ALT_HOLD +4.3 s after the glitch (was rejected in cic: the bridge's counter-command timestamps came from a Pi clock 3 h 9 min behind); descent in ALT_HOLD with no pilot throttle, as documented; 0 heartbeat gaps over 3 s |
+| Real radio, GPS ladder on a signed link after the clock fix (cid) | ALT_HOLD +4.3 s after the glitch (was rejected in cic: the bridge's counter-command timestamps came from a Pi clock 3 h 9 min behind); descent in ALT_HOLD with no pilot throttle, as documented; 0 heartbeat gaps over 3 s |
 
 These are software results on a Pi with no radio. They do not replace the real-radio phases in `docs/RADIO_TEST.md`, which
 are only partly run. Real-radio note (2026-10-30, MicoAir LR900 pair, ACTIVE_IPS): rad2 (`--allow-unsigned`) gave 9,792 of 9,801 frames sent by the bridge at the ground (9 in flight), 567 of 567 uplink frames to the bridge, and forged LAND and a flood from sysid 66 stopped at the bridge. rsg1 (signing key on the Pi) gave 40 unsigned, 10 wrong-key and 3 replayed frames dropped with the mode unchanged. rgps1 gave a GPS glitch detected at +0.8 s with ALT_HOLD at +4.0 s and no forbidden mode. rlong1 (20 min, ACTIVE_IPS): bridge killed with `kill -9` and restarted by hand gave a 27.6 s telemetry gap; 24,701 downlink forwarded after the restart with 0 dropped; RSS slope 0.063 MiB/min; forged LAND from sysid 66 dropped twice. Not run over the radio: plain passive and advisory postures (the randomised signed campaign ran them with attacks), ground-side management commands, firmware tamper, ground-radio unplug, longer air-radio unplugs (one 16 s air-radio unplug was run, unp1), the 30 to 60 minute soak (20 minutes was run), range, and the stale and future signing timestamps. Details: `docs/RADIO_TEST_RESULTS.md`, real-radio session section.
+
+## Pi deployment notes (Pi 5, bench, 2026-10-31)
+
+Measured on the bench with a real Pixhawk 6X (USB), disarmed, propellers removed, over a MicoAir LR900 pair. Not flown. The procedure is in `docs/REAL_PIXHAWK_TEST.md`. The figures and the judgement against the plan are in `docs/RADIO_TEST_RESULTS.md`, section "Real Pixhawk 6X on a Pi 5, 2026-10-31".
+
+**What changed for a Pi deployment**
+
+* **Hardware.** Raspberry Pi 5 with Raspberry Pi OS Lite (Debian 13) and Python 3.13. The flight controller is on USB (`/dev/ttyACM0`); `--fc-baud` is ignored by USB CDC. The radio is on USB: use the `/dev/serial/by-id/...` path, because two radios of this kind report identical USB IDs. A Raspberry Pi 3B+ dropped off the network when the Pixhawk's USB port was opened (3 of 3), so it was replaced for these runs.
+* **Packages the bridge imports at start-up.** `aegis ips-bridge --help` works without them, because the arguments are parsed before the heavy imports. The bridge itself needs `pymavlink`, `pyserial`, `numpy`, `pyyaml`, `psutil`, `joblib` and `scikit-learn` (with `scipy` and `threadpoolctl`). `pyserial` is the optional `serial` extra in `pyproject.toml`. The core dependencies in `pyproject.toml` are a larger set; they also list pandas, pydantic, fastapi and uvicorn.
+* **Unsigned link, active-ips.** The CLI refuses `active-ips` without a signing key unless `--allow-unsigned` is given. The refusal says that an unsigned link cannot stop a counter-tracking forger. The bench runs used `--allow-unsigned` for this reason. Passive and advisory do not need it.
+* **Power.** Use a supply that meets the Pi 5's rating, and check `vcgencmd get_throttled` before any timing run. `0x0` is the clean reading. The Pi 3B+ supply showed under-voltage on one boot.
+* **Clock.** Signing timestamps come from the wall clock. A signing-enabled flight controller rejects counter-commands stamped from a clock that is far behind. On the bench the Pi clock was 3 h 9 min behind and the counter-commands were rejected; the bridge now stamps them from observed signed traffic (commit `e099e04`, per `git log`). Sync the Pi clock before signing. `--signing-max-age-s` also compares frame timestamps with the local clock, so leave it unset on a Pi without a correct clock.
+* **Start-up.** On the Pi 3B+ bench a user crontab `@reboot` entry started the bridge (phase 8, rbt1). The systemd unit `scripts/radio_test/aegis-bridge.service` is provided but was not installed or tested on any Pi.
+* **Firmware check.** `--firmware-dir` with `--firmware-recheck-s` was run over the radio. The check re-hashes the `*.bin` files in that directory; it does not read the flight controller's own firmware. Its alert headline was late (see `docs/RADIO_TEST_RESULTS.md`).
+
+**Unsigned-link limits, as measured on the bench**
+
+* Blocked in active-ips: forged LAND, force-disarm and LOITER from an unknown sysid; a flood from that sysid (the sender was quarantined); a replayed frame.
+* Not blocked: a counter-tracking forger that uses the pilot's sysid and next sequence number passed in two runs. A forged RTL that used its own counter also passed while the vehicle was on the ground; the in-flight provenance rule cannot be exercised on a disarmed vehicle.
+* Only signing stops the counter-tracking forger. Signing was run once on the real Pixhawk over USB (see the last section); the flight controller's own enforcement was not tested.
+
+**GPS on the bench.** The stationary receiver's own wander produced `GPS_SPOOFING` false alerts. This is a known open issue and is not fixed (`docs/RADIO_TEST_RESULTS.md`).
+
+**Status.** The 1,500 s (25 min) Pi 5 soak completed; its result, and its cost (false GPS alerts moved the vehicle's mode), are in the last section.
+
+## Signing enforcement point and the Pi 5 bench soak (2026-10-31)
+
+**Signing on the real Pixhawk over USB (one run).** Over USB, the bridge is the enforcement point that can be observed. The flight
+controller's own signature checking was **not tested**: it needs a UART or telemetry port wired to the Pi. A test key was sent to the
+Pixhawk and later switched off, and whether it was stored cannot be read back. Unsigned requests on the USB link kept being answered.
+That fits ArduPilot exempting the USB link from signing, but it is an inference and is not verified.
+
+| Event | Unsigned link: active-ips with `--allow-unsigned` | Signed link: active-ips with `--signing-key-file`, no `--allow-unsigned` |
+|---|---|---|
+| Legitimately signed pilot command (set-mode ALT_HOLD) | not applicable | passed; the vehicle changed mode |
+| Forged LAND from sysid 77 | blocked; sender quarantined | blocked (`dropped_unsigned`) |
+| RTL spoofing sysid 255 | passed while the vehicle was on the ground (`suspect_provenance`) | blocked (unsigned; `dropped_unsigned`) |
+| Wrong-key signed LAND spoofing sysid 255 | not run on this link | blocked (`dropped_bad_signature` 1) |
+| LOITER from sysid 77 | blocked | blocked (`dropped_unsigned`) |
+| Replay of a captured ALT_HOLD | blocked (`dropped_replay_unsigned` 1) | blocked (`dropped_replay` 1) |
+| Force-disarm from sysid 77 | blocked | blocked (`dropped_unsigned`) |
+| Flood from an unknown sysid | 443 frames dropped (`dropped_dynamic`) | 5 s flood after quarantine: `dropped_dynamic` 449 for the run |
+| Counter-tracking forger (uses the pilot's next sequence number) | passed in two runs | not in the record |
+
+On the signed link, 0 of 7 forged or replayed events reached the vehicle. The run had 134 alerts and 0 errors, and every blocked event
+was announced at the ground (`AEGIS: blocked` texts). **Limits, stated plainly:** one run and one key; the wrong-key and replay
+cases are one frame each; no signed-timestamp skew test; the flight controller's own enforcement not tested. So this run does not show
+that the vehicle would refuse a forged frame that got past the bridge.
+
+**Pi 5 soak, 1,500 s, active-ips (2026-10-31).** Forwarding was clean: 81,368 frames down and 1,503 up forwarded, 0 dropped either way,
+0 send failures, 0 errors, handling p50 15.6 us, p95 58.5 us, max 5.0 ms, no heartbeat gap over 3 s, RSS about 68 MB and flat, and no
+throttle flags. **The cost:** the bridge raised 207 alerts from the unfixed GPS false-alarm issue and sent 457 counter-commands through
+its autonomous GPS response. The disarmed vehicle was held in ALT_HOLD for the run and was restored to STABILIZE by hand. Until the GPS
+false-alarm issue is fixed, active-ips should not be treated as safe on a flying vehicle. Details: `docs/RADIO_TEST_RESULTS.md`, section
+"Real Pixhawk 6X on a Pi 5, 2026-10-31".
+
+

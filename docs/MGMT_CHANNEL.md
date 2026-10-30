@@ -4,7 +4,7 @@ On a cheap drone (flight controller + GPS + telemetry radio + a small companion 
 to the ground. `aegis ips-bridge` therefore reports to the ground station, and takes a few signed controls, over
 that same radio using only standard MAVLink 2 messages (no dialect change). Code: `src/aegisflight/hal/mgmt_channel.py`
 (both ends), wired in `hal/inline_ips.py`; ground side `backend/bridge_remote.py`. Tests: `tests/unit/test_mgmt_channel.py`
-(synthetic frames, in-memory links; nothing measured on a radio or a companion computer).
+(synthetic frames and in-memory links; the later runs over the real LR900 radio pair and on a Pi are in `docs/RADIO_TEST_RESULTS.md`).
 
 All bridge frames are sent from **sysid 1 / compid 191** to the **GCS side only**: never to the flight controller,
 never to the bridge's tap/detectors, in every posture (passive / advisory / active-ips). The ground IDS already treats
@@ -124,4 +124,4 @@ What this does and does not show: single runs on a simulated autopilot (ArduCopt
 latency, loss, jamming or 57,600 baud limit: the bytes/s are counted bytes, not airtime), one pilot script and one attacker script
 instead of real ground-station software, an unsigned flight link (the signed-alert path with `--signing-key-file` was not run
 here), one machine and clock. It does not show behaviour under packet loss, real companion-computer load, long soak runs, or
-authentication strength beyond the cases listed.
+authentication strength beyond the cases listed. Later (2026-10-31): the management channel was also run over the real LR900 pair, with a real Pixhawk 6X on a Raspberry Pi 5 (disarmed): posture commands, bad-frame cases and ACK signatures passed, and nominal management traffic was 81.8 B/s against the 150 B/s budget. The flood-window bytes, alert latency, status age and ACK latency for that run are not recorded (`docs/RADIO_TEST_RESULTS.md`).

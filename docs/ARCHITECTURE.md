@@ -2,8 +2,8 @@
 
 > **Status note (integration review):** this page is a design description. What is implemented, measured or only modelled is
 > recorded in `docs/VALIDATION_EVIDENCE.md` and the README. In particular: the defense layer is report-only on every live or
-> recorded source; Topology B is implemented as `aegis ips-bridge` (`docs/INLINE_IPS.md`) and tested on synthetic frames and loopback serial only; the older `InlineBridge` class, its 150 ms watchdog and `rust/aegis_fastpath` are
-> not on that path, and nothing has a measured figure on hardware; nothing has been measured on a companion computer; the measured decision
+> recorded source; Topology B is implemented as `aegis ips-bridge` (`docs/INLINE_IPS.md`) and tested on synthetic frames, loopback serial and ArduCopter SITL, and on the bench with a real Pixhawk 6X over a real LR900 radio pair (not flown); the older `InlineBridge` class, its 150 ms watchdog and `rust/aegis_fastpath` are
+> not on that path, and have no measured figure; the bridge's own figures on a Raspberry Pi 3B+ and on a Raspberry Pi 5 bench (real Pixhawk over USB, disarmed) are in `docs/PERFORMANCE.md` and `docs/RADIO_TEST_RESULTS.md`; the measured decision
 > compute is 17.7 ms mean / 23.6 ms p95 with ML on (`artifacts/benchmarks/summary.md`, SIM).
 
 > **Pushpak Grand Challenge 2026–27 (IIT Bombay Techfest) — Security of Drones, Objective 2**  
@@ -246,7 +246,7 @@ AegisFlight has been validated across 9 comprehensive verification suites:
 | **Ablation Study** (`benchmarks_ablation_no_ml`) | Physics + Protocol Only (No ML) | Accuracy: `98.6%`, proves multi-layered resilience |
 | **Real Flights — ALFA Dataset** | 41 Real Fixed-Wing Flight Logs | Zero false alarms under real crosswinds and turbulence |
 | **Real Flights — PX4 Review** | 40 Real Multirotor Telemetry Logs | Validated under real-world sensor noise and dropouts |
-| **Hardware-in-the-Loop Bench** | Pixhawk 6X over 115,200 Baud UART | Zero frame loss, DMA buffer verified |
+| **Hardware bench** (`docs/HARDWARE_BENCH_PIXHAWK6X.md`, `docs/REAL_PIXHAWK_TEST.md`) | Pixhawk 6X over USB, disarmed, propellers removed (no UART run) | Read-only captures and bench runs; no DMA measurement in the repository |
 | **Stage 2 Verification Suite** (`verify_stage2.py`) | 8 Comprehensive Audit Suites | **8/8 Suites Passed in 40.5 ms** (100% compliant) |
 | **Unit Test Suite** (`pytest`) | Core, Detectors, Mitigation, HAL | `pytest -q` prints the current count |
 | **Frontend Production Build** | TypeScript + Vite + Tauri Rust | **Built in 259 ms, 0 errors** |

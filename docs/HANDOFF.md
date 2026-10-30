@@ -36,8 +36,8 @@ simulation — no real drone or network is involved.**
 | Autonomous Mitigation & Prevention (IPS) | ✅ COMPLETE (`src/aegisflight/mitigation/`) |
 | Dual-Topology Execution (Topology A & B) | ✅ COMPLETE (`hal/topology.py`, `hal/inline_bridge.py`) |
 | Native Desktop GCS (Tauri 2.0 Rust) | ✅ COMPLETE (`frontend/src-tauri/`) |
-| MAVLink v2 Cryptographic Packet Signing | ✅ COMPLETE (`src/aegisflight/mavlink/signing.py`) |
-| Physical Hardware Validation (Pixhawk 6X bench) | ✅ COMPLETE (`docs/HARDWARE_BENCH_PIXHAWK6X.md`) |
+| MAVLink v2 Cryptographic Packet Signing | ✅ code complete and SITL-tested (`src/aegisflight/mavlink/signing.py`); one bench run on the real Pixhawk over USB with the bridge as the enforcement point; flight-controller-side enforcement not tested |
+| Physical Hardware Validation (Pixhawk 6X bench) | ✅ passive bench validation (`docs/HARDWARE_BENCH_PIXHAWK6X.md`); real-radio and Pi 5 bench runs partly done (`docs/RADIO_TEST_RESULTS.md`, `docs/REAL_PIXHAWK_TEST.md`); no flight |
 | ArduPilot & PX4 SITL Integration | ✅ COMPLETE (`docs/ARDUPILOT_SITL.md`, `docs/STAGE2_RUNBOOK.md`) |
 
 ## What you can demonstrate today
@@ -124,6 +124,6 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
 6. **Immutable Forensic Hash Chain**: SQLite rolling block hash chain for tamper-evident audit logs.
 
 ## Recommended Next Steps (Future Roadmap)
-1. Physical flight tests with companion computer mounted on an operational quadcopter.
+1. Physical flight tests with companion computer mounted on an operational quadcopter. (The 2026-10-31 bench runs were disarmed with propellers removed; no flight has been done.)
 2. Microsecond-level hardware bench testing on embedded microcontrollers (STM32 / ESP32).
 3. Secure enclave (TPM / HSM) hardware key storage for MAVLink packet signing keys.

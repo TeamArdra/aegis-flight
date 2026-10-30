@@ -1,7 +1,7 @@
 # AegisFlight
 
 <p align="center">
-  <strong>Cyber-Physical Intrusion Detection System for Unmanned Aerial Vehicles</strong> (passive by default; an optional inline prevention bridge is verified on ArduCopter SITL only)
+  <strong>Cyber-Physical Intrusion Detection System for Unmanned Aerial Vehicles</strong> (passive by default; an optional inline prevention bridge is verified on ArduCopter SITL, and on a bench with a real Pixhawk 6X and a radio pair, but not in flight)
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
 
 Modern UAVs operating in contested or civilian airspace are vulnerable to RF telemetry injection, GPS spoofing, Denial-of-Service (DoS) floods, and rogue command overrides (e.g. forced mid-air disarming or unauthorized waypoint redirects). Conventional IT security solutions treat telemetry packets as opaque network blobs and fail to account for aircraft aerodynamics or latency constraints.
 
-In the simulator, the dashboard runs a **cyber-physical flight twin** and shows what the defense layer's counter-actions would do. Decision compute is 17.7 ms mean / 23.6 ms p95 with ML on (`artifacts/benchmarks/summary.md`, SIM; measured before the pipeline optimisation). After it the same benchmark gives 0.76 ms mean / 2.4 ms p95 on this host with every decision unchanged (`docs/PERFORMANCE.md`); the committed benchmark artifacts have not been regenerated, and nothing was measured on a Raspberry Pi. Prevention is not measured on any vehicle. Nothing is transmitted in the default `passive` posture; `active-ips` sends counter-commands and the inline bridge (`docs/INLINE_IPS.md`) can drop hostile frames, both verified on ArduCopter SITL / loopback only.
+In the simulator, the dashboard runs a **cyber-physical flight twin** and shows what the defense layer's counter-actions would do. Decision compute is 17.7 ms mean / 23.6 ms p95 with ML on (`artifacts/benchmarks/summary.md`, SIM; measured before the pipeline optimisation). After it the same benchmark gives 0.76 ms mean / 2.4 ms p95 on this host with every decision unchanged (`docs/PERFORMANCE.md`); the committed benchmark artifacts have not been regenerated, and the bridge has been measured on a Raspberry Pi 3B+ (in the loop) and, on the bench, on a Raspberry Pi 5 with a real Pixhawk 6X (`docs/RADIO_TEST_RESULTS.md`). Prevention has not been measured in flight on any vehicle. Nothing is transmitted in the default `passive` posture; `active-ips` sends counter-commands and the inline bridge (`docs/INLINE_IPS.md`) can drop hostile frames, both verified on ArduCopter SITL and loopback, and on the bench (not in flight).
 
 ```
                        ┌──────────────────────────────────────────────────┐
@@ -47,7 +47,7 @@ In the simulator, the dashboard runs a **cyber-physical flight twin** and shows 
 
 - **Dual-Topology Execution Model**:
   - **Topology A (Sidecar Companion Actuator)**: *design, modelled in SIM only.* A companion on a secondary UART would issue corrective counter-commands; nothing transmits on a live source.
-  - **Topology B (Inline Bridge)**: `aegis ips-bridge` (`hal/inline_ips.py`, `mitigation/inline_policy.py`) sits between the flight controller port and the GCS radio port and drops hostile frames before the autopilot sees them (`docs/INLINE_IPS.md`). Tested on synthetic frames and loopback serial only; no flight controller, radio or companion-computer measurement and no hardware bypass yet. The Rust crate `rust/aegis_fastpath` is still not on the path.
+  - **Topology B (Inline Bridge)**: `aegis ips-bridge` (`hal/inline_ips.py`, `mitigation/inline_policy.py`) sits between the flight controller port and the GCS radio port and drops hostile frames before the autopilot sees them (`docs/INLINE_IPS.md`). Tested on synthetic frames, loopback serial and ArduCopter SITL; over a real LR900 radio pair; and on the bench with a real Pixhawk 6X on a Raspberry Pi 5 (`docs/RADIO_TEST_RESULTS.md`). Not flown; one signed run over USB with the bridge as the enforcement point (the flight controller's own enforcement not tested); no hardware bypass yet. The Rust crate `rust/aegis_fastpath` is still not on the path.
   - **Topology A+B (Hybrid)**: *design only.*
   - **Topology detection**: not selectable. The software reports `A` (single-port sidecar) or `A+B` (inline bridge) from how it is connected (`GET /api/topology`, `topology_info`); SIM and replay are labelled as such.
 - **Multi-Detector Evidence Fusion**:
@@ -79,12 +79,11 @@ Tested across 6 seeds $\times$ 7 baseline scenarios (23,430 decisions):
 
 ### Cyber-Physical Prevention & Mitigation (SIM model only; not measured)
 The defense layer (`src/aegisflight/mitigation/`) is a **simulation-dashboard model**: on the SIM source it shows
-what a counter-action would do, using the dashboard's cyber-physical twin. **No prevention metric (detour, survival,
-mitigation rate, watchdog time) has been measured** in SIM, SITL or hardware, and none is claimed here.
+what a counter-action would do, using the dashboard's cyber-physical twin. **Detour, survival and watchdog time have not been measured.** Frame-level counts (dropped, blocked, rewritten) have been measured in SITL, and on the bench over the radio and with a real Pixhawk 6X (`docs/RADIO_TEST_RESULTS.md`), but not in flight. Detour, survival and watchdog time are not claimed here.
 - Posture gates transmission on every source. `PASSIVE` (the default) and `ADVISORY` send nothing to the vehicle
   (`bytes_sent = 0`); `ADVISORY` adds STATUSTEXT alerts to a GCS. `ACTIVE_IPS` encodes counter-commands (mode restore, EKF source
   switch, optional signing) and, on a live serial or UDP link, transmits them. That transmit path is unit-tested with a recording
-  transport only; it has not been exercised against a real or SITL autopilot, and its effect is unmeasured. Replay has no
+  transport only; it has been exercised against ArduCopter SITL (an ALT_HOLD counter-command over the radio, 2026-10-30) but not against a real flight controller's counter-command path, and its effect in flight is unmeasured. Replay has no
   transport, so nothing is sent.
 
 ### Stage 2 defense demo (`scripts/verify_stage2.py`)
@@ -106,7 +105,7 @@ recorded in `docs/VALIDATION_EVIDENCE.md`. No attack class is claimed to be full
 The `src/aegisflight/hal/` module abstracts serial communication, companion compute platforms, and autopilot firmwares:
 
 - **Autopilot Auto-Discovery**: Identifies connected flight controllers via USB VID/PID and serial descriptors (Cube Orange/Black, Pixhawk 6X/4/2.4.8, Holybro, CUAV).
-- **Companion Compute Profiling** (`hal/discovery.py`, not wired into the pipeline): reads the host platform (e.g. Raspberry Pi, Jetson, x86_64) and proposes a latency budget. Nothing has been measured on a companion computer.
+- **Companion Compute Profiling** (`hal/discovery.py`, not wired into the pipeline): reads the host platform (e.g. Raspberry Pi, Jetson, x86_64) and proposes a latency budget. The bridge has been measured on a Raspberry Pi 3B+ and a Pi 5 (`docs/PERFORMANCE.md`, `docs/RADIO_TEST_RESULTS.md`), but this profiling code's latency budget has not been measured.
 - **Firmware Profile Adaptation**: Automatically switches protocol parsing dialects and mode definitions between **ArduPilot** (`COPTER_MODE_GUIDED`, `RTL`, `AUTO`) and **PX4 Autopilot** (`custom_mode` bitmask).
 
 ---
@@ -330,7 +329,7 @@ For deployment directly on a physical drone companion computer connected to a Pi
    pip install -e ".[dev]"
    ```
 
-3. **Run the receive-only monitor on the telemetry link** (no companion deployment has been measured; `active-ips` would transmit counter-commands on this link; leave the default `--defense-mode passive` unless that is intended; `active-ips` on a real link is refused without a signing key unless you pass `--allow-unsigned` or acknowledge the risk in the dashboard):
+3. **Run the receive-only monitor on the telemetry link** (the Pi 5 has been run on the bench with a real Pixhawk, disarmed, but no companion deployment has been flown; a 1,500 s active-ips soak on that bench changed a disarmed vehicle's mode through false GPS alerts (`docs/RADIO_TEST_RESULTS.md`); `active-ips` would transmit counter-commands on this link; leave the default `--defense-mode passive` unless that is intended; `active-ips` on a real link is refused without a signing key unless you pass `--allow-unsigned` or acknowledge the risk in the dashboard):
    ```bash
    aegis serve --source serial --serial-port /dev/serial0 --baud 115200 --port 8000
    ```
@@ -386,7 +385,9 @@ Detailed technical specifications and engineering logs:
 - [**Threat Model Specification**](docs/THREAT_MODEL.md): threat model and attack taxonomy.
 - [**Red-team audit**](docs/REDTEAM_AUDIT_STAGE2.md): withdrawn self-assessment (reasons inside).
 - [**Inline IPS bridge**](docs/INLINE_IPS.md) — Topology B: filtering hostile frames before the autopilot.
-- [**In-band management channel**](docs/MGMT_CHANNEL.md) — alerts, status and signed posture control over the telemetry radio (150 B/s budget); [**minimal build**](docs/MINIMAL_BUILD.md) — FC + GPS + radio + cheap Pi (wiring options, risks; nothing measured on hardware).
+- [**In-band management channel**](docs/MGMT_CHANNEL.md) — alerts, status and signed posture control over the telemetry radio (150 B/s budget); [**minimal build**](docs/MINIMAL_BUILD.md) — FC + GPS + radio + cheap Pi (wiring options, risks; bench-tested with a Pixhawk over USB on a Pi 5, not flown; the UART wiring is not tested).
+- [**Real Pixhawk bench tests**](docs/REAL_PIXHAWK_TEST.md) — how the 2026-10-31 Pixhawk 6X runs on a Raspberry Pi 5 were done, and how to restore the flight controller.
+- [**Radio test**](docs/RADIO_TEST.md) — test plan for the real LR900 radio pair; results and the judgement against the plan in [RADIO_TEST_RESULTS.md](docs/RADIO_TEST_RESULTS.md).
 - [**Testing & Quality Assurance**](docs/TESTING.md) — Test taxonomy and verification methodology.
 - [**API & WebSocket Specification**](docs/API.md) — REST endpoints and telemetry schemas.
 
