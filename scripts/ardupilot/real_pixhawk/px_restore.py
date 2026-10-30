@@ -45,4 +45,5 @@ cur2 = get_params(m)
 ch2, miss2, _ = diff_params(snap_p, cur2)
 same_m = get_mission(m) == snap_m
 print(f"AFTER restore: parameters changed {len(ch2)}  missing {len(miss2)}  mission identical {same_m}")
-print("RESTORED" if not ch2 and not miss2 and same_m else "NOT FULLY RESTORED: " + str(list(ch2)[:10]))
+print(("RESTORED (listed parameters and mission only; hidden parameters such as SCR_USER1..6 are not covered)" if not ch2 and not miss2 and same_m
+       else "NOT FULLY RESTORED: " + str(list(ch2)[:10])))

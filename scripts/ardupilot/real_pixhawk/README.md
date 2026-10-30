@@ -17,6 +17,9 @@ clear a two-item mission on an empty vehicle): afterwards run `px_restore_mode.p
 | `px_fwwatch.py` | laptop (hub 5802) | prints the AEGIS announcements (firmware-tamper test) |
 | `px_gpslog.py`, `gps_replay.py` | Pi / laptop | capture the real GPS / EKF messages and replay them through the repo's extractor and physics detector |
 | `px_restore_mode.py` | Pi | put a disarmed vehicle back into STABILIZE |
+| `px_snapshot.py`, `px_restore.py`, `px_common.py` | Pi (bridge stopped) | read-only snapshot of all listed parameters + mission; dry-run diff and `--apply` restore |
+| `px_signing.py` | Pi (bridge stopped) | MAVLink-2 signing on / off / check (zero key switches it off); the USB link is exempt on ArduPilot, so this cannot show enforcement at the vehicle |
+| `px_signed_attack.py` | laptop (hub 5801) | signed-link attack sequence against a bridge started with `--signing-key-file`; the vehicle's flight mode is the oracle for what leaked |
 
 ## Things that cost time (read before writing a driver)
 
@@ -26,7 +29,7 @@ clear a two-item mission on an empty vehicle): afterwards run `px_restore_mode.p
 * Never `pkill -f 'ips-bridge'` inside the same SSH command that starts the bridge: the command line matches itself.
 * The LR900 ground unit adds ~50 B/s of `0x00` idle fill on its serial port; MAVLink parsers skip it.
 * Stream rates persist on the flight controller until it reboots, and the first open of an idle port returns ~100 buffered frames.
-* Over the radio (about 2 KB/s) a full parameter download loses roughly a quarter of the frames; re-request the missing indexes.
+* Over the radio (vendor rate setting 2.1 KB/s; measured clean throughput about 1 KB/s) a full parameter download loses roughly a quarter of the frames; re-request the missing indexes.
 
 ## Returning the vehicle to its original state
 
