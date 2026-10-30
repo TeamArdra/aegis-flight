@@ -132,6 +132,15 @@ class PhysicsDetector(Detector):
         self.mission_hysteresis_ticks = int(p.get("mission_hysteresis_ticks", 5))
         self._mission_streak = 0
         self._soft_streak = 0
+        # Cross-message consistency of the vehicle's own reports (2026-10-31). Off by default (the SIM stream and the
+        # Stage-1 benchmark are untouched); on in configs/ardupilot_copter. UNCALIBRATED engineering defaults: only the
+        # attitude-repeat count has real-flight-controller evidence (802 of 802 consecutive attitudes distinct on a
+        # still bench ArduCopter); the battery and heading tolerances are wider than the sensor-fusion offsets
+        # ArduPilot is known to apply (resting-voltage option, rounding) and still need real-flight data.
+        self.xmsg_checks = bool(p.get("xmsg_checks", False))
+        self.batt_msg_tol_v = float(p.get("batt_msg_tolerance_v", 1.5))
+        self.att_repeat_n = int(p.get("attitude_repeat_n", 8))
+        self.hdg_yaw_tol_deg = float(p.get("heading_yaw_tolerance_deg", 10.0))
 
     def process(self, frame: FeatureFrame) -> DetectorResult:
         evidence: list[str] = []
@@ -241,6 +250,32 @@ class PhysicsDetector(Detector):
             s = ramp(sd, self.speed_cons, self.speed_cons * 3)
             bump(AttackType.TELEMETRY_MANIPULATION, max(0.5, s))
             evidence.append(f"GPS/VFR speed mismatch {sd:.1f} m/s > {self.speed_cons:.0f} m/s")
+
+        # ---- cross-message consistency (telemetry manipulation): one message edited, its redundant twin not ----
+        if self.xmsg_checks:
+            bm = frame.batt_msg_diff_v
+            if bm is not None:
+                signals["batt_msg_diff_v"] = bm
+                if bm > self.batt_msg_tol_v:
+                    bump(AttackType.TELEMETRY_MANIPULATION, max(0.55, ramp(bm, self.batt_msg_tol_v, self.batt_msg_tol_v * 3)))
+                    evidence.append(
+                        f"SYS_STATUS and BATTERY_STATUS voltages disagree by {bm:.1f} V > {self.batt_msg_tol_v:.1f} V"
+                    )
+            if frame.att_repeat >= self.att_repeat_n:
+                signals["att_repeat"] = float(frame.att_repeat)
+                bump(AttackType.TELEMETRY_MANIPULATION, 0.6)
+                evidence.append(
+                    f"ATTITUDE repeated bit-identically {frame.att_repeat} times in a row "
+                    "(a live IMU never repeats exactly: frozen or replayed attitude)"
+                )
+            hy = frame.heading_yaw_diff_deg
+            if hy is not None:
+                signals["heading_yaw_diff_deg"] = hy
+                if hy > self.hdg_yaw_tol_deg:
+                    bump(AttackType.TELEMETRY_MANIPULATION, max(0.55, ramp(hy, self.hdg_yaw_tol_deg, self.hdg_yaw_tol_deg * 3)))
+                    evidence.append(
+                        f"VFR_HUD heading and ATTITUDE yaw disagree by {hy:.0f} deg > {self.hdg_yaw_tol_deg:.0f} deg"
+                    )
 
         # ---- altitude rate plausibility ----
         if abs(frame.alt_rate_ms) > self.alt_jump:

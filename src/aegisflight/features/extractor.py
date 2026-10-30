@@ -43,6 +43,9 @@ _RESID_CLAMP_M = 30.0
 # compared against 8+ s of manoeuvre, and a fresh ATTITUDE against a stale GPS velocity, so both
 # are skipped until GPS is fresh again. Gap-free streams are unaffected (benchmark-identical).
 _LINK_GAP_S = 2.0
+# Both messages of a cross-message consistency pair (battery, heading / yaw) must be this fresh to be compared;
+# 3 s covers a 1 Hz stream on a radio-limited link.
+_XMSG_FRESH_S = 3.0
 # Estimator state (ADDITIVE, 2026-10-25; v2 2026-10-26). EKF_STATUS_REPORT (ardupilotmega id 193)
 # says whether the autopilot's estimator has a horizontal position solution. In CONST_POS_MODE, or
 # with neither the absolute nor the relative horizontal-position bit, its velocity output is not a
@@ -183,6 +186,17 @@ class FeatureFrame:
     gps_snr_spread_db: float | None = None
     gps_snr_sats: int = 0
     gps_vel_disagree_ms: float | None = None
+    # ADDITIVE (2026-10-31): cross-message consistency of the one vehicle's own reports; an edit of ONE message
+    # type (a battery step, a replayed attitude, a rewritten heading) leaves the redundant one behind. NOT in
+    # ML_FEATURES; None / 0 until both messages of a pair were received <= _XMSG_FRESH_S ago, so the SIM stream is
+    # unchanged. ``batt_msg_diff_v``: |SYS_STATUS.voltage_battery - BATTERY_STATUS pack voltage| (battery id 0; the
+    # pack voltage is the sum of the cell fields in use, or the single pack field). ``att_repeat``: how many
+    # consecutive ATTITUDE messages were bit-identical to their predecessor (a real IMU never repeats exactly: 802 of
+    # 802 distinct on a still bench). ``heading_yaw_diff_deg``: |VFR_HUD.heading - ATTITUDE.yaw| (ArduPilot fills both
+    # from the same AHRS yaw).
+    batt_msg_diff_v: float | None = None
+    att_repeat: int = 0
+    heading_yaw_diff_deg: float | None = None
     # ADDITIVE (2026-10-28): mission-path check. NOT in ML_FEATURES. ``mission_known``: a COMPLETE
     # mission was observed AND the check is active (MISSION_CURRENT seen <= 3 s ago, flight_mode
     # AUTO, armed, fresh position). ``mission_xtrack_m``: horizontal distance to the current mission
@@ -250,6 +264,14 @@ class FeatureExtractor:
         self._raw_vel_t = -1e9
         self._snr: tuple[float, int] | None = None  # (spread dB, n satellites) or None
         self._snr_t = -1e9
+        # cross-message consistency (see FeatureFrame.batt_msg_diff_v / att_repeat / heading_yaw_diff_deg)
+        self._batt_pack_v: float | None = None
+        self._batt_pack_t = -1e9
+        self._sys_batt_t = -1e9
+        self._att_key: tuple[float, ...] | None = None
+        self._att_repeat = 0
+        self._att_t = -1e9
+        self._hdg_t = -1e9
 
         # navigation bookkeeping
         # residual increments as parallel deques (sum() over a deque of floats == the old sum over
@@ -345,7 +367,12 @@ class FeatureExtractor:
             self.snapshot.rollspeed = f["rollspeed"]
             self.snapshot.pitchspeed = f["pitchspeed"]
             self.snapshot.yawspeed = f["yawspeed"]
+            key = (f["roll"], f["pitch"], f["yaw"], f["rollspeed"], f["pitchspeed"], f["yawspeed"])
+            self._att_repeat = self._att_repeat + 1 if key == self._att_key else 0
+            self._att_key = key
+            self._att_t = t
         elif name == "VFR_HUD":
+            self._hdg_t = t
             self.snapshot.groundspeed = f["groundspeed"]
             self.snapshot.heading = float(f["heading"])
             self.snapshot.throttle = float(f["throttle"])
@@ -355,6 +382,13 @@ class FeatureExtractor:
             self.snapshot.battery_voltage = f["voltage_battery"] / 1000.0
             self.snapshot.battery_remaining = float(f["battery_remaining"])
             self._batt_hist.append((t, self.snapshot.battery_voltage))
+            self._sys_batt_t = t
+        elif name == "BATTERY_STATUS":
+            if int(f.get("id", 0)) == 0:  # the primary battery, the one SYS_STATUS reports
+                cells = [int(v) for v in f.get("voltages", ()) if int(v) != 65535]  # 65535 = field not in use
+                if cells and sum(cells) > 0:
+                    self._batt_pack_v = sum(cells) / 1000.0
+                    self._batt_pack_t = t
         elif name == "GPS_RAW_INT":
             self._gps_raw_seen = True
             self.snapshot.satellites = int(f.get("satellites_visible", 0))
@@ -603,6 +637,16 @@ class FeatureExtractor:
             if mev is not None:
                 m_known, m_xt, m_wd, m_seq = True, mev[0], mev[1], mev[2]
 
+        # ---- cross-message consistency (None / 0 until both messages of a pair are fresh) ----
+        batt_msg = None
+        if self._batt_pack_v is not None and t - self._batt_pack_t <= _XMSG_FRESH_S and t - self._sys_batt_t <= _XMSG_FRESH_S:
+            batt_msg = abs(snap.battery_voltage - self._batt_pack_v)
+        hdg_yaw = None
+        if t - self._att_t <= _XMSG_FRESH_S and t - self._hdg_t <= _XMSG_FRESH_S:
+            d = abs((math.degrees(snap.yaw) - snap.heading) % 360.0)
+            hdg_yaw = min(d, 360.0 - d)
+        att_repeat = self._att_repeat if t - self._att_t <= _XMSG_FRESH_S else 0
+
         # ---- command ----
         cmds_cut = t - self.cmd_window_s
         recent = [c for c in self._commands if c.recv_time >= cmds_cut] if self._commands else []
@@ -651,6 +695,9 @@ class FeatureExtractor:
             gps_snr_spread_db=snr[0] if snr else None,
             gps_snr_sats=snr[1] if snr else 0,
             gps_vel_disagree_ms=vel_disagree,
+            batt_msg_diff_v=batt_msg,
+            att_repeat=att_repeat,
+            heading_yaw_diff_deg=hdg_yaw,
             mission_known=m_known,
             mission_xtrack_m=m_xt,
             mission_wp_dist_m=m_wd,

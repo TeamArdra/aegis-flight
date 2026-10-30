@@ -298,6 +298,30 @@ velocity and satellite-jump fields are reported only once EKF_STATUS_REPORT or G
 received (SIM carries `GPS_RAW_INT` too). The messages are unauthenticated and can be forged. A
 slow drift that stays inside IMU error is physically undetectable by software alone.
 
+### Cross-message consistency (2026-10-31, additive, `physics.xmsg_checks`)
+
+One vehicle reports some quantities twice. Rewriting one message type on an unsigned downlink (a battery step, a replayed
+attitude, a new heading) leaves its twin behind. Three rules read that, all `TELEMETRY_MANIPULATION`, all off by default (the
+SIM stream and the Stage-1 benchmark are untouched) and on in `configs/ardupilot_copter/detector.yaml`:
+
+| Rule | Feature | Default | Fires when |
+|---|---|---|---|
+| Battery | `batt_msg_diff_v` | `batt_msg_tolerance_v` = 1.5 V | `abs(SYS_STATUS.voltage_battery - BATTERY_STATUS pack voltage)` (battery id 0; the pack voltage is the sum of the cell fields in use, `65535` = unused) exceeds the tolerance, both messages <= 3 s old |
+| Attitude freeze | `att_repeat` | `attitude_repeat_n` = 8 | 8 consecutive `ATTITUDE` messages bit-identical to their predecessor (roll, pitch, yaw and the three rates) |
+| Heading | `heading_yaw_diff_deg` | `heading_yaw_tolerance_deg` = 10 deg | `abs(VFR_HUD.heading - ATTITUDE.yaw)` (wrapped at 360) exceeds the tolerance, both <= 3 s old |
+
+Each rule is inert (feature `None` / 0) until both messages of its pair have been received, so a link that carries only one of
+them is unaffected. They replace the frozen-attitude coverage that `yaw_course_enabled: false` removes for multirotors.
+
+* **Evidence from a real flight controller (bench ArduCopter, Pixhawk 6X, 802 attitude samples over 200 s):** no two consecutive
+  `ATTITUDE` messages were bit-identical (802 of 802 distinct), so the attitude-repeat rule has no false alarm in that data. The
+  synthetic flood scenario of the golden fixture sends bit-identical all-zero attitudes and is now (correctly) flagged.
+* **Not yet calibrated:** the battery and heading tolerances are engineering defaults. ArduPilot's `SYS_STATUS` voltage can sit
+  above the raw cell sum when a resting-voltage option is enabled; 1.5 V is meant to cover that. They need real-flight
+  `BATTERY_STATUS` / `VFR_HUD` data, which has not been captured yet.
+* **Limits:** a forger who rewrites both messages consistently, or edits a quantity that is reported once, is not caught by this.
+  On a signed link the signature already covers it. Evidence: `tests/unit/test_xmsg_checks.py`.
+
 ### Mission-path check (2026-10-28, additive)
 
 `features/mission.py` rebuilds the commanded mission from MISSION_COUNT / MISSION_ITEM(_INT) /
