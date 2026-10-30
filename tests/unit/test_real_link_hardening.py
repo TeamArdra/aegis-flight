@@ -78,10 +78,19 @@ def test_step_inside_the_learning_window_is_learned_from_the_final_plateau():
     assert flood.triggered and flood.attack_votes.get(AttackType.DOS, 0.0) == 1.0
 
 
+def test_step_in_the_last_seconds_of_the_window_gets_one_more_window_to_settle():
+    """Pi finding (second run): the GCS connected ~3 s before the window closed, so the final seconds were a ramp."""
+    det = ProtocolDetector({**_PROTO, "auto_rate_baseline": True, "rate_learn_s": 20.0})
+    _run(det, [1.0] * 85 + [40.0, 90.0, 120.0, 128.0, 130.0] + [130.0] * 15)          # window closes mid-ramp
+    after = _run(det, [131.0] * 140, t0=22.0)                                             # extended window, then flight
+    assert all(r.score == 0.0 for r in after)
+    assert det.nominal_rate >= 125.0 and "learned" in (det._learn_note or "")
+
+
 def test_unstable_tail_in_the_learning_window_is_still_rejected():
     det = ProtocolDetector({**_PROTO, "auto_rate_baseline": True, "rate_learn_s": 20.0})
-    _run(det, [1.0] * 60 + [100.0, 300.0] * 22 + [100.0])
-    assert det.nominal_rate == _PROTO["nominal_msg_rate_hz"]
+    _run(det, [1.0] * 60 + [100.0 + 10.0 * i for i in range(120)])                        # keeps climbing past the hard limit
+    assert det.nominal_rate == _PROTO["nominal_msg_rate_hz"] and "rejected" in (det._learn_note or "")
 
 
 def test_flood_during_learning_is_rejected():

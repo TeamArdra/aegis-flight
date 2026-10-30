@@ -1,12 +1,13 @@
 # Real-radio test of the inline IPS bridge
 
 > **Status (2026-10-30):** tooling written. The unit tests `tests/unit/test_radio_*.py` exist but were not re-run in this
-> documentation pass. Real-radio phases: **not yet passed**. The first bench attempt (2026-10-30) carried no data across
-> the radio link (0 echoes, 0 bytes received at the Pi), and the Pi reported under-voltage and throttling. Measured facts
-> and the bench log are in `docs/RADIO_TEST_RESULTS.md`.
+> documentation pass. Real-radio phases 1-9: **not yet run**. The radio link is not yet usable: in the first attempt 0
+> echoes came back, and in a later transfer one 32-byte pattern arrived intact (Pi to laptop, 115,200 baud) but the other
+> direction never arrived. A Pi-in-the-loop run (no radio) on 2026-10-30 exposed a rate-learner false positive in
+> ACTIVE_IPS, fixed afterwards. Measured facts and the bench log are in `docs/RADIO_TEST_RESULTS.md`.
 
 This is the test plan, rig description and tool reference for running `aegis ips-bridge` on a Raspberry Pi 3B+ between a
-pair of real SiK telemetry radios and an ArduCopter SITL on a laptop. Results are logged separately in
+pair of real telemetry radios (SiK-type firmware assumed, not yet confirmed) and an ArduCopter SITL on a laptop. Results are logged separately in
 `docs/RADIO_TEST_RESULTS.md`. **At the time of writing no run of this plan has been recorded; nothing in this file is a
 measurement.** Numbers in the "pass" lines are acceptance thresholds chosen for this plan, not observed values.
 
@@ -42,12 +43,12 @@ pilot operation, detection, prevention, signing, the management channel, failure
 | Hardware bypass or bridge failure safety in flight | There is none in this repo (`docs/MINIMAL_BUILD.md`). Phase 8 measures the outage, it does not remove it. |
 
 ArduCopter SITL on the laptop stands in for the flight controller. The SITL is a faithful ArduCopter code base but the
-transport it sits behind is a TCP socket, so the FC link in this rig never loses bytes or adds serial latency. It can stall and add delay instead: Wi-Fi, and TCP inside the SSH tunnel (section 2).
+transport it sits behind is a TCP socket, so the FC link in this rig never loses bytes or adds serial latency. It can stall and add delay instead: the Ethernet cable, and TCP inside the SSH tunnel (section 2).
 
 ## 2. Rig
 
 ```
- LAPTOP (Windows 10, Wi-Fi 10.36.150.220)                                      RASPBERRY PI 3B+ (Wi-Fi 10.36.150.82, user ardra)
+ LAPTOP (Windows 10, Wi-Fi 10.36.150.220, Ethernet to Pi)                      RASPBERRY PI 3B+ (Ethernet, ardra.local 169.254.225.172, user ardra)
  +-------------------------------------------------------+                    +-------------------------------------------+
  | ArduCopter SITL                                       |                    |  aegis ips-bridge                         |
  |   SERIAL0  tcp 5760  (holder / signing setup)         |                    |    --gcs-port /dev/serial/by-id/          |
@@ -60,38 +61,37 @@ transport it sits behind is a TCP socket, so the FC link in this rig never loses
  |        |                                              |                                           | USB (CP210x, /dev/ttyUSB*)
  |      COM3 (CP210x 10c4:ea60, driver 11.6.0.420)       |                                           |
  +--------+----------------------------------------------+                              +------------+-----------+
-          | USB                                                                         |  SiK radio B (Pi side)   |
- +--------+-----------+            915/868/433 MHz air link (bench, a few metres)      +--------------------------+
- |  SiK radio A       |<~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>   (same pair)
+          | USB                                                                         |  radio B (Pi side)       |
+ +--------+-----------+            900 MHz air link (bench, a few metres)               +--------------------------+
+ |  radio A           |<~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>   (same pair)
  |  (laptop side)     |
  +--------------------+
 ```
 
-The two radios are the pair. Which physical unit is on which side does not matter. The band depends on the units used
-and is not stated here because it has not been checked.
+The two radios are the pair. Which physical unit is on which side does not matter. Both radios are 900 MHz (measured 2026-10-30).
 
 **Data path, uplink (pilot to FC):** pilot script -> `radio_hub` (5801) -> COM3 -> radio A ~~air~~ radio B -> Pi serial
-port -> `aegis ips-bridge` (policy, tap) -> SSH reverse tunnel over Wi-Fi to SITL 5762.
-**Downlink:** SITL 5762 -> SSH tunnel over Wi-Fi -> bridge (policy, tap, management frames added) -> Pi serial -> radio B ~~air~~ radio A
+port -> `aegis ips-bridge` (policy, tap) -> SSH reverse tunnel over the Ethernet cable to SITL 5762.
+**Downlink:** SITL 5762 -> SSH tunnel over the Ethernet cable -> bridge (policy, tap, management frames added) -> Pi serial -> radio B ~~air~~ radio A
 -> COM3 -> `radio_hub` -> 5801 / 5802 clients.
 
-The FC link (Pi `127.0.0.1:5762`, the SSH reverse tunnel, then Wi-Fi to the laptop) stands in for the FC UART. It adds jitter, occasional stalls, SSH encryption and TCP-in-TCP delay that a UART
-would not. Record Wi-Fi RTT (`ping`) in the run notes; if it is high or erratic, that contaminates the latency numbers.
+The FC link (Pi `127.0.0.1:5762`, the SSH reverse tunnel, then the Ethernet cable to the laptop) stands in for the FC UART. It adds jitter, occasional stalls, SSH encryption and TCP-in-TCP delay that a UART
+would not. Record the laptop-to-Pi RTT (`ping ardra.local`, over the cable) in the run notes; if it is high or erratic, that contaminates the latency numbers.
 
 ### Known facts about this rig
 
 | Item | Value |
 |---|---|
 | Laptop Wi-Fi IP | 10.36.150.220 (re-check with `ipconfig` on the day; DHCP can change it) |
-| Pi | Raspberry Pi 3B+ Rev 1.3, IP 10.36.150.82, SSH user `ardra`, Debian aarch64, kernel 6.18.50 |
+| Pi | Raspberry Pi 3B+ Rev 1.3, reached over a direct Ethernet cable at `ardra.local` = 169.254.225.172 (link-local; measured 2026-10-30). The earlier Wi-Fi address 10.36.150.82 is no longer used by this plan. SSH user `ardra`, Debian aarch64, kernel 6.18.50 |
 | Pi serial driver | `cp210x` kernel module, loaded (measured 2026-10-30); user `ardra` is in group `dialout` (measured) |
-| Radios | Assumed to be a SiK-type pair, not confirmed (no command-mode reply on 2026-10-30, see `RADIO_TEST_RESULTS.md`). CP210x USB bridge, USB id `10c4:ea60` |
+| Radios | Two 900 MHz radios (measured 2026-10-30). USB descriptors are identical generic CP2102 (`10c4:ea60`, serial `0001`, 100 mA), so the model and firmware cannot be read from USB; read them from the unit labels. No AT or `+++` reply from either at 1,200-230,400 baud. Not confirmed to be SiK-type firmware (see `RADIO_TEST_RESULTS.md`, Bench log update) |
 | Pi radio device | `/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0` (kernel node `/dev/ttyUSB0`, measured 2026-10-30) |
 | Laptop radio device | `COM3`, Silicon Labs CP210x driver 11.6.0.420, signed, device status OK (measured 2026-10-30) |
-| Radio serial baud | 57,600 or 115,200: **to be confirmed by `com_probe.py` (phase 0)**. Not confirmed: the 2026-10-30 attempt got no echo at either baud. |
+| Radio serial baud | 57,600 or 115,200: **to be confirmed by `com_probe.py` (phase 0)**. Not confirmed. 2026-10-30: no echo at either baud in the first attempt; one 32-byte transfer arrived intact Pi to laptop at 115,200 and garbled at 57,600; 115,200 is a hypothesis only. |
 | Bridge software on the Pi | Python 3.13.5 and a venv at `~/aegis_test/venv` with pyserial 3.5 (measured 2026-10-30; other packages in the venv not recorded). `pi_bridge_run.sh` uses `PYTHON=python3` unless set: use `PYTHON=$HOME/aegis_test/venv/bin/python`, and confirm the bridge imports from that venv before phase 0. |
 
-Both radios probably report the same USB product string, so the by-id path of the Pi radio is only unique while one such
+Both radios report identical USB descriptors (measured 2026-10-30: generic CP2102, `10c4:ea60`, serial `0001`), so the by-id path of the Pi radio is only unique while one such
 adapter is plugged into the Pi. Do not plug a second CP2102 into the Pi.
 
 ### How the topology auto-detect labels this rig
@@ -114,12 +114,14 @@ Do these once, before phase 0. None of them is done by the test tools.
 2. **Close every program that may own COM3**: Mission Planner, QGroundControl, MAVProxy, any serial monitor, a previous
    `radio_hub`. Windows allows one owner per COM port; the symptom is "Access is denied" (see section 7).
 3. **No firewall change.** This plan does not modify the Windows firewall. The Pi reaches SITL through an SSH reverse
-   tunnel that the user starts on the laptop and keeps running for the whole campaign. It uses the same key as item 4 and
+   tunnel that the user starts on the laptop and keeps running for the whole campaign, over the direct Ethernet cable to the Pi (2026-10-30). It uses the same key as item 4 and
    runs no remote command (`-N`):
 
    ```
-   ssh -i $env:ARDRA_KEY -N -R 5762:127.0.0.1:5762 ardra@10.36.150.82
+   ssh -i $env:ARDRA_KEY -N -R 5762:127.0.0.1:5762 ardra@ardra.local
    ```
+
+   A second tunnel on port 5800 (`ssh -R 5800`) was also used on 2026-10-30; this plan does not define its role.
 
    With `-R` the Pi's sshd listens on `127.0.0.1:5762` only (default `GatewayPorts no`), so the bridge is given
    `--fc-port socket://127.0.0.1:5762 --allow-url`. SITL must be listening on the laptop's port 5762 first (section 7).
@@ -127,7 +129,7 @@ Do these once, before phase 0. None of them is done by the test tools.
    tunnel and then the bridge. Do not open 5760 or 5801-5803 to the network: they stay on the laptop.
 4. **SSH access to the Pi** with a key file. Point the tools at it with the environment variable `ARDRA_KEY`
    (`$env:ARDRA_KEY = "<path to your private key>"`). Never write key material, passphrases or passwords in this repo, in
-   run directories or in the report. Verify with `ssh -i $env:ARDRA_KEY ardra@10.36.150.82 true`.
+   run directories or in the report. Verify with `ssh -i $env:ARDRA_KEY ardra@ardra.local true`.
 5. **USB-serial latency timer on the Pi.** A USB-serial adapter can hold received bytes for a timer period before handing
    them to the host, which adds latency to every frame. Where the driver exposes `/sys/bus/usb-serial/devices/<tty>/latency_timer`
    it should be 1 ms. `pi_bridge_run.sh start` tries to write 1 to it (no sudo) and records the outcome in
@@ -139,9 +141,9 @@ Do these once, before phase 0. None of them is done by the test tools.
    2026-10-30 it read `0x50005`: under-voltage and throttling were active at that moment (low-nibble bits 0 and 2) and had
    occurred since boot (bits 16 and 18). The kernel log showed repeated `Undervoltage detected`. Until the supply is fixed,
    Pi timing and CPU figures are worst-case and must be labelled so. Use a 5 V, 2.5 A or larger supply and a short, thick
-   cable; the radio on the Pi's USB port draws from the same 5 V. Do not record a timing figure from a run whose
+   cable; the radio on the Pi's USB port draws from the same 5 V. Later on 2026-10-30 the Pi read `0x50000` (history only) during the Pi-in-the-loop run. Do not record a timing figure from a run whose
    current-state bits (low nibble) are set.
-7. **Clocks.** The Pi has no real-time clock. Sync both machines (NTP over Wi-Fi) before phase 6. Signing timestamps and
+7. **Clocks.** The Pi has no real-time clock, and on 2026-10-30 it was about 2.5 h behind the laptop with no time sync. Sync both machines (NTP, over the cable or Wi-Fi) before phase 6. Signing timestamps and
    `--signing-max-age-s` depend on the bridge clock being right.
 8. **Key files for phases 6 and 7.** Generate throwaway 32-byte keys on the bench (flight key and a separate management
    key), keep them outside the repo, copy the Pi's copies with `scp`, `chmod 600`. Do not reuse any real key.
@@ -178,7 +180,7 @@ aegis ips-bridge \
 * **Tool:** `com_probe.py --port COM3 --bauds 57600,115200,38400,9600 --seconds 6` (and `pi_relay.py` on the Pi).
 * **Pass:** port opens; at least 3 CRC-valid MAVLink frames at some baud (default `--min-frames 3`); the best baud is
   recorded in `p0_probe.json` (`best_baud`) and used for every later phase on both sides. Also record `vcgencmd
-  get_throttled`, Wi-Fi RTT laptop to Pi, and the SiK radio settings read separately (for example with the vendor's
+  get_throttled`, laptop-to-Pi RTT over the cable, and the radio settings read separately (for example with the vendor's
   configuration tool: serial speed, air speed, net id, TX power). Expected time: 5 minutes.
 * **Fail means:** exit 2, port busy: another process owns COM3. Exit 1, no frames at any baud: radios not linked, wrong
   net id, Pi side silent, or the SITL is not streaming; see section 7. A pass at a baud other than the one assumed means
@@ -215,9 +217,9 @@ aegis ips-bridge \
 * **Pass:** bridge `dropped` = 0 in both directions and `hook_errors` = 0; frames forwarded down at the laptop match
   frames the bridge reports forwarded within the loss measured in phase 1; extra RTT of the bridge versus phase 1 `pass`
   mode below 50 ms at p95 (proposed; the bridge's own measured forwarding time is hundreds of microseconds on this Pi,
-  `docs/PERFORMANCE.md`, so a larger number would point at the Wi-Fi hop or USB); `GET /status` readable;
+  `docs/PERFORMANCE.md`, so a larger number would point at the tunnel, the cable or USB); `GET /status` readable;
   bridge CPU on the Pi recorded. Expected time: 15 minutes.
-* **Fail means:** drops in `passive` are a bug (passive never drops). Extra latency without drops points at the Wi-Fi hop
+* **Fail means:** drops in `passive` are a bug (passive never drops). Extra latency without drops points at the tunnel or the cable
   or the USB-serial timer (section 3, item 5) before it points at the bridge.
 
 ### Phase 3: normal pilot operation (ADVISORY and ACTIVE_IPS)
@@ -238,7 +240,7 @@ aegis ips-bridge \
   ACK latency (median, p95) is recorded for every command type. Expected time: 20 minutes.
 * **Fail means:** a dropped legitimate command in `active-ips` is a false positive that would lock a pilot out: record the
   counter that fired (`dropped_untrusted_control`, `dropped_provenance`, `dropped_replay_unsigned`, burst) and stop. A
-  failing ACK with 0 drops points at the radio.
+  failing ACK with 0 drops points at the radio. Downlink drops in `active-ips` are a failure too: on 2026-10-30, before the fix, the Pi-in-the-loop run shed 18 % of downlink telemetry (rate learner; see `RADIO_TEST_RESULTS.md`, Bench log update).
 
 ### Phase 4: detection
 
@@ -668,7 +670,7 @@ before any signal is sent. `status` and `kill` exit 1 when no bridge is running;
 ### `laptop_ctl.py` (verified against file)
 
 Laptop-side helper that drives the Pi over `ssh`/`scp` (BatchMode, so it never prompts; key from `ARDRA_KEY` or `--key`;
-host and user default to 10.36.150.82 and `ardra`, overridable with `ARDRA_HOST`/`ARDRA_USER` or `--host`/`--user`). It runs
+host and user default to 10.36.150.82 and `ardra`, overridable with `ARDRA_HOST`/`ARDRA_USER` or `--host`/`--user`). 10.36.150.82 is the old Wi-Fi address: for the wired link use `ardra.local` (`--host ardra.local` or `ARDRA_HOST=ardra.local`). It runs
 `pi_bridge_run.sh` on the Pi; it does not start or stop `radio_hub` and does not touch the firewall.
 
 | Subcommand | Effect |
@@ -753,15 +755,18 @@ the commit, so add the commit hash and rig configuration by hand. The headline n
 | Frames at a baud other than expected | radio serial speed was configured differently | use the baud found for the bridge `--gcs-baud` and for `radio_hub` |
 | Garbage (valid% far below 100) at the right baud | marginal link, wrong parity/stop bits, USB-serial buffer overrun, air rate lower than the serial speed | read the radio settings; reduce serial speed; check cable and power |
 | Pi bridge cannot reach SITL (`last_error`, connection refused/timeout) | SSH reverse tunnel not running or dropped; SITL not running; SITL not listening on 5762 yet (needs SERIAL0 client first) | on the Pi `nc -vz 127.0.0.1 5762`; restart the `ssh -R` tunnel (section 3, item 3); check SITL on the laptop |
-| Wi-Fi hop jitter spoils latency numbers | Wi-Fi congestion, power-save on the Pi | `ping` both ways during the run; use a quieter channel or a wired link and note it |
+| Link jitter spoils latency numbers | Wi-Fi congestion or power-save (if Wi-Fi is used); SSH tunnel stalls | `ping` both ways during the run and note the path; the Pi is on the Ethernet cable since 2026-10-30 |
 | Replug does not recover | the process kept a stale handle on the vanished device, or the device came back with a different `/dev/ttyUSB*` name | use the by-id path (it is stable); restart the process; record it as a result for phase 8 |
 | Pi `vcgencmd get_throttled` not `0x0`, or new bits during the run | power supply or cable too weak, USB load | change the supply/cable; a run with new throttling bits is not usable for CPU or latency figures |
 | High frame loss at 57,600 baud | serial ceiling about 5.7 kB/s each way: ArduCopter telemetry after stream requests, plus the bridge's cross-end summary (about 61 B/s signed) and management traffic (up to 150 B/s), can fill it; the air rate may also be below the serial rate | lower the SITL stream rates, or use 115,200 on both radios and both ends, and compare with phase 1 |
 | Signed commands rejected as replay or stale | clocks differ (the Pi has no RTC); `--signing-state` holds a timestamp ahead of the sender's clock | sync NTP on both; reset the state file on the bench only; see the "future" note in phase 6 |
 | Valid management command gets no ACK | no management key, command rate limit (1 per second), 60 s lockout after 5 bad frames, replayed state | check `--mgmt-key-file`, wait 60 s, check the audit log |
-| No echo and no SiK command-mode reply (seen 2026-10-30, see `RADIO_TEST_RESULTS.md`, Bench log) | not confirmed. Hypotheses only: the radio is not SiK-type or AT-capable; its UART baud is not one of those tried; the air side is unpowered; the radios are not paired (net id or air rate) | not yet tested. Check power and LEDs on both units, read net id, air rate and serial speed on both with the vendor tool, then repeat phase 0 |
+| No echo, no AT or `+++` reply, filler bytes on the serial line (seen 2026-10-30, see `RADIO_TEST_RESULTS.md`, Bench log and update) | not confirmed. Measured: no AT reply at 1,200-230,400 baud (N/E/O, 1-2 stop bits); the laptop radio streams filler bytes; one 32-byte transfer intact Pi to laptop at 115,200 only. Hypotheses only: UART baud 115,200; one UART direction dead on a unit; units not standard SiK firmware | not yet tested. Read the model from the unit labels, then the vendor tool; then repeat phase 0 at 115,200 |
+| Pi radio drops off the USB bus | Pi under-voltage resets the bus (2026-10-30: the first drop came right after a logged under-voltage dip) | check `dmesg` for `Undervoltage detected` and `vcgencmd get_throttled` (`0x50000` = occurred earlier; `0x50005` = happening now); fix the supply (5 V, 2.5 A or more, short thick cable) before any timing run |
+| Bridge sheds its own telemetry, or false DoS alerts after a GCS connects in `active-ips` (fixed 2026-10-30) | the rate learner read a step in message rate (about 1 to 135 msg/s) as a flood; the flood gatekeeper also shed the vehicle's own sysid | check `dropped_dynamic` and the analyser alert count in `/status`; a run with downlink drops is failed, not a radio result. Fix: commit `e1ceb76` and the learner-extension change after it |
 | `pkill -f` run over ssh kills the ssh shell itself (seen on the Pi, 2026-10-30) | a pattern that also appears in the ssh command line matches the shell that launched it | start and stop processes with pid files and kill by pid, as `pi_bridge_run.sh` does; never `pkill -f` a pattern that the same ssh command contains |
 | SITL does not open 5762 | SITL waits for a client on SERIAL0 first | start the holder client on 5760 |
+| Pi `vcgencmd get_throttled` shows `0x50005` | under-voltage and throttling happening now (low nibble = now; `0x50000` = history only) | do not run timing phases until it reads `0x0` or history only; see section 3, item 6 |
 
 ## 8. Safety and scope
 
@@ -782,9 +787,10 @@ the commit, so add the commit hash and rig configuration by hand. The headline n
 
 ## 9. Known limitations and what a pass would and would not let us claim
 
-* The FC link is a TCP socket to SITL, carried over Wi-Fi inside an SSH reverse tunnel, not a UART. Latency and jitter on that hop are not those of a real FC.
-* Pi power: the supply was under-voltage on 2026-10-30 (`docs/RADIO_TEST_RESULTS.md`), so Pi figures taken from that supply are worst-case.
-* One radio pair, one band, a few metres apart: loss and latency are bench figures, not a link budget.
+* The FC link is a TCP socket to SITL, carried over the Ethernet cable inside an SSH reverse tunnel, not a UART. Latency and jitter on that hop are not those of a real FC.
+* Pi power: the supply was under-voltage on 2026-10-30 (`docs/RADIO_TEST_RESULTS.md`), so Pi figures taken from that supply are worst-case. The Pi radio also dropped off the USB bus twice that day.
+* Pi-in-the-loop runs (bridge on the Pi, SITL and hub on the laptop, no radio) are software checks of the bridge over the cable, not radio results. They are logged in `docs/RADIO_TEST_RESULTS.md`.
+* One radio pair (both 900 MHz; model not yet read from the labels), a few metres apart: loss and latency are bench figures, not a link budget.
 * One pilot and one attacker tool (pymavlink scripts), not real ground-station software. The attacker script reads the hub's observer port, not a capture file; a real attacker would need a sniffer.
 * Counter-tracking attacks on an unsigned link are expected to get through (`docs/INLINE_IPS.md`); signing is the only
   defence, and signing has still not been run against a real autopilot's own implementation beyond SITL's.
@@ -792,7 +798,7 @@ the commit, so add the commit hash and rig configuration by hand. The headline n
 * ML is off in the Pi measurements; this plan does not change that.
 * Single campaigns: a run proves what happened in that run. Repeat counts are part of each result row.
 
-A full pass would let us say: *on this bench, with a Raspberry Pi 3B+, the inline IPS bridge forwarded traffic between a SiK radio
+A full pass would let us say: *on this bench, with a Raspberry Pi 3B+, the inline IPS bridge forwarded traffic between a radio
 pair and ArduCopter SITL, with the stated added latency and loss, dropped the listed forged frames before the simulated
 FC and did not drop the pilot's, reported over the radio inside its byte budget, and recovered from the listed failures.*
 

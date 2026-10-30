@@ -86,6 +86,7 @@ class ProtocolDetector(Detector):
         self._learn_t0: float | None = None
         self._learn_samples: list[float] = []
         self._learn_times: list[float] = []
+        self._learn_extra = 0.0
         self._learn_done = not self.auto_rate_baseline
         self._learn_note: str | None = None
         # A GCS that connects (and asks for its telemetry streams) AFTER the first heartbeat raises the link's
@@ -130,7 +131,7 @@ class ProtocolDetector(Detector):
             return True  # learning starts at the first heartbeat
         if self._learn_t0 is None:
             self._learn_t0 = frame.t
-        if frame.t - self._learn_t0 < self.rate_learn_s:
+        if frame.t - self._learn_t0 < self.rate_learn_s + self._learn_extra:
             if frame.msg_rate_hz > 0.0:
                 self._learn_samples.append(float(frame.msg_rate_hz))
                 self._learn_times.append(float(frame.t))
@@ -146,6 +147,15 @@ class ProtocolDetector(Detector):
             # a step, not a flood: a GCS that connected (and asked for its streams) part-way through the window
             # lifts the rate to a new steady level; adopt that level if the last seconds sit on a stable plateau
             tail = self._stable_tail(frame.t)
+            if tail is None and self._learn_extra == 0.0:
+                # the rate is still moving at the end of the window (the GCS connected moments ago): give the step
+                # one more window to settle instead of judging a ramp
+                self._learn_extra = self.rate_learn_s
+                self._learn_done = False
+                if frame.msg_rate_hz > 0.0:
+                    self._learn_samples.append(float(frame.msg_rate_hz))
+                    self._learn_times.append(float(frame.t))
+                return True
             if tail is not None:
                 tail.sort()
                 med_t = tail[len(tail) // 2]
@@ -401,6 +411,7 @@ class ProtocolDetector(Detector):
         self._learn_t0 = None
         self._learn_samples.clear()
         self._learn_times.clear()
+        self._learn_extra = 0.0
         self._learn_done = not self.auto_rate_baseline
         self._learn_note = None
         self._plateau.clear()

@@ -48,8 +48,74 @@ These have not been tested. Each would explain the symptoms above.
 3. The air side may be unpowered.
 4. The two radios may not be paired: different net id or air rate.
 
-**Not yet checked:** radio LEDs and power on both units; the net id, air rate and serial speed of each unit read with the
-vendor tool; the USB latency timer on the Pi.
+**Not yet checked (as of the update below):** the radio model from the labels; the net id, air rate and serial speed of each
+unit read with the vendor tool; the USB latency timer on the Pi. The LEDs were checked in the update below.
+
+## Bench log update, 2026-10-30 (measured, second session)
+
+Measured on the bench on 2026-10-30, after the first session above. These are measured observations, not phase results.
+Real-radio phases 1 to 9 are **not yet run**.
+
+**Rig change**
+
+* The Pi is reached over a direct Ethernet cable, at `ardra.local` = 169.254.225.172 (link-local). No Wi-Fi is used for the Pi.
+* The laptop-to-Pi reverse SSH tunnels (`ssh -R 5762` and `ssh -R 5800`) run over that cable.
+* The Pi clock is about 2.5 h behind (no time sync). Harmless for these runs; it matters for signing timestamps
+  (`docs/RADIO_TEST.md`, section 3, item 7).
+
+**Pi-in-the-loop run, ACTIVE_IPS, before the fix**
+
+Setup: Pi bridge; SITL and the hub on the laptop; SSH tunnels; no radio in the path. This is a software check of the bridge
+over the cable, not a radio result.
+
+* 23,273 downlink frames; 4,262 dropped (18 %, counter `dropped_dynamic`).
+* Cause: the rate-baseline learner read a step from about 1 to about 135 msg/s (GCS connected after the bridge started) as a
+  flood. 8 false DoS alerts for about 30 s. The flood gatekeeper also shed the vehicle's own telemetry.
+* 20 forged uplink commands from sysid 66 were dropped. The vehicle stayed airborne at 30 m.
+* Latency p50 0.43 ms, p95 0.87 ms. The Pi was under-voltage and throttled at the time.
+
+**Same run after the fix**
+
+Fix: commit `e1ceb76`, followed by a learner-extension change. The commit hash of the second change was not given to the
+documentation worker.
+
+* 23,321 downlink frames forwarded; 0 dropped.
+* 20 forged uplink commands dropped. The vehicle stayed at 30 m.
+* 3 alerts in total, all real: command injection from sysid 66 (2) and a sequence gap of 246 from the attack. 0 false rate
+  alerts. Analyser errors 0.
+* Latency p50 0.246 ms, p95 0.418 ms. No throttling was active during the run. `get_throttled` = `0x50000` (history only).
+
+**Passive run before the fix:** 23,077 frames forwarded, 0 dropped, p50 0.43 ms.
+
+**The fix**
+
+* (a) The vehicle's own sysid is never rate-shed by the QoS gatekeeper (`InlinePolicy.down`).
+* (b) The ProtocolDetector rate learner adopts a stable final plateau after a step, and extends the learning window once when
+  the rate is still moving at the end. A rate above the hard limit is still rejected.
+* The forwarding golden test is split into `flood_rate_limit` (rogue source, 420 frames shed) and
+  `flood_vehicle_telemetry` (0 frames shed). This is software regression evidence, not a radio result.
+
+**Radios (measured 2026-10-30)**
+
+* Both radios are 900 MHz.
+* USB descriptors are identical: generic CP2102, VID:PID `10c4:ea60`, serial `0001`, 100 mA. The model and firmware cannot
+  be read from USB.
+* LEDs: laptop radio steady green (linked). Pi radio steady, with occasional brief blinking. No red LED on either.
+* The Pi radio dropped off the USB bus twice. The first drop came right after a logged under-voltage dip, so the supply is
+  marginal.
+* Serial side: no AT or `+++` reply from either radio at 1,200 to 230,400 baud, with N, E and O parity and 1 and 2 stop bits.
+* The laptop radio emits a constant stream of filler bytes: 0x00 at 115,200 baud, and 0xFC when read at 38,400 baud. The Pi
+  radio's output is idle junk.
+* One transfer worked: a known 32-byte pattern sent Pi to laptop at 115,200 baud arrived intact. At 57,600 baud it was
+  garbled. Laptop to Pi never arrived.
+
+**Hypotheses (not tested)**
+
+1. The UART baud of the radios is 115,200.
+2. One UART direction on each unit may be dead.
+3. The units may not be standard SiK firmware.
+
+**Next step:** read the radio model from the unit labels. Real-radio phases 1 to 9 are therefore NOT yet run.
 
 ## How to fill a row
 
