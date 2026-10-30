@@ -23,6 +23,7 @@ label, posture, seed = sys.argv[1], sys.argv[2], int(sys.argv[3])
 KEY = open("C:/afsitl/sign.key", "rb").read()
 WRONG = open("C:/afsitl/wrong.key", "rb").read()
 PI_KEY = os.environ["PI_KEY"]
+UNSIGNED = os.environ.get("CAMPAIGN_UNSIGNED") == "1"  # unsigned link: no key anywhere, plain MAVLink attacks
 PI = os.environ.get("PI_SSH", "ardra@169.254.225.172")
 rng = random.Random(seed)
 HUB = "tcp:127.0.0.1:5801"
@@ -35,7 +36,7 @@ def conn(sysid, key=None):
     return c
 
 
-m = conn(255, KEY)  # the legitimate, signed pilot
+m = conn(255, None if UNSIGNED else KEY)  # the legitimate pilot (signed unless CAMPAIGN_UNSIGNED=1)
 a66 = conn(66)
 a255 = conn(255)
 wrong = conn(255, WRONG)  # attackers: unsigned x2, wrong-key signed
@@ -167,7 +168,7 @@ def grab_replay():
     dec.robust_parsing = True
     data = b"".join(d for _t, d in read_capture(f"C:/afsitl/hubcap_{label}/uplink.cap"))
     for fr in split_frames(data, 1 << 20)[0]:
-        if fr.signed and fr.msgid == 76 and fr.sysid == 255:
+        if fr.signed != UNSIGNED and fr.msgid == 76 and fr.sysid == 255:
             try:
                 msg = dec.decode(bytearray(fr.raw))
                 if msg.command == 176 and int(msg.param2) == 5:
@@ -210,6 +211,8 @@ EV = [
     "freeze",
     "fw_tamper",
 ]
+if UNSIGNED:
+    EV[EV.index("wrong_key_land")] = "spoof255_land"  # no keys to get wrong: spoof the ground station's sysid instead
 rng.shuffle(EV)
 gaps = [rng.uniform(40, 60) for _ in EV]
 for i in rng.sample(range(1, len(EV)), 3):
@@ -235,6 +238,10 @@ def start_event(ev):
         set_mode(a255, 6)
         do_set_mode(a255, 6)
         do_set_mode(a255, 6)
+    elif ev == "spoof255_land":
+        set_mode(a255, 9)
+        do_set_mode(a255, 9)
+        do_set_mode(a255, 9)
     elif ev == "wrong_key_land":
         set_mode(wrong, 9)
         do_set_mode(wrong, 9)

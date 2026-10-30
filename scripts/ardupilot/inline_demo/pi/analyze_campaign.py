@@ -25,6 +25,7 @@ KEYS = {
         "MAVLINK_ANOMALY",
     ),
     "wrong_key_land": ("bad-signature", "blocked"),
+    "spoof255_land": ("COMMAND_INJECTION", "blocked", "quarantine", "MAVLINK_ANOMALY"),
     "replay_loiter": ("replay", "blocked"),
     "flood": ("DOS", "rate_limit", "quarantine", "MAVLINK_ANOMALY", "blocked HEARTBEAT"),
     "gps_glitch": ("GPS_SPOOFING", "GPS unreliable", "ALT_HOLD", "sanitize_gps"),
