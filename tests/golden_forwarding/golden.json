@@ -211,20 +211,62 @@
    }
   },
   "flood_rate_limit|active-ips": {
-   "digest": "71c883063cad112c97c0a9e4747ad7736f382e3e48bd2766e54b9c3f67109513",
+   "digest": "5f81d132d42baa671cd30d33ed5acd272529429e194eb1154a3d97662b797ea7",
    "summary": {
-    "down_sha": "3d60e0e682505679",
-    "dropped_down": 480,
+    "down_sha": "88ebe10b877f4eba",
+    "dropped_down": 420,
     "dropped_up": 0,
     "hook_errors": 0,
     "mgmt": 7,
     "tap": 841,
     "to_fc": 0,
-    "to_gcs": 368,
+    "to_gcs": 428,
     "up_sha": "e3b0c44298fc1c14"
    }
   },
   "flood_rate_limit|advisory": {
+   "digest": "5bddc57556ccf6e2979b01458081dc03688d097e9ae8f48bcaee15095e20f236",
+   "summary": {
+    "down_sha": "980595b7aef660dc",
+    "dropped_down": 0,
+    "dropped_up": 0,
+    "hook_errors": 0,
+    "mgmt": 1,
+    "tap": 841,
+    "to_fc": 0,
+    "to_gcs": 842,
+    "up_sha": "e3b0c44298fc1c14"
+   }
+  },
+  "flood_rate_limit|passive": {
+   "digest": "88fd0f055626150f99f37a0e31d983f8ebdf08bfc61af4731c2bea4d34af24e5",
+   "summary": {
+    "down_sha": "8a95a02b2a5d7c79",
+    "dropped_down": 0,
+    "dropped_up": 0,
+    "hook_errors": 0,
+    "mgmt": 1,
+    "tap": 841,
+    "to_fc": 0,
+    "to_gcs": 842,
+    "up_sha": "e3b0c44298fc1c14"
+   }
+  },
+  "flood_vehicle_telemetry|active-ips": {
+   "digest": "9bc0d5403fe75ff11cc3cf6e507e22b6c8484af6d265f74ed48d50de66dc731d",
+   "summary": {
+    "down_sha": "bd945805e7894c96",
+    "dropped_down": 0,
+    "dropped_up": 0,
+    "hook_errors": 0,
+    "mgmt": 1,
+    "tap": 841,
+    "to_fc": 0,
+    "to_gcs": 842,
+    "up_sha": "e3b0c44298fc1c14"
+   }
+  },
+  "flood_vehicle_telemetry|advisory": {
    "digest": "2ce4876a7499a75e666683faf658576b49f48dd872f8fd7a0b6fd10675f14797",
    "summary": {
     "down_sha": "6caea08565758e2a",
@@ -238,7 +280,7 @@
     "up_sha": "e3b0c44298fc1c14"
    }
   },
-  "flood_rate_limit|passive": {
+  "flood_vehicle_telemetry|passive": {
    "digest": "22dcb83784ef696c9aa802fc8eb1262b2dfea40a0dd0de18c9b519c60842b23f",
    "summary": {
     "down_sha": "c4ac5ac770fdf6df",
@@ -295,16 +337,16 @@
    }
   },
   "fuzz_2|active-ips": {
-   "digest": "bf469e2b63b0cbe37ce6cc59936d7c8ffa8ed413b4ab544a71a39ecbfae34610",
+   "digest": "a2e4f4b4704986865d9e09225b95ff15b684bb37428406a55573fc720f7dd6d9",
    "summary": {
-    "down_sha": "dd8f4aa808a847bb",
-    "dropped_down": 66,
+    "down_sha": "af610f5e4d6e2226",
+    "dropped_down": 27,
     "dropped_up": 50,
     "hook_errors": 0,
-    "mgmt": 109,
+    "mgmt": 106,
     "tap": 758,
     "to_fc": 82,
-    "to_gcs": 669,
+    "to_gcs": 705,
     "up_sha": "e91b9b98ec2e0a81"
    }
   },
@@ -337,16 +379,16 @@
    }
   },
   "fuzz_3|active-ips": {
-   "digest": "d26f25be85569c08d8f1cd5ea0dfde38bf766c53930cb14f52be7bcef9fbd973",
+   "digest": "990aa5d3eb0eca638219682a272e24c5806841461ea9eeae95ec5115f6b27f81",
    "summary": {
-    "down_sha": "b6a84458daca21fb",
-    "dropped_down": 71,
+    "down_sha": "1057b034bbcc70c6",
+    "dropped_down": 30,
     "dropped_up": 34,
     "hook_errors": 0,
-    "mgmt": 100,
+    "mgmt": 92,
     "tap": 734,
     "to_fc": 58,
-    "to_gcs": 671,
+    "to_gcs": 704,
     "up_sha": "af22739d496fa92b"
    }
   },
@@ -715,16 +757,16 @@
    }
   },
   "sanitizer_quarantine_qos_gps|active-ips": {
-   "digest": "b5b1b47ec95f7aeb9f6fa321fe04f6b34dd4a2c8da1a551481d431fe7be4eac7",
+   "digest": "5d99aff67738c3b12d873e2985297741d9a9113d983135561bd5d3f62084c6f3",
    "summary": {
-    "down_sha": "cd9579fcb3ba807d",
-    "dropped_down": 22,
+    "down_sha": "3b8c31c72c6b2d88",
+    "dropped_down": 2,
     "dropped_up": 2,
     "hook_errors": 0,
-    "mgmt": 9,
+    "mgmt": 7,
     "tap": 81,
     "to_fc": 6,
-    "to_gcs": 60,
+    "to_gcs": 78,
     "up_sha": "1c4fe4f61939f76b"
    }
   },
@@ -2099,19 +2141,19 @@
  },
  "split_frames": {
   "1": {
-   "bad": 1196,
-   "frames": 2832,
-   "sha": "b454f75cefac266d1a017715e6ff7ab9dd09cb4208187007c7bb526dc26ef70e"
+   "bad": 1616,
+   "frames": 3253,
+   "sha": "71c44612a3227bc6b20c1a46abf096989240af17537b56463fe4116d943f629e"
   },
   "3": {
    "bad": 181,
-   "frames": 4169,
-   "sha": "d73ca3bd2f7bf33a5cb5e78ef63b2d629c4d256f37bf4fe6b649a4be7681d4f2"
+   "frames": 5010,
+   "sha": "1bb2e763623ccbaf7ebf1760d91c7b21dee8f08f572e19c6efc110482463b235"
   },
   "64": {
    "bad": 171,
-   "frames": 4250,
-   "sha": "5c0d57f5da0197eea284d3a49fdfd95144a8c3fc3ffa482a4faffd173ad46ece"
+   "frames": 5091,
+   "sha": "9eeb1198621c33dd70037396eff643ba85a5577fccd2e17de289e14fcbde7418"
   }
  },
  "version": 1

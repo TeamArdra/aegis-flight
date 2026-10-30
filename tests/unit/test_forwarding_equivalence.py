@@ -58,8 +58,8 @@ def test_framer_matches_golden() -> None:
 
 
 def test_corpus_size() -> None:
-    assert len(GOLD["bridge"]) == 75 and len(GOLD["framer"]) == 260
-    assert len(SCN) == 25
+    assert len(GOLD["bridge"]) == 78 and len(GOLD["framer"]) == 260
+    assert len(SCN) == 26
 
 
 # --- a few explicit, human-checkable expectations (independent of the digests) ---------------------------------
@@ -76,9 +76,11 @@ def test_explicit_expectations() -> None:
     assert b["rogue_inflight|active-ips"]["summary"]["dropped_up"] == 40
     # the detector tap always sees every original frame (including the ones that are dropped)
     assert b["rogue_ground|active-ips"]["summary"]["tap"] == b["rogue_ground|passive"]["summary"]["tap"] == 47
-    # a flood is shed only with the QoS rule active, only in ACTIVE_IPS
-    assert b["flood_rate_limit|active-ips"]["summary"]["dropped_down"] == 480
+    # a flood from a non-protected source is shed only with the QoS rule active, only in ACTIVE_IPS
+    assert b["flood_rate_limit|active-ips"]["summary"]["dropped_down"] == 420
     assert b["flood_rate_limit|passive"]["summary"]["dropped_down"] == 0
+    # ... and the vehicle's own telemetry is never shed, whatever the rate alarm says
+    assert b["flood_vehicle_telemetry|active-ips"]["summary"]["dropped_down"] == 0
     # no hook ever raised on the corpus
     assert all(v["summary"]["hook_errors"] == 0 for v in b.values())
     # sanity of the framer corpus: the clean stream yields all 280 frames, with zero rejects

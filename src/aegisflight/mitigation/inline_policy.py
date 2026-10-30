@@ -357,12 +357,15 @@ class InlinePolicy:
             san = self.sanitizer
             if ctx.sysid in self.protected_sysids:
                 # the vehicle's own telemetry may be rewritten (GPS / altitude) but a protected sysid is never
-                # quarantined
+                # quarantined and never shed by the flood gatekeeper: dropping the flight controller's telemetry
+                # on a false or soft rate alarm would blind the pilot
                 saved, san.quarantined_sysids = san.quarantined_sysids, set()
+                saved_rl, san.rate_limit_active = san.rate_limit_active, False
                 try:
                     out = san(ctx)
                 finally:
                     san.quarantined_sysids = saved
+                    san.rate_limit_active = saved_rl
             else:
                 out = san(ctx)
             if not out:

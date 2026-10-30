@@ -383,12 +383,13 @@ def sc_sanitizer() -> Scn:
     return s
 
 
-def sc_flood() -> Scn:
-    g, s = Gen(), Scn("flood_rate_limit")
+def sc_flood(src: int = 9, name: str = "flood_rate_limit") -> Scn:
+    """QoS shedding under a flood: frames from a non-protected source are shed, the vehicle's own are not."""
+    g, s = Gen(), Scn(name)
     s.down(g.heartbeat(1, True))
     s.cfg(active=True, rate_limit_active=True)
-    crit = [g.heartbeat(1, True), g.attitude(1), g.gpi(1, rel=20.0), g.command_long(255, 521)]
-    other = [g.vfr(1), g.gps_raw(1), g.sys_status(1)]
+    crit = [g.heartbeat(1, True), g.attitude(src), g.gpi(src, rel=20.0), g.command_long(255, 521)]
+    other = [g.vfr(src), g.gps_raw(src), g.sys_status(src)]
     for _sec in range(3):
         for i in range(140):
             s.down(crit[i % 4] + other[i % 3], dt=0.007)
@@ -531,7 +532,7 @@ def all_scenarios() -> list[Scn]:
         sc_telemetry(), sc_trusted_cmds(False, "trusted_cmds_ground"), sc_trusted_cmds(True, "trusted_cmds_inflight"),
         sc_rogue(False, "rogue_ground"), sc_rogue(True, "rogue_inflight"), sc_burst(), sc_wrap_small_memory(),
         sc_forgery(), sc_dual("alert"), sc_dual("drop-sensitive"), sc_mav1(), sc_garbage(), sc_sanitizer(),
-        sc_flood(), sc_signed(KEY, "with_key"), sc_signed(None, "no_key"),
+        sc_flood(), sc_flood(1, "flood_vehicle_telemetry"), sc_signed(KEY, "with_key"), sc_signed(None, "no_key"),
         sc_signed(KEY, "unsigned_from_trusted_ok", allow_unsigned_from_trusted=True),
         sc_signed(KEY, "max_age", signing_max_age_s=10.0), sc_mgmt(), sc_mgmt_nokey(), sc_crossend(),
         sc_send_failures(), sc_fuzz(1), sc_fuzz(2), sc_fuzz(3),
