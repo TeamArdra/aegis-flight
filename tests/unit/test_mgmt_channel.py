@@ -6,6 +6,7 @@ Nothing here opens a socket, a serial port or SITL, and nothing is measured on a
 from __future__ import annotations
 
 import json
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -971,3 +972,27 @@ def test_link_that_never_signs_is_never_judged():
     fc.feed(*frames)
     b.pump_once()
     assert gcs.sent[:40] == frames
+
+
+# --------------------------------------------------------------------------- #
+# signed counter-commands on a companion computer with a wrong clock
+# --------------------------------------------------------------------------- #
+def test_counter_commands_are_stamped_from_observed_traffic_not_the_wall_clock():
+    from aegisflight.mavlink.signing import MAVLINK_EPOCH_UNIX_S
+    from aegisflight.mitigation.actuator import MavlinkActuator
+
+    b, fc, gcs, clock = make_bridge(mode="active-ips", secret_key=KEY_F)
+    assert b.controller.actuator._ts_source is not None                       # wired to the policy
+    assert b.policy.next_signing_timestamp() is None                          # nothing seen yet: fall back to the clock
+    future = int((time.time() - MAVLINK_EPOCH_UNIX_S) * 100_000) + 10**11     # a link ~11 days ahead of this machine's clock
+    signer = MavlinkSignatureVerifier(KEY_F)
+    gcs.feed(signer.sign_frame(_forged_cmd(255), link_id=1, timestamp_10us=future))   # a valid signed frame from the ground
+    b.pump_once()
+    assert b.policy.max_signed_ts == future
+    verifier = MavlinkSignatureVerifier(KEY_F)
+    frames = [b.controller.actuator.encode_set_mode("ALT_HOLD"), b.controller.actuator.encode_set_mode("LOITER")]
+    stamps = [verifier.verify_frame(f).timestamp_10us for f in frames]
+    assert all(verifier.verify_frame(f).signed for f in frames)
+    assert stamps[0] > future and stamps[1] > stamps[0]                       # above everything seen, strictly increasing
+    plain = MavlinkActuator(secret_key=KEY_F)                                 # without a source it still signs from the clock
+    assert MavlinkSignatureVerifier(KEY_F).verify_frame(plain.encode_set_mode("ALT_HOLD")).signed

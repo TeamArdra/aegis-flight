@@ -166,6 +166,9 @@ class InlineIpsBridge:
             max_age_s=signing_max_age_s, state_path=signing_state_path,
             contested_policy=contested_policy, replay_memory=replay_memory,
         )
+        # the bridge's own signed commands (counter-commands to the FC) are stamped from the signed traffic it has seen, not from
+        # its wall clock: a companion computer without RTC / internet has an arbitrary clock and the FC rejects stale timestamps
+        self.controller.actuator.set_timestamp_source(self.policy.next_signing_timestamp)
         self.on_alarm = on_alarm
         self._alarm_enc = MavlinkActuator(sysid=1, compid=192, secret_key=secret_key)
         self.alarms_sent = 0

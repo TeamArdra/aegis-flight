@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from pymavlink.dialects.v20 import common as mav2
 
 from ..mavlink.codec import COPTER_MODES
@@ -27,6 +29,8 @@ class MavlinkActuator:
         self._encoder.robust_parsing = True
         self._seq = 0
         self._signer = MavlinkSignatureVerifier(secret_key) if secret_key is not None else None
+        self._ts_source: Callable[[], int | None] | None = None
+        self._last_ts = 0
 
     def _next_seq(self) -> int:
         seq = self._seq
@@ -34,10 +38,23 @@ class MavlinkActuator:
         self._encoder.seq = seq
         return seq
 
+    def set_timestamp_source(self, source: Callable[[], int | None] | None) -> None:
+        """Take signing timestamps from observed signed traffic (10 us units) instead of the wall clock.
+
+        MAVLink signing timestamps must not be older than what the receiver has already seen. A companion computer
+        without RTC or internet has an arbitrary clock (hours or years behind), so frames stamped from it are
+        rejected by the flight controller; stamping just above the newest valid timestamp seen on the link is not.
+        """
+        self._ts_source = source
+
     def _finalize(self, raw: bytes) -> bytes:
-        if self._signer is not None:
-            return self._signer.sign_frame(raw, link_id=self.link_id)
-        return raw
+        if self._signer is None:
+            return raw
+        ts = self._ts_source() if self._ts_source is not None else None
+        if ts is not None:
+            ts = max(ts, self._last_ts + 1)
+            self._last_ts = ts
+        return self._signer.sign_frame(raw, link_id=self.link_id, timestamp_10us=ts)
 
     @staticmethod
     def knows_mode(custom_mode_name: str | None) -> bool:

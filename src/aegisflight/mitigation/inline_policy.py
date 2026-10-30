@@ -285,6 +285,7 @@ class InlinePolicy:
         self.observed_bad_signature = 0
         self.observed_replay = 0
         self._observed_pending: list[tuple[str, bytes, int, int]] = []
+        self.max_signed_ts = 0  # newest valid signing timestamp seen in either direction (10 us units)
         self.dropped_forged_down = 0
         self.observed_forged_down = 0
         self._down_signed: dict[tuple[int, int], int] = {}  # (sysid, compid) -> valid signed frames seen
@@ -373,6 +374,7 @@ class InlinePolicy:
             return "unsigned" if n >= self.SIGNED_SOURCE_MIN else None
         res = v.verify_frame(ctx.raw)
         if res.valid:
+            self.max_signed_ts = max(self.max_signed_ts, res.timestamp_10us)
             if n < self.SIGNED_SOURCE_MIN + 5:
                 if len(self._down_signed) >= 256 and src not in self._down_signed:
                     self._down_signed.pop(next(iter(self._down_signed)))
@@ -553,6 +555,7 @@ class InlinePolicy:
                         self.dropped_replay += 1
                     return "replay"
             self.signed_ok += 1
+            self.max_signed_ts = max(self.max_signed_ts, res.timestamp_10us)
             self._state_dirty = True
             self._maybe_persist()
             return "ok"
@@ -585,6 +588,10 @@ class InlinePolicy:
             return
         if len(self._observed_pending) < 64:
             self._observed_pending.append((verdict, ctx.raw, ctx.sysid, msgid))
+
+    def next_signing_timestamp(self) -> int | None:
+        """A timestamp just above the newest valid signed frame seen on the link, or None before any was seen."""
+        return self.max_signed_ts + 1 if self.max_signed_ts else None
 
     def observed_stats(self) -> dict[str, int]:
         """Report-only signature verdicts (IDS / advisory postures); kept apart from stats() so the forwarding guard is untouched."""
