@@ -200,7 +200,7 @@ are not the cause.
 
 | Date | Failure case | Commit | Outage s (last ACK to first ACK after), manual steps needed, replay after restart dropped (y/n), CRC-invalid frames | Result | Notes |
 |---|---|---|---|---|---|
-| | Pi radio replug | | | | |
+| 2026-10-30 | unp1: Pi air-radio USB cable unplugged about 15 s after takeoff and replugged 16 s later (same port, same /dev/ttyUSB0 and by-id path); 330 s hover at 30 m; active-ips with `--allow-unsigned`; no attacks | not recorded | Outage 16.0 s at the pilot (one heartbeat gap). Manual steps: the physical unplug and replug only. The bridge process stayed up and its serial transport reconnected on its own, with no restart. Downlink resumed at about 28 frames/s; the bridge's forwarded_down counter kept increasing from the first poll after the replug. 414 frames could not be written during the outage (send_failures 414; dropped, not queued). CRC-invalid count: not recorded | NOT PASS as written (one of five cases; recovery met for this case); phase JSON not reviewed | 15 of 16 benign mode probes acknowledged (the missing one fell in the outage). Vehicle GUIDED at 30 m (vehicle_went_to_land 0). State NOMINAL, 0 alerts, 0 analyser errors, 0 tap overflow. Not run: laptop (ground) radio unplug, repeated or longer air-radio unplugs, unplug during an attack, Pi power loss and reboot with auto-start. |
 | | Laptop radio replug | | | | |
 | 2026-10-30 | rlong1: bridge killed with kill -9 at about +280 s and restarted by hand 25 s later | not recorded | Telemetry gap at the pilot 27.6 s (25 s dead plus about 2.6 s for the new process to start and the stream to resume). Manual steps: the bridge restart only. After the restart: 24,701 downlink forwarded, 0 dropped, 0 send failures, 0 tap overflow, 0 analyser errors. CRC-invalid count, replay after restart: not recorded (the run was unsigned) | NOT PASS as written (one of five cases run); phase JSON not reviewed | Topology A+B, state NOMINAL after the restart. Vehicle stayed GUIDED at 30 m; no manual intervention on the radios. Not run: radio unplug and replug (each radio), SITL drop and restart, Pi reboot, signed restart replay. Outage recorded as the plan requires. |
 | | SITL drop and restart | | | | |
@@ -461,10 +461,10 @@ The judgement is made against the plan's criteria in `RADIO_TEST.md`, not the co
 | 5 | ACTIVE_IPS | PARTLY: forged LAND, flood, GPS glitch measured |
 | 6 | ACTIVE_IPS, signing key on the Pi | PARTLY: unsigned, wrong-key and replay measured |
 | 7 | ACTIVE_IPS, budget only | PARTLY: budget measured; ground commands not run |
-| 8 | ACTIVE_IPS, one case (bridge kill and manual restart, rlong1) | NOT PASS as written; one of five cases run |
+| 8 | ACTIVE_IPS, two cases (bridge kill and manual restart, rlong1; air-radio unplug, unp1) | NOT PASS as written; two of five cases run; both recovered without a manual step beyond the listed ones |
 | 9 | ACTIVE_IPS, 20 min (rlong1) | NOT PASS as written; partly met (20 min, not 30 to 60) |
 
-**Not yet run over the radio:** the passive and advisory postures; management-channel control from the ground; firmware tamper over the radio; radio unplug and replug of either radio; SITL drop and restart and Pi reboot over the radio; the signed-restart replay; the 30 to 60 minute soak (the longest real-radio run was 20 minutes); range; the signing stale and future timestamp checks and the signing gate; the GPS pilot-override variant, the 1 m/s drift and jamming.
+**Not yet run over the radio:** the passive and advisory postures; management-channel control from the ground; firmware tamper over the radio; ground-radio (laptop) unplug; repeated or longer air-radio unplugs, and unplug during an attack; Pi power loss, reboot and bridge auto-start (there is no systemd service for the bridge in the repository yet); SITL drop and restart over the radio; the signed-restart replay; the 30 to 60 minute soak (the longest real-radio run was 20 minutes); range; the signing stale and future timestamp checks and the signing gate; the GPS pilot-override variant, the 1 m/s drift and jamming.
 
 ### Scripts
 
@@ -518,3 +518,35 @@ throttling flags had occurred earlier since boot; the summary does not say wheth
   acknowledged; forged LAND dropped. Not met: the run is 20 minutes, not 30 to 60. Not shown in the summary: the new-throttle-bit
   check, hook_errors for the run, and loss and latency for the first versus last 10 minutes.
 
+## Real-radio air-radio unplug unp1, 2026-10-30 (LR900 pair)
+
+Measured on 2026-10-30. The figures come from the session summary supplied by the coordinator.
+
+**Setup.** Real LR900 pair at 115,200 baud. SITL on the laptop. The bridge on the Pi in `active-ips` with `--allow-unsigned`.
+330 s hover at 30 m, GUIDED. No attacks.
+
+**Event.** The user physically unplugged the Pi's air-radio USB cable at about +15 s after takeoff. The Pi kernel log shows
+`cp210x converter disconnected`. The cable was replugged 16 s later, into the same USB port, so `/dev/ttyUSB0` and the by-id
+path were unchanged.
+
+**Result.**
+
+* The bridge process stayed up. Its serial transport reconnected on its own, with no restart and no manual action on either radio.
+* The pilot at the ground saw exactly one heartbeat gap of 16.0 s, which is the outage length.
+* Downlink resumed at about 28 frames/s. The bridge's `forwarded_down` counter kept increasing from the first poll after the replug.
+* 414 frames could not be written during the outage. They were counted as `send_failures` (414) and dropped, not queued. The
+  counter stopped growing after the replug.
+* 15 of 16 benign mode probes were acknowledged. The missing one fell in the outage.
+* The vehicle stayed GUIDED at 30 m (`vehicle_went_to_land` 0).
+* Bridge state NOMINAL, 0 alerts, 0 analyser errors, 0 tap overflow.
+
+**Scope limits, stated plainly.**
+
+* Not run: ground-radio (laptop) unplug; power loss of the Pi (reboot and auto-start); unplug during an attack; repeated
+  unplugs; longer outages.
+* There is no systemd service for the bridge in the repository yet. Bridge auto-start after a Pi reboot therefore cannot be
+  tested with the repository as it stands.
+
+**Judgement against the plan (conservative).** Phase 8 is NOT PASS as written: one of the five listed failure cases in this
+run was the Pi radio replug. For that case the recovery requirement is met: the link recovered without a manual step other
+than the listed replug. The outage was recorded. The CRC-invalid count is not in the summary.

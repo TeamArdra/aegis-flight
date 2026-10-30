@@ -4,7 +4,7 @@
 > documentation pass. The real radio is a MicoAir LR900 pair, configured and carrying data both ways. Measured runs over the
 > radio exist for phase 1 (baseline), phases 2 and 3 (ACTIVE_IPS only), phases 4 and 5 (ACTIVE_IPS, partly), phase 6
 > (signing, partly) and phase 7 (budget only). None of these is a clean pass against the plan's written criteria; section 11
-> gives the judgement per phase. Phase 8 has one measured case over the radio (bridge kill and manual restart, rlong1) and phase 9 a 20-minute run; neither passes as written. The passive and advisory postures over the radio have not been run.
+> gives the judgement per phase. Phase 8 has two measured cases over the radio (bridge kill and manual restart, rlong1; air-radio unplug, unp1) and phase 9 a 20-minute run; neither passes as written. The passive and advisory postures over the radio have not been run.
 > Measured facts are in `docs/RADIO_TEST_RESULTS.md`.
 
 This is the test plan, rig description and tool reference for running `aegis ips-bridge` on a Raspberry Pi 3B+ between a
@@ -874,7 +874,7 @@ and latency figures are worst-case. These are not phase results. The real-radio 
 
 Measured figures and session detail are in `RADIO_TEST_RESULTS.md`, section "Real-radio session, 2026-10-30". Summary: the
 earlier one-way data was a configuration mismatch between the two units (section 3, item 10), now fixed. Over the radio at
-115,200 baud the link baseline was clean up to 40 frames/s (about 1.0-1.05 KB/s each way). Four real-radio runs were made in ACTIVE_IPS: rad2 (240 s flight), rsg1 (signing), rgps1 (GPS glitch) and rlong1 (20 minutes, with a bridge kill and manual restart).
+115,200 baud the link baseline was clean up to 40 frames/s (about 1.0-1.05 KB/s each way). Five real-radio runs were made in ACTIVE_IPS: rad2 (240 s flight), rsg1 (signing), rgps1 (GPS glitch), rlong1 (20 minutes, with a bridge kill and manual restart) and unp1 (air-radio unplug for 16 s).
 
 The judgement below is conservative. It is made against the plan's written criteria, not the coordinator's PASS labels.
 "NOT PASS as written" means a criterion was not run or not met.
@@ -889,7 +889,7 @@ The judgement below is conservative. It is made against the plan's written crite
 | 5 prevention | ACTIVE_IPS | **PARTLY.** Measured: forged LAND and flood from sysid 66 (rad2), and the GPS glitch (rgps1). Not run over the radio: the sudden-glitch pilot-override variant, the trusted forced disarm, the 1 m/s drift (a known miss) and jamming. The ALT_HOLD timing against confirmation cannot be evaluated from the summary. |
 | 6 signing | ACTIVE_IPS, signing key on the Pi | **PARTLY.** Measured: unsigned, wrong-key and replayed frames dropped, mode unchanged (rsg1). Not run: stale and future timestamps, the ACTIVE_IPS signing gate exit code, signing with delay or jitter beyond the radio's own one-way delay (about 30 ms). |
 | 7 management channel | ACTIVE_IPS (budget only, rad2) | **PARTLY.** Management traffic measured: 9,688 B over 361 s (about 27 B/s), 1 budget denial. Ground-side commands and their ACK latency were not run over the radio. |
-| 8 failure and recovery | ACTIVE_IPS, one case (rlong1) | **NOT PASS as written; one of five cases run.** Bridge killed with `kill -9` and restarted by hand: 27.6 s telemetry gap at the pilot, recorded; recovery needed only the named-process restart; 24,701 downlink forwarded after the restart, 0 dropped; vehicle held GUIDED at 30 m. Not run over the radio: radio unplug and replug (each radio), SITL drop and restart, Pi reboot, signed-restart replay. |
+| 8 failure and recovery | ACTIVE_IPS, two cases (rlong1: bridge kill and manual restart; unp1: air-radio unplug) | **NOT PASS as written; two of five cases run.** Air-radio unplug for 16 s: one 16.0 s heartbeat gap at the pilot; the bridge stayed up and reconnected on its own; downlink resumed at about 28 frames/s; 414 frames not written during the outage; 15 of 16 benign probes acknowledged; vehicle GUIDED at 30 m. Bridge kill and manual restart: 27.6 s gap; 24,701 downlink forwarded after restart, 0 dropped. Not run over the radio: laptop (ground) radio unplug, repeated or longer unplugs, unplug during an attack, SITL drop and restart, Pi reboot with auto-start, signed-restart replay. |
 | 9 soak | ACTIVE_IPS, 20 minutes (rlong1) | **NOT PASS as written; partly met.** 20 minutes, against 30 to 60 required. Met: RSS flat (slope 0.063 MiB/min, no growth flag); 59 of 59 benign probes acknowledged; forged LAND dropped. Not shown: the new-throttle-bit check, hook_errors for the run, loss and latency for the first versus last 10 minutes. |
 
 **Not yet run over the radio (stated plainly):**
@@ -897,14 +897,15 @@ The judgement below is conservative. It is made against the plan's written crite
 * the passive and advisory postures;
 * management-channel control from the ground (commands and their ACKs; these were run only on the Ethernet-tunnel setup);
 * firmware tamper over the radio;
-* radio unplug and replug of either radio (this needs a person);
-* SITL drop and restart, and Pi reboot, over the radio; the signed-restart replay;
+* ground-radio (laptop) unplug; repeated or longer air-radio unplugs; unplug during an attack;
+* Pi power loss, reboot and bridge auto-start (there is no systemd service for the bridge in the repository yet);
+* SITL drop and restart over the radio; the signed-restart replay;
 * the 30 to 60 minute soak (the longest real-radio run was 20 minutes);
 * range;
 * signing: stale and future timestamps, the signing gate, and delay or jitter beyond the radio's own one-way delay;
 * GPS: the pilot-override variant, the 1 m/s drift (known miss) and jamming.
 
-The bridge restart over the radio was done once, by hand, with no supervisor or auto-start (rlong1).
+The bridge restart (rlong1) was done once, by hand. The air-radio unplug (unp1) needed no manual step on the bridge.
 
 **Correction to an earlier line of this section:** the management budget was previously written as measured in passive. It
 was measured in ACTIVE_IPS (rad2).
