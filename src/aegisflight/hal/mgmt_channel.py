@@ -480,6 +480,7 @@ class MgmtChannel:
         self._load_state()
         self._queue: deque[tuple[int, str, Callable[[], bytes], float]] = deque(maxlen=8)
         self._drops: dict[str, int] = {}
+        self._observed: dict[str, int] = {}
         self._drop_window_t = clock()
         self._status_next = clock() + self.status_interval_s
         self._status_now = False
@@ -590,6 +591,11 @@ class MgmtChannel:
         """A hostile frame was dropped; counted here and announced once per second per label (``x3``)."""
         self._drops[label] = self._drops.get(label, 0) + 1
 
+    def note_observed(self, label: str, verdict: str) -> None:
+        """A control frame failed the signature check but was NOT blocked (IDS / advisory posture); announced like a drop."""
+        key = f"{verdict.replace('_', '-')} {label}"
+        self._observed[key] = self._observed.get(key, 0) + 1
+
     def _flush_drops(self, now: float) -> None:
         if now - self._drop_window_t < 1.0:
             return
@@ -600,6 +606,12 @@ class MgmtChannel:
             if not self.alerts_enabled or not self.gate.allow(f"drop:{label}", force=True):
                 continue
             self._text(f"AEGIS: blocked {label} x{n}", 4, P_EVENT, "action")
+        observed, self._observed = self._observed, {}
+        for key, n in sorted(observed.items(), key=lambda kv: -kv[1]):
+            self._last_action_t = now
+            if not self.alerts_enabled or not self.gate.allow(f"obs:{key}", force=True):
+                continue
+            self._text(f"AEGIS: {key} x{n}", 4, P_EVENT, "action")
 
     # -- status --------------------------------------------------------------------- #
 

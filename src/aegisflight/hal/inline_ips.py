@@ -341,6 +341,10 @@ class InlineIpsBridge:
                     self.dropped_up += 1
                 with contextlib.suppress(Exception):
                     self.mgmt.note_drop(drop_label(fr.raw, fr.sysid, fr.msgid, direction))
+            if policy._observed_pending:
+                with contextlib.suppress(Exception):
+                    for verdict, oraw, osys, omsg in policy.take_observed():
+                        self.mgmt.note_observed(drop_label(oraw, osys, omsg, direction), verdict)
             for raw in out:
                 if send(raw):
                     if down:
@@ -491,6 +495,7 @@ class InlineIpsBridge:
             "latency_us": {"p50": pct(0.50), "p95": pct(0.95), "max": round(lat[-1], 1) if lat else None,
                            "samples": len(lat)},
             "policy": self.policy.stats(),
+            "signing_observed": self.policy.observed_stats(),
             "analyser": {"decisions": self.decisions, "alerts": self.alerts, "errors": self.analyser_errors,
                          "counter_frames_sent": self.counter_frames_sent, "alarms_sent": self.alarms_sent, "crossend_sent": self.crossend_sent, "summary": self.last_summary,
                          "ekf_secondary": self.controller.ekf_secondary_available},

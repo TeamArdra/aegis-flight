@@ -280,6 +280,11 @@ class InlinePolicy:
         self.dropped_inflight_disarm = 0
         self.dropped_burst = 0
         self.dropped_dynamic = 0
+        # report-only signature verdicts (posture below ACTIVE_IPS): counted and announced, never dropped
+        self.observed_unsigned = 0
+        self.observed_bad_signature = 0
+        self.observed_replay = 0
+        self._observed_pending: list[tuple[str, bytes, int, int]] = []
         self.rewritten = 0
         self.hook_errors = 0
 
@@ -381,6 +386,8 @@ class InlinePolicy:
         """GCS -> FC."""
         try:
             if not self.enforce:
+                if self._verifier is not None:
+                    self._observe_signature(ctx)
                 return [ctx.raw]
             trusted = ctx.sysid in self.trusted_sysids
             msgid = ctx.msgid
@@ -493,8 +500,8 @@ class InlinePolicy:
                 self._seen.pop(next(iter(self._seen)))
         return out
 
-    def _check_signature(self, ctx: FrameContext) -> str:
-        """``ok`` | ``unsigned`` | ``bad_signature`` | ``replay`` (each counted)."""
+    def _check_signature(self, ctx: FrameContext, observe: bool = False) -> str:
+        """``ok`` | ``unsigned`` | ``bad_signature`` | ``replay`` (each counted: as a drop, or as an observation when ``observe``)."""
         v = self._verifier
         assert v is not None
         res = v.verify_frame(ctx.raw)
@@ -502,20 +509,53 @@ class InlinePolicy:
             if self.max_age_s is not None:
                 now_10us = (time.time() - MAVLINK_EPOCH_UNIX_S) * 100_000
                 if res.timestamp_10us < now_10us - self.max_age_s * 100_000:
-                    self.dropped_replay += 1
+                    if observe:
+                        self.observed_replay += 1
+                    else:
+                        self.dropped_replay += 1
                     return "replay"
             self.signed_ok += 1
             self._state_dirty = True
             self._maybe_persist()
             return "ok"
         if not res.signed:
-            self.dropped_unsigned += 1
+            if observe:
+                self.observed_unsigned += 1
+            else:
+                self.dropped_unsigned += 1
             return "unsigned"
         if res.replayed:
-            self.dropped_replay += 1
+            if observe:
+                self.observed_replay += 1
+            else:
+                self.dropped_replay += 1
             return "replay"
-        self.dropped_bad_signature += 1
+        if observe:
+            self.observed_bad_signature += 1
+        else:
+            self.dropped_bad_signature += 1
         return "bad_signature"
+
+    def _observe_signature(self, ctx: FrameContext) -> None:
+        """IDS / advisory postures: judge the signature of control frames exactly as ACTIVE_IPS would, but only report."""
+        msgid = ctx.msgid
+        cmd = _command(ctx.raw, msgid) if msgid in _COMMAND_MSGIDS else None
+        if not (msgid in CONTROL_MSGIDS or (cmd is not None and cmd[0] in SENSITIVE_COMMANDS)):
+            return
+        verdict = self._check_signature(ctx, observe=True)
+        if verdict == "ok" or (verdict == "unsigned" and ctx.sysid in self.trusted_sysids and self.allow_unsigned_from_trusted):
+            return
+        if len(self._observed_pending) < 64:
+            self._observed_pending.append((verdict, ctx.raw, ctx.sysid, msgid))
+
+    def observed_stats(self) -> dict[str, int]:
+        """Report-only signature verdicts (IDS / advisory postures); kept apart from stats() so the forwarding guard is untouched."""
+        return {"unsigned": self.observed_unsigned, "bad_signature": self.observed_bad_signature, "replay": self.observed_replay}
+
+    def take_observed(self) -> list[tuple[str, bytes, int, int]]:
+        """Pending report-only verdicts (``verdict, raw, sysid, msgid``), cleared on read. Forwarding thread only."""
+        out, self._observed_pending = self._observed_pending, []
+        return out
 
     # -- signing state persistence ------------------------------------------- #
 

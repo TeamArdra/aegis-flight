@@ -561,30 +561,30 @@
    }
   },
   "mgmt_alerts_actions_status|advisory": {
-   "digest": "15eda52b2fd66adf126391684f8a3341334b2e674beb3b1f3d646f60f9396d0b",
+   "digest": "5d5fae33a47344b063bbf61d2e004369959a204cfef6f45974a06b037e6448bc",
    "summary": {
-    "down_sha": "26db133da46da819",
+    "down_sha": "80347b3a0ba24101",
     "dropped_down": 0,
     "dropped_up": 2,
     "hook_errors": 0,
-    "mgmt": 36,
+    "mgmt": 38,
     "tap": 36,
     "to_fc": 2,
-    "to_gcs": 68,
+    "to_gcs": 70,
     "up_sha": "04e81475c9022b42"
    }
   },
   "mgmt_alerts_actions_status|passive": {
-   "digest": "3248b5fcf4a4755e449f7bec02995655e962c0f47d9f515e7d062d377cc853de",
+   "digest": "47435b1f162fc7dc49ce1b7bafa073909cb85a2a7a356145801edd2b40c7fe73",
    "summary": {
-    "down_sha": "6dbefd2b1c563366",
+    "down_sha": "d4a6abd99ed3c3ab",
     "dropped_down": 0,
     "dropped_up": 2,
     "hook_errors": 0,
-    "mgmt": 36,
+    "mgmt": 38,
     "tap": 36,
     "to_fc": 2,
-    "to_gcs": 68,
+    "to_gcs": 70,
     "up_sha": "04e81475c9022b42"
    }
   },
@@ -813,7 +813,7 @@
    }
   },
   "signed_max_age|advisory": {
-   "digest": "0a03e294cf5283f5eeb444469f2d560060cfcd1ce87c9bd3615b7b8ebc44816b",
+   "digest": "8a914c5320da3ea1e28127b423de40ddb291bc6597ca1f177423306d82d6a54c",
    "summary": {
     "down_sha": "73f59dffb6ac6812",
     "dropped_down": 0,
@@ -827,7 +827,7 @@
    }
   },
   "signed_max_age|passive": {
-   "digest": "7694aa7eccd01278008c03fe3b293a137c90974c8bba087e1f3f67f35179ac6a",
+   "digest": "01672c04484f76042ee12352900695a12c7fc159d80dad10df06ce0ded4f7eac",
    "summary": {
     "down_sha": "73f59dffb6ac6812",
     "dropped_down": 0,
@@ -897,7 +897,7 @@
    }
   },
   "signed_unsigned_from_trusted_ok|advisory": {
-   "digest": "0a03e294cf5283f5eeb444469f2d560060cfcd1ce87c9bd3615b7b8ebc44816b",
+   "digest": "8a914c5320da3ea1e28127b423de40ddb291bc6597ca1f177423306d82d6a54c",
    "summary": {
     "down_sha": "73f59dffb6ac6812",
     "dropped_down": 0,
@@ -911,7 +911,7 @@
    }
   },
   "signed_unsigned_from_trusted_ok|passive": {
-   "digest": "7694aa7eccd01278008c03fe3b293a137c90974c8bba087e1f3f67f35179ac6a",
+   "digest": "01672c04484f76042ee12352900695a12c7fc159d80dad10df06ce0ded4f7eac",
    "summary": {
     "down_sha": "73f59dffb6ac6812",
     "dropped_down": 0,
@@ -939,7 +939,7 @@
    }
   },
   "signed_with_key|advisory": {
-   "digest": "0a03e294cf5283f5eeb444469f2d560060cfcd1ce87c9bd3615b7b8ebc44816b",
+   "digest": "8a914c5320da3ea1e28127b423de40ddb291bc6597ca1f177423306d82d6a54c",
    "summary": {
     "down_sha": "73f59dffb6ac6812",
     "dropped_down": 0,
@@ -953,7 +953,7 @@
    }
   },
   "signed_with_key|passive": {
-   "digest": "7694aa7eccd01278008c03fe3b293a137c90974c8bba087e1f3f67f35179ac6a",
+   "digest": "01672c04484f76042ee12352900695a12c7fc159d80dad10df06ce0ded4f7eac",
    "summary": {
     "down_sha": "73f59dffb6ac6812",
     "dropped_down": 0,

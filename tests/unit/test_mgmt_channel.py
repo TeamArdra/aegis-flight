@@ -892,3 +892,40 @@ def test_boot_quiet_holds_only_start_up_noise_not_real_actions():
                                         {"t": 1.1, "tag": "QUARANTINE", "detail": "Quarantined anomalous sender SysID 42"}])
     b._announce_actions()
     assert texts(gcs) == ["AEGIS: quarantine sys42"]
+
+
+# --------------------------------------------------------------------------- #
+# report-only signature verdicts (IDS / advisory)
+# --------------------------------------------------------------------------- #
+def _forged_cmd(sysid: int) -> bytes:
+    enc = mav2.MAVLink(None, srcSystem=sysid, srcComponent=190)
+    return bytes(enc.command_long_encode(1, 1, 176, 0, 1, 9, 0, 0, 0, 0, 0).pack(enc))      # DO_SET_MODE(LAND)
+
+
+@pytest.mark.parametrize("mode", ["passive", "advisory"])
+def test_ids_and_advisory_report_signing_failures_but_forward_everything(mode):
+    b, fc, gcs, clock = make_bridge(mode=mode, secret_key=KEY_F)
+    good, bad = MavlinkSignatureVerifier(KEY_F), MavlinkSignatureVerifier(WRONG)
+    unsigned = _forged_cmd(66)
+    wrong_key = bad.sign_frame(_forged_cmd(255), link_id=1)
+    valid = good.sign_frame(_forged_cmd(255), link_id=1)
+    gcs.feed(unsigned, wrong_key, valid, valid)                      # the last one is a byte-identical replay
+    b.pump_once()
+    clock.t += 2.0
+    b.pump_once()
+    assert fc.sent == [unsigned, wrong_key, valid, valid]            # nothing dropped, nothing rewritten: the bridge only reports
+    st = b.status()
+    assert st["signing_observed"] == {"unsigned": 1, "bad_signature": 1, "replay": 1}
+    assert st["frames"]["dropped_up"] == 0
+    tx = texts(gcs)
+    assert any(t.startswith("AEGIS: unsigned") and "sys66" in t for t in tx), tx
+    assert any(t.startswith("AEGIS: bad-signature") for t in tx), tx
+    assert any(t.startswith("AEGIS: replay") for t in tx), tx
+    assert not any("blocked" in t for t in tx)
+
+
+def test_active_ips_still_blocks_and_does_not_double_report():
+    b, fc, gcs, clock = make_bridge(mode="active-ips", secret_key=KEY_F)
+    gcs.feed(_forged_cmd(66))
+    b.pump_once()
+    assert fc.sent == [] and b.status()["signing_observed"] == {"unsigned": 0, "bad_signature": 0, "replay": 0}
