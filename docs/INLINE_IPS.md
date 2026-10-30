@@ -354,3 +354,5 @@ explicit choice:
 - `--status-host HOST` (default `127.0.0.1`); a non-loopback host needs `--control-token-file` and prints a warning that the
   status API is reachable from the network.
 - `GET /status` also returns `signing: {configured, unsigned_acknowledged}` and `control: {enabled}`.
+
+Real-radio test (not yet passed on the radio): see [docs/RADIO_TEST.md](RADIO_TEST.md).
