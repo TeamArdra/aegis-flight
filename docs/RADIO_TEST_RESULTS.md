@@ -202,7 +202,7 @@ are not the cause.
 |---|---|---|---|---|---|
 | | Pi radio replug | | | | |
 | | Laptop radio replug | | | | |
-| | Bridge kill and restart | | | | |
+| 2026-10-30 | rlong1: bridge killed with kill -9 at about +280 s and restarted by hand 25 s later | not recorded | Telemetry gap at the pilot 27.6 s (25 s dead plus about 2.6 s for the new process to start and the stream to resume). Manual steps: the bridge restart only. After the restart: 24,701 downlink forwarded, 0 dropped, 0 send failures, 0 tap overflow, 0 analyser errors. CRC-invalid count, replay after restart: not recorded (the run was unsigned) | NOT PASS as written (one of five cases run); phase JSON not reviewed | Topology A+B, state NOMINAL after the restart. Vehicle stayed GUIDED at 30 m; no manual intervention on the radios. Not run: radio unplug and replug (each radio), SITL drop and restart, Pi reboot, signed restart replay. Outage recorded as the plan requires. |
 | | SITL drop and restart | | | | |
 | | Pi reboot | | | | |
 
@@ -210,7 +210,7 @@ are not the cause.
 
 | Date | Config | Commit | Duration min, legitimate dropped, hook_errors, RSS start / end MiB, CPU %, loss first / last 10 min, new throttle bits | Result | Notes |
 |---|---|---|---|---|---|
-| | | | | | |
+| 2026-10-30 | rlong1: active-ips with `--allow-unsigned`, 1,200 s flight at 30 m GUIDED over the radio; run length 20 min (plan: 30 to 60) | not recorded | Duration 20 min. Benign mode probes: 59 of 59 acknowledged (legitimate drops not reported separately). hook_errors: not in summary. RSS 58.9 to 64.9 MiB, slope 0.063 MiB/min, no growth flag. CPU mean 26 % / peak 43 % of one core. SoC 53 C mean, 54 C peak. Loss and latency, first vs last 10 min: not in summary. New throttle bits: not determined (under-voltage and throttling had occurred earlier since boot; the summary does not say whether they occurred in this run) | NOT PASS as written (partly met); phase JSON not reviewed | Bridge killed and restarted by hand (see phase 8). 6 monitor samples lost during the kill. Forged LAND from sysid 66 at +600 s and +900 s dropped (4 untrusted drops; COMMAND_INJECTION SUSPICIOUS x2); vehicle stayed GUIDED at 30 m. Not run: a 30 to 60 minute soak. |
 
 ## Combined flight session (phases 3-6)
 
@@ -461,12 +461,10 @@ The judgement is made against the plan's criteria in `RADIO_TEST.md`, not the co
 | 5 | ACTIVE_IPS | PARTLY: forged LAND, flood, GPS glitch measured |
 | 6 | ACTIVE_IPS, signing key on the Pi | PARTLY: unsigned, wrong-key and replay measured |
 | 7 | ACTIVE_IPS, budget only | PARTLY: budget measured; ground commands not run |
-| 8 | none | NOT RUN |
-| 9 | none | NOT RUN |
+| 8 | ACTIVE_IPS, one case (bridge kill and manual restart, rlong1) | NOT PASS as written; one of five cases run |
+| 9 | ACTIVE_IPS, 20 min (rlong1) | NOT PASS as written; partly met (20 min, not 30 to 60) |
 
-**Not yet run over the radio:** the passive and advisory postures; management-channel control from the ground; firmware tamper
-over the radio; radio unplug and replug recovery, and bridge restart over the radio; the 30 to 60 minute soak; range; the signing
-stale and future timestamp checks and the signing gate; the GPS pilot-override variant, the 1 m/s drift and jamming.
+**Not yet run over the radio:** the passive and advisory postures; management-channel control from the ground; firmware tamper over the radio; radio unplug and replug of either radio; SITL drop and restart and Pi reboot over the radio; the signed-restart replay; the 30 to 60 minute soak (the longest real-radio run was 20 minutes); range; the signing stale and future timestamp checks and the signing gate; the GPS pilot-override variant, the 1 m/s drift and jamming.
 
 ### Scripts
 
@@ -475,3 +473,48 @@ stale and future timestamp checks and the signing gate; the GPS pilot-override v
   started through `scripts/radio_test/pi_bridge.sh`.
 * `run_radio_pi.sh` first runs `~/aegis_test/wifi_stop.sh` and `~/aegis_test/stop_relay.sh` on the Pi. Neither script is in
   this repository, and neither was reviewed in this documentation pass.
+
+## Real-radio long run rlong1, 2026-10-30 (LR900 pair, 20 min)
+
+Measured on 2026-10-30. The figures come from the session summary supplied by the coordinator.
+
+**Setup.** Real LR900 pair at 115,200 baud. The ground radio is on the laptop (COM3, behind `radio_hub.py`); the air radio is on
+the Pi. SITL runs on the laptop. The bridge runs on the Pi in `active-ips` with `--allow-unsigned`. Low stream rates were
+requested with REQUEST_DATA_STREAM. The flight was 1,200 s at 30 m, GUIDED.
+
+**Scope limits, stated plainly.**
+
+* The run is 20 minutes. Phase 9 asks for 30 to 60 minutes.
+* The bridge restart was manual, with no supervisor or auto-start. It was not a radio unplug.
+* Not run in this session: radio unplug and replug of either radio (this needs a person); the passive and advisory postures over
+  the radio; management-channel control from the ground over the radio; firmware tamper over the radio; range.
+
+**Pilot and vehicle.** The pilot over the radio received 1,271 heartbeats and 89,870 messages. All 59 benign mode probes were
+acknowledged. The vehicle never left GUIDED at 30 m (`vehicle_went_to_land` 0).
+
+**Forged LAND.** Forged LAND from sysid 66 at +600 s and +900 s: both dropped. 4 untrusted drops. Alerts: COMMAND_INJECTION
+SUSPICIOUS x2.
+
+**Bridge kill and restart (phase 8 case).** The bridge was killed with `kill -9` at about +280 s and restarted by hand 25 s
+later.
+
+* One telemetry gap at the pilot of 27.6 s: 25 s of dead time plus about 2.6 s for the new process to start and the radio
+  stream to resume.
+* Nothing else changed on the vehicle. No manual intervention on the radios.
+* After the restart (counters of the new process): 24,701 downlink frames forwarded, 0 dropped, 0 send failures, 0 tap overflow,
+  0 analyser errors. Latency p50 0.30 ms, p95 0.61 ms. Topology A+B. State NOMINAL.
+* The downlink count before the kill is not in the summary, so no whole-run loss figure is given.
+
+**Pi monitor over the run.** CPU mean 26 %, peak 43 % of one core. SoC temperature 53 C mean, 54 C peak. RSS 58.9 to 64.9 MiB, slope
+0.063 MiB/min (the flag threshold is 1.0; no growth flag). 6 monitor samples were lost during the bridge kill. Under-voltage and
+throttling flags had occurred earlier since boot; the summary does not say whether they occurred during this run.
+
+**Judgement against the plan (conservative).**
+
+* Phase 8: **NOT PASS as written; one of five failure cases run.** Met on this case: the outage was measured and recorded,
+  recovery needed only the named-process restart, and the vehicle held GUIDED at 30 m. Not run: radio unplug and replug, SITL
+  drop and restart, Pi reboot, and the signed-restart replay. The CRC-invalid count is not in the summary.
+* Phase 9: **NOT PASS as written; partly met.** Met: bridge RSS flat (slope 0.063 MiB/min, no growth flag); 59 of 59 benign probes
+  acknowledged; forged LAND dropped. Not met: the run is 20 minutes, not 30 to 60. Not shown in the summary: the new-throttle-bit
+  check, hook_errors for the run, and loss and latency for the first versus last 10 minutes.
+
