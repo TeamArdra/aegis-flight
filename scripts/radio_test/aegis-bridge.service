@@ -1,0 +1,16 @@
+# Production auto-start of the bridge on the companion computer (install as root, then `systemctl enable --now aegis-bridge`).
+# Not installed by the bench scripts (they use a user crontab @reboot because the bench Pi has no passwordless sudo).
+[Unit]
+Description=AegisFlight inline IPS bridge
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+User=ardra
+Environment=AUTOSTART_ENV=/home/ardra/aegis_test/autostart.env
+ExecStart=/home/ardra/aegis_test/pi_autostart.sh
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -14,4 +14,5 @@ and needs `PI_KEY` (ssh private key path), optionally `PI_HOST` (default the lin
 | `run_soak_pi.sh` | 30-minute soak with `pi_monitor.py` |
 | `run_radio_signing_pi.sh`, `run_radio_gps_pi.sh`, `run_radio_long_pi.sh` | signing, GPS glitch, and bridge kill + restart over the REAL radio pair |
 | `run_radio_unplug_pi.sh` | flight with a radio unplug and replug during the run (a person pulls the Pi radio cable) |
+| `run_radio_reboot_pi.sh` | a person reboots the Pi during the flight; the bridge must come back by itself (`scripts/radio_test/pi_autostart.sh` via cron @reboot or `aegis-bridge.service`) |
 | `run_radio_pi.sh` | the REAL radio pair: laptop COM3 hub -> LR900 ground/air -> Pi bridge (low stream rates) |

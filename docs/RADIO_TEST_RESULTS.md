@@ -204,7 +204,7 @@ are not the cause.
 | | Laptop radio replug | | | | |
 | 2026-10-30 | rlong1: bridge killed with kill -9 at about +280 s and restarted by hand 25 s later | not recorded | Telemetry gap at the pilot 27.6 s (25 s dead plus about 2.6 s for the new process to start and the stream to resume). Manual steps: the bridge restart only. After the restart: 24,701 downlink forwarded, 0 dropped, 0 send failures, 0 tap overflow, 0 analyser errors. CRC-invalid count, replay after restart: not recorded (the run was unsigned) | NOT PASS as written (one of five cases run); phase JSON not reviewed | Topology A+B, state NOMINAL after the restart. Vehicle stayed GUIDED at 30 m; no manual intervention on the radios. Not run: radio unplug and replug (each radio), SITL drop and restart, Pi reboot, signed restart replay. Outage recorded as the plan requires. |
 | | SITL drop and restart | | | | |
-| | Pi reboot | | | | |
+| 2026-10-30 | rbt1: `sudo reboot` on the Pi about 85 s after takeoff (soft reboot). The bridge was started at boot by `scripts/radio_test/pi_autostart.sh` from a user crontab entry (a variant: the plan says start it by hand) | not recorded | Pilot heartbeat gap 71.5 s (telemetry outage; the air radio is on the Pi). FC and GCS links both connected at about +70 s (see the timeline in the run section). Manual steps after the reboot command: none. Downlink since the new process started: 9,812 forwarded, 0 dropped, 17 send failures, 0 tap overflow, 0 analyser errors, state NOMINAL. Benign mode probes 19 of 23 acknowledged (the 4 missing fell in the outage). CRC-invalid count: not recorded | NOT PASS as written (auto-start variant run; by-hand start not run); phase JSON not reviewed | Two heartbeat gaps of 3.0 and 3.1 s at +384.8 s and +480.9 s of the flight, unexplained and not investigated. Four start-up DOS CRITICAL alerts (the bridge booted before the FC link was up) were held from the GCS by the quiet window and logged. Vehicle GUIDED at 30 m (vehicle_went_to_land 0). Soft reboot only. |
 
 ## Phase 9: soak
 
@@ -231,7 +231,7 @@ and the list of phases not run or failed. Keep claims to what the rows above sho
 | Soak harness: attacker socket not drained, so only 1 of 5 forged LAND attempts reached the bridge | 5 | Pi 3B+ in-the-loop section, item 5 | Harness fixed after the run; the soak's LAND count is one attempt, not five |
 | Phases 2 to 6 not met as written: passive and advisory postures not run over the radio; 14 probes against 30 per posture; signing stale, future and gate checks not run; GPS pilot-override and drift not run | 2-6 | Real-radio session section below | Open: run the plan's postures, probe counts and remaining checks |
 | GPS glitch detected over the radio; ALT_HOLD at +4.0 s; no AUTO, RTL or LOITER sent by the bridge (rgps1) | 5 | rgps1, real-radio session section | Measured. The confirmation time is not in the summary, so the 3 s-after-confirmation check is not evaluated |
-| Signing over the radio: 40 unsigned, 10 wrong-key and 3 replayed frames dropped; vehicle mode unchanged (rsg1) | 6 | rsg1, real-radio session section | Measured. Stale, future and signing-gate checks not run |
+\1| Pi soft reboot with cron auto-start (rbt1): bridge back with FC and GCS links about 70 s after the reboot command; 71.5 s pilot gap | 8 | rbt1, real-radio Pi reboot section | Measured for the auto-start variant only. The plan's by-hand start, a hard power cut and the systemd unit are not tested |
 
 ## Pi 3B+ in-the-loop results (2026-10-30, SITL over Ethernet tunnels, no radio hop)
 
@@ -461,10 +461,10 @@ The judgement is made against the plan's criteria in `RADIO_TEST.md`, not the co
 | 5 | ACTIVE_IPS | PARTLY: forged LAND, flood, GPS glitch measured |
 | 6 | ACTIVE_IPS, signing key on the Pi | PARTLY: unsigned, wrong-key and replay measured |
 | 7 | ACTIVE_IPS, budget only | PARTLY: budget measured; ground commands not run |
-| 8 | ACTIVE_IPS, two cases (bridge kill and manual restart, rlong1; air-radio unplug, unp1) | NOT PASS as written; two of five cases run; both recovered without a manual step beyond the listed ones |
+| 8 | ACTIVE_IPS, three cases (bridge kill and manual restart, rlong1; air-radio unplug, unp1; Pi soft reboot with cron auto-start, rbt1) | NOT PASS as written; three of five cases run (the Pi reboot in an auto-start variant); recovery needed no manual step beyond the listed ones |
 | 9 | ACTIVE_IPS, 20 min (rlong1) | NOT PASS as written; partly met (20 min, not 30 to 60) |
 
-**Not yet run over the radio:** the passive and advisory postures; management-channel control from the ground; firmware tamper over the radio; ground-radio (laptop) unplug; repeated or longer air-radio unplugs, and unplug during an attack; Pi power loss, reboot and bridge auto-start (there is no systemd service for the bridge in the repository yet); SITL drop and restart over the radio; the signed-restart replay; the 30 to 60 minute soak (the longest real-radio run was 20 minutes); range; the signing stale and future timestamp checks and the signing gate; the GPS pilot-override variant, the 1 m/s drift and jamming.
+**Not yet run over the radio:** the passive and advisory postures; management-channel control from the ground; firmware tamper over the radio; ground-radio (laptop) unplug; repeated or longer air-radio unplugs, and unplug during an attack; hard power loss of the Pi (SD-card behaviour), and the Pi reboot with the bridge not auto-started (the plan's by-hand variant); a systemd-managed bridge start (the unit is not installed or tested); SITL drop and restart over the radio; the laptop-side ground-radio replug; the signed-restart replay; the 30 to 60 minute soak (the longest real-radio run was 20 minutes); range; the signing stale and future timestamp checks and the signing gate; the GPS pilot-override variant, the 1 m/s drift and jamming.
 
 ### Scripts
 
@@ -542,11 +542,70 @@ path were unchanged.
 
 **Scope limits, stated plainly.**
 
-* Not run: ground-radio (laptop) unplug; power loss of the Pi (reboot and auto-start); unplug during an attack; repeated
+* Not run: ground-radio (laptop) unplug; hard power loss of the Pi (a soft reboot was run later, rbt1); unplug during an attack; repeated
   unplugs; longer outages.
-* There is no systemd service for the bridge in the repository yet. Bridge auto-start after a Pi reboot therefore cannot be
-  tested with the repository as it stands.
+* A systemd unit exists in the repository (`scripts/radio_test/aegis-bridge.service`) but was not installed or tested. Bridge auto-start after a Pi reboot was tested only with a user crontab entry (rbt1).
 
 **Judgement against the plan (conservative).** Phase 8 is NOT PASS as written: one of the five listed failure cases in this
 run was the Pi radio replug. For that case the recovery requirement is met: the link recovered without a manual step other
 than the listed replug. The outage was recorded. The CRC-invalid count is not in the summary.
+
+## Real-radio Pi soft reboot rbt1, 2026-10-30 (LR900 pair, 480 s hover)
+
+Measured on 2026-10-30. The figures come from the session summary supplied by the coordinator.
+
+**Setup.** Real LR900 pair at 115,200 baud: the ground radio on the laptop (COM3, behind `radio_hub.py`) and the air radio on
+the Pi. SITL on the laptop. The bridge on the Pi in `active-ips` with `--allow-unsigned`. 480 s hover at 30 m. No attacks.
+
+The bridge was started at boot by `scripts/radio_test/pi_autostart.sh`, which was launched from a user crontab entry
+(`@reboot sleep 10; ~/aegis_test/pi_autostart.sh`), because the bench Pi has no passwordless sudo. The cron entry was removed
+after the test. The systemd unit `scripts/radio_test/aegis-bridge.service` is provided for production but was **not installed
+or tested**. The laptop kept an `ssh -R` tunnel to the Pi alive with a reconnect loop, standing in for a wired flight-controller
+link.
+
+**Event.** A person ran `sudo reboot` on the Pi about 85 s after takeoff. Nobody logged in or touched anything after the reboot
+command.
+
+**Timeline (laptop clock; the origin is as given by the coordinator, +0 s = Pi unreachable).**
+
+* About +0 s: Pi unreachable.
+* About +50 s: ssh reachable again.
+* About +70 s: bridge process running, the radio device present, and both the FC link and the GCS link connected.
+
+**Result.**
+
+* The pilot saw one heartbeat gap of 71.5 s. This is the telemetry outage, because the air radio is on the Pi. Telemetry then
+  resumed.
+* The vehicle stayed GUIDED at 30 m throughout (`vehicle_went_to_land` 0). At the end it was armed at 30.0 m.
+* 19 of 23 benign mode probes were acknowledged. The 4 missing probes fell in the outage.
+* Two further heartbeat gaps of 3.0 s and 3.1 s, at +384.8 s and +480.9 s of the flight. They are unexplained and were not
+  investigated. The Pi had under-voltage and throttle flags earlier since boot; `get_throttled` read `0x50000` after the reboot.
+* The new bridge process, counters since boot: 9,812 downlink frames forwarded, 0 dropped, 17 send failures, 0 tap overflow,
+  0 analyser errors, state NOMINAL, posture active-ips.
+* Start-up alerts: the event log has 4 `DOS CRITICAL heartbeat stale (never received since monitoring began)` alerts in the
+  first 15 s. The bridge booted before the FC link was up. They were held back from the GCS by the 20 s start-up quiet window,
+  while the vehicle is not known to be armed. They are logged.
+
+**Posture after a reboot (verified by code reading, not by this run).** The bridge's posture comes from `MODE` in
+`autostart.env` (`pi_autostart.sh` defaults to `active-ips`). A reboot therefore restores that configured posture, not a
+posture raised or lowered over the management channel. The management state file (`--mgmt-state`) stores only anti-replay
+stream timestamps (`src/aegisflight/hal/mgmt_channel.py`, `_persist`), and the posture is set from `--defense-mode` at start
+(`src/aegisflight/hal/inline_ips.py`). A lock file (`--lock-posture-file`) is a file-exists check, so if it is on disk at boot
+it still blocks remote posture changes. This was not exercised in rbt1: its posture came from `autostart.env`.
+
+**Limits, stated plainly.**
+
+* Soft reboot only (`sudo reboot`). Not a hard power cut. SD-card behaviour was not tested.
+* One run.
+* The FC link was a tunnel, not a UART. A real UART or USB FC link also needs its device to be present at boot; that was not
+  tested here.
+* No signing key and no management key in this run.
+* No supervisor restarted the bridge on a crash. The systemd unit sets `Restart=on-failure`, but it is untested.
+* The cron entry is a bench workaround, not a production start method.
+
+**Judgement against the plan (conservative).** Phase 8, Pi reboot case: **run, but as an auto-start variant**. The plan's step 5
+says to reboot with the bridge not auto-started and then start it by hand. The by-hand variant was not run. For the variant
+that ran, recovery needed no manual step after the reboot command. Phase 8 overall is **NOT PASS as written; three of five
+listed cases run** (air-radio unplug, bridge kill with manual restart, Pi reboot with auto-start). The laptop-radio replug and
+the SITL drop have not been run. The CRC-invalid count is not in the summary. The two 3 s gaps are unexplained.
+Phase 9 is not affected by this run.
