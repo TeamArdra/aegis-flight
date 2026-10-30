@@ -277,6 +277,7 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                              allow_unsigned_from_trusted=args.signing_permissive,
                              signing_max_age_s=args.signing_max_age_s, signing_state_path=args.signing_state,
                              ekf_secondary=args.ekf_secondary, crossend_interval_s=args.crossend_interval,
+                             firmware_dir=args.firmware_dir, firmware_recheck_s=args.firmware_recheck_s,
                              contested_policy=args.contested_policy, replay_memory=args.replay_memory,
                              gcs_alerts=args.gcs_alerts == "on", alert_min_interval_s=args.alert_min_interval,
                              mgmt_status_interval_s=args.mgmt_status_interval,
@@ -317,6 +318,22 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         bridge.close()
         if store is not None:
             store.close()
+    return 0
+
+
+def _cmd_fw_manifest(args: argparse.Namespace) -> int:
+    from ..integrity.verifier import FirmwareVerifier
+
+    v = FirmwareVerifier(args.dir)
+    manifest = v.build_manifest()
+    comps = manifest["components"]
+    if not comps:
+        print(f"aegis fw-manifest: no *.bin files in {args.dir}; the manifest is empty", file=sys.stderr)
+        return 2
+    for name, digest in comps.items():
+        print(f"{digest}  {name}")
+    print(f"manifest written: {v.manifest_path} ({len(comps)} components). Keep it with the files and treat it as trusted: "
+          "an attacker who can rewrite both defeats the check (it is not signed).")
     return 0
 
 
@@ -413,6 +430,11 @@ def build_parser() -> argparse.ArgumentParser:
     ib.add_argument("--ekf-secondary", action="store_true",
                     help="declare that the aircraft has a configured non-GPS EKF source set; only then may active-ips "
                          "send the EKF source switch (default off: GPS faults escalate to ALT_HOLD instead)")
+    ib.add_argument("--firmware-dir", default=None,
+                    help="directory of REAL firmware/config *.bin files with a trusted manifest (create it with `aegis fw-manifest DIR`); "
+                         "re-hashed every --firmware-recheck-s and a mismatch raises a firmware-integrity alert. Default: not checked")
+    ib.add_argument("--firmware-recheck-s", type=float, default=30.0,
+                    help="seconds between firmware re-hash passes (hashing cost grows with the size of the files)")
     ib.add_argument("--crossend-interval", type=float, default=1.0,
                     help="seconds between cross-end summaries of the last forwarded GLOBAL_POSITION_INT sent to the GCS "
                          "side only (0 = off); lets a GCS-side 'aegis serve' detect telemetry altered after the bridge")
@@ -449,6 +471,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="bind address of the status API (default 127.0.0.1; non-loopback needs --control-token-file)")
     ib.set_defaults(func=_cmd_ips_bridge)
 
+    fm = sub.add_parser("fw-manifest", help="hash the *.bin files of a directory into its trusted manifest.json")
+    fm.add_argument("dir", help="directory holding the firmware / config images to protect")
+    fm.set_defaults(func=_cmd_fw_manifest)
     v = sub.add_parser("verify-log", help="verify a SQLite event-log hash chain")
     v.add_argument("db", help="path to the SQLite event log")
     v.set_defaults(func=_cmd_verify_log)

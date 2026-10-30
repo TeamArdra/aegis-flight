@@ -168,17 +168,20 @@ class ByteBudget:
 
 class AlertGate:
     """Dedupe + rate limit for event messages: one per key per ``min_interval_s``, a global token bucket
-    (``burst`` messages, ``refill_per_s``), and escalation bypass (a higher severity for the same key goes at once)."""
+    (``burst`` messages, ``refill_per_s``), and escalation bypass (a higher severity for the same key goes at once).
+    A condition that keeps repeating is announced less and less often (the gap doubles up to ``backoff_max_s``), so a
+    persistent alert (a tampered firmware file, a sustained flood) does not scroll the pilot's GCS every few seconds."""
 
     def __init__(self, min_interval_s: float = 2.0, burst: int = 5, refill_per_s: float = 1.0,
-                 clock: Callable[[], float] = time.monotonic) -> None:
+                 clock: Callable[[], float] = time.monotonic, backoff_max_s: float = 30.0) -> None:
+        self.backoff_max_s = max(float(min_interval_s), float(backoff_max_s))
         self.min_interval_s = float(min_interval_s)
         self.burst = float(burst)
         self.refill = float(refill_per_s)
         self._clock = clock
         self._tokens = self.burst
         self._t = clock()
-        self._last: dict[str, tuple[float, int]] = {}
+        self._last: dict[str, tuple[float, int, int]] = {}
         self.suppressed = 0
 
     def allow(self, key: str, rank: int = 0, force: bool = False) -> bool:
@@ -187,15 +190,19 @@ class AlertGate:
         self._t = now
         last = self._last.get(key)
         escalated = last is not None and rank > last[1]
+        fresh = last is None or escalated or now - last[0] > 2.0 * self.backoff_max_s      # a new episode
+        repeats = 0 if fresh else last[2]
         if not (force or escalated):
-            if last is not None and now - last[0] < self.min_interval_s:
+            gap = min(self.min_interval_s * (2 ** repeats), self.backoff_max_s)
+            if last is not None and now - last[0] < gap:
                 self.suppressed += 1
                 return False
             if self._tokens < 1.0:
                 self.suppressed += 1
                 return False
             self._tokens -= 1.0
-        self._last[key] = (now, rank)
+            repeats = 0 if fresh else min(repeats + 1, 16)
+        self._last[key] = (now, rank, repeats)
         if len(self._last) > 256:
             for k in sorted(self._last, key=lambda x: self._last[x][0])[:128]:
                 del self._last[k]

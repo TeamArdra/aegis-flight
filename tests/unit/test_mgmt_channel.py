@@ -830,3 +830,65 @@ def test_dropped_mode_change_label_names_the_requested_mode():
     assert drop_label(set_mode, 66, 11, "up") == "SET_MODE(LAND) sys66"
     assert drop_label(unknown, 66, 76, "up") == "DO_SET_MODE sys66"
     assert len(format_action("QUARANTINE", "")) <= 50 and len("AEGIS: blocked DO_SET_MODE(STABILIZE) sys255 x99") <= 50
+
+
+# --------------------------------------------------------------------------- #
+# ground start-up quiet window
+# --------------------------------------------------------------------------- #
+def _tick_with(b, clock, attack: str, severity: str = "CRITICAL", armed: bool | None = None) -> None:
+    """Drive analyse_tick with a canned assessment (the detectors themselves are covered elsewhere)."""
+    b._clock_ns = lambda: int(clock.t * 1e9)
+    b.policy.armed = armed
+    assessment = SimpleNamespace(attack_type=SimpleNamespace(value=attack), severity=SimpleNamespace(value=severity), is_alert=True)
+    b.pipeline = SimpleNamespace(process_tick=lambda tick: assessment, last_frame=object())
+    b.controller = SimpleNamespace(step=lambda frame, a: SimpleNamespace(summary="x", params=None, counter_frames=[]),
+                                   mode=b.controller.mode, action_history=[])
+    b.analyse_tick(object())
+
+
+def test_ground_startup_gps_and_flood_alerts_wait_for_the_quiet_window_to_pass():
+    b, fc, gcs, clock = make_bridge()
+    _tick_with(b, clock, "GPS_SPOOFING")                       # fix acquisition on the ground, a second after power-on
+    assert not any("GPS_SPOOFING" in t for t in texts(gcs))
+    assert b.alerts == 1                                        # still counted (and logged); only the GCS text is held back
+    clock.t += 30.0
+    _tick_with(b, clock, "GPS_SPOOFING")                       # still there 30 s later: now the pilot is told
+    assert any("GPS_SPOOFING" in t for t in texts(gcs))
+
+
+def test_quiet_window_never_applies_once_armed_or_to_other_alert_classes():
+    b, fc, gcs, clock = make_bridge()
+    _tick_with(b, clock, "GPS_SPOOFING", armed=True)
+    assert any("GPS_SPOOFING" in t for t in texts(gcs))
+    b2, fc2, gcs2, clock2 = make_bridge()
+    _tick_with(b2, clock2, "COMMAND_INJECTION", severity="HIGH")
+    assert any("COMMAND_INJECTION" in t for t in texts(gcs2))
+
+
+def test_alert_gate_backs_off_for_a_persistent_condition_and_resets_on_escalation():
+    t = [0.0]
+    g = AlertGate(min_interval_s=4.0, burst=100, refill_per_s=100.0, clock=lambda: t[0], backoff_max_s=30.0)
+    sent = []
+    for i in range(400):                      # the same alert offered every second for 400 s
+        t[0] = float(i)
+        if g.allow("alert:FIRMWARE_INTEGRITY", 1):
+            sent.append(i)
+    gaps = [b - a for a, b in zip(sent, sent[1:], strict=False)]
+    assert gaps[:4] == [4, 8, 16, 30] and set(gaps[4:]) == {30}          # 4, 8, 16, then every 30 s at most
+    assert len(sent) < 20                                                  # ~13 instead of 100 at a fixed 4 s
+    t[0] += 1.0
+    assert g.allow("alert:FIRMWARE_INTEGRITY", 3)                          # a higher severity goes out at once
+    t[0] += 61.0                                                           # quiet for a long time: a new episode, short gap again
+    assert g.allow("alert:FIRMWARE_INTEGRITY", 3)
+    t[0] += 4.0
+    assert g.allow("alert:FIRMWARE_INTEGRITY", 3)
+
+
+def test_boot_quiet_holds_only_start_up_noise_not_real_actions():
+    b, fc, gcs, clock = make_bridge()
+    b._clock_ns = lambda: int(clock.t * 1e9)
+    b.policy.armed = None
+    b.controller.action_history.extend([{"t": 1.0, "tag": "RATE_LIMIT", "detail": "x"},
+                                        {"t": 1.1, "tag": "QUARANTINE", "detail": "Quarantined anomalous sender SysID 42"}])
+    b._announce_actions()
+    assert texts(gcs) == ["AEGIS: quarantine sys42"]

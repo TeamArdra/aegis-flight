@@ -129,6 +129,8 @@ class InlineIpsBridge:
         ekf_secondary: bool | None = None,
         clock_ns: Callable[[], int] = time.monotonic_ns,
         crossend_interval_s: float = 1.0,
+        firmware_dir: str | None = None,
+        firmware_recheck_s: float = 30.0,
         contested_policy: str = "alert",
         replay_memory: int = 4096,
         on_alarm: Callable[[str], None] | None = None,
@@ -149,7 +151,11 @@ class InlineIpsBridge:
         proto = self.cfg.detector.get("protocol", {})
         if proto.get("auto_rate_baseline") is None:  # unset = auto: on for a live link
             proto["auto_rate_baseline"] = True
-        self.pipeline = IDSPipeline(self.cfg, model_path=None, firmware_dir=None)  # ML is simulation-only
+        # ML is simulation-only. A real firmware directory (files + manifest from `aegis fw-manifest`) is re-hashed every
+        # firmware_recheck_s; without one the integrity verdict stays UNKNOWN (nothing is checked)
+        recheck = max(1, int(firmware_recheck_s * float(self.cfg.detector.get("decision_rate_hz", 5.0))))
+        self.pipeline = IDSPipeline(self.cfg, model_path=None, firmware_dir=firmware_dir, firmware_real=firmware_dir is not None,
+                                    firmware_recheck_every=recheck)
         self.controller = MitigationController(mode=DefenseMode(mode), secret_key=secret_key)
         self.controller.set_capabilities(ekf_secondary=ekf_secondary)
         self.policy = InlinePolicy(
@@ -170,6 +176,7 @@ class InlineIpsBridge:
         self.run_id = run_id
         self._clock_ns = clock_ns
         self._idle = idle_sleep_s
+        self._quiet_until_ns: int | None = None
         # cross-end summary (see detectors/crossend.py): the forward path only stores a reference to the last
         # forwarded GLOBAL_POSITION_INT; the analyser thread builds and sends the summary to the GCS side
         self.crossend_interval_s = float(crossend_interval_s)
@@ -360,6 +367,22 @@ class InlineIpsBridge:
 
     # -- analysis ------------------------------------------------------------ #
 
+    # Ground start-up: GPS fix acquisition (the position jumps from nothing to the home point) and the first stream requests
+    # look like spoofing / flooding for a few seconds. They are still detected, logged and acted on; they are just not
+    # announced to the pilot's GCS before the vehicle is armed, so a power-on never opens with a false CRITICAL warning.
+    BOOT_QUIET_S = 20.0
+    _BOOT_NOISE = frozenset({"GPS_SPOOFING", "DOS"})
+    _BOOT_NOISE_ACTIONS = frozenset({"RATE_LIMIT", "SANITIZE_GPS", "ANTI_JAM_DR", "GPS_RECOVERED"})
+    _BOOT_FOLLOW_ACTIONS = frozenset({"DETECTED", "RECOVERED"})  # only the tail of a held start-up alert
+
+    def _boot_quiet(self) -> bool:
+        now = self._clock_ns()
+        if self._quiet_until_ns is None:
+            self._quiet_until_ns = now + int(self.BOOT_QUIET_S * 1e9)
+        return now < self._quiet_until_ns and not self.policy.armed
+
+    _boot_held = False
+
     def analyse_tick(self, tick: Any) -> None:
         """Process one tick: detect, run the controller, push its state into the policy, send counter-frames."""
         self._last_analyse_wall = time.monotonic()
@@ -375,8 +398,11 @@ class InlineIpsBridge:
         if assessment.is_alert:
             self.alerts += 1
             rogue = getattr(getattr(act, "params", None), "rogue_sysids", ())
-            with contextlib.suppress(Exception):
-                self.mgmt.alert(assessment.attack_type.value, assessment.severity.value, rogue[0] if rogue else None)
+            if assessment.attack_type.value in self._BOOT_NOISE and self._boot_quiet():
+                self._boot_held = True
+            else:
+                with contextlib.suppress(Exception):
+                    self.mgmt.alert(assessment.attack_type.value, assessment.severity.value, rogue[0] if rogue else None)
             if self.store is not None:
                 with contextlib.suppress(Exception):
                     self.store.log_event(assessment, self.run_id)
@@ -399,7 +425,11 @@ class InlineIpsBridge:
                 if hist[i] is self._seen_action:
                     start = i + 1
                     break
+        quiet = self._boot_quiet()
         for entry in hist[start:]:
+            tag = str(entry.get("tag", "")).upper()
+            if quiet and (tag in self._BOOT_NOISE_ACTIONS or (self._boot_held and tag in self._BOOT_FOLLOW_ACTIONS)):
+                continue
             with contextlib.suppress(Exception):
                 self.mgmt.action(str(entry.get("tag", "")), str(entry.get("detail", "")))
         if hist:

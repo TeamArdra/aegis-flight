@@ -29,6 +29,30 @@ CFG = Path(__file__).resolve().parents[3] / "configs" / "ardupilot_copter"
 HUB, FC, AUDIT, LOCK = (D / f"mhub_{LABEL}.jsonl", D / f"mfc_{LABEL}.json", D / f"maudit_{LABEL}.jsonl",
                         D / f"mlock_{LABEL}.flag")
 R: dict = {"variant": VARIANT}
+# PI_SSH=user@host (+ PI_KEY): the bridge runs on a Raspberry Pi (run_mgmt_pi.sh); its lock-posture file and audit log
+# live in ~/aegis_runs/<label>/ there
+PI = os.environ.get("PI_SSH")
+PI_RUN = f"~/aegis_runs/{LABEL}"
+
+
+def pi_run(cmd: str) -> None:
+    subprocess.run(["ssh", "-i", os.environ.get("PI_KEY", ""), "-o", "BatchMode=yes", PI, cmd], check=False, timeout=30)
+
+
+def set_lock(on: bool) -> None:
+    if PI:
+        pi_run(f"touch {PI_RUN}/lock.flag" if on else f"rm -f {PI_RUN}/lock.flag")
+    elif on:
+        LOCK.write_text("lock")
+    else:
+        LOCK.unlink()
+
+
+def fetch_audit() -> None:
+    if PI:
+        subprocess.run(["scp", "-i", os.environ.get("PI_KEY", ""), "-o", "BatchMode=yes", f"{PI}:{PI_RUN}/audit.jsonl", str(AUDIT)],
+                       check=False, capture_output=True, timeout=30)
+
 
 
 def log(*a):
@@ -227,10 +251,10 @@ R["c_raise_bridge_mode"] = bridge().get("mode")
 log("raise", json.dumps(R["c_raise"]), R["c_raise_bridge_mode"])
 
 # lock-posture file blocks lowering
-LOCK.write_text("lock")
+set_lock(True)
 time.sleep(1.2)
 R["c_lock_file_lower"] = posture_via_gcs("passive")
-LOCK.unlink()
+set_lock(False)
 time.sleep(1.2)
 R["c_lock_file_lower_bridge_mode"] = bridge().get("mode")
 log("lockfile", json.dumps(R["c_lock_file_lower"]))
@@ -329,6 +353,7 @@ R["c_after_lock"] = posture_via_gcs("active-ips")
 log("after lock", json.dumps(R["c_after_lock"]))
 
 finish()
+fetch_audit()
 ok, n, detail = verify_audit_log(AUDIT)
 R["d"] = {"verified": ok, "entries": n, "detail": detail}
 ev: dict = {}
