@@ -805,3 +805,33 @@ FC and did not drop the pilot's, reported over the radio inside its byte budget,
 It would **not** let us say that the system is flight-ready, that it works with a real FC or real GCS software, that it detects
 or survives a real GPS attack, that the radio range or reliability is adequate, or that it protects against an attacker who can
 track the real GCS on an unsigned link. Any phase that is skipped or fails must be reported as such.
+
+## 10. Pi-in-the-loop results (2026-10-30, no radio) and new bridge behaviour
+
+**Summary.** On 2026-10-30 the bridge ran on the Pi 3B+ with SITL and the hub on the laptop, over `ssh -R` tunnels on a direct
+Ethernet cable, and no radio in the path. Measured results, with the full detail and figures in `RADIO_TEST_RESULTS.md`
+(section "Pi 3B+ in-the-loop results"): forwarding with 0 dropped frames in passive and ACTIVE_IPS, signing, a bridge kill
+(13.0 s telemetry outage with a manual restart), a tunnel cut (one 11.8 s gap, the bridge reconnected without a restart), the
+GPS ladder, a 1,800 s soak, the attack set and the management channel. Known limits seen: a battery step and a frozen attitude
+at hover were not detected, and a scripted GPS drift of about 1 m/s was not detected. The Pi was throttled during the soak, so its CPU
+and latency figures are worst-case. These are not phase results: phases 1 to 9 still need the radio.
+
+**CLI and behaviour notes that affect this plan:**
+
+* `aegis ips-bridge --firmware-dir DIR --firmware-recheck-s N` (default 30) re-hashes the `*.bin` files every N seconds. A
+  mismatch raises a firmware-integrity alert. Without `--firmware-dir` the verdict is UNKNOWN (not checked).
+* `aegis fw-manifest DIR` writes `DIR/manifest.json` with the hashes of the `*.bin` files in DIR. The manifest is unsigned: a
+  rewriter of both the binaries and the manifest defeats it.
+* `pi_bridge_run.sh` has no dedicated variable for these flags. Pass them with `EXTRA_ARGS` (for example
+  `EXTRA_ARGS="--firmware-dir $HOME/aegis_fw"`).
+* Ground-side start-up quiet window: 20 s while unarmed. GPS_SPOOFING and DOS alerts, and the rate_limit, sanitize_gps,
+  anti_jam_dr and gps_recovered actions, are still detected and logged but not announced to the GCS. A phase run that reads only the GCS side
+  must allow for this window.
+* Persistent alerts are announced with a back-off (AlertGate): the gap doubles 4, 8, 16 s, then stays at 30 s. Escalation is
+  announced at once. A quiet 60 s resets it. A phase count of announced alerts is therefore not a count of detections.
+* Forged or unsigned frames are announced to the GCS as `AEGIS: blocked ... xN` STATUSTEXT, one per second per label. They are
+  not detector alerts.
+* The vehicle's own telemetry is never rate-shed. The rate-baseline learner adopts a stable plateau after a stream-request
+  step and extends its window once.
+* The soak's forged-LAND schedule was affected by a harness bug (the attacker socket was not drained). Only the first of five
+  attempts reached the bridge. Count attempts that reached the bridge, not attempts sent.

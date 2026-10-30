@@ -222,3 +222,102 @@ and the list of phases not run or failed. Keep claims to what the rows above sho
 | Finding | Phase | Evidence (run directory, file) | Status |
 |---|---|---|---|
 | | | | |
+
+## Pi 3B+ in-the-loop results (2026-10-30, SITL over Ethernet tunnels, no radio hop)
+
+Measured on 2026-10-30. **No radio is in the path, so none of these rows fills a phase table above.** They are software
+results of the bridge on the Pi 3B+, for the behaviour the real-radio phases will depend on. Real-radio phases 1 to 9 are
+still NOT run.
+
+**Rig.** ArduCopter SITL and the hub on the laptop. `aegis ips-bridge` on the Pi 3B+ (Python 3.13, ML off). The Pi is reached
+over a direct Ethernet cable through `ssh -R` tunnels. GCS-side clients run on the laptop.
+
+**Pi power, applies to every figure below.** The under-voltage and soft-temperature-limit flags were set during the soak
+(SoC temperature mean 58.9 C, peak 60.1 C). CPU and latency figures are therefore worst-case.
+
+**Code.** The forwarding fixes are commit `e1ceb76` and the learner-extension change after it. The new behaviour listed in
+item 8 is commit `e8d08d3`.
+
+### 1. Forwarding, passive and ACTIVE_IPS
+
+* Passive: 23,077 frames forwarded, 0 dropped, p50 0.43 ms.
+* ACTIVE_IPS after the rate-learner and gatekeeper fixes: 23,321 of 23,321 downlink frames forwarded. 20 forged uplink
+  frames dropped. 3 alerts, all real. 0 false rate alerts. p50 0.25 ms, p95 0.42 ms.
+* The pre-fix ACTIVE_IPS run is in the bench log update above (18 % of downlink dropped).
+
+### 2. Signing (active-ips)
+
+* `signed_ok` 16. Dropped: `dropped_unsigned` 40, wrong key 10, replay 3.
+* Vehicle mode unchanged. 0 valid commands dropped. 24,102 of 24,102 downlink frames forwarded. p50 0.27 ms.
+* The forged and unsigned drops are announced to the GCS as `AEGIS: blocked ... xN` STATUSTEXT, one per second per label.
+  They are not detector alerts.
+
+### 3. Fault tests (active-ips, vehicle flying at 30 m)
+
+* Bridge hard-killed (`kill -9`) and restarted by hand: telemetry outage 13.0 s (11 s dead, about 2 s start-up).
+* Tunnel cut for 10 s, then restored, with no manual restart: one telemetry gap of 11.8 s. The bridge reconnected by itself.
+  30,401 of 30,412 downlink frames forwarded afterwards: 11 lost during the outage, 12 send failures. State NOMINAL,
+  topology A+B.
+* The vehicle stayed GUIDED at 30 m throughout both faults.
+* These are not phase 8 results (phase 8 needs the radio). They show the bridge's own recovery behaviour.
+
+### 4. GPS (active-ips)
+
+* Control flight: GUIDED throughout. Only the start-up ground alerts appeared.
+* 111 m glitch: detected at +0.5 s. ALT_HOLD at +3.7 s.
+* Glitch with a pilot LOITER override: LOITER at +1.2 s. The ladder stood down.
+* Scripted drift of about 1 m/s: NOT detected. Known limit, unchanged.
+
+### 5. Soak, 1,800 s, active-ips
+
+* Forged LAND every 5 minutes. **Harness bug:** only the first of the 5 attempts reached the bridge, because the attacker
+  socket was not drained and the hub dropped it. This was fixed after the run. The forged-LAND result in this soak is one
+  attempt, not five.
+* 259,172 messages. 1,878 heartbeats. No gap over 1.5 s.
+* 257,213 of 257,213 downlink frames forwarded. 0 send failures, 0 tap overflow, 0 hook errors, 0 analyser errors.
+* Latency p50 0.243 ms, p95 0.412 ms.
+* RSS 65 MiB, flat (slope 0.003 MiB/min).
+* CPU mean 55.7 %, peak 60 % of one core (throttled Pi). The earlier unthrottled passive run was 28 %.
+* Vehicle GUIDED at 30 m. 58 of 59 benign mode probes acknowledged.
+
+### 6. Attack set (active-ips, bridge on the Pi, firmware directory with manifest)
+
+| Attack | Result |
+|---|---|
+| Flood, 400 msg/s from rogue sysid 66, 10 s | Detected within about 2 s (MAVLINK_ANOMALY, then DOS CRITICAL). Sysid 66 quarantined. 3,962 uplink frames dropped. Downlink 34,395 of 34,395 forwarded. GCS saw `AEGIS: quarantine sys66` and `blocked HEARTBEAT sys66 xN`. |
+| Man-in-the-middle altitude bias, +40 m | TELEMETRY_MANIPULATION CRITICAL (GPS/baro mismatch 40 m). sanitize_alt rewrote 98 frames. |
+| Battery step, +3 V | NOT detected. Documented limit. |
+| Frozen attitude while hovering | NOT detected. The yaw-vs-course check needs speed above 2 m/s. Documented limit. |
+| Firmware tamper (one byte flipped in `autopilot.bin`) | FIRMWARE_INTEGRITY INVALID within about 5 s. Escalated to `CRITICAL FIRMWARE TAMPER IN FLIGHT -> PILOT TAKEOVER REQUIRED`. |
+
+### 7. Management channel on the Pi
+
+Setup: bridge started passive. Management key, lock file and audit log on the Pi.
+
+* Posture: raise to advisory, then to active-ips, accepted (0.26 s). Lowering needs confirmation. A lowering against the lock
+  file was denied.
+* Wrong-key and replayed commands got no ack.
+* The rate limit denied a command (result 2). The lockout was announced. A valid command sent during the lock was denied, and
+  was accepted again after the 60 s lockout.
+* Alert latency 0.2 s. Blocked-frame announcement 1.0 s.
+* Management bytes down: average 38 B/s over the run. Maximum 210 B in one second. The 18 s burst averaged 129 B/s.
+* No management frames reached the FC (user-1 commands: 0).
+* Audit chain verified: 20 entries.
+* Killing the ground dashboard left the bridge enforcing active-ips.
+
+### 8. New behaviour from this session (code commit `e8d08d3`)
+
+* `ips-bridge --firmware-dir DIR --firmware-recheck-s N` (default 30). `aegis fw-manifest DIR` hashes the `*.bin` files into
+  `manifest.json`. The manifest is unsigned: an attacker who can rewrite both the binaries and the manifest defeats the
+  check. Without `--firmware-dir` the verdict stays UNKNOWN.
+* A 20 s start-up quiet window on the ground side while unarmed. During it, GPS_SPOOFING and DOS alerts, and the
+  rate_limit, sanitize_gps, anti_jam_dr and gps_recovered actions, are still detected and logged but not announced to the GCS.
+* AlertGate back-off for persistent alerts: the announcement gap doubles (4, 8, 16 s), then stays at 30 s maximum. Escalation
+  is announced at once. A quiet 60 s resets the back-off.
+* The vehicle's own telemetry is never rate-shed.
+* The rate-baseline learner adopts a stable plateau after a stream-request step, and extends its window once.
+
+### 9. Still NOT done
+
+* No real-radio phase has been run. The radios have not carried data both ways (see the bench log above).
+* `attacks.py` and `legit_probe.py` are unfinished, per the coordinator. `legit_probe.py` is not in the repository.

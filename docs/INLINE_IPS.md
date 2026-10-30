@@ -356,3 +356,29 @@ explicit choice:
 - `GET /status` also returns `signing: {configured, unsigned_acknowledged}` and `control: {enabled}`.
 
 Real-radio test (not yet passed on the radio): see [docs/RADIO_TEST.md](RADIO_TEST.md).
+
+## Raspberry Pi 3B+ verification
+
+Measured on 2026-10-30 on a Pi 3B+ (Python 3.13, ML off), with SITL and the hub on the laptop, over `ssh -R` tunnels on a
+direct Ethernet cable. No radio in the path. The Pi was under-voltage and soft-temperature-limited during the soak, so CPU and
+latency are worst-case. Details: `docs/RADIO_TEST_RESULTS.md`, section "Pi 3B+ in-the-loop results".
+
+| Test | Measured result |
+|---|---|
+| Passive forwarding | 23,077 frames forwarded, 0 dropped, p50 0.43 ms |
+| ACTIVE_IPS forwarding | 23,321 of 23,321 downlink forwarded; 20 forged uplink dropped; 0 false rate alerts; p50 0.25 ms, p95 0.42 ms |
+| Signing (active-ips) | signed_ok 16; dropped: unsigned 40, wrong key 10, replay 3; 0 valid commands dropped |
+| Bridge `kill -9`, manual restart | telemetry outage 13.0 s (11 s dead, about 2 s start-up) |
+| Tunnel cut 10 s | one 11.8 s gap; the bridge reconnected without a restart |
+| GPS glitch, 111 m | detected +0.5 s; ALT_HOLD at +3.7 s; pilot LOITER override honoured |
+| GPS drift, about 1 m/s | NOT detected (known limit) |
+| Soak, 1,800 s | 0 send failures, 0 hook errors, 0 analyser errors; RSS 65 MiB flat; CPU mean 55.7 % (throttled Pi) |
+| Flood, 400 msg/s, rogue sysid 66 | detected within about 2 s; sysid quarantined; 3,962 uplink dropped; downlink 34,395 of 34,395 forwarded |
+| Altitude bias +40 m (man in the middle) | TELEMETRY_MANIPULATION CRITICAL; 98 frames sanitised |
+| Battery step, +3 V | NOT detected (known limit) |
+| Frozen attitude at hover | NOT detected (needs speed above 2 m/s; known limit) |
+| One firmware byte flipped | FIRMWARE_INTEGRITY INVALID within about 5 s; pilot takeover required |
+| Management channel | advisory, then active-ips accepted (0.26 s); wrong-key and replayed commands get no ack; 60 s lockout; audit chain 20 entries verified |
+
+These are software results on a Pi with no radio. They do not replace the real-radio phases in `docs/RADIO_TEST.md`, which
+are not yet run.

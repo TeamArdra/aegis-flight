@@ -55,8 +55,14 @@ WatchdogSec=10
 WantedBy=multi-user.target
 ```
 
-  The restart gap (about a second plus start time, unmeasured here) is a link outage; the bridge itself fails open per frame
-  and its policy rules lapse if the analyser stalls, but a dead process forwards nothing.
+  The restart gap is a link outage; the bridge itself fails open per frame and its policy rules lapse if the analyser stalls,
+  but a dead process forwards nothing. Measured on a Pi 3B+ on 2026-10-30 (Pi-in-the-loop, no radio): a hard kill
+  (`kill -9`) followed by a manual restart gave a telemetry outage of 13.0 s (11 s dead, about 2 s start-up). The systemd
+  `Restart=always` path above was not measured.
+
+  Optional firmware check (code commit e8d08d3): add `--firmware-dir /etc/aegis/firmware --firmware-recheck-s 30` to
+  `ExecStart`, with the manifest made by `aegis fw-manifest /etc/aegis/firmware`. The manifest is not signed: a rewriter of
+  both the binary and the manifest defeats it. Without `--firmware-dir` the firmware verdict stays UNKNOWN.
 
 ## Provisioning (all at the bench)
 
