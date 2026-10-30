@@ -176,6 +176,9 @@ are not the cause.
 | Date | Config | Commit | Per attack: alerted (y/n), time to STATUSTEXT at the laptop s | Result | Notes |
 |---|---|---|---|---|---|
 | 2026-10-30 | rad2: ACTIVE_IPS (the plan specifies advisory) | not recorded | Forged LAND (sysid 66) at +40 s and +160 s: COMMAND_INJECTION and MAVLINK_ANOMALY alerts raised; flood 30 frames/s for 10 s: quarantined, 297 frames dropped; `AEGIS: blocked HEARTBEAT sys66 xN` and `AEGIS: quarantine sys66` reached the ground over the radio | NOT PASS as written (coordinator label: PASS); phase JSON not reviewed | The plan requires advisory, where forged frames reach the FC. Not run in advisory. The 5 s alert-latency check is not in the summary. |
+| 2026-10-30 | cpc: randomised signed campaign, seed 7, PASSIVE (IDS); 11 events; signed link, SITL enforcing signing | not recorded | 81 AEGIS texts over the radio, every one of the 11 events announced. Forged commands and flood: detector alerts plus 'unsigned' texts; wrong-key 3 'bad-signature'; replay 1 'replay'; fw_tamper 7 FIRMWARE_INTEGRITY; gps_glitch 9 GPS_SPOOFING; alt_bias 3; 76 forged telemetry frames reported as 'AEGIS: unsigned down' (forged_down_observed 76). Signing observed: unsigned 9, bad_signature 3, replay 1 | NOT PASS as written; phase JSON not reviewed | Dropped 0 frames up and 0 down; 0 counter-frames: nothing changed on the vehicle path. batt_jump and freeze were detected by the signing rule, not by the battery or attitude detectors. Per-event latency (5 s criterion) not in the summary. Limit: the FC rejected the forged commands itself, so the vehicle was not saved by the bridge. |
+| 2026-10-30 | cac: the same campaign (seed 7), ADVISORY; figures as given for passive and advisory together | not recorded | 91 AEGIS texts over the radio, every one of the 11 events announced. Detection classes as for cpc. Forged telemetry: 76 frames reported as unsigned | NOT PASS as written; phase JSON not reviewed | Dropped 0 up and 0 down; 0 counter-frames. The plan's check that no AEGIS frame reaches the FC is not reported. The summary gives no separate advisory breakdown. |
+| 2026-10-30 | cic: the same campaign (seed 7), ACTIVE_IPS | not recorded | 112 AEGIS texts over the radio, every one of the 11 events announced ('AEGIS: blocked ...', 'quarantine sys66', 'GPS unreliable - do not trust position', 'set ALT_HOLD (GPS fault)'). Uplink dropped 250; forged telemetry dropped 76 | NOT PASS as written; phase JSON not reviewed | Detection and blocking in one run; the per-event 'detected' column is announcement-based. The watcher text logs were incomplete, so the texts come from the hub capture. The campaign's findings and limits are in the campaign section below. |
 
 ## Phase 5: prevention in ACTIVE_IPS
 
@@ -183,12 +186,15 @@ are not the cause.
 |---|---|---|---|---|---|
 | 2026-10-30 | rad2: ACTIVE_IPS | not recorded | Forged LAND dropped at the bridge; vehicle stayed GUIDED at 30 m (vehicle_went_to_land 0); flood quarantined, 297 frames dropped; 14 benign probes acknowledged | NOT PASS as written (coordinator label: PASS); phase JSON not reviewed | Not run over the radio: trusted forced disarm, GPS ladder, pilot override during a GPS warning. |
 | 2026-10-30 | rgps1: ACTIVE_IPS; 120 s hover at 30 m, then SIM_GPS1_GLTCH_X = 0.001 (about 111 m) written to SITL at t = 140.0 s of the watcher log | not recorded | GPS_SPOOFING HIGH at +0.8 s; `AEGIS: GPS unreliable - do not trust position` at +1.0 s; `AEGIS: set ALT_HOLD (GPS fault)` and ALT_HOLD (2) at +4.0 s (loopback runs: +3.7 to +3.9 s); CRITICAL, position residual 30.1 m, later; `AEGIS: gps_recovered` at +22.8 s; no AUTO, RTL or LOITER sent by the bridge | NOT PASS as written (partly met); phase JSON not reviewed | The confirmation time is not in the summary, so the plan's 'about 3 s after confirmation' check cannot be evaluated. The GUIDED at +19 s was the pilot's own 20 s benign probe, not sent by the bridge; it was accepted while the GPS fault was active. The vehicle descended and disarmed in ALT_HOLD with no pilot throttle, as documented. All texts reached the ground over the radio. Not run over the radio: the sudden-glitch pilot-override variant, the 1 m/s drift (known miss), jamming. |
+| 2026-10-30 | cic: campaign, seed 7, ACTIVE_IPS, 11 events, 2400 s bridge budget, legitimate signed pilot flying and probing throughout | not recorded | Uplink dropped 250: forced disarm 3, wrong-key 3, replay 1, forged LAND 3, forged RTL plus flood 237-240. Downlink dropped 76, exactly the forged telemetry frames (forged_down_dropped 76); no genuine telemetry dropped. Counter-frames 6 (GPS ladder warning and ALT_HOLD for the glitch, and the sanitize actions). Pilot altitude stayed at the true 20 m during alt_bias. Vehicle armed in GUIDED at about 20 m throughout; no heartbeat gap over 3 s | NOT PASS as written (partly met); phase JSON not reviewed | The ALT_HOLD counter-command was rejected by the FC because the bridge's counter-command timestamps came from a clock 3 h 9 min behind; fixed (see the finding in the campaign section and row cid). The vehicle path is not a test of the bridge alone, because the FC also rejects forgeries (signing on). Not run as a separate case: trusted forced disarm, pilot-override variant, 1 m/s drift, jamming. |
+| 2026-10-30 | cid: campaign re-run after the timestamp fix, seed 7, ACTIVE_IPS, signed link | not recorded | GPS glitch at t = 469.7 s: ALT_HOLD (mode 2) at t = 474.0 s (+4.3 s). Vehicle descended to the ground in ALT_HOLD (no pilot throttle, as documented). Pilot's periodic GUIDED probe back to mode 4 at +12 s. Uplink dropped 250; downlink dropped 77 (the 76 forged frames plus one more, not explained in the summary); 0 heartbeat gaps over 3 s; 0 analyser errors | NOT PASS as written (partly met; the GPS ladder now acts on the vehicle); phase JSON not reviewed | The plan's 'about 3 s after confirmation, accept 5 s' check cannot be evaluated: the confirmation time is not in the summary. Not run as separate cases: pilot override, trusted forced disarm, the 1 m/s drift, jamming. |
 
 ## Phase 6: MAVLink-2 signing
 
 | Date | Config (max-age s) | Commit | Signed ok / acked, dropped_unsigned, dropped_bad_signature, dropped_replay, stale dropped, future frame outcome, gate exit code | Result | Notes |
 |---|---|---|---|---|---|
 | 2026-10-30 | rsg1: ACTIVE_IPS, signing key on the Pi; max-age not recorded | not recorded | signed_ok 10; dropped_unsigned 40 (10 each from unsigned sysid 66 and sysid 255, in MAVLink 2 and v1); dropped_bad_signature 10 (wrong key); dropped_replay 3 (byte-identical replay of a captured signed SET_MODE); stale dropped not run; future frame not run; gate exit code not run | NOT PASS as written (partly met); phase JSON not reviewed | Vehicle mode GUIDED (4) after every stage; hook errors 0. Downlink 4,929 of 4,929 forwarded, 0 dropped, 0 send failures; uplink 71 of 71 reached the bridge; downlink 1,396 B/s average at the ground hub; latency p50 0.29 ms, p95 0.63 ms. GCS: 26 action texts, 0 detector alerts. The drop counts match the Ethernet-tunnel run; signed_ok (10 here, 16 there) and the downlink totals differ, and the summary does not explain this. Acknowledged signed pilot commands: count not in the summary. |
+| 2026-10-30 | cic: campaign, seed 7, ACTIVE_IPS; the FC also enforces signing (sign_setup) | not recorded | Uplink: wrong-key 3 dropped, replay 1 dropped, unsigned forgeries dropped (forced disarm 3, forged LAND 3, forged RTL and flood 237-240). Vehicle mode unchanged. Stale, future, gate and acknowledged-signed-command counts not in the summary | NOT PASS as written (partly met); phase JSON not reviewed | The signing rule also judges a source that has been seen signing 20 valid frames: an unsigned or badly signed frame from it is blocked (ACTIVE_IPS) or reported (IDS and advisory). Sources that never sign are not judged. Not run: stale and future timestamps, the signing gate, delay or jitter beyond the radio's one-way delay. |
 
 ## Phase 7: management channel over the radio
 
@@ -231,7 +237,7 @@ and the list of phases not run or failed. Keep claims to what the rows above sho
 | Soak harness: attacker socket not drained, so only 1 of 5 forged LAND attempts reached the bridge | 5 | Pi 3B+ in-the-loop section, item 5 | Harness fixed after the run; the soak's LAND count is one attempt, not five |
 | Phases 2 to 6 not met as written: passive and advisory postures not run over the radio; 14 probes against 30 per posture; signing stale, future and gate checks not run; GPS pilot-override and drift not run | 2-6 | Real-radio session section below | Open: run the plan's postures, probe counts and remaining checks |
 | GPS glitch detected over the radio; ALT_HOLD at +4.0 s; no AUTO, RTL or LOITER sent by the bridge (rgps1) | 5 | rgps1, real-radio session section | Measured. The confirmation time is not in the summary, so the 3 s-after-confirmation check is not evaluated |
-\1| Pi soft reboot with cron auto-start (rbt1): bridge back with FC and GCS links about 70 s after the reboot command; 71.5 s pilot gap | 8 | rbt1, real-radio Pi reboot section | Measured for the auto-start variant only. The plan's by-hand start, a hard power cut and the systemd unit are not tested |
+\1\1| Bridge counter-commands stamped from a Pi clock 3 h 9 min behind were rejected by a signing-enabled FC (ALT_HOLD never applied in cic) | 5, 6 | cic; cid; direct SITL test | Fixed in code (stamping above the newest valid signed timestamp seen). cid: ALT_HOLD +4.3 s after the glitch. Cause and fix in the campaign section |
 
 ## Pi 3B+ in-the-loop results (2026-10-30, SITL over Ethernet tunnels, no radio hop)
 
@@ -464,7 +470,7 @@ The judgement is made against the plan's criteria in `RADIO_TEST.md`, not the co
 | 8 | ACTIVE_IPS, three cases (bridge kill and manual restart, rlong1; air-radio unplug, unp1; Pi soft reboot with cron auto-start, rbt1) | NOT PASS as written; three of five cases run (the Pi reboot in an auto-start variant); recovery needed no manual step beyond the listed ones |
 | 9 | ACTIVE_IPS, 20 min (rlong1) | NOT PASS as written; partly met (20 min, not 30 to 60) |
 
-**Not yet run over the radio:** the passive and advisory postures; management-channel control from the ground; firmware tamper over the radio; ground-radio (laptop) unplug; repeated or longer air-radio unplugs, and unplug during an attack; hard power loss of the Pi (SD-card behaviour), and the Pi reboot with the bridge not auto-started (the plan's by-hand variant); a systemd-managed bridge start (the unit is not installed or tested); SITL drop and restart over the radio; the laptop-side ground-radio replug; the signed-restart replay; the 30 to 60 minute soak (the longest real-radio run was 20 minutes); range; the signing stale and future timestamp checks and the signing gate; the GPS pilot-override variant, the 1 m/s drift and jamming.
+**Not yet run over the radio:** plain passive and advisory postures (pilot operation and forwarding; only the attack campaign ran in them); management-channel control from the ground; firmware tamper over the radio; ground-radio (laptop) unplug; repeated or longer air-radio unplugs, and unplug during an attack; hard power loss of the Pi (SD-card behaviour), and the Pi reboot with the bridge not auto-started (the plan's by-hand variant); a systemd-managed bridge start (the unit is not installed or tested); SITL drop and restart over the radio; the laptop-side ground-radio replug; the signed-restart replay; the 30 to 60 minute soak (the longest real-radio run was 20 minutes); range; the signing stale and future timestamp checks and the signing gate; the GPS pilot-override variant, the 1 m/s drift and jamming.
 
 ### Scripts
 
@@ -609,3 +615,100 @@ that ran, recovery needed no manual step after the reboot command. Phase 8 overa
 listed cases run** (air-radio unplug, bridge kill with manual restart, Pi reboot with auto-start). The laptop-radio replug and
 the SITL drop have not been run. The CRC-invalid count is not in the summary. The two 3 s gaps are unexplained.
 Phase 9 is not affected by this run.
+
+## Randomised signed campaign over the real radio, 2026-10-30 (seed 7; passive, advisory, active-ips)
+
+Measured on 2026-10-30. The figures come from the session summary supplied by the coordinator. The campaign JSON files, status
+files and hub captures were not part of this documentation pass.
+
+**Setup.**
+
+* Real LR900 pair at 115,200 baud. ArduCopter SITL on the laptop, with MAVLink-2 signing provisioned into the SITL. The flight
+  controller itself therefore rejects unsigned, wrong-key and replayed commands.
+* The bridge on the Pi with the signing key, a signing state file, and a real firmware directory with a trusted manifest
+  (`--firmware-dir`, recheck every 5 s).
+* A man-in-the-middle proxy (`inject_proxy.py`) on the flight-controller link, for telemetry forgeries.
+* GPS fault by SITL parameter. Flood from sysid 66.
+* One run per posture, with the same seed (7), so the event order and timing are identical. Run labels: `cpc` (passive),
+  `cac` (advisory), `cic` (active-ips). Earlier runs `cpa` and `cpb` found the gaps listed below; they are not used for results.
+* 11 events, shuffled by the seed. Three adjacent pairs overlap: alt_bias and forged_land 3 s apart; forged_rtl and flood 7 s
+  apart; forged_force_disarm and fw_tamper 8 s apart. The events: forged_force_disarm (magic 21196, sysid 66), fw_tamper,
+  wrong_key_land, freeze, batt_jump (+3 V), replay_loiter (a captured signed DO_SET_MODE LOITER), alt_bias (+40 m), forged_land,
+  gps_glitch (`SIM_GPS1_GLTCH_X` 0.001, about 111 m, cleared after 25 s), forged_rtl_spoof255 (unsigned frames claiming sysid
+  255) and flood (30 frames/s for 8 s).
+* The legitimate signed pilot kept flying and probing throughout: 23 probes, 25 acknowledgements counted.
+
+**Common result, all three postures.** The vehicle stayed armed in GUIDED at about 20 m throughout. No operator recovery was
+needed. No heartbeat gap over 3 s. 0 analyser errors. All 11 events produced an `AEGIS:` STATUSTEXT at the ground over the radio.
+The texts were recovered from the hub downlink capture: 81 (passive), 91 (advisory), 112 (active-ips).
+
+**Per posture.**
+
+* *Passive (IDS) and advisory, as reported together.* The bridge dropped 0 frames up and 0 down, and sent 0 counter-frames, so
+  nothing changed on the vehicle path. Detections: forged commands and the flood by detector alerts plus `unsigned` texts;
+  wrong-key 3 `bad-signature`; replay 1 `replay`; fw_tamper 7 FIRMWARE_INTEGRITY alerts; gps_glitch 9 GPS_SPOOFING alerts;
+  alt_bias 3 alerts. The 76 forged telemetry frames (31 GLOBAL_POSITION_INT, 30 ATTITUDE, 15 SYS_STATUS) were reported as
+  `forged_down_observed` 76 and `AEGIS: unsigned down ... xN`. Signing observed totals: unsigned 9, bad_signature 3, replay 1.
+  batt_jump and freeze were detected by the signing rule, not by the battery or attitude detectors.
+* *Active-ips.* Uplink dropped 250: forced disarm 3, wrong-key 3, replay 1, forged LAND 3, forged RTL plus flood 237-240.
+  Downlink dropped 76, exactly the 76 forged telemetry frames (`forged_down_dropped` 76). No genuine telemetry was dropped.
+  Counter-frames 6: the GPS ladder warning and ALT_HOLD for the glitch, plus the sanitize actions. Announcements: `AEGIS: blocked ...`,
+  `quarantine sys66`, `GPS unreliable - do not trust position`, `set ALT_HOLD (GPS fault)`. The pilot's altitude stayed at the
+  true 20 m during alt_bias. In passive and advisory the pilot saw 60 m (the forged value) in the first forged_land window.
+
+**Finding: the ALT_HOLD counter-command was rejected by the flight controller in cic; cause found, fixed, and re-run as cid (2026-10-30).**
+
+* In cic (signed link, ACTIVE_IPS), the GPS ladder's ALT_HOLD counter-command was announced and sent (counter_frames +4 during the
+  glitch), but the vehicle mode never changed: it stayed GUIDED, at 20.2 m. On the unsigned link the same ladder gave ALT_HOLD at
+  +4.0 s.
+* Cause: MAVLink signing timestamps are wall-clock based. The bridge's signed counter-commands were stamped from the Pi's clock. The
+  Pi has no time sync and was 11,369 s (3 h 9 min) behind the laptop. A signing-enabled flight controller rejects stale timestamps,
+  so it rejected them.
+* Signing itself was not at fault. A direct test against the signing-enabled SITL showed that the FC accepts the bridge's signed
+  commands (sysid 1 / compid 191, link_id 0 and 3) when the timestamp is current: ALT_HOLD and STABILIZE both took effect.
+* Fix (code): counter-commands are stamped just above the newest valid signed timestamp the bridge has seen on the link
+  (`policy.next_signing_timestamp`, `MavlinkActuator.set_timestamp_source`). The clock is used only before any signed traffic has been
+  seen. Timestamps are strictly increasing. A unit test covers a link 11 days ahead of the machine clock. The commit hash of this fix
+  was not given.
+* Re-run cid (same seed 7, ACTIVE_IPS, real radio, signed): the glitch at t = 469.7 s gave ALT_HOLD (mode 2) at t = 474.0 s (+4.3 s).
+  The vehicle descended to the ground (altitude -0.1 m; ALT_HOLD with no pilot throttle, as documented). The pilot's own periodic
+  GUIDED probe returned the vehicle to mode 4 at +12 s. The campaign's operator recovery re-armed and took off again in 46 s.
+  Everything else matched cic: 250 uplink drops; 77 downlink frames dropped (the 76 forged telemetry frames plus one more; the summary
+  does not say what the extra one is); 0 heartbeat gaps over 3 s; 0 analyser errors.
+* Real-world consequence, stated plainly: a companion computer without an RTC or internet access (an arbitrary clock) would have had
+  all its signed bridge commands rejected by a signing-enabled flight controller. Its `--signing-max-age-s` replay window, if set,
+  also compares frame timestamps with the local clock and would misjudge. On such a machine keep `--signing-max-age-s` unset, or fix
+  the clock. Not tested.
+
+**Findings from this campaign (fixed in code; commit 93d5572 and the following feature commit, whose hash was not given).**
+
+1. With the key configured but enforcement off, a wrong-key forgery and a replayed signed command were invisible to the IDS
+   (passive run cpa: 0 alerts). The IDS and advisory postures now judge control-frame signatures and report them
+   (`status.signing_observed`, `AEGIS: unsigned | bad-signature | replay ...`).
+2. All genuine vehicle telemetry is signed on a signed link: 15,816 frames. The only unsigned frames claiming to be the vehicle
+   were the 76 forged ones, yet the bridge forwarded them; battery step and frozen attitude had never been alerted before.
+   Now a source that has been seen signing 20 valid frames and then sends an unsigned or badly signed frame is a forgery:
+   blocked in ACTIVE_IPS, reported in IDS and advisory. This costs about 3.4 us per frame on the laptop. Sources that never sign
+   are never judged. Replayed-timestamp verdicts are ignored on the downlink.
+
+**Limits, stated plainly.**
+
+* (g) The clock fix was tested in one re-run (cid) and a unit test. It has not been run on a second seed.
+* (a) Because the SITL has signing enabled, the flight controller rejects the forged commands itself. In no posture did the
+  vehicle's mode change. These runs show detection, announcement and blocking at the bridge. They do not show the vehicle being
+  saved by the bridge; the earlier unsigned-link runs showed a forged LAND landing the vehicle in passive. A randomised campaign
+  on an unsigned link was **not** run.
+* (b) One seed (7) and one run per posture, with 11 events. No statistical claim is made.
+* (c) A smart attacker holding the key is out of scope. A forger who guesses the 'signed' flag but not the key is caught by
+  verification. An attacker replaying a captured genuine signed downlink frame is not judged, because replay verdicts are ignored
+  on the downlink.
+* (d) The slow 1 m/s GPS drift was not part of the campaign. It is still a known miss.
+* (e) The per-event 'detected' column is announcement-based. The watcher text logs were incomplete, so announcements were
+  recovered from the hub downlink capture.
+* (f) The Pi's under-voltage and throttle flags were present during the campaign.
+
+**Judgement against the plan (conservative).** Phase 4 (detection): **NOT PASS as written.** Advisory is now measured over the
+radio, and every event was announced. The per-event latency against the 5 s criterion and the check that no AEGIS frame reaches
+the FC are not in the summary. Phase 5 (prevention): **NOT PASS as written; partly met.** The GPS ladder now acts on the vehicle (cid, +4.3 s). Phase 6 (signing): **NOT PASS as
+written; partly met.** Phase 2 (passive forwarding): still **NOT PASS as written**; the campaign's passive run dropped 0 frames
+each way, but it was an attack run, not a plain forwarding run, and hook_errors and latency for it are not in the summary.

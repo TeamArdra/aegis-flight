@@ -2,9 +2,9 @@
 
 > **Status (2026-10-30):** tooling written. The unit tests `tests/unit/test_radio_*.py` exist but were not re-run in this
 > documentation pass. The real radio is a MicoAir LR900 pair, configured and carrying data both ways. Measured runs over the
-> radio exist for phase 1 (baseline), phases 2 and 3 (ACTIVE_IPS only), phases 4 and 5 (ACTIVE_IPS, partly), phase 6
+> radio exist for phase 1 (baseline), phases 2 and 3 (ACTIVE_IPS only), phases 4 and 5 (ACTIVE_IPS, and passive, advisory and active-ips in the randomised campaign; partly), phase 6
 > (signing, partly) and phase 7 (budget only). None of these is a clean pass against the plan's written criteria; section 11
-> gives the judgement per phase. Phase 8 has three measured cases over the radio (bridge kill and manual restart, rlong1; air-radio unplug, unp1; Pi soft reboot with cron auto-start, rbt1) and phase 9 a 20-minute run; neither passes as written. The passive and advisory postures over the radio have not been run.
+> gives the judgement per phase. Phase 8 has three measured cases over the radio (bridge kill and manual restart, rlong1; air-radio unplug, unp1; Pi soft reboot with cron auto-start, rbt1) and phase 9 a 20-minute run; neither passes as written. The passive and advisory postures were run over the radio only inside the randomised signed campaign; a plain passive and advisory pilot and forwarding run has not been done.
 > Measured facts are in `docs/RADIO_TEST_RESULTS.md`.
 
 This is the test plan, rig description and tool reference for running `aegis ips-bridge` on a Raspberry Pi 3B+ between a
@@ -144,8 +144,7 @@ Do these once, before phase 0. None of them is done by the test tools.
    Pi timing and CPU figures are worst-case and must be labelled so. Use a 5 V, 2.5 A or larger supply and a short, thick
    cable; the radio on the Pi's USB port draws from the same 5 V. Later on 2026-10-30 the Pi read `0x50000` (history only) during the Pi-in-the-loop run. Do not record a timing figure from a run whose
    current-state bits (low nibble) are set. The real-radio session rad2 (section 11) still recorded under-voltage flags.
-7. **Clocks.** The Pi has no real-time clock, and on 2026-10-30 it was about 2.5 h behind the laptop with no time sync. Sync both machines (NTP, over the cable or Wi-Fi) before phase 6. Signing timestamps and
-   `--signing-max-age-s` depend on the bridge clock being right.
+7. **Clocks.** The Pi has no real-time clock and no time sync. On 2026-10-30 it was about 2.5 h behind the laptop in one session, and 3 h 9 min (11,369 s) behind during the signed campaign. MAVLink signing timestamps are wall-clock based, so a signing-enabled flight controller rejects stale timestamps. Before the fix, the bridge's own signed counter-commands were stamped from the Pi clock and were rejected (cic). The fix stamps them above the newest valid signed timestamp the bridge has seen (cid). Sync both machines (NTP, over the cable or Wi-Fi) before phase 6 anyway. On a companion computer without an RTC or internet access, keep `--signing-max-age-s` unset, or fix the clock: its replay window compares frame timestamps with the local clock (not tested).
 8. **Key files for phases 6 and 7.** Generate throwaway 32-byte keys on the bench (flight key and a separate management
    key), keep them outside the repo, copy the Pi's copies with `scp`, `chmod 600`. Do not reuse any real key.
 9. **Output directory.** Choose a run directory outside the repo or one that is git-ignored (default `radio_test_out`).
@@ -719,6 +718,43 @@ A systemd unit for production: runs `pi_autostart.sh` as user `ardra` with `AUTO
 not installed on the bench, which has no passwordless sudo, and it has not been tested. It restarts only on failure: a bridge
 that exits cleanly is not restarted.
 
+### `scripts/ardupilot/inline_demo/pi/campaign.py` (added 2026-10-30; verified against file)
+
+Randomised, overlapping attack campaign over the real radio, on a signed link, against ArduCopter SITL on the laptop. Runs on the
+laptop from `C:/afsitl` (it reads `C:/afsitl/sign.key` and `wrong.key`, and writes `C:/afsitl/campaign_<label>.json`; the paths
+are specific to the bench laptop).
+
+    campaign.py <label> <posture> <seed>      (env PI_KEY and REPO; optional PI_SSH, default ardra@169.254.225.172)
+
+`<posture>` is `passive`, `advisory` or `active-ips`. The seed (`random.Random(seed)`) sets the event order and timing, so the same
+seed gives comparable runs across postures. Events (11): forged_land, forged_force_disarm (sysid 66), forged_rtl_spoof255,
+wrong_key_land, replay_loiter, flood, gps_glitch, alt_bias, batt_jump, freeze, fw_tamper. Three adjacent pairs overlap. The
+legitimate signed pilot flies and probes throughout. Attackers: unsigned senders and a wrong-key signer, per the code comment.
+Telemetry attacks (alt_bias, batt_jump, freeze) go through `inject_proxy.py`, which listens on 5806 (the bridge's FC link is
+`-R 5762:127.0.0.1:5806`) and takes its control lines on 127.0.0.1:5807. Output: `campaign_<label>.json`, with per-event outcome,
+bridge counters before and after, recoveries and a 1 Hz timeline.
+
+### `scripts/ardupilot/inline_demo/pi/analyze_campaign.py` (added 2026-10-30; verified against file)
+
+    analyze_campaign.py <label> [<label> ...]    (env REPO for the hub capture reader)
+
+Prints a per-event outcome table for each campaign label. It reads `campaign_<label>.json`, the bridge `status_<label>.json`
+written by the runner, and the AEGIS STATUSTEXT texts from the hub downlink capture (not from the watcher text log, which was
+incomplete in these runs). The per-event 'detected' column matches each event against a table of text markers (for example
+`COMMAND_INJECTION`, `blocked`, `unsigned`, `bad-signature`, `replay`, `GPS_SPOOFING`, `FIRMWARE_INTEGRITY`, `unsigned down`).
+It is announcement-based: a detector that fires without an announcement is not counted.
+
+### `scripts/ardupilot/inline_demo/pi/run_campaign_radio_pi.sh` (added 2026-10-30; verified against file)
+
+    run_campaign_radio_pi.sh <label> <passive|advisory|active-ips> <seed>    (env PI_KEY, REPO; optional PI_HOST)
+
+Runs one campaign on the bench: stops the Pi relay and Wi-Fi scripts (`~/aegis_test/wifi_stop.sh` and `stop_relay.sh`, which are
+not in this repository), kills old SITL and listener processes, creates a firmware directory on the Pi (`~/aegis_fw`, with test
+binaries, a manifest from `aegis fw-manifest`, and a pristine copy), provisions MAVLink-2 signing into a fresh SITL with
+`sign_setup.py`, starts SITL, the hub and the telemetry proxy, starts the bridge on the Pi (`pi_bridge.sh` with the signing key,
+a signing state file, `--firmware-dir` and a 5 s recheck, `SECS=2400`), starts `pi_monitor.py`, then runs `campaign.py`. At the end
+it writes the status and monitor summaries and an event list from the bridge's SQLite database, and restores the Pi's Wi-Fi.
+
 ### `laptop_ctl.py` (verified against file)
 
 Laptop-side helper that drives the Pi over `ssh`/`scp` (BatchMode, so it never prompts; key from `ARDRA_KEY` or `--key`;
@@ -898,7 +934,7 @@ and latency figures are worst-case. These are not phase results. The real-radio 
 
 Measured figures and session detail are in `RADIO_TEST_RESULTS.md`, section "Real-radio session, 2026-10-30". Summary: the
 earlier one-way data was a configuration mismatch between the two units (section 3, item 10), now fixed. Over the radio at
-115,200 baud the link baseline was clean up to 40 frames/s (about 1.0-1.05 KB/s each way). Six real-radio runs were made in ACTIVE_IPS: rad2 (240 s flight), rsg1 (signing), rgps1 (GPS glitch), rlong1 (20 minutes, with a bridge kill and manual restart), unp1 (air-radio unplug for 16 s) and rbt1 (Pi soft reboot, 480 s hover, bridge started at boot by cron).
+115,200 baud the link baseline was clean up to 40 frames/s (about 1.0-1.05 KB/s each way). Six real-radio runs were made in ACTIVE_IPS: rad2 (240 s flight), rsg1 (signing), rgps1 (GPS glitch), rlong1 (20 minutes, with a bridge kill and manual restart), unp1 (air-radio unplug for 16 s) and rbt1 (Pi soft reboot, 480 s hover, bridge started at boot by cron). A randomised signed campaign (seed 7, 11 events) was also run over the radio in each posture: passive, advisory and active-ips (runs cpc, cac, cic).
 
 The judgement below is conservative. It is made against the plan's written criteria, not the coordinator's PASS labels.
 "NOT PASS as written" means a criterion was not run or not met.
@@ -907,22 +943,23 @@ The judgement below is conservative. It is made against the plan's written crite
 |---|---|---|
 | 0 preflight | not reported | Not reported in the session summary. |
 | 1 baseline | no bridge | Meets the stated check on the measured items: echo path alive, 0 % loss at 5 frames/s, RTT recorded. The step (b) relay-versus-hub comparison is not in the summary. |
-| 2 passive forwarding | ACTIVE_IPS only | **NOT PASS as written.** Passive was not run over the radio. Forwarding was measured in ACTIVE_IPS (rad2: 9,792 of 9,801 frames at the ground; rsg1: 4,929 of 4,929). |
+| 2 passive forwarding | ACTIVE_IPS only; passive only inside the randomised campaign (cpc) | **NOT PASS as written.** Plain passive forwarding was not run. In the campaign's passive run the bridge dropped 0 frames each way, but that was an attack run; hook_errors and latency for it are not in the summary. |
 | 3 pilot operation | ACTIVE_IPS only | **NOT PASS as written.** Advisory was not run. 14 benign probes in one posture, against at least 30 per posture repeated 3 times. |
-| 4 detection | ACTIVE_IPS only | **NOT PASS as written.** Advisory was not run; the plan expects forged frames to reach the FC in that posture. Alerts were raised. |
-| 5 prevention | ACTIVE_IPS | **PARTLY.** Measured: forged LAND and flood from sysid 66 (rad2), and the GPS glitch (rgps1). Not run over the radio: the sudden-glitch pilot-override variant, the trusted forced disarm, the 1 m/s drift (a known miss) and jamming. The ALT_HOLD timing against confirmation cannot be evaluated from the summary. |
-| 6 signing | ACTIVE_IPS, signing key on the Pi | **PARTLY.** Measured: unsigned, wrong-key and replayed frames dropped, mode unchanged (rsg1). Not run: stale and future timestamps, the ACTIVE_IPS signing gate exit code, signing with delay or jitter beyond the radio's own one-way delay (about 30 ms). |
+| 4 detection | ACTIVE_IPS (rad2); passive, advisory and active-ips in the randomised signed campaign, seed 7 (cpc, cac, cic) | **NOT PASS as written.** Advisory is now measured: every one of the 11 campaign events produced an AEGIS text in each posture (81 / 91 / 112 texts). The per-event latency against the 5 s criterion and the check that no AEGIS frame reaches the FC are not in the summary. The FC rejected the forged commands itself (signing on), so the vehicle outcome does not test the bridge alone. |
+| 5 prevention | ACTIVE_IPS: forged LAND and flood (rad2), GPS glitch (rgps1), campaign (cic, cid) | **NOT PASS as written; partly met.** Measured: uplink forgeries dropped (250 in cic and cid); forged telemetry dropped (76 or 77); no genuine telemetry dropped. GPS ladder: the warning and ALT_HOLD were sent and applied on the vehicle in cid (ALT_HOLD at +4.3 s after the glitch, then a descent in ALT_HOLD). In cic the FC rejected the ALT_HOLD because the bridge's counter-command timestamps came from a Pi clock 3 h 9 min behind; fixed in code. The plan's ALT_HOLD timing check cannot be evaluated: the confirmation time is not in the summary. Not run as separate cases: trusted forced disarm, the pilot-override variant, the 1 m/s drift, jamming. |
+| 6 signing | ACTIVE_IPS with the signing key on the Pi (rsg1); campaign cic with the FC also enforcing signing | **NOT PASS as written; partly met.** Measured: unsigned, wrong-key and replayed frames dropped with the mode unchanged (rsg1: 40 unsigned, 10 wrong key, 3 replay; cic: 3 wrong key, 1 replay, and the unsigned forgeries). Not run: stale and future timestamps, the signing gate exit code, the count of acknowledged signed pilot commands, delay or jitter beyond the radio's one-way delay. |
 | 7 management channel | ACTIVE_IPS (budget only, rad2) | **PARTLY.** Management traffic measured: 9,688 B over 361 s (about 27 B/s), 1 budget denial. Ground-side commands and their ACK latency were not run over the radio. |
 | 8 failure and recovery | ACTIVE_IPS, three cases (rlong1, unp1, rbt1) | **NOT PASS as written; three of five cases run.** Bridge kill and manual restart: 27.6 s gap; 24,701 downlink forwarded after restart, 0 dropped. Air-radio unplug for 16 s: one 16.0 s gap; the bridge stayed up and reconnected on its own; 414 frames not written during the outage. Pi soft reboot with cron auto-start (a variant: the plan says by-hand start): 71.5 s pilot gap; FC and GCS links back about 70 s after the reboot command; no manual step after the reboot command. Not run over the radio: laptop (ground) radio unplug, repeated or longer unplugs, unplug during an attack, hard power cut of the Pi, the by-hand Pi reboot, SITL drop and restart, signed-restart replay, systemd-managed start (unit untested). |
 | 9 soak | ACTIVE_IPS, 20 minutes (rlong1) | **NOT PASS as written; partly met.** 20 minutes, against 30 to 60 required. Met: RSS flat (slope 0.063 MiB/min, no growth flag); 59 of 59 benign probes acknowledged; forged LAND dropped. Not shown: the new-throttle-bit check, hook_errors for the run, loss and latency for the first versus last 10 minutes. |
 
 **Not yet run over the radio (stated plainly):**
 
-* the passive and advisory postures;
+* plain passive and advisory postures (pilot operation and forwarding; only the attack campaign ran in them);
 * management-channel control from the ground (commands and their ACKs; these were run only on the Ethernet-tunnel setup);
 * firmware tamper over the radio;
 * ground-radio (laptop) unplug; repeated or longer air-radio unplugs; unplug during an attack;
 * hard power loss of the Pi (SD-card behaviour); the Pi reboot with the bridge not auto-started (the plan's by-hand variant);
+* an unsigned-link randomised campaign (not run); the management channel's own signed frames with a wrong clock (the ground verifier is expected to be monotonic only, so this is expected fine, not verified);
 * a systemd-managed bridge start: `scripts/radio_test/aegis-bridge.service` exists but was not installed or tested;
 * SITL drop and restart over the radio; the laptop-side ground-radio replug; the signed-restart replay;
 * the 30 to 60 minute soak (the longest real-radio run was 20 minutes);
