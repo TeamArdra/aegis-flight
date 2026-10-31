@@ -1,0 +1,19 @@
+  [PASS] Subtle GPS gradual drift (pos_residual=1.8m) accurately classified
+  [PASS] Gross GPS sudden offset (accel=25m/s², residual=35m) classified as sudden_offset
+  [PASS] GPS replay freeze classified via frozen coordinate evidence
+[AEGIS STAGE 2 AUDIT] 2. Closed-Loop Autonomous IPS Trajectory Recovery vs PASSIVE Mode
+  [PASS] PASSIVE mode strictly transmits 0 bytes (bytes_sent=0) and does not alter telemetry
+  [PASS] ACTIVE IPS engaged EKF_SWITCH_SECONDARY and coordinate frame sanitization
+  [PASS] Effective vehicle trajectory successfully converged to nominal dead-reckoned path (delta=0.0000000°)
+  [PASS] Pristine event log verified: 3 blocks intact from genesis
+  [PASS] Tamper detection verified: Single-byte database modification caught at block #2
+  [PASS] MAVLink v2 binary packet encoded: length=44 bytes, magic=0xFD
+  [PASS] MAVLink X.25 CRC recomputation verified: 0x3D59
+  [PASS] MAVLink-2 13B SHA-256 signature verified & captured replay rejected
+  [PASS] Dual-Posture Replay Guard verified: IDS emits 0 bytes; IPS builds a signed counter-command (not transmitted)
+  [PASS] Zero-mean Gaussian turbulence (sigma=0.12 m/s) cancelled out: |S_100|=0.037 m
+  [PASS] Stealth 0.22 m/s micro-drift caught (|S|=1.36 m): IDS alerts (0 TX), IPS clamps & switches EKF
+  [PASS] Foreign Origin rejected (403), missing token rejected (401), valid HMAC token accepted (200)
+  [PASS] REST API /api/topology is read-only and reports the detected topology (POST refused)
+  [PASS] All 20/20 attack sub-modes verified in closed-loop: PASSIVE (unmitigated impact) vs ACTIVE_IPS (modelled inline filtering)
+  All 8 demo suites passed in 3081.8 ms (SIM, hand-built inputs; not validation evidence).

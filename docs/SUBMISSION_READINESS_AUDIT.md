@@ -342,3 +342,31 @@ Scope: baseline comparison, `SITL`/`REPLAY` session intervals, clean-environment
 - Not covered by any agent: whether a forged status stream plus a velocity-consistent offset evades the remaining gated checks (hypothesis, untested); template PDF page content against the draft headings.
 
 Checks run in this pass (host unless stated): `ruff check src tests scripts backend` clean; `pytest -p no:cacheprovider -q`: 907 passed, 3 skipped, 0 failed (counted from progress output); `python scripts/verify_stage2.py`: 8 of 8 suites passed (SIM, hand-built inputs); `npm test`: 11 passed; `npm run build`: ok; Stage-1 counts 6535 / 4 / 16826 / 65 reproduced by `scripts/baseline_comparison.py` (a full `aegis benchmark` re-run was not repeated: no source file changed since the earlier 378 of 378 comparison).
+
+## 12. Repository consolidation (2026-10-31, `main`)
+
+Scope: one authoritative `main`, branch inventory, safety boundary, re-verification. No detector, threshold, feature or
+config was changed; nothing was run on hardware, WSL or SITL; nothing was transmitted.
+
+**Source of truth.** `origin/main` `3e3d88e` (PR #3) already contained every branch's work: the sprint, the
+submission-readiness and GPS-hardware-verification branches and the teammate integration (`stage2-autonomous-defense`)
+are its ancestors. The rewritten-history branches (`integration/stage2-defense-candidate`, `safety/iter2-wip-2026-10-26`,
+`backup/main-before-integration-20261027`, `stash@{0}`) share no ancestor with it but were compared file by file: every
+file they add is byte-identical in `main` or superseded by a later version (the estimator gate v2 is present). Nothing
+had to be merged in.
+
+**Two defects found on `3e3d88e` and fixed:**
+- Safety: `f816f41` (in PR #3) let `run_serial_ids.py --defense-mode active-ips` write counter-frames to the serial port
+  with no gate, skipped the exit-3 transmit check outside passive and accepted any `--gcs-notify-host`; `aegis serve` and
+  `aegis ips-bridge` could transmit to a serial FC after an acknowledgement. `eb829e9`: a serial-device link is receive-only
+  in all three (user decision 2026-10-31); `active-ips` stays available on `SITL` UDP / `socket://` links.
+- Test: the capture-007 replay parity test failed wherever the git-ignored capture exists (the rate baseline enabled by
+  `2d455b5` adds a coverage evidence line); `537a5ee` checks both settings.
+
+**Verification:** `artifacts/validation/consolidation_20261031/README.md` (host 1061 passed / 3 skipped / 0 failed; clean
+clone 1052 / 12 / 0; Stage-1 6535 / 4 / 16826 / 65, 378 of 378 cells; frontend 31 passed and build ok; `verify_stage2.py`
+8 of 8). The ALFA replay was not completed in this pass.
+
+**Still open for the team:** the items of §11 "Open, for the team" (2) to (7) are unchanged; (1) now reads: freeze the commit
+and re-run on it. The tracked history from `10e5b22` back carries `Co-Authored-By` trailers again (the trailer-stripped
+rewrite was never pushed; removing them would need a force-push, which was not done).
