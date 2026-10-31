@@ -32,7 +32,6 @@ Exit codes: 0 ok (NOT a statement about link health: see ``link_ever_delivered_f
 from __future__ import annotations
 
 import argparse
-import contextlib
 import json
 import signal
 import sys
@@ -47,6 +46,7 @@ import psutil
 from aegisflight.config import load_config
 from aegisflight.core.gps_health import GpsHealthObserver
 from aegisflight.logging import EventStore
+from aegisflight.mavlink.gcs_notifier import is_loopback_host
 from aegisflight.mitigation import DefenseMode, MitigationController
 from aegisflight.pipeline import IDSPipeline
 from aegisflight.sources.frame_tap import TapTransport
@@ -87,12 +87,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--tlog", default=None,
                     help="also tee the clean received frames to this .tlog (refuses to overwrite). The tlog holds the "
                          "vehicle's position: keep it in a git-ignored place (data/hardware/raw/*.tlog)")
-    ap.add_argument("--gcs-notify", action="store_true", help="broadcast MAVLink STATUSTEXT alert notifications to GCS")
-    ap.add_argument("--gcs-notify-host", default="127.0.0.1", help="target GCS host for UDP STATUSTEXT alerts")
+    ap.add_argument("--gcs-notify", action="store_true",
+                    help="send STATUSTEXT alert notifications over UDP to a LOOPBACK GCS (never on the serial port)")
+    ap.add_argument("--gcs-notify-host", default="127.0.0.1", help="loopback GCS host for UDP STATUSTEXT alerts")
     ap.add_argument("--gcs-notify-port", type=int, default=14550, help="target GCS UDP port for STATUSTEXT alerts")
-    ap.add_argument("--defense-mode", choices=["passive", "advisory", "active-ips"], default="passive",
-                    help="defense engine posture: passive (default, zero bytes sent), advisory, active-ips")
+    # receive-only monitor: there is no 'active-ips' here; mitigation decisions are reported, never transmitted
+    ap.add_argument("--defense-mode", choices=["passive", "advisory"], default="passive",
+                    help="defense engine posture (report-only): passive (default) or advisory")
     a = ap.parse_args(argv)
+    if a.gcs_notify and not is_loopback_host(a.gcs_notify_host):
+        print(f"FAIL: --gcs-notify-host must be a loopback address (got {a.gcs_notify_host!r})", file=sys.stderr)
+        return 2
     if a.tlog and Path(a.tlog).exists():
         print(f"refusing to start: --tlog {a.tlog} already exists (a capture is never overwritten)", file=sys.stderr)
         return 2
@@ -181,11 +186,7 @@ def main(argv: list[str] | None = None) -> int:
                 lat_max = max(lat_max, asmt.latency_ms)
                 no_gpi += pipe.last_frame is not None and pipe.last_frame.gps_seen is False
                 if pipe.last_frame is not None:
-                    act = mitigation.step(pipe.last_frame, asmt)
-                    if a.defense_mode == "active-ips" and act.counter_frames:
-                        for f in act.counter_frames:
-                            with contextlib.suppress(Exception):
-                                tr.send(f)
+                    mitigation.step(pipe.last_frame, asmt)  # report-only: counter_frames are never sent
                 if asmt.is_alert:
                     alerts += 1
                     types[asmt.attack_type.value] += 1
@@ -223,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
             notifier.close()
         chain = store.verify_chain(run_id)
         store.close()
-    if a.defense_mode == "passive" and (t_stats["bytes_sent"] != 0 or t_stats["write_errors"] != 0):
+    if t_stats["bytes_sent"] != 0 or t_stats["write_errors"] != 0:  # every mode is receive-only
         print(f"FAIL: transmit attempted on a receive-only monitor (bytes_sent={t_stats['bytes_sent']}, "
               f"write_errors={t_stats['write_errors']})", file=sys.stderr)
         rc = 3
@@ -246,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
                "telemetry_coverage": _coverage(pipe, no_gpi),
                "navigation_health": _nav_health(nav, nav_t),
                "passive_check": {"bytes_sent": t_stats["bytes_sent"], "write_errors": t_stats["write_errors"],
-                                 "passed": t_stats["bytes_sent"] == 0 and t_stats["write_errors"] == 0} if a.defense_mode == "passive" else {"bypassed": True, "defense_mode": a.defense_mode},
+                                 "passed": t_stats["bytes_sent"] == 0 and t_stats["write_errors"] == 0},
                "hash_chain": {"ok": chain.ok, "length": chain.length}, "exit_code": rc}
     (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
     print(json.dumps({k: summary[k] for k in ("wall_s", "decisions", "alert_decisions", "alert_types",

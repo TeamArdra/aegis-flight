@@ -1,7 +1,8 @@
 """Safety regressions for the Stage-2 defense layer (integration review 2026-10-27).
 
-Pins the fixes for the review blockers: live sources are receive-only (no counter-command, no
-STATUSTEXT on the vehicle link), countermeasures never guess (no force-disarm, no unknown or
+Pins the fixes for the review blockers: a serial device link (which may be a physical flight
+controller) is receive-only in every entry point (no counter-command, no STATUSTEXT on the vehicle
+link; active-ips is available on SITL UDP / socket:// links only), countermeasures never guess (no force-disarm, no unknown or
 default mode, no override of the pilot's own mode change), and the command-cadence guard
 evaluates each command once. All inputs are SYNTHETIC hand-built frames; nothing opens a port.
 """
@@ -69,20 +70,33 @@ class _RecordingTransport:
 
 
 # --------------------------------------------------------------------------- #
-# 1. transmission is gated by the defense posture
+# 1. transmission is gated by the defense posture; a serial device is always receive-only
 # --------------------------------------------------------------------------- #
 
-@pytest.mark.parametrize("spec", [{"kind": "serial", "port": "COM7"}, {"kind": "udp", "udp_port": 14550}])
-def test_source_spec_allows_every_posture_for_live_kinds(spec):
+SITL_SPECS = [{"kind": "udp", "udp_port": 14550},
+              {"kind": "serial", "port": "socket://127.0.0.1:5762", "allow_url": True}]
+DEVICE_PORTS = ["COM7", "/dev/ttyACM0", "/dev/ttyAMA0", "/dev/pts/3", "CNCA0"]
+
+
+@pytest.mark.parametrize("spec", SITL_SPECS)
+def test_source_spec_allows_every_posture_on_sitl_links(spec):
     for mode in ("passive", "advisory", "active-ips"):
         assert SourceSpec(defense_mode=mode, **spec).defense_mode == mode
-    assert SourceSpec(defense_mode="passive", **spec).defense_mode == "passive"  # the default stays passive
+    assert SourceSpec(**spec).defense_mode == "passive" and SourceSpec(**spec).transmit_allowed
+
+
+@pytest.mark.parametrize("port", DEVICE_PORTS)
+def test_source_spec_refuses_active_ips_on_a_serial_device(port):
+    with pytest.raises(ValueError, match="receive-only"):
+        SourceSpec(kind="serial", port=port, defense_mode="active-ips")
+    spec = SourceSpec(kind="serial", port=port, defense_mode="advisory")  # report-only modes stay allowed
+    assert spec.defense_mode == "advisory" and spec.transmit_allowed is False
 
 
 @pytest.mark.parametrize("mode, expect_tx", [("passive", False), ("advisory", False), ("active-ips", True)])
 def test_live_engine_transmits_counter_frames_only_in_active_ips(tmp_path, monkeypatch, mode, expect_tx):
-    """PASSIVE / ADVISORY never write to the vehicle link; ACTIVE_IPS sends the counter-frames it produced."""
-    engine = LiveEngine(spec=SourceSpec(kind="serial", port="COM7"), db_path=str(tmp_path / "e.sqlite"))
+    """PASSIVE / ADVISORY never write to the vehicle link; ACTIVE_IPS sends the counter-frames it produced (SITL)."""
+    engine = LiveEngine(spec=SourceSpec(kind="udp", udp_port=14550), db_path=str(tmp_path / "e.sqlite"))
     try:
         tr = _RecordingTransport()
         monkeypatch.setattr(engine, "feed", type("Feed", (), {"transport": tr})())
@@ -98,14 +112,45 @@ def test_live_engine_transmits_counter_frames_only_in_active_ips(tmp_path, monke
         engine.store.close()
 
 
-def test_api_accepts_acknowledged_unsigned_active_ips_on_a_live_source(tmp_path, monkeypatch):
+def test_live_engine_never_transmits_on_a_serial_device(tmp_path, monkeypatch):
+    """Even with ACTIVE_IPS forced on the controller (bypassing every public guard), a serial-device engine
+    produces counter-frames but never writes them, and never hands its transport to the GCS notifier."""
     engine = LiveEngine(spec=SourceSpec(kind="serial", port="COM7"), db_path=str(tmp_path / "e.sqlite"))
+    try:
+        with pytest.raises(ValueError, match="receive-only"):
+            engine.set_defense_mode("active-ips")
+        assert engine.signing_gate("active-ips", allow_unsigned=True)["error"] == "receive_only_link"
+        tr = _RecordingTransport()
+        monkeypatch.setattr(engine, "feed", type("Feed", (), {"transport": tr})())
+        engine.mitigation.set_mode("active-ips")  # simulate a bypass of the public guards
+        engine.defense_override("safe_hold")
+        assert engine._last_mitigation_action.counter_frames, "safe_hold should still PRODUCE a counter frame"
+        assert tr.sent == []
+    finally:
+        engine.store.close()
+
+
+def test_api_accepts_acknowledged_unsigned_active_ips_on_a_sitl_source(tmp_path, monkeypatch):
+    engine = LiveEngine(spec=SourceSpec(kind="udp", udp_port=14550), db_path=str(tmp_path / "e.sqlite"))
     monkeypatch.setattr(app_module, "engine", engine)
     try:
         client = TestClient(app_module.app)  # not entered as a context: no lifespan, the port is never opened
         assert engine.mitigation.mode == DefenseMode.PASSIVE
         r = client.post("/api/defense/mode", json={"mode": "active-ips", "allow_unsigned": True})
         assert r.status_code == 200 and engine.mitigation.mode == DefenseMode.ACTIVE_IPS
+    finally:
+        engine.store.close()
+
+
+def test_api_refuses_active_ips_on_a_serial_device_even_when_acknowledged(tmp_path, monkeypatch):
+    engine = LiveEngine(spec=SourceSpec(kind="serial", port="COM7"), db_path=str(tmp_path / "e.sqlite"))
+    monkeypatch.setattr(app_module, "engine", engine)
+    try:
+        client = TestClient(app_module.app)  # not entered as a context: no lifespan, the port is never opened
+        r = client.post("/api/defense/mode", json={"mode": "active-ips", "allow_unsigned": True})
+        assert r.status_code == 409 and r.json()["error"] == "receive_only_link"
+        assert engine.mitigation.mode == DefenseMode.PASSIVE
+        assert client.post("/api/defense/mode", json={"mode": "advisory"}).status_code == 200
     finally:
         engine.store.close()
 
@@ -120,14 +165,48 @@ def test_gcs_notifier_accepts_a_remote_gcs_target():
         n.close()
 
 
-def test_run_serial_ids_passive_mode_still_transmits_nothing(tmp_path):
+def test_run_serial_ids_has_no_transmitting_mode(tmp_path, capsys):
     spec = importlib.util.spec_from_file_location("run_serial_ids_safety", RUN_SERIAL_IDS)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    text = RUN_SERIAL_IDS.read_text(encoding="utf-8")
-    assert "active-ips" in text  # restored Stage-2 behaviour: active-ips may send counter frames
-    # the passive-mode transmit check (exit 3) is still enforced
-    assert 'a.defense_mode == "passive" and (t_stats["bytes_sent"] != 0' in text
+    with pytest.raises(SystemExit) as e:  # argparse: 'active-ips' is not a choice
+        mod.main(["--port", "socket://127.0.0.1:1", "--out-dir", str(tmp_path), "--defense-mode", "active-ips"])
+    assert e.value.code == 2
+    rc = mod.main(["--port", "socket://127.0.0.1:1", "--out-dir", str(tmp_path / "x"), "--gcs-notify",
+                   "--gcs-notify-host", "192.168.1.100"])
+    assert rc == 2 and "loopback" in capsys.readouterr().err
+    assert ".send(" not in RUN_SERIAL_IDS.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("port", DEVICE_PORTS)
+def test_inline_bridge_refuses_active_ips_on_a_serial_device_fc_port(port):
+    from aegisflight.hal.inline_ips import InlineIpsBridge
+
+    class _Port(_RecordingTransport):
+        def __init__(self, name: str) -> None:
+            super().__init__()
+            self.port = name
+
+        def poll(self, max_items: int = 256) -> list:
+            return []
+
+    with pytest.raises(ValueError, match="receive-only"):
+        InlineIpsBridge(_Port(port), _Port("socket://127.0.0.1:5800"), mode="active-ips")
+    b = InlineIpsBridge(_Port(port), _Port("socket://127.0.0.1:5800"), mode="passive")
+    with pytest.raises(ValueError, match="receive-only"):
+        b.set_mode("active-ips")
+    assert b.controller.mode == DefenseMode.PASSIVE
+    b.set_mode("advisory")  # report-only postures stay available
+    sitl = InlineIpsBridge(_Port("socket://127.0.0.1:5762"), _Port("socket://127.0.0.1:5800"), mode="active-ips")
+    assert sitl.controller.mode == DefenseMode.ACTIVE_IPS
+
+
+def test_ips_bridge_cli_refuses_active_ips_on_a_serial_device(capsys):
+    from aegisflight.cli.main import main as aegis_main
+
+    rc = aegis_main(["ips-bridge", "--fc-port", "COM7", "--gcs-port", "COM8", "--defense-mode", "active-ips",
+                     "--allow-unsigned", "--seconds", "0"])
+    assert rc == 2 and "receive-only" in capsys.readouterr().err
 
 
 # --------------------------------------------------------------------------- #

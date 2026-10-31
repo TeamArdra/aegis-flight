@@ -128,6 +128,8 @@ class BridgeStatusServer:
                     ack = ", unsigned acknowledged" if outer.unsigned_acknowledged else ""
                     print(f"aegis ips-bridge: posture -> {mode} (remote{ack})", flush=True)
                     self._json(200, {"ok": True, "status": outer._status()})
+                except ValueError as exc:  # receive-only boundary: active-ips on a serial-device FC port
+                    self._json(409, {"ok": False, "error": "receive_only_link", "message": str(exc)})
                 except Exception:  # noqa: BLE001
                     self._json(500, {"ok": False, "error": "posture change failed"})
 

@@ -287,8 +287,10 @@ class LiveEngine:
                 pass
 
         self.feed.start(deliver)
-        # STATUSTEXT alerts may also go out over the vehicle link's transport (UDP target set separately)
-        if self.gcs_notifier is not None and getattr(self.feed, "transport", None) is not None:
+        # STATUSTEXT alerts may also go out over the vehicle link's transport (UDP target set separately), but never
+        # onto a serial device: a physical flight controller link is receive-only
+        if (self.gcs_notifier is not None and getattr(self.feed, "transport", None) is not None
+                and self.spec.transmit_allowed):
             self.gcs_notifier.transport = self.feed.transport
         self._task = asyncio.create_task(self._live_loop())
 
@@ -385,7 +387,12 @@ class LiveEngine:
 
     def signing_gate(self, mode: str, allow_unsigned: bool = False) -> dict | None:
         """None when the posture change is allowed, else the 409 body. Only a non-SIM source going active-ips
-        without a signing key is gated; allow_unsigned=True is the operator's explicit acknowledgement."""
+        without a signing key is gated; allow_unsigned=True is the operator's explicit acknowledgement. A serial
+        device link refuses active-ips outright (receive-only boundary; no acknowledgement unlocks it)."""
+        if mode == "active-ips" and not self.spec.transmit_allowed:
+            return {"ok": False, "error": "receive_only_link",
+                    "message": "active-ips is refused on a serial device link: a physical flight controller is "
+                               "receive-only. Counter-commands are available on SITL (UDP / socket://) links only."}
         if self.is_sim or mode != "active-ips" or self.signing_configured:
             return None
         if allow_unsigned is not True:
@@ -396,6 +403,8 @@ class LiveEngine:
         return None
 
     def set_defense_mode(self, mode: str, allow_unsigned: bool = False) -> dict:
+        if mode == "active-ips" and not self.spec.transmit_allowed:
+            raise ValueError("active-ips is refused on a serial device link (receive-only)")
         self.mitigation.set_mode(mode)
         if (mode == "active-ips" and not self.is_sim and not self.signing_configured and allow_unsigned is True):
             self.unsigned_acknowledged = True
@@ -438,7 +447,7 @@ class LiveEngine:
             st = self.feed.transport_stats() if self.feed is not None else None
             conn = st.get("connected") if st else None
             name = self.spec.port if self.spec.kind == "serial" else f"udp:{self.spec.udp_port}"
-            writable = True  # serial / udp transports carry counter-commands; replay never reaches here
+            writable = self.spec.transmit_allowed  # udp / socket:// carry counter-commands; a serial device never
             return sidecar_topology(posture, connected=conn if isinstance(conn, bool) else None,
                                     name=str(name) if name else None,
                                     uplink_seen=self.link.uplink_frames > 0, writable=writable)
@@ -447,8 +456,8 @@ class LiveEngine:
 
     def _transmit(self, frames: list[bytes]) -> None:
         """Send counter-actuation frames on the live transport. Only in ACTIVE_IPS; a no-op for SIM / replay
-        (no transport) and for PASSIVE / ADVISORY, which never actuate."""
-        if self.mitigation.mode != DefenseMode.ACTIVE_IPS or not frames:
+        (no transport), for PASSIVE / ADVISORY, which never actuate, and on a serial device (receive-only)."""
+        if self.mitigation.mode != DefenseMode.ACTIVE_IPS or not frames or not self.spec.transmit_allowed:
             return
         transport = getattr(self.feed, "transport", None) if self.feed is not None else None
         if transport is None:

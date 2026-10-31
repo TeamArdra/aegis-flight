@@ -330,7 +330,7 @@ For deployment directly on a physical drone companion computer connected to a Pi
    pip install -e ".[dev]"
    ```
 
-3. **Run the receive-only monitor on the telemetry link** (no companion deployment has been measured; `active-ips` would transmit counter-commands on this link; leave the default `--defense-mode passive` unless that is intended; `active-ips` on a real link is refused without a signing key unless you pass `--allow-unsigned` or acknowledge the risk in the dashboard):
+3. **Run the receive-only monitor on the telemetry link** (no companion deployment has been measured; a serial device such as `/dev/serial0` is receive-only: `aegis serve` and `aegis ips-bridge` refuse `active-ips` on it and never write STATUSTEXT onto it; counter-commands exist only on SITL UDP / `socket://` links, where `active-ips` without a signing key additionally needs `--allow-unsigned` or the dashboard acknowledgement):
    ```bash
    aegis serve --source serial --serial-port /dev/serial0 --baud 115200 --port 8000
    ```

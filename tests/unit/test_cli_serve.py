@@ -102,12 +102,18 @@ def test_serve_gcs_notify_flag(uvicorn_calls):
 
 
 @pytest.mark.parametrize("argv", [
-    ["--source", "serial", "--serial-port", "COM7"],
+    ["--source", "serial", "--serial-port", "socket://127.0.0.1:5762", "--allow-url"],
     ["--source", "udp", "--udp-port", "14550"],
 ])
-def test_serve_allows_active_ips_on_a_live_source(uvicorn_calls, argv):
+def test_serve_allows_active_ips_on_a_sitl_link(uvicorn_calls, argv):
     assert cli.main(["serve", *argv, "--defense-mode", "active-ips"]) == 0
     assert spec_from_env().defense_mode == "active-ips"
+
+
+@pytest.mark.parametrize("port", ["COM7", "/dev/ttyACM0"])
+def test_serve_refuses_active_ips_on_a_serial_device(uvicorn_calls, capsys, port):
+    assert cli.main(["serve", "--source", "serial", "--serial-port", port, "--defense-mode", "active-ips"]) == 2
+    assert uvicorn_calls == [] and "receive-only" in capsys.readouterr().err
 
 
 def test_serve_defense_mode_flag(uvicorn_calls):

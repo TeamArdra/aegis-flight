@@ -13,8 +13,14 @@ FC <-- serial -->  [ aegis ips-bridge ]  <-- serial -->  GCS radio
 
 ```bash
 aegis ips-bridge --fc-port /dev/ttyAMA0 --fc-baud 921600 --gcs-port /dev/ttyUSB0 --gcs-baud 57600 \
-                 --defense-mode active-ips --db artifacts/ips.sqlite
+                 --defense-mode passive --db artifacts/ips.sqlite
 ```
+
+**Receive-only boundary (2026-10-31):** a serial-device FC port (`/dev/tty*`, `COMx`, a PTY or com0com pair) may be a
+physical flight controller, so `active-ips` is refused on it: the CLI exits 2, `InlineIpsBridge(...)`/`set_mode` raise
+`ValueError`, and `POST /posture` answers 409 `receive_only_link`. `active-ips` runs only with a `socket://` FC port
+(ArduCopter / PX4 SITL, `--allow-url`), which is where every `active-ips` result below was produced. In `passive` /
+`advisory` the bridge still relays the operator's own uplink to the FC byte-identically, as a radio would.
 
 Code: `src/aegisflight/mitigation/inline_policy.py` (rules), `src/aegisflight/hal/inline_ips.py` (bridge),
 `mitigation/sanitizer.py` (downlink rewrite). Tests: `tests/unit/test_inline_ips.py` (synthetic frames, fake
@@ -341,7 +347,8 @@ explicit choice:
 - `--control-token-file PATH` enables `POST /posture` on the status API (the file holds the token; it is never printed).
   Body `{"mode": "passive"|"advisory"|"active-ips", "allow_unsigned": bool}`, auth `Authorization: Bearer <token>` or
   `X-Aegis-Token`. Errors: 403 `control_disabled`, 401 bad/missing token, 400 bad body, 409 `signing_required` (active-ips,
-  no key, `allow_unsigned` not `true`), 200 `{"ok": true, "status": ...}`. Browser calls are CORS-limited to the dashboard origins.
+  no key, `allow_unsigned` not `true`), 409 `receive_only_link` (active-ips with a serial-device FC port; no
+  acknowledgement unlocks it), 200 `{"ok": true, "status": ...}`. Browser calls are CORS-limited to the dashboard origins.
 - `--status-host HOST` (default `127.0.0.1`); a non-loopback host needs `--control-token-file` and prints a warning that the
   status API is reachable from the network.
 - `GET /status` also returns `signing: {configured, unsigned_acknowledged}` and `control: {enabled}`.
