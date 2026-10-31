@@ -365,7 +365,7 @@ had to be merged in.
 
 **Verification:** `artifacts/validation/consolidation_20261031/README.md` (host 1061 passed / 3 skipped / 0 failed; clean
 clone 1052 / 12 / 0; Stage-1 6535 / 4 / 16826 / 65, 378 of 378 cells; frontend 31 passed and build ok; `verify_stage2.py`
-8 of 8). The ALFA replay was not completed in this pass.
+8 of 8). ALFA re-run: `benign_gt` and `fault` rows identical to the committed artifacts; only the `unlabelled` rows differ (stale since 2026-09-24; not overwritten).
 
 **Still open for the team:** the items of §11 "Open, for the team" (2) to (7) are unchanged; (1) now reads: freeze the commit
 and re-run on it. The tracked history from `10e5b22` back carries `Co-Authored-By` trailers again (the trailer-stripped
