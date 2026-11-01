@@ -8,8 +8,19 @@ import time
 os.environ.setdefault("MAVLINK20", "1")
 from pymavlink import mavutil
 
-# parameters that change by themselves (counters): shown nowhere as a difference and never "restored"
-VOLATILE = {"STAT_BOOTCNT", "STAT_FLTCNT", "STAT_FLTTIME", "STAT_RESET", "STAT_RUNTIME"}
+# parameters that change by themselves (counters, or re-measured / re-calibrated at every boot): shown nowhere as a
+# difference and never "restored" (restoring stale sensor calibration over a fresh one would be wrong, not safer).
+VOLATILE = {
+    "STAT_BOOTCNT", "STAT_FLTCNT", "STAT_FLTTIME", "STAT_RESET", "STAT_RUNTIME",
+    "BARO1_GND_PRESS", "BARO2_GND_PRESS", "BARO3_GND_PRESS",  # barometer ground reference, re-measured every boot
+    "COMPASS_DEC",  # magnetic declination, auto-set from GPS once a fix is available (COMPASS_AUTODEC)
+    # gyro bias calibration + the temperature it was taken at, redone every boot while stationary
+    "INS_GYROFFS_X", "INS_GYROFFS_Y", "INS_GYROFFS_Z", "INS_GYR1_CALTEMP",
+    "INS_GYR2OFFS_X", "INS_GYR2OFFS_Y", "INS_GYR2OFFS_Z", "INS_GYR2_CALTEMP",
+    "INS_GYR3OFFS_X", "INS_GYR3OFFS_Y", "INS_GYR3OFFS_Z", "INS_GYR3_CALTEMP",
+    # telemetry stream rates set by REQUEST_DATA_STREAM: on this firmware they are not persisted to EEPROM
+    "SR0_RAW_SENS", "SR0_EXT_STAT", "SR0_RC_CHAN", "SR0_RAW_CTRL", "SR0_POSITION", "SR0_EXTRA1", "SR0_EXTRA2", "SR0_EXTRA3",
+}
 
 
 def connect(port, baud=115200, key=None):
