@@ -188,7 +188,8 @@ class ProtocolDetector(Detector):
         # ---- GNSS fix loss (navigation-channel denial / jamming) ----
         snap = frame.snapshot
         fix, sats = snap.gps_fix_type, snap.satellites
-        if fix is not None and sats is not None and (fix < self.min_fix_type or sats < self.min_sats):
+        # sats None with a fix report = satellite count unknown (MAVLink 255): judge the fix type alone
+        if fix is not None and (fix < self.min_fix_type or (sats is not None and sats < self.min_sats)):
             self._gnss_bad += 1
         else:
             self._gnss_bad = 0

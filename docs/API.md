@@ -68,7 +68,12 @@ frames_received, bytes_received, bytes_sent, write_errors, last_error_history,
 bad_frames`; `null` for replay), `gps` (`fix_type, fix_name, satellites,
 valid_fix, gps_raw_age_s, position_age_s, position_zero`: the last raw report;
 `valid_fix` applies the GNSS rule's thresholds to each report, whereas the rule
-itself votes only after `gnss_loss_ticks` consecutive bad decisions), `error`.
+itself votes only after `gnss_loss_ticks` consecutive bad decisions; `null` when the
+satellite count is unknown, MAVLink 255), plus the vehicle's own view, additive and `null` = unknown:
+`gps.health_ok` / `gps.health_age_s` (SYS_STATUS GPS-sensor health bit; `null` also when the sensor is
+not present/enabled) and `estimator{horizontal_position_ok, flags, age_s}` (EKF_STATUS_REPORT). A 3D fix
+(`valid_fix: true`) can coexist with `health_ok: false` and `horizontal_position_ok: false`; that is
+degraded navigation, not a spoofing verdict), `error`.
 
 ## Exposure
 Same-origin only. There is no CORS middleware (the Vite dev server proxies

@@ -1,4 +1,4 @@
-import type { EnvView, LinkView } from "../lib/source";
+import { gpsHealthText, type EnvView, type LinkView } from "../lib/source";
 import type { DefenseMode, LinkStatus, SourceInfo } from "../types";
 
 interface Props {
@@ -85,10 +85,19 @@ export function SourceBar({ source, link, linkView, runId, eventsCount }: {
       <span>link <b>{linkView.label}</b>{linkView.detail ? ` — ${linkView.detail}` : ""}</span>
       {gps && gps.fix_type != null && (
         <span>
-          GPS report <b>{fmt(gps.fix_name)}</b> · {fmt(gps.satellites)} sats · valid fix{" "}
-          <b>{gps.valid_fix ? "yes" : "no"}</b>
+          GPS receiver report <b>{fmt(gps.fix_name)}</b> · {fmt(gps.satellites)} sats · meets fix thresholds{" "}
+          <b>{gps.valid_fix == null ? "unknown" : gps.valid_fix ? "yes" : "no"}</b>
         </span>
       )}
+      {gps && gps.fix_type != null && (() => {
+        const h = gpsHealthText(gps, link?.estimator);
+        return (
+          <span data-testid="gps-health" title="Vehicle-reported (SYS_STATUS GPS bit, EKF_STATUS_REPORT). Degraded navigation is not, by itself, evidence of spoofing.">
+            vehicle GPS health <b>{h.health}</b> · estimator <b>{h.estimator}</b>
+            {h.degraded ? " — degraded navigation (health warning, not a spoofing verdict)" : ""}
+          </span>
+        );
+      })()}
       {source && !source.ml && source.kind !== "sim" && <span>ML off · integrity UNKNOWN (no verifier)</span>}
     </div>
   );

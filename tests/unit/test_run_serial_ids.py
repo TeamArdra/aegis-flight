@@ -50,6 +50,9 @@ class Device:
         except OSError:
             return
         conn.settimeout(0.01)
+        # pyserial's socket:// open() ends with reset_input_buffer(), which discards bytes that arrive
+        # before it returns; real serial ports are unaffected. Let the client finish opening first.
+        time.sleep(0.3)
         try:
             for f in self.frames:
                 conn.sendall(f)

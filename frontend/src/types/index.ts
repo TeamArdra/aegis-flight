@@ -124,6 +124,9 @@ export interface GpsLink {
   gps_raw_age_s: number | null;
   position_age_s: number | null;
   position_zero: boolean | null;
+  // vehicle-reported health, separate from the receiver's fix report; null/absent = unknown
+  health_ok?: boolean | null;
+  health_age_s?: number | null;
 }
 
 // Application-level link health (backend/engine.py link_status); ages are on the source's tick clock.
@@ -135,6 +138,7 @@ export interface LinkStatus {
   messages: Record<string, { count: number; age_s: number | null }>;
   transport: Record<string, unknown> | null;
   gps: GpsLink;
+  estimator?: { horizontal_position_ok: boolean | null; flags: number | null; age_s: number | null };
   error: string | null;
 }
 

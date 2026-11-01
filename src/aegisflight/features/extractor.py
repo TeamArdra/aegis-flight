@@ -299,7 +299,8 @@ class FeatureExtractor:
             self._batt_hist.append((t, self.snapshot.battery_voltage))
         elif name == "GPS_RAW_INT":
             self._gps_raw_seen = True
-            self.snapshot.satellites = int(f.get("satellites_visible", 0))
+            sats = int(f.get("satellites_visible", 0))
+            self.snapshot.satellites = None if sats == 255 else sats  # MAVLink: 255 = count unknown, not 255 satellites
             self.snapshot.gps_fix_type = int(f.get("fix_type", 0))
             self.snapshot.hdop = f.get("eph", 0) / 100.0
         elif name == "EKF_STATUS_REPORT" and "flags" in f:

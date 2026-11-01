@@ -400,7 +400,8 @@ def test_api_status_events_health_and_ws_shapes(tmp_path):
     assert {"connected", "disconnects", "reconnects", "open_failures", "crc_rejects", "garbage_bytes",
             "bytes_sent", "write_errors", "last_error_history", "bad_frames"} <= set(lk["transport"])
     assert {"fix_type", "fix_name", "satellites", "valid_fix", "gps_raw_age_s", "position_age_s",
-            "position_zero"} <= set(lk["gps"])
+            "position_zero", "health_ok", "health_age_s"} <= set(lk["gps"])
+    assert set(lk["estimator"]) == {"horizontal_position_ok", "flags", "age_s"}
     for name in ("HEARTBEAT", "GPS_RAW_INT", "GLOBAL_POSITION_INT", "ATTITUDE"):
         m = lk["messages"].get(name)
         assert m is not None and m["count"] > 0 and m["age_s"] >= 0.0, (name, lk["messages"], lk["transport"],

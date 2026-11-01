@@ -36,6 +36,7 @@ from ..attacks.base import NoAttack
 from ..config import AegisConfig, load_config
 from ..core.enums import AttackType, IntegrityStatus
 from ..core.geo import haversine_m, offset_latlon
+from ..features.extractor import ekf_has_horizontal_solution
 from ..logging import EventStore
 from ..mitigation import DefenseMode, MitigationController, MitigationState
 from ..mitigation.types import AttackSubMode
@@ -46,6 +47,7 @@ from .sources import LiveFeed, SourceSpec
 # Long "live" duration so the survey pattern flies continuously for a demo.
 _LIVE_DURATION_S = 100_000.0
 
+_SENSOR_GPS = 32  # MAV_SYS_STATUS_SENSOR_GPS
 GPS_FIX_NAMES = {0: "NO_GPS", 1: "NO_FIX", 2: "2D_FIX", 3: "3D_FIX", 4: "DGPS", 5: "RTK_FLOAT",
                  6: "RTK_FIXED", 7: "STATIC", 8: "PPP"}
 
@@ -70,6 +72,12 @@ class LinkMonitor:
         self.gps_raw_t: float | None = None
         self.gpi_t: float | None = None
         self.gpi_zero: bool | None = None
+        # Vehicle-reported health, kept apart from the receiver's fix report: SYS_STATUS sensor bits and the
+        # EKF_STATUS_REPORT flags. None = never received (unknown), never assumed healthy.
+        self.gps_health: bool | None = None  # None also when SYS_STATUS says the GPS sensor is not present/enabled
+        self.sys_status_t: float | None = None
+        self.ekf_flags: int | None = None
+        self.ekf_t: float | None = None
 
     def observe(self, tick: TelemetryTick) -> None:
         self.t = tick.t
@@ -83,8 +91,16 @@ class LinkMonitor:
             f = m.fields
             if m.msgname == "GPS_RAW_INT":
                 self.fix = int(f.get("fix_type", 0))
-                self.sats = int(f.get("satellites_visible", 0))
+                sats = int(f.get("satellites_visible", 0))
+                self.sats = None if sats == 255 else sats  # MAVLink: 255 = number of satellites unknown
                 self.gps_raw_t = tick.t
+            elif m.msgname == "SYS_STATUS" and "onboard_control_sensors_health" in f:
+                self.sys_status_t = tick.t
+                usable = int(f.get("onboard_control_sensors_present", 0)) & int(f.get("onboard_control_sensors_enabled", 0)) & _SENSOR_GPS
+                self.gps_health = bool(int(f["onboard_control_sensors_health"]) & _SENSOR_GPS) if usable else None
+            elif m.msgname == "EKF_STATUS_REPORT" and "flags" in f:
+                self.ekf_flags = int(f["flags"])
+                self.ekf_t = tick.t
             elif m.msgname == "GLOBAL_POSITION_INT":
                 self.gpi_t = tick.t
                 self.gpi_zero = int(f.get("lat", 0)) == 0 and int(f.get("lon", 0)) == 0
@@ -93,7 +109,13 @@ class LinkMonitor:
         return None if last is None or self.t is None else round(self.t - last, 2)
 
     def snapshot(self) -> dict:
-        valid = None if self.fix is None else bool(self.fix >= self.min_fix and (self.sats or 0) >= self.min_sats)
+        if self.fix is None:
+            valid = None
+        elif self.fix < self.min_fix:
+            valid = False
+        else:
+            valid = None if self.sats is None else self.sats >= self.min_sats  # None: satellite count unknown (255)
+        ekf_ok = None if self.ekf_flags is None else ekf_has_horizontal_solution(self.ekf_flags)
         return {
             "frames": self.frames,
             "last_frame_age_s": self._age(self.last_frame_t),
@@ -102,7 +124,12 @@ class LinkMonitor:
             "gps": {"fix_type": self.fix, "fix_name": GPS_FIX_NAMES.get(self.fix) if self.fix is not None else None,
                     "satellites": self.sats, "valid_fix": valid,
                     "gps_raw_age_s": self._age(self.gps_raw_t),
-                    "position_age_s": self._age(self.gpi_t), "position_zero": self.gpi_zero},
+                    "position_age_s": self._age(self.gpi_t), "position_zero": self.gpi_zero,
+                    # `valid_fix` is only the receiver's own report against the GNSS-loss thresholds. These two
+                    # are the vehicle's view and can disagree with it (3D fix, yet GPS-health bit clear and no
+                    # horizontal EKF solution). None = unknown (never reported, or sensor not present).
+                    "health_ok": self.gps_health, "health_age_s": self._age(self.sys_status_t)},
+            "estimator": {"horizontal_position_ok": ekf_ok, "flags": self.ekf_flags, "age_s": self._age(self.ekf_t)},
         }
 
 # Rolling window (wall-clock seconds) used to report *current* live throughput.

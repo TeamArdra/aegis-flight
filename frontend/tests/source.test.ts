@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { envView, linkView } from "../src/lib/source.ts";
+import { envView, gpsHealthText, linkView } from "../src/lib/source.ts";
 
 const ENVS = ["SIM", "REPLAY", "SITL", "BENCH"];
 const NON_SIM = ["REPLAY", "SITL", "BENCH"];
@@ -80,4 +80,13 @@ test("backend silence overrides a live-looking state, never a final one", () => 
 test("no link reported yet", () => {
   assert.equal(linkView(null, true, null).label, "No data");
   assert.equal(linkView(null, false, null).label, "Backend offline");
+});
+
+test("a 3D fix with an unhealthy vehicle report is degraded; unreported health is unknown, never ok", () => {
+  const bad = gpsHealthText({ health_ok: false }, { horizontal_position_ok: false, flags: 0xa7, age_s: 0.1 });
+  assert.deepEqual(bad, { health: "UNHEALTHY", estimator: "NO horizontal solution", degraded: true });
+  const none = gpsHealthText({ fix_type: 3 }, undefined);
+  assert.deepEqual(none, { health: "unknown", estimator: "unknown", degraded: false });
+  assert.equal(gpsHealthText({ health_ok: true }, { horizontal_position_ok: true, flags: 1, age_s: 0 }).degraded, false);
+  assert.doesNotMatch(JSON.stringify(bad), /spoof/i);
 });

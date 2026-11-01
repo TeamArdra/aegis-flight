@@ -2,7 +2,7 @@
 // decides anything — the backend derives `environment` (never user-settable) and the link `state`
 // (backend/engine.py link_status); this module only words them, so the dashboard cannot present
 // simulated, replayed or stale data as live physical telemetry. Pure functions (frontend/tests/).
-import type { Environment, LinkStatus } from "../types";
+import type { Environment, GpsLink, LinkStatus } from "../types";
 
 export interface EnvView {
   badge: Environment | "—";
@@ -144,4 +144,19 @@ export function linkView(
     default:
       return { label: String(link.state), tone: "idle", detail: "" };
   }
+}
+
+// GPS fix report vs the vehicle's own health view. A 3D fix alone never reads as "healthy": the GPS-health bit
+// (SYS_STATUS) and the EKF horizontal-position solution are shown separately, and "unknown" until reported.
+export function gpsHealthText(
+  gps: GpsLink | undefined,
+  estimator: LinkStatus["estimator"] | undefined,
+): { health: string; estimator: string; degraded: boolean } {
+  const tri = (v: boolean | null | undefined, yes: string, no: string) =>
+    v === true ? yes : v === false ? no : "unknown";
+  return {
+    health: tri(gps?.health_ok, "ok", "UNHEALTHY"),
+    estimator: tri(estimator?.horizontal_position_ok, "ok", "NO horizontal solution"),
+    degraded: gps?.health_ok === false || estimator?.horizontal_position_ok === false,
+  };
 }
