@@ -1,0 +1,21 @@
+{
+  "name": "aegis-merge-gate",
+  "url": "https://github.com/TeamArdra/techfest-2026/blob/main/docs/MERGE_APP_SETUP.md",
+  "description": "AegisFlight merge orchestrator: approves and squash-merges routine PRs only after the CI, independent-review and policy gates in docs/AUTONOMOUS_PIPELINE.md pass. No webhooks; used only from GitHub Actions.",
+  "public": false,
+  "hook_attributes": {
+    "url": "https://github.com/TeamArdra/techfest-2026",
+    "active": false
+  },
+  "redirect_url": "https://github.com/TeamArdra/techfest-2026",
+  "default_events": [],
+  "default_permissions": {
+    "metadata": "read",
+    "contents": "write",
+    "pull_requests": "write",
+    "issues": "write",
+    "actions": "write",
+    "checks": "read",
+    "statuses": "read"
+  }
+}
