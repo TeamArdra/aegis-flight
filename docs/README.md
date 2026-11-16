@@ -57,6 +57,9 @@ QUICKSTART  →  HANDOFF  →  ARCHITECTURE  →  END_TO_END_FLOW  →  FILE_REF
 - [DEVELOPMENT.md](DEVELOPMENT.md) — conventions & boundaries.
 - [ENGINEERING_WORKFLOW.md](ENGINEERING_WORKFLOW.md) — issues, branches, PRs, automated review, remediation.
 - [CLAUDE_AUTOMATION.md](CLAUDE_AUTOMATION.md) — Claude PR reviewer + remediation workflows: design, security, setup.
+- [AUTONOMOUS_PIPELINE.md](AUTONOMOUS_PIPELINE.md) — issue → PR → review → remediation → verified merge: trust model, gates, escalation, claiming protocol, cost.
+- [MERGE_APP_SETUP.md](MERGE_APP_SETUP.md) — admin setup of the merge App and post-installation verification.
+- [LUXURIO_COMPARISON.md](LUXURIO_COMPARISON.md) — architecture comparison with the reference repository.
 - [ADDING_A_NEW_ATTACK.md](ADDING_A_NEW_ATTACK.md)
 - [ADDING_A_NEW_DETECTOR.md](ADDING_A_NEW_DETECTOR.md)
 

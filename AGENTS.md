@@ -112,8 +112,12 @@ updated, retrain if `ML_FEATURES` changed, and the Stage-1 regression evidence (
    unassigned, not blocked (its "Blocked by" issues are closed), and not `needs:hardware` or
    `model:human`. `needs:human-approval` means a maintainer must approve the approach on the
    issue **before** you write code.
-2. Claim it: assign yourself and comment the branch name. If someone else has claimed it,
-   or an open PR already references it, pick another issue.
+2. Claim it with the claiming protocol, which checks eligibility, resolves races between
+   agents deterministically, assigns you and adds `status:in-progress`:
+   `PYTHONPATH=scripts python -m aegis_automation.issue_claim claim <n> --branch <type>/<n>-<slug> --agent <session-id>`
+   (`... issue_claim ready` lists claimable issues). If the claim is refused or lost, pick
+   another issue; never work on an issue someone else holds. Release it (`... release <n>`)
+   if you stop. Details: `docs/AUTONOMOUS_PIPELINE.md` §8.
 3. Branch `<type>/<issue#>-<slug>` from fresh `origin/main` (types: `feat`, `fix`, `chore`,
    `docs`, `test`, `evidence`, `refactor`), ideally in its own worktree. **Never commit to
    `main`.** No unrelated changes.
@@ -121,7 +125,12 @@ updated, retrain if `ML_FEATURES` changed, and the Stage-1 regression evidence (
 5. Open a PR to `main` with `Closes #<issue>` and the PR template filled in, including the
    exact commands you ran and their summary lines.
 6. The automated reviewer comments. Address findings you can verify; reply to the ones you
-   disagree with, giving your reasons. A human approves and merges; agents never merge.
+   disagree with, giving your reasons. Move the issue to `status:in-review` when the PR is
+   ready. **Agents never approve or merge** (their own or any PR). Routine PRs are approved
+   and squash-merged only by the separate merge-gate identity after its checks pass;
+   escalated PRs (automation, security, frozen contracts, vehicle-link safety, evidence,
+   dependencies, detector metrics) are approved and merged by a human. Never close the
+   issue yourself: it closes when the PR merges.
 
 Commit messages: imperative summary, a body explaining why. **No AI attribution trailers**
 (`Co-Authored-By: Claude …`, "Generated with …"): the team keeps human-only authorship.

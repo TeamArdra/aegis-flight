@@ -7,6 +7,10 @@
 /CLAUDE.md         @RajTib
 /docs/CLAUDE_AUTOMATION.md    @RajTib
 /docs/ENGINEERING_WORKFLOW.md @RajTib
+/docs/AUTONOMOUS_PIPELINE.md  @RajTib
+/docs/MERGE_APP_SETUP.md      @RajTib
+/scripts/aegis_automation/    @RajTib
+/tests/automation/            @RajTib
 
 # Domain owners: to be assigned by the team (issue #13). Suggested paths:
 # /src/aegisflight/detectors/  /src/aegisflight/features/  /src/aegisflight/fusion/
