@@ -1,60 +1,37 @@
-# CLAUDE.md — AegisFlight
+# CLAUDE.md: AegisFlight
 
-Guidance for Claude Code (and humans) working in this repo.
+Instructions for Claude Code sessions (local and in GitHub Actions). The engineering rules
+shared with every agent and human are in `AGENTS.md`, imported here:
 
-## What this is
-A Stage-1 proof-of-concept **UAV Intrusion Detection System** (PUSHPAK
-challenge). Detects six attack classes on a **simulated** MAVLink link +
-firmware, fuses four detectors into explainable alerts, logs to a tamper-evident
-hash chain, streams to a React dashboard. **Everything is a local simulation.**
+@AGENTS.md
 
-## Environment
-- Python ≥ 3.11 in `.venv` (use `.venv/Scripts/python.exe` on Windows).
-- Install: `pip install -e ".[dev]"`. Node ≥ 18 only for the dashboard.
-- Windows: the shell is PowerShell; a Bash tool is also available.
+## Claude-specific rules
 
-## Key commands
-```bash
-aegis simulate --attack gps_spoofing   # one session + alerts
-aegis train                            # train models/isoforest.joblib
-aegis benchmark                        # metrics + figures -> artifacts/
-aegis serve                            # dashboard http://127.0.0.1:8000
-aegis verify-log <db.sqlite>           # check hash chain
-pytest                                 # `pytest -q` prints the count (a few PTY tests skip on Windows)
-ruff check src tests scripts backend   # lint (keep clean)
-python scripts/run_demo.py             # narrated headless demo
-```
+### Roles
+- **Implementation (Claude Sonnet, local sessions):** routine issue work. Follow `AGENTS.md`
+  §7 exactly: one claimed issue, one branch/worktree, one PR. Do not redefine project-wide
+  contracts, CI, automation or these instruction files as a side effect of an issue.
+- **Architecture (Claude Opus, on request only):** cross-cutting design, frozen-contract
+  migrations, security-sensitive changes. A human asks for it; it is not the default.
+- **Automated reviewer and remediation (GitHub Actions):** see `docs/CLAUDE_AUTOMATION.md`.
+  They read this file from the PR's **base** branch.
 
-## Architecture (one line)
-`simulator → mavlink(+noise) → [attack] → decode → features → 4 detectors →
-fusion → ThreatAssessment → {SQLite hash chain, FastAPI/WS → dashboard}`.
-The pipeline is wired only in `pipeline.py`; backend + benchmark reuse it. Full
-docs in `docs/` (start at `docs/README.md`, then `docs/HANDOFF.md`).
+### Working style
+- Read the issue (`gh issue view <n>`), its acceptance criteria and its "Blocked by" row
+  before writing code. Read the code you change, its callers and its tests.
+- Paste exact commands and their summary lines in the PR. If you did not run something,
+  write "not run". Never claim a test, benchmark or SITL run you did not perform.
+- When unsure whether a change touches a frozen contract (`AGENTS.md` §4) or a security
+  boundary (§5), stop and ask on the issue instead of guessing.
+- Prefer the smallest change that satisfies the acceptance criteria. No drive-by refactors.
+- Do not install third-party skills, plugins or MCP servers at runtime for repository work;
+  anything a task needs must be reproducible from the repo.
+- Git: never commit to `main`, never force-push a shared branch, never merge. No
+  `Co-Authored-By: Claude` or "Generated with Claude Code" lines in commits or PR bodies.
+- `.claude/` is local configuration and is git-ignored; never commit it.
 
-## Conventions
-- `ruff` clean; `from __future__ import annotations`; modern generics.
-- Small logical commits; end messages with
-  `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
-- Detectors read only a `FeatureFrame`; `core/` imports nothing internal; ground
-  truth (`FlightState`, attack `label`) is benchmark-only.
-- **Autonomous JIT Skills:** Do not load skills indiscriminately. When a task requires specialized domain expertise (e.g. Wireshark pcap, firmware security, React performance), install only that skill just-in-time from `docs/SKILLS_REGISTRY.md`, log it, and uninstall it upon completion to preserve context window tokens.
-
-## Do NOT change casually
-`ML_FEATURES` order (model depends on it — retrain), `FlightState`/
-`MessageEnvelope` fields, enum `.value` strings, MAVLink field mappings, the
-event schema / hash-chain canonicalisation, the benchmark scoring policy, attack
-hook signatures. See `docs/HANDOFF.md`.
-
-## After changing detectors/features/simulator
-Retrain (`aegis train`) and re-benchmark (`aegis benchmark`), then update the
-numbers in `README.md`, `docs/BENCHMARKING.md`, `docs/technical_proposal.md`, and
-keep the relevant `docs/*.md` in sync (see `docs/DEVELOPMENT.md`).
-
-## Generated vs committed
-Commit `artifacts/benchmarks/*` and `artifacts/figures/*` (evidence). Do NOT
-commit `models/*.joblib`, `*.sqlite`, `frontend/dist/`, `node_modules/` (all
-gitignored; regenerable).
-
-## History
-Recovered after a mid-build crash — see `docs/RECOVERY_AUDIT.md`. Foundation
-(config/core) is unchanged; everything else was built during continuation.
+### Useful entry points
+- Docs index: `docs/README.md`; hand-off and frozen-contract history: `docs/HANDOFF.md`.
+- Where to add things: `docs/DEVELOPMENT.md` ("Where to add things").
+- Process and review findings: `docs/ENGINEERING_WORKFLOW.md`.
+- Benchmarking: `docs/BENCHMARKING.md`; evidence index: `docs/VALIDATION_EVIDENCE.md`.

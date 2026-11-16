@@ -1,0 +1,46 @@
+name: Bug
+description: Something behaves incorrectly (wrong detection, crash, flaky test, wrong number in a doc).
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behaviour
+      description: Exact command, input/capture, and output. Paste logs as text.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal steps on a clean checkout of a named commit.
+      placeholder: |
+        git checkout <sha>
+        pip install -e ".[dev]"
+        <command>
+    validations:
+      required: true
+  - type: dropdown
+    id: env
+    attributes:
+      label: Environment tag
+      options: ["SIM", "REPLAY", "SITL", "HITL", "FIELD", "CI / tests only"]
+    validations:
+      required: true
+  - type: textarea
+    id: version
+    attributes:
+      label: Versions
+      description: AegisFlight commit, OS, Python; PX4/ArduPilot `git describe` for SITL.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] A regression test fails before the fix and passes after it

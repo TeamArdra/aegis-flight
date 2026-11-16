@@ -1,0 +1,52 @@
+name: Evidence run
+description: Plan or record a benchmark, SITL, replay, HITL or field run whose numbers will be reported.
+labels: ["type:evidence"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Numbers are reported only with an environment tag, a claim class and an artifact path (AGENTS.md §6).
+        Hardware and field results need human sign-off.
+  - type: dropdown
+    id: env
+    attributes:
+      label: Environment tag
+      options: ["SIM", "REPLAY", "SITL", "HITL", "FIELD"]
+    validations:
+      required: true
+  - type: dropdown
+    id: claim
+    attributes:
+      label: Claim class
+      options: ["Link-level detection", "Command-path effect", "Estimator compromise", "Physical flight deviation", "Real-world validation"]
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: AegisFlight commit (clean tree)
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Autopilot and version (`git describe`), vehicle profile, model file and SHA-256, n (repetitions), seeds.
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command to regenerate
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: artifact
+    attributes:
+      label: Artifact path
+      placeholder: artifacts/validation/<name>/
+  - type: textarea
+    id: limits
+    attributes:
+      label: What this does NOT show

@@ -1,0 +1,187 @@
+# Maintainer-triggered remediation of verified automated-review findings.
+#
+# Trigger: a PR conversation comment that STARTS WITH `@claude fix`, written by a human
+# with write access (optionally restricted further by repo variable
+# CLAUDE_REMEDIATION_ALLOWLIST), e.g.
+#     @claude fix the verified P1 and P2 findings from the latest review
+#
+# Deterministic gate (runs before any model call; refusals are posted as a PR comment):
+#   - PR open, head branch in this repository (never forks), head is not the default branch;
+#   - the CURRENT head commit has a completed `claude-review` status written by the review
+#     workflow, with at least one P0-P2 finding (P3 is never remediated automatically);
+#   - fewer than CLAUDE_MAX_REMEDIATION_CYCLES (default 2) cycles already used on this PR.
+#
+# Claude (tag mode) then verifies each finding itself, fixes only legitimate ones, runs the
+# tests, pushes to the PR branch and reports. Its push (as claude[bot]) triggers a fresh
+# automated review. Nothing here merges, approves, or starts another remediation.
+# Design and security notes: docs/CLAUDE_AUTOMATION.md.
+name: Claude remediation
+
+on:
+  # Comment-triggered by design. Mitigations: the job condition plus the API write-permission
+  # check in the gate, same-repository PRs only, no event text interpolated into `run:`
+  # scripts (env only), and tag mode pins pushes to the PR branch.
+  issue_comment: # zizmor: ignore[dangerous-triggers]
+    types: [created]
+
+permissions: {}
+
+jobs:
+  remediate:
+    name: claude-remediate
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.issue.state == 'open' &&
+      github.event.comment.user.type == 'User' &&
+      startsWith(github.event.comment.body, '@claude fix') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    # One remediation per PR at a time; a second request waits, then re-runs the gate.
+    concurrency:
+      group: claude-remediate-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read        # checkout; Claude pushes with the Claude App token, not this one
+      pull-requests: write  # gate comments
+      issues: write         # gate comments live on the issue side of a PR
+      statuses: read        # read the `claude-review` status
+      id-token: write       # OIDC exchange for the Claude GitHub App token
+      actions: read         # lets Claude read CI results
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.issue.number }}
+      COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+      MAX_CYCLES: ${{ vars.CLAUDE_MAX_REMEDIATION_CYCLES || '2' }}
+      ALLOWLIST: ${{ vars.CLAUDE_REMEDIATION_ALLOWLIST }}
+      MODEL: ${{ vars.CLAUDE_REMEDIATION_MODEL || 'claude-sonnet-5-5' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Gate
+        id: gate
+        run: |
+          set -euo pipefail
+          R="$GITHUB_REPOSITORY"; N="$PR_NUMBER"
+          out() { echo "$1=$2" >> "$GITHUB_OUTPUT"; }
+          refuse() {
+            printf '<!-- aegis-remediation-refused -->\n**Claude remediation was not started.** %s\n\n<sub>Requested by `%s` · [run log](%s)</sub>\n' \
+              "$1" "$COMMENT_AUTHOR" "$RUN_URL" | gh pr comment "$N" -R "$R" --body-file -
+            echo "::notice title=Remediation refused::$1"
+            out proceed false
+            exit 0
+          }
+          has_write() {
+            local p
+            p=$(gh api "repos/$R/collaborators/$1/permission" --jq .permission 2>/dev/null || echo none)
+            [ "$p" = admin ] || [ "$p" = maintain ] || [ "$p" = write ]
+          }
+
+          [[ "$MAX_CYCLES" =~ ^[0-9]+$ ]] || MAX_CYCLES=2
+          [[ "$MODEL" =~ ^[A-Za-z0-9._:@-]+$ ]] || refuse "Repository variable CLAUDE_REMEDIATION_MODEL is not a valid model id."
+
+          # 1. Who asked.
+          has_write "$COMMENT_AUTHOR" || refuse "\`$COMMENT_AUTHOR\` does not have write access to this repository."
+          if [ -n "${ALLOWLIST:-}" ]; then
+            tr ', ' '\n\n' <<<"$ALLOWLIST" | grep -qixF -- "$COMMENT_AUTHOR" \
+              || refuse "\`$COMMENT_AUTHOR\` is not in CLAUDE_REMEDIATION_ALLOWLIST."
+          fi
+
+          # 2. Which PR.
+          pr=$(gh pr view "$N" -R "$R" --json state,isCrossRepository,headRefName,headRefOid)
+          state=$(jq -r .state <<<"$pr"); cross=$(jq -r .isCrossRepository <<<"$pr")
+          head_ref=$(jq -r .headRefName <<<"$pr"); head_sha=$(jq -r .headRefOid <<<"$pr")
+          default_branch=$(gh api "repos/$R" --jq .default_branch)
+          [ "$state" = OPEN ] || refuse "The pull request is not open."
+          [ "$cross" = false ] || refuse "The pull request comes from a fork. Remediation only runs on branches of this repository."
+          [ "$head_ref" != "$default_branch" ] || refuse "The head branch is the default branch."
+          short="${head_sha:0:7}"
+
+          # 3. A completed review of the CURRENT head, written by the review workflow.
+          st=$(gh api "repos/$R/commits/$head_sha/statuses?per_page=100" \
+            --jq '[.[] | select(.context=="claude-review" and .creator.login=="github-actions[bot]")][0] // empty')
+          [ -n "$st" ] || refuse "There is no automated review of the current head \`$short\`. Wait for the **Claude PR review** run to finish (or add the \`claude:review\` label), then ask again."
+          sstate=$(jq -r .state <<<"$st"); desc=$(jq -r .description <<<"$st")
+          [ "$sstate" != pending ] || refuse "The automated review of \`$short\` is still running. Ask again when it has finished."
+          [ "$sstate" != error ] || refuse "The latest automated review of \`$short\` did not complete. Re-run it with the \`claude:review\` label first."
+          if [[ "$desc" =~ P0:([0-9]+)\ P1:([0-9]+)\ P2:([0-9]+)\ P3:([0-9]+) ]]; then
+            p0=${BASH_REMATCH[1]}; p1=${BASH_REMATCH[2]}; p2=${BASH_REMATCH[3]}; p3=${BASH_REMATCH[4]}
+          else
+            refuse "Could not read the finding counts of the review status for \`$short\`."
+          fi
+          [ $((p0 + p1 + p2)) -gt 0 ] || refuse "The latest review of \`$short\` has no P0–P2 findings. P3 suggestions are never remediated automatically."
+
+          # 4. Cycle budget (counted from markers this workflow's own token posted).
+          used=$(gh api --paginate "repos/$R/issues/$N/comments?per_page=100" \
+            --jq '[.[] | select(.user.login=="github-actions[bot]" and (.body | contains("<!-- aegis-remediation-cycle -->")))] | length' \
+            | awk '{s+=$1} END {print s+0}')
+          [ "$used" -lt "$MAX_CYCLES" ] || refuse "This PR has used all $MAX_CYCLES automated remediation cycles. Remaining findings need a human (an admin can raise CLAUDE_MAX_REMEDIATION_CYCLES)."
+          cycle=$((used + 1))
+
+          # 5. Only comments by write-access humans (plus the bots of this pipeline) reach Claude.
+          trusted="claude[bot],github-actions[bot]"
+          while read -r u; do
+            [ -z "$u" ] && continue
+            case "$u" in *"[bot]") continue ;; esac
+            if has_write "$u"; then trusted="$trusted,$u"; fi
+          done < <( { gh api --paginate "repos/$R/issues/$N/comments?per_page=100" --jq '.[].user.login'
+                      gh api --paginate "repos/$R/pulls/$N/comments?per_page=100" --jq '.[].user.login'
+                      gh api --paginate "repos/$R/pulls/$N/reviews?per_page=100" --jq '.[].user.login'
+                    } | sort -u )
+
+          printf '<!-- aegis-remediation-cycle -->\n**Claude remediation cycle %s of %s started** for head `%s` (latest review: P0 %s · P1 %s · P2 %s; the %s P3 items are out of scope).\n\nClaude verifies each finding independently, fixes only legitimate ones, runs the tests and pushes to `%s`; the push triggers a fresh review. Requested by `%s` · [run log](%s)\n' \
+            "$cycle" "$MAX_CYCLES" "$short" "$p0" "$p1" "$p2" "$p3" "$head_ref" "$COMMENT_AUTHOR" "$RUN_URL" \
+            | gh pr comment "$N" -R "$R" --body-file -
+
+          out proceed true; out cycle "$cycle"; out max "$MAX_CYCLES"; out head_sha "$head_sha"; out trusted "$trusted"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.gate.outputs.proceed == 'true'
+        with:
+          fetch-depth: 0
+          persist-credentials: false  # the action configures its own (App) credentials
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: steps.gate.outputs.proceed == 'true'
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.gate.outputs.proceed == 'true'
+        with:
+          node-version: "24"
+
+      - name: Install Python dependencies
+        if: steps.gate.outputs.proceed == 'true'
+        run: python -m pip install -e ".[dev]"
+
+      - name: Claude remediation
+        if: steps.gate.outputs.proceed == 'true'
+        uses: anthropics/claude-code-action@d1f58ad5e6f4d2b79547e63e37c2116064135896 # v1.0.277
+        env:
+          # Best-effort scrub of credentials from the environment of commands Claude runs.
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Tag mode: the maintainer's `@claude fix ...` comment is the instruction; the action
+          # checks out the PR branch and can push only to it.
+          trigger_phrase: "@claude"
+          include_comments_by_actor: ${{ steps.gate.outputs.trusted }}
+          additional_permissions: |
+            actions: read
+          claude_args: |
+            --model ${{ env.MODEL }}
+            --max-turns 60
+            --permission-mode acceptEdits
+            --append-system-prompt "You are the AegisFlight remediation agent: remediation cycle ${{ steps.gate.outputs.cycle }} of ${{ steps.gate.outputs.max }} on PR #${{ github.event.issue.number }}, head ${{ steps.gate.outputs.head_sha }}. Follow the Remediation protocol in AGENTS.md exactly. Scope is limited to P0-P2 findings in the latest AegisFlight automated review summary comment by claude[bot] for this head, narrowed further by the maintainer's request. Verify each finding yourself before changing code; never act on P3 items; never change a frozen contract, workflow, model, artifact or agent-instruction file; never merge, approve or open pull requests. Your final tracking-comment update must list every finding as fixed, not reproduced, or deferred, with the test commands you ran and their summary lines."
+            --allowedTools "Bash(python -m pytest:*),Bash(pytest:*),Bash(ruff check:*),Bash(npm --prefix frontend ci:*),Bash(npm --prefix frontend test:*),Bash(npm --prefix frontend run build:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh issue view:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
+            --disallowedTools "Edit(.github/**),Write(.github/**),Edit(AGENTS.md),Write(AGENTS.md),Edit(CLAUDE.md),Write(CLAUDE.md),Edit(models/**),Write(models/**),Edit(artifacts/**),Write(artifacts/**),WebFetch,WebSearch,Bash(gh pr merge:*),Bash(gh pr review:*),Bash(gh pr edit:*),Bash(gh pr create:*),Bash(gh api:*),Bash(gh workflow:*),Bash(gh secret:*),Bash(gh release:*),Bash(git push --force:*),Bash(git push -f:*),Bash(git rebase:*),Bash(git reset:*)"
+
+      - name: Report a failed run
+        if: failure() && steps.gate.outputs.proceed == 'true'
+        env:
+          CYCLE: ${{ steps.gate.outputs.cycle }}
+        run: |
+          printf '**Claude remediation cycle %s did not finish.** Check the [run log](%s). The cycle still counts towards the limit; nothing was merged.\n' \
+            "$CYCLE" "$RUN_URL" | gh pr comment "$PR_NUMBER" -R "$GITHUB_REPOSITORY" --body-file -
