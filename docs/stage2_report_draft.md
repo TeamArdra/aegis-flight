@@ -127,7 +127,7 @@ firmware integrity. *Fusion:* noisy-OR with weights 0.30 / 0.34 / 0.16 / 0.20 an
 logging:* alerts at severity ≥ SUSPICIOUS, 4 s cooldown per attack type, SQLite hash chain, `alerts.jsonl`, FastAPI + WebSocket → React dashboard.
 *Interfaces:* `/api/status` (includes the passive GPS/estimator health block), `/ws`, `aegis verify-log`. *Where it runs:* a ground laptop in
 the tested configuration; a companion computer is a design target.
-**How it avoids interfering with flight control (serial runner only):** `scripts/hardware/run_serial_ids.py` has no mode that transmits (`active-ips` is refused on live sources) and never calls the transport's `send()`; it exits
+**How it avoids interfering with flight control (serial runner only):** `scripts/hardware/run_serial_ids.py` has no mode that transmits (`--defense-mode` accepts only `passive` / `advisory`; `aegis serve` and `aegis ips-bridge` also refuse `active-ips` on any serial device) and never calls the transport's `send()`; it exits
 with code 3 if any byte was written, which *detects* a write after the fact and does not prevent one. The UDP transport used for `SITL` (`sources/mavlink_live.py`) does transmit (heartbeats, signing setup), so the receive-only statement does not extend to the `SITL` path; `bytes_sent` was 0 in every physical capture. The monitored radio link is bidirectional, but the laptop side never writes
 to it. *Not verified:* physical TX-line isolation on a companion harness (design only, `RISK_REGISTER.md` RSK-01) and the DTR/RTS side effect of opening the port.
 The defense/mitigation layer (counter-commands, sanitiser, dashboard "prevention") is a **`SIM` model**; no prevention metric was measured.
@@ -282,7 +282,7 @@ Every alert stores its evidence strings and detector scores in the event store. 
 | False-alarm rate | **Not computed.** Alerts are not counted per hour on any real-flight data | per hour | -- |
 | Upper 95 % bound on false-alarm rate | **Not established.** For scale only: with 0 alerts in the 0.025 h `BENCH` run the rule-of-three bound is ≤ 120 per hour (derived: 3 / 0.025 h), which shows the exposure cannot support a rate claim (a stationary bench run with autocorrelated decisions: **not** a flight bound) | per hour | derived arithmetic, not an artifact |
 | Alert persistence and suppression settings | threat ≥ 0.45; alert at severity ≥ SUSPICIOUS; cooldown 4.0 s per attack type; 4 normal ticks to clear; rule-level persistence (GNSS loss 5 decisions) | -- | `configs/detector.yaml` |
-| Alert response policy (advisory or automatic) | **Advisory.** On serial, UDP and replay sources the response is report-only: no counter-frames, `active-ips` refused | -- | `README.md` §2; `tests/unit/test_defense_safety.py` |
+| Alert response policy (advisory or automatic) | **Advisory.** On serial-device and replay sources the response is report-only: no counter-frames, `active-ips` refused on a serial device. On `SITL` UDP / `socket://` links an operator may enable `active-ips` (signing key or explicit acknowledgement); no prevention metric was measured | -- | `README.md` §2; `tests/unit/test_defense_safety.py` |
 
 ### 7.1 Benign-Condition Matrix
 

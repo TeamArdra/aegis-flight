@@ -203,10 +203,14 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
     import time
 
     from ..hal.inline_ips import InlineIpsBridge
-    from ..sources.mavlink_serial import SerialMavlinkTransport
+    from ..sources.mavlink_serial import SerialMavlinkTransport, may_reach_vehicle
 
     if args.fc_port == args.gcs_port:
         print("aegis ips-bridge: --fc-port and --gcs-port must differ", file=sys.stderr)
+        return 2
+    if args.defense_mode == "active-ips" and may_reach_vehicle(args.fc_port):
+        print(f"aegis ips-bridge: refusing --defense-mode active-ips on --fc-port {args.fc_port}: a serial device may "
+              "be a physical flight controller, which is receive-only. Use a socket:// SITL link.", file=sys.stderr)
         return 2
     try:
         fc = SerialMavlinkTransport(args.fc_port, baudrate=args.fc_baud, allow_url=args.allow_url,
@@ -393,13 +397,15 @@ def build_parser() -> argparse.ArgumentParser:
     sv.add_argument("--config-dir", default=None, help="detector profile dir (default: Stage-1 configs/)")
     sv.add_argument("--db", default=None, help="event store (default: artifacts/aegisflight_live.sqlite)")
     sv.add_argument("--gcs-notify", action="store_true",
-                    help="broadcast MAVLink STATUSTEXT alert notifications to GCS (UDP or active serial/UDP link)")
+                    help="broadcast MAVLink STATUSTEXT alert notifications to GCS (UDP target; also onto a UDP or "
+                         "socket:// link, never onto a serial device)")
     sv.add_argument("--gcs-notify-host", default="127.0.0.1",
                     help="target GCS host for UDP STATUSTEXT alerts (default: 127.0.0.1)")
     sv.add_argument("--gcs-notify-port", type=int, default=14550,
                     help="target GCS UDP port for STATUSTEXT alerts (default: 14550)")
     sv.add_argument("--defense-mode", choices=["passive", "advisory", "active-ips"], default="passive",
-                    help="defense engine posture: passive (IDS only, zero bytes sent), advisory (GCS alerts), active-ips (autonomous mitigation)")
+                    help="defense engine posture: passive (IDS only, zero bytes sent), advisory (GCS alerts), active-ips "
+                         "(autonomous mitigation; refused on a serial device, which is receive-only)")
     sv.add_argument("--signing-key-file", default=None,
                     help="32-byte MAVLink-2 key (raw or 64 hex chars) used to authenticate the ips-bridge cross-end summary")
     sv.add_argument("--mgmt-key-file", default=None,
@@ -414,7 +420,8 @@ def build_parser() -> argparse.ArgumentParser:
     ib.add_argument("--gcs-baud", type=int, default=57600)
     ib.add_argument("--allow-url", action="store_true", help="allow socket:// virtual ports (tests, SITL)")
     ib.add_argument("--defense-mode", choices=["passive", "advisory", "active-ips"], default="passive",
-                    help="passive/advisory forward every frame byte-identically; active-ips filters and counter-acts")
+                    help="passive/advisory forward every frame byte-identically; active-ips filters and counter-acts "
+                         "(refused when --fc-port is a serial device: a physical FC is receive-only)")
     ib.add_argument("--trusted-sysid", type=int, action="append",
                     help="ground-station sysid allowed to command the vehicle (repeatable; default from detector.yaml)")
     ib.add_argument("--signing-key-file", default=None,

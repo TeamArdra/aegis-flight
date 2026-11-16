@@ -942,12 +942,19 @@ def test_api_events_limit_is_bounded(tmp_path):
 # --- T7 parity with the committed offline replay of capture 007 -------------------------------------------------- #
 
 @needs_007
-def test_capture_007_backend_replay_matches_offline_replay(tmp_path, capsys):
+@pytest.mark.parametrize("auto_rate_baseline", [False, None])
+def test_capture_007_backend_replay_matches_offline_replay(tmp_path, capsys, auto_rate_baseline):
+    """Parity with the offline replay. False = the reference's own profile (exact parity). None = the backend
+    default since 2d455b5 (auto: the learnt rate baseline is on for every non-SIM source): the same decisions and
+    alerts; it only adds the informational ``coverage: learning link message-rate baseline`` evidence line."""
     if not REF_007.exists():
         pytest.skip(f"offline replay reference {REF_007.relative_to(REPO).as_posix()} not present")
     ref = json.loads(REF_007.read_text(encoding="utf-8"))
     db = tmp_path / "capture_007.sqlite"
-    with serve(make_engine(tmp_path, replay_spec(TLOG_007), db.name)) as client:  # REPLAY of BENCH bytes
+    cfg = load_config()
+    cfg.detector.setdefault("protocol", {})["auto_rate_baseline"] = auto_rate_baseline
+    engine = LiveEngine(cfg=cfg, db_path=str(tmp_path / db.name), spec=replay_spec(TLOG_007))
+    with serve(engine) as client:  # REPLAY of BENCH bytes
         st, _ = poll(client, lambda s: link(s)["state"] == "ended", timeout_s=30)
         m = client.get("/api/metrics").json()
         api = client.get("/api/events?limit=1000").json()
@@ -956,6 +963,11 @@ def test_capture_007_backend_replay_matches_offline_replay(tmp_path, capsys):
     events = sorted(api["events"], key=lambda e: e["id"])  # chronological
     assert api["count"] == len(events) == m["alerts"] == ref["alert_decisions"] == 15, (api["count"], m)
     assert dict(Counter(e["attack_type"] for e in events)) == ref["alert_types"] == {"DOS": 15}
+    learning = "coverage: learning link message-rate baseline"
+    if auto_rate_baseline is None:
+        assert any(x.startswith(learning) for e in events for x in e["evidence"])
+        for e in events:
+            e["evidence"] = [x for x in e["evidence"] if not x.startswith(learning)]
     prefixes = [p for p, _ in ref["alert_evidence_top"]]
     assert [e["evidence"][0][:80] for e in events[:len(prefixes)]] == prefixes
     # the reference's own statistic (replay_ap_tlog.summarise), recomputed from the persisted events

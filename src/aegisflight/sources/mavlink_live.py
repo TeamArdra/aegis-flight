@@ -217,13 +217,20 @@ class MavlinkFrameParser:
     claimed signature that fails verification is counted (``sig_invalid``) and the frame is
     dropped (``bad_frames``), the same fail-closed treatment as a CRC failure; this parser
     never raises either way.
+
+    ``unsigned_allowed_sysids`` (default empty = unchanged): an UNSIGNED frame from one of these system ids is
+    accepted for every message id, like an allowlisted id. For a vehicle whose own downlink is not signed (ArduPilot
+    on its USB port, or with FC-side signing off), the PX4 id allowlist above would otherwise drop all of its
+    telemetry once a key is set. A frame that CLAIMS a signature is still verified, and unsigned frames from any
+    other system id (a forged ground-station command) are still dropped.
     """
 
     def __init__(self, stats: LiveStats | None = None, *,
                  extra_crc: dict[int, int] | None = None,
                  max_frames_per_datagram: int = 64,
                  secret_key: bytes | None = None,
-                 unsigned_allowed_msgids: frozenset[int] = PX4_UNSIGNED_ALLOWED_MSGIDS) -> None:
+                 unsigned_allowed_msgids: frozenset[int] = PX4_UNSIGNED_ALLOWED_MSGIDS,
+                 unsigned_allowed_sysids: frozenset[int] = frozenset()) -> None:
         if max_frames_per_datagram < 1:
             raise ValueError("max_frames_per_datagram must be >= 1")
         if secret_key is not None and len(secret_key) != 32:
@@ -239,10 +246,15 @@ class MavlinkFrameParser:
         self._mav.robust_parsing = True
         self._mav_error = dialect.MAVError
         self._verify = secret_key is not None
+        # sysid / signed bit of the frame being decoded: the pymavlink callback only receives the msgid, and it is also
+        # consulted for a frame whose signature FAILED, so the sysid exemption must check the frame is truly unsigned
+        self._cur_sysid = -1
+        self._cur_signed = False
         if self._verify:
             self._mav.signing.secret_key = secret_key
             self._mav.signing.allow_unsigned_callback = (
                 lambda _mav, msgid: msgid in unsigned_allowed_msgids
+                or (not self._cur_signed and self._cur_sysid in unsigned_allowed_sysids)
             )
 
     def parse(self, data: bytes, recv_time: float) -> list[MessageEnvelope]:
@@ -319,6 +331,7 @@ class MavlinkFrameParser:
                 name, fields = f"MSG_{msgid}", {}
             else:
                 try:
+                    self._cur_sysid, self._cur_signed = sysid, signed
                     msg = self._mav.decode(bytearray(frame))
                     fields = msg.to_dict()
                     fields.pop("mavpackettype", None)
@@ -350,6 +363,7 @@ class _TickAssembler:
                  stats: LiveStats, origin_us: int | None = None, *,
                  secret_key: bytes | None = None,
                  unsigned_allowed_msgids: frozenset[int] = PX4_UNSIGNED_ALLOWED_MSGIDS,
+                 unsigned_allowed_sysids: frozenset[int] = frozenset(),
                  extra_crc: dict[int, int] | None = None) -> None:
         if sample_rate_hz <= 0:
             raise ValueError("sample_rate_hz must be > 0")
@@ -359,6 +373,7 @@ class _TickAssembler:
         self.stats = stats
         self.parser = MavlinkFrameParser(stats, secret_key=secret_key,
                                          unsigned_allowed_msgids=unsigned_allowed_msgids,
+                                         unsigned_allowed_sysids=unsigned_allowed_sysids,
                                          extra_crc=extra_crc)
         self.origin_us = origin_us
         self.next_k = 0
@@ -827,6 +842,7 @@ class LiveMavlinkSource:
         max_sleep_s: float = 0.05,
         secret_key: bytes | None = None,
         unsigned_allowed_msgids: frozenset[int] = PX4_UNSIGNED_ALLOWED_MSGIDS,
+        unsigned_allowed_sysids: frozenset[int] = frozenset(),
         extra_crc: dict[int, int] | None = None,
     ) -> None:
         if origin not in ("first_frame", "start"):
@@ -835,7 +851,7 @@ class LiveMavlinkSource:
         self._stats = LiveStats()
         self._asm = _TickAssembler(sample_rate_hz, label_fn, self._stats,
                                    secret_key=secret_key, unsigned_allowed_msgids=unsigned_allowed_msgids,
-                                   extra_crc=extra_crc)
+                                   unsigned_allowed_sysids=unsigned_allowed_sysids, extra_crc=extra_crc)
         self._origin_mode = origin
         self._settle_us = round(settle_s * 1e6)
         self._max_ticks = max_ticks

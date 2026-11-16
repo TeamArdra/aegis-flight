@@ -55,10 +55,13 @@ QUICKSTART  →  HANDOFF  →  ARCHITECTURE  →  END_TO_END_FLOW  →  FILE_REF
 - [SKILLS_REGISTRY.md](SKILLS_REGISTRY.md) — catalogue of optional third-party agent skills (human-installed only).
 - [TESTING.md](TESTING.md) — the test suite and the pre-release gate.
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — symptom → diagnostic → fix.
+- [MGMT_CHANNEL.md](MGMT_CHANNEL.md) — the in-band management channel over the telemetry radio (alerts, IPS actions, compact status, signed control); [PERFORMANCE.md](PERFORMANCE.md) — detection-pipeline, forwarding-path and dashboard speed-ups and Raspberry Pi measurements.
 - [WORKLOG.md](WORKLOG.md) — running log of documentation changes, with the work items each entry covers.
 
 ## Contributing
 - [DEVELOPMENT.md](DEVELOPMENT.md) — conventions & boundaries.
+- [ENGINEERING_WORKFLOW.md](ENGINEERING_WORKFLOW.md) — issues, branches, PRs, automated review, remediation.
+- [CLAUDE_AUTOMATION.md](CLAUDE_AUTOMATION.md) — Claude PR reviewer + remediation workflows: design, security, setup.
 - [ADDING_A_NEW_ATTACK.md](ADDING_A_NEW_ATTACK.md)
 - [ADDING_A_NEW_DETECTOR.md](ADDING_A_NEW_DETECTOR.md)
 

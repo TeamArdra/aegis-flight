@@ -57,7 +57,6 @@ Thumbs.db
 .vscode/
 
 .claude
-CLAUDE.md
 # Raw physical-flight-controller captures may contain the bench GPS position: local evidence only.
 data/hardware/raw/*.tlog
 

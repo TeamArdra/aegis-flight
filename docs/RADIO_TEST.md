@@ -13,6 +13,7 @@
 > Signing was run once on the real Pixhawk over USB, with the bridge as the enforcement point (phase 6, partly met; enforcement at the
 > flight controller not tested). The 1,500 s Pi 5 soak (phase 9) completed, but it is 25 minutes long and the bridge changed the vehicle's
 > mode through false GPS alerts. Neither passes as written.
+> **Randomised campaign on the real Pixhawk (2026-11-02):** batches 1 to 3 of 6 are recorded (passive, advisory and active-ips; unsigned link; seed 11). Batches 4 to 6 are pending. No campaign-level judgement exists, and the per-phase judgement is unchanged.
 
 This is the test plan, rig description and tool reference for running `aegis ips-bridge` on a Raspberry Pi 3B+ between a
 pair of MicoAir LR900 900 MHz telemetry radios (not SiK: no AT command set) and an ArduCopter SITL on a laptop. Results are logged separately in
@@ -252,7 +253,7 @@ aegis ips-bridge \
 
 ### Phase 3: normal pilot operation (ADVISORY and ACTIVE_IPS)
 
-> **Status 2026-10-31 (real Pixhawk on a Pi 5):** partly run, bench only. Benign advisory and active-ips traffic with 0 legitimate drops, and 13 of 14 steps of the legitimate-traffic suite. No arm, takeoff or flight, and fewer than 30 probes per posture. The 1,500 s active-ips soak (phase 9) sent 457 counter-commands from false GPS alerts, so the phase 3 rule against actuation from false alerts is not met. **NOT PASS as written.**
+> **Status 2026-10-31 (real Pixhawk on a Pi 5):** partly run, bench only. Benign advisory and active-ips traffic with 0 legitimate drops, and 13 of 14 steps of the legitimate-traffic suite. No arm, takeoff or flight, and fewer than 30 probes per posture. The 1,500 s active-ips soak (phase 9) sent 457 counter-commands from false GPS alerts, so the phase 3 rule against actuation from false alerts is not met. Campaign batch 3 (active-ips, unsigned, 2026-11-02) also escalated to SAFE_HOLD with one counter-command under a sustained GNSS-fix-loss condition, which is actuation on a non-attack condition. **NOT PASS as written.**
 
 * **Goal:** a legitimate pilot can do ordinary operations through the bridge with no legitimate command dropped and no
   actuation caused by false alerts.
@@ -274,7 +275,7 @@ aegis ips-bridge \
 
 ### Phase 4: detection
 
-> **Status 2026-10-31 (real Pixhawk on a Pi 5):** partly run in advisory, from the first runs (invalid; unconfirmed, see `RADIO_TEST_RESULTS.md`). Forged LAND and the flood were announced. Force-disarm, LOITER and replay were not announced separately (alert back-off may explain this; not verified). Per-attack latency was not recorded. **NOT PASS as written.**
+> **Status 2026-10-31 (real Pixhawk on a Pi 5):** partly run in advisory, from the first runs (invalid; unconfirmed, see `RADIO_TEST_RESULTS.md`). Forged LAND and the flood were announced. In those first runs, force-disarm, LOITER and replay were not announced separately (alert back-off may explain this; not verified). The valid campaign runs do announce force-disarm and replay (see below). Per-attack latency was not recorded. Campaign batches 2 (advisory) and 3 (active-ips), unsigned, seed 11: forged LAND and the forced disarm were announced as COMMAND_INJECTION HIGH, the flood and the replay as MAVLINK_ANOMALY, and the altitude and battery steps as TELEMETRY_MANIPULATION. The firmware-file change and the attitude freeze were not announced in either batch, because a persistent GNSS verdict held the top verdict. **NOT PASS as written.**
 
 * **Goal:** each attack is detected and reported to the ground over the radio while the bridge is in `advisory` (so the
   forged frames are expected to reach the FC; the test shows detection, not prevention).
@@ -294,7 +295,7 @@ aegis ips-bridge \
 
 ### Phase 5: prevention in ACTIVE_IPS
 
-> **Status 2026-10-31 (real Pixhawk on a Pi 5):** partly run in active-ips with `--allow-unsigned`. Forged LAND, force-disarm, LOITER, flood and replay were blocked with the mode unchanged, and pilot commands passed. A forged RTL with its own counter passed on the ground, and a counter-tracking forger passed (known limit). The GPS ladder, the trusted forced disarm and the pilot override were not run on the real Pixhawk. In the signed run (phase 6, one key, over USB) 0 of 7 forged or replayed events reached the vehicle; that run is recorded under phase 6. **NOT PASS as written (partly met).**
+> **Status 2026-10-31 (real Pixhawk on a Pi 5):** partly run in active-ips with `--allow-unsigned`. Forged LAND, force-disarm, LOITER, flood and replay were blocked with the mode unchanged, and pilot commands passed. A forged RTL with its own counter passed on the ground, and a counter-tracking forger passed (known limit). The GPS ladder, the trusted forced disarm and the pilot override were not run on the real Pixhawk. In the signed run (phase 6, one key, over USB) 0 of 7 forged or replayed events reached the vehicle; that run is recorded under phase 6. Campaign batch 3 (active-ips, unsigned, `--allow-unsigned`, 2026-11-02) repeated the pattern: the forged LAND, the forced disarm, the flood and the replay were blocked with the mode unchanged. The two sysid-255 spoofs (RTL and LAND) changed the mode, as in the unsigned runs above. **NOT PASS as written (partly met).**
 
 * **Goal:** `active-ips` drops hostile frames before the FC, never the pilot's, and the GPS ladder acts as documented.
 * **Steps:** bridge in `active-ips` (`--allow-unsigned`), aircraft airborne in GUIDED. Repeat the phase 4 attacks. Then
@@ -997,7 +998,7 @@ The judgement below is conservative. It is made against the plan's written crite
 | 8 failure and recovery | ACTIVE_IPS, three cases (rlong1, unp1, rbt1) | **NOT PASS as written; three of five cases run.** Bridge kill and manual restart: 27.6 s gap; 24,701 downlink forwarded after restart, 0 dropped. Air-radio unplug for 16 s: one 16.0 s gap; the bridge stayed up and reconnected on its own; 414 frames not written during the outage. Pi soft reboot with cron auto-start (a variant: the plan says by-hand start): 71.5 s pilot gap; FC and GCS links back about 70 s after the reboot command; no manual step after the reboot command. Not run over the radio: laptop (ground) radio unplug, repeated or longer unplugs, unplug during an attack, hard power cut of the Pi, the by-hand Pi reboot, SITL drop and restart, signed-restart replay, systemd-managed start (unit untested). |
 | 9 soak | ACTIVE_IPS, 20 minutes (rlong1) | **NOT PASS as written; partly met.** 20 minutes, against 30 to 60 required. Met: RSS flat (slope 0.063 MiB/min, no growth flag); 59 of 59 benign probes acknowledged; forged LAND dropped. Not shown: the new-throttle-bit check, hook_errors for the run, loss and latency for the first versus last 10 minutes. |
 
-**Real Pixhawk on a Pi 5 (2026-10-31).** Summarised in `docs/RADIO_TEST_RESULTS.md`, section "Real Pixhawk 6X on a Pi 5, 2026-10-31", against the plan's criteria. On the bench, disarmed: passive and advisory benign traffic with 0 drops; the attack sequence on the unsigned link, where active-ips blocked the forged LAND, force-disarm, LOITER, flood and replay, while a counter-tracking forger and an on-ground RTL spoof passed; the legitimate-traffic suite (13 of 14 steps); management-channel commands over the radio; and a firmware-tamper check over the radio. Signing was run once over USB with the bridge as the enforcement point (phase 6, partly met; flight-controller enforcement not tested). Not run on the real Pixhawk: the radio unplug and power cut (phase 8). The 1,500 s soak completed (phase 9, partly met; see the results file).
+**Real Pixhawk on a Pi 5 (2026-10-31).** Summarised in `docs/RADIO_TEST_RESULTS.md`, section "Real Pixhawk 6X on a Pi 5, 2026-10-31", against the plan's criteria. On the bench, disarmed: passive and advisory benign traffic with 0 drops; the attack sequence on the unsigned link, where active-ips blocked the forged LAND, force-disarm, LOITER, flood and replay, while a counter-tracking forger and an on-ground RTL spoof passed; the legitimate-traffic suite (13 of 14 steps); management-channel commands over the radio; and a firmware-tamper check over the radio. Signing was run once over USB with the bridge as the enforcement point (phase 6, partly met; flight-controller enforcement not tested). Not run on the real Pixhawk: the radio unplug and power cut (phase 8). The 1,500 s soak completed (phase 9, partly met; see the results file). The randomised campaign on the real Pixhawk has batches 1 to 3 of 6 recorded (2026-11-02, unsigned link: passive, advisory and active-ips; `docs/RADIO_TEST_RESULTS.md`). Batches 4 to 6 are pending, and no campaign judgement exists.
 
 **Not yet run over the radio (stated plainly):**
 

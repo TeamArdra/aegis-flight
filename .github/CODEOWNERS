@@ -1,0 +1,14 @@
+# Code owners are auto-requested as reviewers. The main ruleset does not (yet) require a
+# code-owner approval; see docs/CLAUDE_AUTOMATION.md §9.
+#
+# Governance and automation: changes here alter how every PR is reviewed and remediated.
+/.github/          @RajTib
+/AGENTS.md         @RajTib
+/CLAUDE.md         @RajTib
+/docs/CLAUDE_AUTOMATION.md    @RajTib
+/docs/ENGINEERING_WORKFLOW.md @RajTib
+
+# Domain owners: to be assigned by the team (issue #13). Suggested paths:
+# /src/aegisflight/detectors/  /src/aegisflight/features/  /src/aegisflight/fusion/
+# /src/aegisflight/integrity/  /src/aegisflight/logging/   /src/aegisflight/mavlink/
+# /src/aegisflight/sources/    /src/aegisflight/hal/       /configs/  /models/  /artifacts/

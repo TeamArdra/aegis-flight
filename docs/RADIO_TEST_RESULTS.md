@@ -724,7 +724,7 @@ The procedure for repeating these runs is in `docs/REAL_PIXHAWK_TEST.md`.
 
 | Item | Value |
 |---|---|
-| Flight controller | Pixhawk 6X, ArduCopter (USB descriptor "ArduPilot Pixhawk6X"), quadcopter. Bench: DISARMED, STABILIZE, propellers removed, battery about 15.1 V (4S class), 3D GPS fix with 5 to 7 satellites. Firmware version: not recorded in the session record |
+| Flight controller | Pixhawk 6X, ArduCopter (USB descriptor "ArduPilot Pixhawk6X"), quadcopter. Bench: DISARMED, STABILIZE, propellers removed, battery about 15.1 V (4S class), 3D GPS fix with 5 to 7 satellites in the 2026-10-30/31 sessions; no fix in the 2026-11-02 campaign batches 1 to 3 (see their subsections). Firmware: ArduCopter 4.7.1, version word 67503103 (2026-10-31 snapshot) |
 | Flight-controller link | USB, `/dev/ttyACM0` on the Pi 5. The same board read normally on the laptop (COM4). MAVLink 1 heartbeats until a MAVLink 2 ground station talks; unsigned throughout |
 | Companion | Raspberry Pi 5, Raspberry Pi OS Lite (Debian 13), Python 3.13. `vcgencmd get_throttled` = `0x0` throughout, SoC 43 to 51 C |
 | Radio | MicoAir LR900 pair at 115,200 baud, with the settings in "Configuration in use" above. Air unit on the Pi (`/dev/ttyUSB0`), ground unit on the laptop (COM3) |
@@ -895,9 +895,223 @@ Changes to the vehicle, from the record:
 
 **Judgement.** Restore is shown for one listed parameter, read back directly. Reversibility of the whole vehicle state is **not proven**. The restore tool's RESTORED message checks only the listed parameters, so it is not evidence for hidden ones. With no pre-test baseline, the record cannot show that the vehicle was returned to its original state.
 
+### Randomised attack campaign on the real Pixhawk: batch 1 of 6 (`px1_passive_unsigned`, 2026-11-02)
+
+**This is batch 1 of 6. More results are coming. It is not a campaign result, and it does not change the judgement above.** One run cannot support a campaign-level conclusion. Batches 2 and 3 are recorded in the subsections after this one. Batches 4 to 6 are not recorded in this document yet.
+
+Measured on 2026-11-02 on the bench. The figures were checked against the run's output files, listed below, which were read for this pass.
+
+**Setup and command.**
+
+* Real Pixhawk 6X running ArduCopter 4.7.1, disarmed, propellers removed, STABILIZE at the start. USB to the Pi 5. The bridge reads the Pixhawk through `px_fc_proxy.py`, which rewrites real telemetry on its way to the bridge (altitude, battery, attitude and heading). The bridge-to-Pixhawk direction is not changed. LR900 radio pair to the laptop.
+* Posture `passive`, link `unsigned`, seed 11. The bridge ran with the firmware directory and manifest (recheck every 5 s).
+* No GPS fix during this run: fix type 1, 0 satellites. This is a bench condition, not a detector result. The earlier sessions had 5 to 7 satellites.
+* Command, run on the laptop with the radio hub running:
+
+```
+PI_KEY=<ssh-key-path> PI_HOST=<pi-user>@<pi-ip> COM=COM3 \
+  bash scripts/ardupilot/real_pixhawk/run_px_campaign.sh px1_passive_unsigned passive unsigned 11
+```
+
+* The driver never arms and sends no takeoff or motor command. It stops if the vehicle reports armed. The run completed with the vehicle disarmed (`RESULT: final mode STABILIZE armed False`).
+* Output files, outside the repo: `C:/afsitl/px_campaign_px1_passive_unsigned.json` (driver record: schedule, mode before and after each event, mode log, ground announcement texts); `C:/afsitl/px_events_px1_passive_unsigned.txt` (the bridge's event log, 88 rows, and the bridge's end-of-run status as its last line); `C:/afsitl/run_px1.log` (console log). On the Pi: `~/aegis_runs/px_px1_passive_unsigned/` (`bridge.sqlite`, `bridge.log`, `proxy.log`).
+
+**Schedule.** Ten event slots, shuffled by the seed. The planned schedule (the `schedule` list in the driver record, identical in all three batches) puts two slots 4 to 8 s after the one before them and the others 25 to 35 s after: forged_rtl_spoof255 41.3 s, alt_bias 45.6, forged_land 71.5, forged_force_disarm 78.8, flood 104.7, replay 137.8, spoof255_land 169.8, fw_tamper 195.2, freeze 230.0, batt_jump 264.6. Planned times are not when the events fired. The table uses the actual start times, the `t_start` field of each event record: forged_rtl_spoof255 47.7 s, alt_bias 52.9, forged_land 78.0, forged_force_disarm 85.3, flood 111.1, replay 144.4, spoof255_land 176.3, fw_tamper 201.7, freeze 236.5, batt_jump 270.7. In this batch the actual starts ran 6.1 to 7.3 s after the planned ones. The cause is the driver's time base: `t0` is set before `capture_replay()`, which pumps the link for about 6 s, and the schedule is measured from a later point (`tstart`). Batches 2 and 3 show the same offset.
+
+The replay frame was captured at the start of the run. The driver sent a set-mode ALT_HOLD through the pilot's own connection, saved the exact bytes written to the wire, and returned the vehicle to STABILIZE. The replay event sent those bytes again.
+
+**Results by event.** Vehicle mode is from the driver's heartbeat log. Bridge times are seconds after the event's start, from the bridge's event log.
+
+| Event | Start (s) | Vehicle mode, before to after | Bridge event log (s after start) | Notes |
+|---|---|---|---|---|
+| forged_rtl_spoof255 (unsigned, claims sysid 255) | 47.7 | STABILIZE to RTL | DOS SUSPICIOUS (+1.1); MAVLINK_ANOMALY CRITICAL (+2.7). No COMMAND_INJECTION row | Passive: nothing blocked |
+| alt_bias (+40 m altitude) | 52.9 | RTL to RTL (no change) | TELEMETRY_MANIPULATION HIGH (+3.1), then CRITICAL (+7.3) | "GPS/baro altitude mismatch 40.0 m > 8 m" |
+| forged_land (sysid 66) | 78.0 | RTL to LAND | COMMAND_INJECTION HIGH (+2.8) | Announced on the ground as COMMAND_INJECTION HIGH sys66 |
+| forged_force_disarm (sysid 66) | 85.3 | LAND to LAND | COMMAND_INJECTION HIGH (+2.3) | The vehicle was disarmed throughout, so the effect of the force-disarm cannot be read from this run |
+| flood | 111.1 | LAND to LAND | MAVLINK_ANOMALY HIGH (+2.7) | 356 frames written (run log) |
+| replay (the ALT_HOLD captured at the start) | 144.4 | LAND to ALT_HOLD | MAVLINK_ANOMALY CRITICAL (+2.6); DOS SUSPICIOUS (+3.6) | Mode changed at 149.0 s |
+| spoof255_land (unsigned, claims sysid 255) | 176.3 | ALT_HOLD to LAND | MAVLINK_ANOMALY CRITICAL (+2.9) | Mode changed at 181.0 s |
+| fw_tamper (one `*.bin` in the bridge's firmware directory on the Pi, then restored) | 201.7 | LAND to LAND | DOS SUSPICIOUS and CRITICAL only (4 rows). No FIRMWARE_INTEGRITY row | Not announced. Window 15 s |
+| freeze (ATTITUDE repeats the first frame it saw) | 236.5 | LAND to LAND | DOS SUSPICIOUS only (2 rows). No attitude-repeat row | Not announced. Window 10 s. The record says the proxy's rewrite counter confirms it ran |
+| batt_jump (+3 V) | 270.7 | LAND to LAND | TELEMETRY_MANIPULATION HIGH (+3.3), "battery voltage rose 3.00 V (implausible)" | Announced |
+
+**What this batch shows, stated conservatively.**
+
+* Passive forwards everything, so nothing was blocked. Four events changed the real vehicle's flight mode: the forged RTL, the forged LAND, the replayed ALT_HOLD and the spoofed LAND. In passive posture this is the expected result. It is not a prevention result. The replay changing the mode on the real vehicle is a measurement from a run with the corrected sequence counter. The earlier advisory runs that suggested the same thing were invalid (`docs/REAL_PIXHAWK_TEST.md`, lesson 1).
+* Altitude and battery telemetry manipulation were detected on real, rewritten data: alt_bias gave TELEMETRY_MANIPULATION HIGH and then CRITICAL, and batt_jump gave TELEMETRY_MANIPULATION HIGH. The record links these to the cross-message checks and the altitude and barometer rule (`docs/DETECTION.md`). This is the first recorded detection of these two cases on genuine vehicle data passed through the live injection point.
+* Timing of those detections. The bridge's event log shows the first TELEMETRY_MANIPULATION row 3.1 s after the alt_bias start and 3.3 s after the batt_jump start. The ground announcement texts show the first one at 4.6 s and 4.9 s. The lead's summary gave 5 to 9 s. Neither source matches that range, and the record does not explain the difference. The figures above are the artifacts' figures.
+* Freeze and firmware tamper were not announced, although both were applied. The firmware file was changed and then restored, and the record says it was verified byte-identical afterwards. Their windows (15 s and 10 s, from `px_campaign.py`) contained only DOS rows from the GNSS condition. No FIRMWARE_INTEGRITY row and no attitude-repeat row appear in the 88 rows. The record says the GNSS verdict was the top verdict on every tick of those windows, and that the fusion engine reports one top verdict per decision tick. That is the lead's reading of the record; it was not re-checked in code in this pass. This is a masking effect under a sustained GNSS condition. It is separate from the bench GPS position-wander false alarm. Neither is fixed (user decision on the GPS issue; this finding is not fixed either).
+* The forged force-disarm and the flood were announced. The forged RTL was not announced as a command injection.
+* A later DOS HIGH row cites "battery collapse 3.00 V/s", 17.3 s after the batt_jump start (`C:/afsitl/px_events_px1_passive_unsigned.txt`, row 80). It was not listed in the first write-up of this batch. It is a second rule reacting to the same injected step.
+
+**Restore and vehicle state.**
+
+* At the end of the run the vehicle was STABILIZE and disarmed (driver record). The four mode changes were: STABILIZE to RTL at 52.4 s, RTL to LAND at 84.8 s, LAND to ALT_HOLD at 149.0 s, and ALT_HOLD to LAND at 181.0 s. The mode log also shows a change to STABILIZE at 311.0 s, the end of the run.
+* A dry-run comparison with the 2026-10-31 baseline (`px_restore.py`) showed 0 changed listed parameters and an unchanged mission, according to the lead's record. That check does not cover hidden parameters (section 5.6). No event in this run writes a parameter.
+
+**Limits of batch 1, stated plainly.**
+
+* One run: one posture (passive), one link (unsigned), one seed (11). No statistical claim is made.
+* Passive only. Nothing was blocked, so this run says nothing about prevention.
+* **Per-event bridge counters are missing from this run.** Every status read the driver made from the laptop failed with "connection refused" (`WinError 10061`): the per-event readings and the final read in the driver record are all errors. The bridge's status server binds 127.0.0.1 by default (`--status-host`, `src/aegisflight/cli/main.py`), and the driver reads the Pi's LAN address. The end-of-run status came from the Pi over SSH and is the last line of the events file. The record cannot show the bridge's counters at each event. This batch has no counter values at all, so none of them should be read as zero. The defect was found after this run and fixed before batch 3 (batch 2 ran with it too; see batch 2 below).
+* No GPS fix (0 satellites), so the GNSS verdict in this run is specific to the indoor bench condition.
+* The bridge's state was SAFE_HOLD at the end of the run, and "AEGIS: safe_hold" texts recur through a passive run. The record does not explain this, and it was not investigated in this pass. The vehicle's mode changes above all came from the forged commands.
+* The bridge's end-of-run status reports 1,633 analyser decisions (lead's record). The event log holds 88 rows, 72 of them DOS SUSPICIOUS. The record does not say how the two counts relate.
+* The ground received 45 announcement texts, 13 of them "safe_hold". Announcements are rate-limited by `AlertGate` (`src/aegisflight/hal/mgmt_channel.py`), so the 88 logged rows were not all announced.
+* Driver cosmetic defect: the first status line prints `mode None armed False`, before any heartbeat has updated the driver's state. The recorded mode values are correct everywhere else. This does not affect the results. Fixed before batch 3.
+* The driver's mode log starts with `ALT_HOLD` at 0.1 s and returns to `STABILIZE` at 3.1 s. This is intentional test setup, not an anomaly. Before any attack event, `capture_replay()` in `px_campaign.py` sends one legitimate ALT_HOLD (its exact bytes are kept for the replay event), waits 3 s, sends STABILIZE to return to the starting mode, and waits 3 s. Batches 2 and 3 show the same entries.
+
+**Judgement.** None is made from this batch. The judgement table above stands.
+
+### Randomised attack campaign on the real Pixhawk: batch 2 of 6 (`px2_advisory_unsigned`, 2026-11-02)
+
+**This is batch 2 of 6. More results are coming (batches 4 to 6). It is not a campaign result, and it does not change the judgement above.** It repeats batch 1's seed and schedule with the advisory posture. It reproduces batch 1's findings. That is consistency, not an independent finding.
+
+Measured on 2026-11-02 on the bench. The figures were checked against the run's output files `C:/afsitl/px_campaign_px2_advisory_unsigned.json` and `C:/afsitl/px_events_px2_advisory_unsigned.txt`, which were read for this pass. The bridge times in the table are the event-log times minus the driver's start time, on the same time base as the event start times.
+
+**Setup and command.**
+
+* The same rig as batch 1: Pixhawk 6X on ArduCopter 4.7.1, disarmed, propellers removed, USB to the Pi 5, telemetry rewritten by `px_fc_proxy.py` on its way to the bridge, LR900 pair to the laptop.
+* Posture `advisory`, link `unsigned`, seed 11. Advisory forwards every frame and sends alerts. It does not block and does not send counter-commands.
+* No GPS fix during the run (fix type 1, 0 satellites), as in batch 1.
+* Command, in the same form as batch 1: `bash scripts/ardupilot/real_pixhawk/run_px_campaign.sh px2_advisory_unsigned advisory unsigned 11`, with the same `PI_KEY`, `PI_HOST` and `COM` settings as batch 1.
+* Output files as for batch 1, with this label. The bridge's end-of-run status is the last line of the events file.
+
+**Schedule.** The same ten slots and seed as batch 1. Actual start times in the driver record: forged_rtl_spoof255 47.6 s, alt_bias 52.6, forged_land 80.6, forged_force_disarm 85.5, flood 111.0, replay 144.4, spoof255_land 175.9, fw_tamper 201.8, freeze 236.1, batt_jump 270.7. Batch 1's starts differed by up to 2.6 s (forged_land 78.0 in batch 1). Against the planned schedule, batch 2's starts ran 6.1 to 7.0 s late, except forged_land, which ran 9.1 s late (80.6 s against a planned 71.5 s). The record does not explain that extra delay; the driver is a single loop, and its blocking calls may hold back the next event (not traced).
+
+**Results by event.** Vehicle mode is from the driver's record, with the mode-log time in brackets. Bridge rows are from the bridge's event log, in seconds after the event start.
+
+| Event | Start (s) | Vehicle mode, before to after | Bridge event log (s after start) | Notes |
+|---|---|---|---|---|
+| forged_rtl_spoof255 (unsigned, claims sysid 255) | 47.6 | STABILIZE to RTL (52.1 s) | MAVLINK_ANOMALY CRITICAL (+2.5). No COMMAND_INJECTION row | Advisory: nothing blocked |
+| alt_bias (+40 m altitude) | 52.6 | RTL to RTL | TELEMETRY_MANIPULATION HIGH (+3.3), then CRITICAL (+7.5, +11.5, +15.5) | "GPS/baro altitude mismatch 40.0 m > 8 m" |
+| forged_land (sysid 66) | 80.6 | RTL to LAND (84.9 s) | COMMAND_INJECTION HIGH (+2.3) | Announced |
+| forged_force_disarm (sysid 66) | 85.5 | LAND to LAND | COMMAND_INJECTION HIGH (+3.0) | The vehicle was disarmed throughout, so the effect of the force-disarm cannot be read from this run |
+| flood | 111.0 | LAND to LAND | MAVLINK_ANOMALY HIGH (+2.7, +6.7) | |
+| replay (the ALT_HOLD captured at the start) | 144.4 | LAND to ALT_HOLD (149.0 s) | MAVLINK_ANOMALY CRITICAL (+2.5) | Mode changed, as in batch 1 |
+| spoof255_land (unsigned, claims sysid 255) | 175.9 | ALT_HOLD to LAND (180.5 s) | MAVLINK_ANOMALY CRITICAL (+2.6) | |
+| fw_tamper (one `*.bin` in the bridge's firmware directory, then restored) | 201.8 | LAND to LAND | None. Only DOS rows in the window | Not announced |
+| freeze (ATTITUDE repeats the first frame it saw) | 236.1 | LAND to LAND | None. Only DOS rows in the window | Not announced |
+| batt_jump (+3 V) | 270.7 | LAND to LAND | TELEMETRY_MANIPULATION HIGH (+3.2), "battery voltage rose 3.00 V (implausible)". A DOS HIGH row cites "battery collapse 3.00 V/s" at +17.2 s | Announced |
+
+**What this batch shows, stated conservatively.**
+
+* The mode changes match batch 1: four changes, at 52.1, 84.9, 149.0 and 180.5 s here, against 52.4, 84.8, 149.0 and 181.0 s in batch 1. Advisory forwards everything, so nothing was blocked. The bridge's end-of-run status shows 624 up-frames seen and forwarded, 0 dropped, 3,652 down-frames forwarded, and `counter_frames_sent` 0.
+* The bridge's end-of-run summary reads "[AEGIS ADV] HOLD RECOMMENDED (>30s): Continuous attack vector detected". Advisory only recommends. No counter-command was sent.
+* Detection matches batch 1. Altitude and battery steps gave TELEMETRY_MANIPULATION. Forged LAND and force-disarm gave COMMAND_INJECTION HIGH. The RTL spoof, the flood, the replay and the LAND spoof gave MAVLINK_ANOMALY. Freeze and firmware tamper were not announced. Their windows contain only DOS rows, which fits the same masking effect as batch 1. That reading is the lead's; this pass checked the rows, not the fusion code.
+* The 89 decision rows are 77 DOS-class (72 DOS SUSPICIOUS, 4 DOS CRITICAL, 1 DOS HIGH) and 12 others. The lead's summary gave 76, which leaves out the DOS HIGH row.
+* The ground received 56 announcement texts, 13 of them `safe_hold`.
+
+**Restore and vehicle state.**
+
+* Driver record: final mode STABILIZE, disarmed. The mode log returns to STABILIZE at 310.9 s.
+* Lead's record, after the run: 0 listed parameters changed, mission identical, firmware byte-identical. Not re-run in this pass.
+
+**Limits of batch 2, stated plainly.**
+
+* One run, one seed, the same schedule as batch 1. Not an independent sample.
+* **No per-event bridge counters.** Every status read the driver made from the laptop was refused (`WinError 10061`), as in batch 1. The defect was found after batch 1 and fixed before batch 3, so batch 2 ran with it. The table has no counter values, and none should be read as zero. The bridge's end-of-run status (over SSH) shows `policy.rewritten` 0. The proxy's alt_bias rewrite count for this run is not in the record, so the two cannot be compared.
+* No GPS fix (0 satellites).
+* The mode log starts with ALT_HOLD at 0.1 s and returns to STABILIZE at 3.2 s. This is the replay capture at the start of the run (intentional, see batch 1). Batch 1 shows the same at 3.1 s.
+* Ground texts arrive about 1.5 to 2 s after the matching bridge rows in this run (for example COMMAND_INJECTION HIGH: text at 84.9 s, bridge row at 82.9 s). The table uses the bridge rows. The record does not explain the gap.
+
+**Judgement.** None is made from this batch. The judgement table above stands.
+
+### Randomised attack campaign on the real Pixhawk: batch 3 of 6 (`px3_active-ips_unsigned`, 2026-11-02)
+
+**This is batch 3 of 6. More results are coming (batches 4 to 6). It is not a campaign result, and it does not change the judgement above.** It is the first batch with per-event bridge counters. Its schedule is the same as batches 1 and 2.
+
+Measured on 2026-11-02 on the bench. The figures were checked against `C:/afsitl/px_campaign_px3_active-ips_unsigned.json` and `C:/afsitl/px_events_px3_active-ips_unsigned.txt`, which were read for this pass.
+
+**Setup and command.**
+
+* The same rig. Posture `active-ips`, link `unsigned`, seed 11. The orchestrator adds `--allow-unsigned` for active-ips on an unsigned link. The bridge refuses active-ips on an unsigned link without that flag (lesson 7).
+* No GPS fix (fix type 1, 0 satellites) for the whole run.
+* Command: `bash scripts/ardupilot/real_pixhawk/run_px_campaign.sh px3_active-ips_unsigned active-ips unsigned 11`, with the same `PI_KEY`, `PI_HOST` and `COM` settings as batch 1.
+
+**Schedule.** The same ten slots and seed as batches 1 and 2. Actual start times (`t_start`): forged_rtl_spoof255 47.6 s, alt_bias 51.7, forged_land 77.6, forged_force_disarm 85.3, flood 110.9, replay 143.9, spoof255_land 175.8, fw_tamper 201.4, freeze 236.5, batt_jump 270.8. The planned schedule (forged_rtl at 41.3 s) ran 6.0 to 6.5 s earlier than these, the same time-base offset as batch 1 (see batch 1). The table uses the actual starts.
+
+**Results by event: vehicle and bridge.** Vehicle mode is from the driver's record. Bridge rows are in seconds after the event start.
+
+| Event | Start (s) | Vehicle mode, before to after | Bridge event log (s after start) | Bridge response (ground announcements) |
+|---|---|---|---|---|
+| forged_rtl_spoof255 (unsigned, claims sysid 255, own counter) | 47.6 | STABILIZE to RTL (48.5 s) | MAVLINK_ANOMALY CRITICAL (+0.7) | "blocked RETURN_TO_LAUNCH sys255 x2" at 49.2 s. Three identical copies sent; the counts imply one passed (see limits) |
+| alt_bias (+40 m altitude) | 51.7 | RTL to RTL | TELEMETRY_MANIPULATION HIGH (+1.2), then CRITICAL (+5.2, +9.2) | "sanitize_alt" at 53.1, 55.0 and 60.6 s. `policy.rewritten` 0 to 11 in this window |
+| forged_land (sysid 66) | 77.6 | RTL to RTL | COMMAND_INJECTION HIGH (+1.7) | "quarantine sys66", "blocked LAND sys66 x3". Mode unchanged |
+| forged_force_disarm (sysid 66) | 85.3 | RTL to RTL | COMMAND_INJECTION HIGH (+1.0) | "blocked ARM_DISARM sys66 x3". Mode unchanged |
+| flood (sysid 66 heartbeats) | 110.9 | RTL to RTL | MAVLINK_ANOMALY HIGH (+0.6, +4.6) | sys66 heartbeats blocked. 360 frames dropped as dynamic (quarantine) |
+| replay (the ALT_HOLD captured at the start) | 143.9 | RTL to RTL | MAVLINK_ANOMALY CRITICAL (+0.8) | "blocked DO_SET_MODE(ALT_HOLD) sys255 x2". Two copies sent, both dropped (one as unsigned replay, one as burst repeat). Mode unchanged |
+| spoof255_land (unsigned, claims sysid 255) | 175.8 | RTL to LAND (176.8 s) | MAVLINK_ANOMALY CRITICAL (+1.1) | "blocked LAND sys255 x2" at 177.3 s. Three identical copies sent; the counts imply one passed (see limits) |
+| fw_tamper | 201.4 | LAND to LAND | None. Only DOS rows in the window | Not announced |
+| freeze | 236.5 | LAND to LAND | None. Only DOS rows in the window | Not announced |
+| batt_jump (+3 V) | 270.8 | LAND to LAND | TELEMETRY_MANIPULATION HIGH (+1.1), "battery voltage rose 3.12 V (implausible)". A DOS CRITICAL row cites "battery collapse 3.00 V/s" at +14.9 s | "batt_filter" at 272.2 s |
+
+**Per-event bridge counters (first batch with them).** The driver read the bridge status over SSH. `dropped_up` is the total of frames the bridge dropped from the GCS side, read at the event's start and at its end. The windows overlap (see limits).
+
+| Event | `dropped_up` at start | `dropped_up` at end | Change | Category at end |
+|---|---|---|---|---|
+| forged_rtl_spoof255 | 0 | 2 | +2 | `dropped_burst` 2 |
+| alt_bias | 2 | 2 | 0 | `rewritten` 0 to 11 |
+| forged_land | 2 | 8 | +6 | `dropped_untrusted_control` 6 |
+| forged_force_disarm | 5 | 8 | +3 | overlaps the forged_land window |
+| flood | 8 | 368 | +360 | `dropped_dynamic` 360 |
+| replay | 368 | 370 | +2 | `dropped_replay_unsigned` 1, `dropped_burst` 1 more |
+| spoof255_land | 370 | 372 | +2 | `dropped_burst` 2 more |
+| fw_tamper, freeze, batt_jump | 372 | 372 | 0 | none |
+
+Bridge status at the end of the run (driver's last read, over SSH): 672 up-frames seen, 300 forwarded, 372 dropped (55 %). Down-frames 3,606 seen and forwarded, 0 dropped. `policy.rewritten` 11, `counter_frames_sent` 1, `suspect_provenance` 8, `provenance_known_sources` 2. The category totals are 6 untrusted-control, 5 burst, 360 dynamic and 1 unsigned replay, which add to the 372 dropped.
+
+**What this batch shows, stated conservatively.**
+
+* **Blocked, mode unchanged:** forged LAND, forced disarm, the flood and the replay. The bridge's texts say LAND and ARM_DISARM from sysid 66 were blocked (three copies each). The six untrusted-control drops match those six copies together, and the per-event windows overlap (see limits). sysid 66 was quarantined. The replay was sent twice and both copies were dropped (one unsigned replay, one burst repeat). Batches 1 and 2 (passive and advisory) let the replay change the mode. Here it did not.
+* **Partly blocked, mode changed:** the forged RTL and the spoofed LAND, both claiming sysid 255 with the driver's own counter, each sent three identical copies. Each window shows two dropped, so the counts imply that one copy passed and changed the mode (STABILIZE to RTL, RTL to LAND). The record does not show which copy passed, so this is inferred, not observed. The code gives the mechanism. sysid 255 is in the bridge's default trusted sysids (255 and 254), so the static trust rule does not drop it, and on the ground the provenance rule marks a repeated-identity sender as suspect rather than dropping it (the drop applies in flight or when armed). The two repeats are dropped by the burst rule, which drops a byte-identical sensitive command repeated within 0.05 s. So the 'x2' comes from repeat suppression, not from a finding that sysid 255 is hostile. This is the same unsigned-link limit as earlier in this document.
+* **Detected, not blockable:** the altitude step gave TELEMETRY_MANIPULATION HIGH and then CRITICAL, and the battery step gave TELEMETRY_MANIPULATION HIGH. Downlink is not blocked by design in any posture, except for sanitizer-style field edits.
+* **Sustained GNSS condition:** 77 of the 88 decision rows are DOS-class (72 DOS SUSPICIOUS, 5 DOS CRITICAL; counted again from the events file this pass), all citing "GNSS fix never acquired". Freeze and firmware tamper were not announced, as in batches 1 and 2. The windows contain only DOS rows. The record's reading is the same masking effect.
+* **Escalation:** the bridge ended in SAFE_HOLD. Its summary reads "[AEGIS DEF] ESCALATED: LONG-DURATION ATTACK (>30s) -> SAFE HOLD LOITER ENGAGED", and it sent one counter-command. The record attributes this to the sustained GNSS condition (more than 30 s), not to a scripted event. The driver's mode log has no LOITER change, and the record does not explain why. Not investigated, and no cause is proposed here.
+* Two event-driven mode changes, against four in batches 1 and 2. Both were the sysid-255 spoofs, each of which had two of its three copies dropped (see the limits below).
+
+**Restore and vehicle state.**
+
+* Driver record: final mode STABILIZE, disarmed. The mode log returns to STABILIZE at 310.7 s. As in batches 1 and 2, the log starts with ALT_HOLD at 0.1 s and returns to STABILIZE at 3.1 s. This is the replay capture at the start of the run, intentional (see batch 1).
+* Lead's record, after the run: 0 listed parameters changed, mission identical, firmware byte-identical. Not re-run in this pass.
+
+**Limits of batch 3, stated plainly.**
+
+* One run, one seed, one link (unsigned, with `--allow-unsigned`). Same seed and schedule as batches 1 and 2, so not independent of them.
+* **Copy counts and what passed.** The driver code sends three identical copies for the forged LAND, force-disarm, RTL and spoofed LAND events, and two for the replay (`start_event` in `scripts/ardupilot/real_pixhawk/px_campaign.py`). The campaign record does not store the copies per event, nor which copy passed. The bridge's 'x2' texts and the two burst drops in each sysid-255 window match three sent minus one passed. So one copy passed in each case. That is inferred from the counts and the code, not observed.
+* **`policy.rewritten` 11 has two possible sources.** The record links it to the proxy's alt_bias rewrite (11 frames). The bridge also logged `sanitize_alt` actions in the same window, so the counter may include bridge-side rewrites. The record does not separate them.
+* `dropped_burst` (5 frames in total: 2 in the RTL window, 1 in the replay window, 2 in the spoof255 window) counts a byte-identical sensitive command repeated within `cadence_s` (0.05 s by default). The rule is in `src/aegisflight/mitigation/inline_policy.py` (`_command_rule`). It suppresses repeats; it does not check the sender, and a repeat sent more than 0.05 s after the previous identical one is not dropped by this rule.
+* The per-event windows overlap. The forged LAND window runs to 90.1 s and the force-disarm starts at 85.3 s, so 3 frames are counted in both. The per-event changes add to 375, and the bridge's own total is 372. Use the total.
+* The lead's summary gives 88 % of 88 decisions as DOS-class. The file gives 77 of 88 (87.5 %). This subsection uses the file's count.
+* No GPS fix.
+* The ground texts (74 in total, 13 `safe_hold`) agree with the bridge rows to within about 0.1 s for the events checked (for example forged LAND: text at 79.4 s, bridge row at 79.3 s).
+
+**Judgement.** None is made from this batch. The judgement table above stands. The blocked events agree with the phase 5 entry already recorded. The two sysid-255 spoofs each had one copy pass, inferred from the counts (see the limits above). That is the known unsigned-link limit for sysid-255 spoofs on the ground. The escalation under a sustained GNSS condition is a further case of the phase 3 concern. The judgements are not changed.
+
+### Randomised attack campaign on the real Pixhawk: batches 4 to 6 of 6 (signed link, 2026-11-02)
+
+The same seed 11 and the same ten event slots as batches 1 to 3, on the signed link: the bridge runs with `--signing-key-file`, the pilot signs, and the attacker, spoofed and wrong-key senders do not sign or use the wrong key (the spoofed LAND of the unsigned link becomes a wrong-key signed LAND). Labels `px4_passive_signed`, `px5_advisory_signed`, `px6_active-ips_signed`. The vehicle was disarmed with the propellers removed, and active-ips reached it through `px_fc_proxy.py` as a `socket://` link. After each run the Pixhawk matched its baseline snapshot: 0 parameters changed, mission identical, firmware byte-identical. Figures come from the session record (`C:/afsitl` run files and the docs brief), not from a fresh pass over the raw files.
+
+**Environment change.** The Pixhawk's GPS acquired a fix between batch 3 and batch 4. Batches 1 to 3 had 72 to 76 "GNSS fix never acquired" decisions out of 88 to 89; batches 4 to 6 had none. This is a change in the bench's sky view, not a code or posture effect. With the persistent condition gone, only 6 decisions were logged per run (against about 88), the final state was NOMINAL (not SAFE_HOLD as in batches 1 to 3), and `FIRMWARE_INTEGRITY SUSPICIOUS` appeared in 4 of 6 decisions in all three runs: the first time it appeared in this campaign. That fits the batch 1 explanation that the persistent GNSS verdict had hidden it. It is an observation, not an isolated test.
+
+| Run | Posture | Mode changes of the real vehicle | Signing outcome |
+|---|---|---|---|
+| batch 4 | passive | RTL at about 48 s, LAND at about 79 s, ALT_HOLD from the replay at about 145 s, LAND from the wrong-key frame at about 178 s | `signing_observed`: unsigned 9, bad-signature 3, replay 2; `dropped_*` all 0 (passive reports and drops nothing) |
+| batch 5 | advisory | the same sequence within about 1 s | the same counters as batch 4 |
+| batch 6 | active-ips | **none** after the legitimate set-up (ALT_HOLD at 0.1 s, STABILIZE at 3.1 s) | `policy.dropped_unsigned` 9, `dropped_bad_signature` 3, `dropped_replay` 2, `dropped_dynamic` 354, `signed_ok` 3; `signing_observed` all 0 |
+
+* Batch 6 dropped 368 of 670 uplink frames (55%). Every forged, spoofed, replayed and wrong-key command was dropped, including all 3 copies of the sysid-255 RTL that one copy of reached the vehicle in batch 3. On the signed link an unknown or wrong signature is rejected by verification before the provenance logic; on the unsigned link detection rests on sender identity and burst state.
+* Batches 4 and 5 are the same result: advisory forwards everything like passive and only adds explicit GCS alert text. The ground texts named the signing verdict.
+* Batch 6 sent 17 counter-frames (1 for the flood, 16 during the firmware-tamper event) and a new ground alert kind "prearm_lock" 3 times. Neither is explained.
+* The attitude-freeze event was never detected in any of the six runs. With the masking explanation gone in batches 4 to 6, the likelier cause is duration and rate: `attitude_repeat_n` is 8 in `configs/ardupilot_copter/detector.yaml`, so 8 consecutive identical frames at the requested 1 Hz need about 8 of the freeze's 10 s. Open question for a longer freeze.
+
+**Open finding of batch 6, since explained.** The altitude bias, battery jump and attitude freeze were injected (the proxy log shows 34 altered frames; the altitude shifted by +40 m) and raised **no** `TELEMETRY_MANIPULATION` alert and no bridge-side rewrite record, where the same forgery in batch 3 (unsigned) was detected. A focused probe (`px_altbias_probe.py`, one variable changed, GPS held constant) reproduced it: unsigned detected the +40 m bias in 0.2 s, signed detected nothing. Cause: with a key set, the analyser's frame parser dropped every unsigned `GLOBAL_POSITION_INT`, `SYS_STATUS` and `ATTITUDE` from the vehicle (PX4's unsigned-id list does not contain them), so only the heartbeat reached the detectors. Fixed in the parser and the bridge by letting unsigned frames from the vehicle's own sysid through; a frame that claims a signature is still verified and unsigned frames from other sysids are still dropped. The fix is unit-tested and has not been re-run on the bench. Details: `docs/REAL_PIXHAWK_TEST.md`, section 11.
+
+**Campaign summary.** Passive and advisory block nothing on either link type. Signed active-ips blocked every forged uplink command (0 of 10 events changed the mode); unsigned active-ips blocked most but let 1 of 3 repeated sysid-255 copies through. Firmware-tamper and attitude-freeze visibility depended on the GPS state. Limits: one seed, one run per cell, a stationary disarmed vehicle, a proxied link.
+
 ### Not run
 
-On the real Pixhawk: radio unplug and replug (phase 8), a hard Pi power cut, the ground-radio unplug, the range test, the trusted forced disarm, the pilot override during a GPS fault, a GPS fault injected through SITL, signing enforcement at the flight controller (needs a UART or telemetry port wired to the Pi), stale and future signing timestamps, the signing gate exit code, more than one key or more than one wrong-key or replay frame, and a restore check that covers hidden parameters. The GPS fix above is not done.
+On the real Pixhawk: radio unplug and replug (phase 8), a hard Pi power cut, the ground-radio unplug, the range test, the trusted forced disarm, the pilot override during a GPS fault, a GPS fault injected through SITL, signing enforcement at the flight controller (needs a UART or telemetry port wired to the Pi), stale and future signing timestamps, the signing gate exit code, more than one key or more than one wrong-key or replay frame, and a restore check that covers hidden parameters. The GPS fix above is not done. The randomised campaign's batches 4 to 6 are not recorded in this document yet.
 
 ### Findings
 
@@ -916,6 +1130,14 @@ On the real Pixhawk: radio unplug and replug (phase 8), a hard Pi power cut, the
 | The bridge in active-ips sent 457 counter-commands on false GPS alerts and held a disarmed vehicle in ALT_HOLD (1,500 s soak) | Pi 5 soak | Open. A concrete cost of active-ips on this bench |
 | pymavlink drops unsigned replies when a key is set, so a read with no answer can be an artifact | Signing checks | Fixed in `px_signing.py` |
 | A signing key sent over USB showed no observable effect at the flight controller | Signing over USB | Open. Flight-controller-side enforcement needs a UART or telemetry port wired to the Pi |
+| A persistent `DOS` alert ("GNSS fix never acquired") was the top verdict on every tick of the freeze and firmware-tamper windows, so neither event reached the event log | Campaign batch 1 (`px1_passive_unsigned`), passive; the same in batches 2 and 3 (see their subsections) | Open. Not fixed. Separate from the GPS position-wander false alarm |
+| The laptop's status reads from the Pi were refused for every event, so the run record has no per-event bridge counters | Campaign batches 1 and 2 driver output | Fixed before batch 3: the driver reads the Pi's status over SSH (the bridge still binds loopback). Batches 1 and 2 have no counters; batch 3 has them |
+| In active-ips the bridge announced `blocked RETURN_TO_LAUNCH sys255 x2` and `blocked LAND sys255 x2` for the two sysid-255 spoofs, and the vehicle changed mode in both cases | Campaign batch 3 (`px3_active-ips_unsigned`), unsigned | Explained by the copy count and the burst rule: three identical copies per event, two dropped as repeats, so one passed (inferred from the counts, not observed; which copy passed is not recorded) |
+| The bridge ended in SAFE_HOLD with the summary `ESCALATED: LONG-DURATION ATTACK (>30s) -> SAFE HOLD LOITER ENGAGED` and one counter-command, under a sustained GNSS condition. The driver's mode log has no LOITER change | Campaign batch 3 | Open. Not investigated. Actuation on a non-attack condition, relevant to the phase 3 rule |
+| The per-event drop windows overlap (forged LAND and force-disarm share about 5 s), so the per-event changes add to 375 while the bridge total is 372 | Campaign batch 3 driver record | Open. Driver measurement note. Use the bridge's total |
+| `dropped_burst` (5 frames in batch 3) counts a byte-identical repeat within 0.05 s | Campaign batch 3 counters, checked in `inline_policy.py` | Explained. Repeat suppression only; it does not check the sender |
+| The driver's mode log shows ALT_HOLD at 0.1 s and STABILIZE at about 3 s at the start of every batch | Campaign batches 1, 2 and 3 | Explained: the replay capture (`capture_replay()`), intentional test setup |
+| The planned schedule runs 6 to 7 s before the actual event starts (batch 2 forged_land 9.1 s) | Campaign batches 1 to 3, driver record | Explained for the offset: `t0` is set before the replay capture (about 6 s). Use `t_start`. The extra delay on batch 2 forged_land is not traced |
 
 ### Judgement against the plan (conservative)
 
@@ -927,7 +1149,7 @@ The judgement is made against the plan's written criteria in `RADIO_TEST.md`, no
 | 1 baseline | Not run with the Pixhawk. The earlier judgement stands | No change |
 | 2 passive forwarding | Passive 60 s with the Pixhawk (0 drops), and 45 s of ground traffic through the radio. No 10-minute run, no latency comparison with phase 1 | **NOT PASS as written (partly met)** |
 | 3 pilot operation | Benign advisory and active-ips traffic, 0 legitimate drops, 13 of 14 suite steps. No arm, takeoff or flight. Fewer than 30 probes per posture. The 1,500 s active-ips soak sent 457 counter-commands from false GPS alerts, so no actuation from false alerts is not met | **NOT PASS as written** |
-| 4 detection | Forged LAND and the flood announced in advisory (first, invalid runs; unconfirmed); force-disarm, LOITER and replay not announced separately. Per-attack latency not recorded | **NOT PASS as written** |
+| 4 detection | Forged LAND and the flood announced in advisory (first, invalid runs; unconfirmed); force-disarm, LOITER and replay not announced separately in those first runs. The valid campaign batches 1 to 3 announced force-disarm (COMMAND_INJECTION HIGH) and replay (MAVLINK_ANOMALY CRITICAL). Per-attack latency not recorded in the summary | **NOT PASS as written** |
 | 5 prevention | Active-ips on the unsigned link (`--allow-unsigned`) blocked forged LAND, force-disarm, LOITER, flood and replay with the mode unchanged, and pilot commands passed. A forged RTL with its own counter passed on the ground. A counter-tracking forger passed (known limit). In the signed run (one key, over USB), 0 of 7 forged or replayed events reached the vehicle; that run is judged under phase 6. GPS ladder, trusted forced disarm and pilot override not run on the real Pixhawk | **NOT PASS as written (partly met)** |
 | 6 signing | Signed run over USB, bridge as the enforcement point: a legitimately signed set-mode passed; unsigned (4), wrong-key (1) and replayed (1) frames were dropped at the bridge with the mode unchanged. Not tested: enforcement at the flight controller; stale and future timestamps; the signing gate exit code; the count of acknowledged signed pilot commands (not recorded) | **NOT PASS as written (partly met)** |
 | 7 management channel | Posture commands, bad-frame rejection and ACK signatures measured over the radio. Nominal management traffic 81.8 B/s against 150 B/s. Flood-window bytes, alert latency, status age and ACK latency not recorded | **PARTLY** |
@@ -944,6 +1166,7 @@ The judgement is made against the plan's written criteria in `RADIO_TEST.md`, no
 * The soak is 25 minutes, below the 30 to 60 minutes of phase 9.
 * The restore proof covers listed parameters only, and there was no pre-test baseline.
 * One signed run, one key.
+* The campaign is six runs at seed 11 (passive, advisory and active-ips on the unsigned link, then the same on the signed link), one run per cell, so the cell comparisons are single observations, not rates. See their subsections.
 * The commit for each run is not recorded.
 
 ### Git history notes

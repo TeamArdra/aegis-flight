@@ -334,6 +334,14 @@ class MavlinkStreamFramer:
 # --------------------------------------------------------------------------- #
 
 
+def may_reach_vehicle(port: object) -> bool:
+    """True unless ``port`` is a pyserial URL (``socket://...``: a loopback / SITL link). Every OS serial
+    device name (``COM7``, ``/dev/ttyACM0``, a PTY or com0com pair) may be wired to a physical flight
+    controller, so it is treated as one: AegisFlight never transmits on such a link (receive-only boundary,
+    docs/SERIAL_TRANSPORT.md). A transport without a ``port`` string (UDP, test fakes) passes ``None``: False."""
+    return isinstance(port, str) and bool(port) and "://" not in port
+
+
 def _check_port(port: str, allow_url: bool) -> None:
     """Refuse port strings that would hand control to a pyserial URL handler.
 

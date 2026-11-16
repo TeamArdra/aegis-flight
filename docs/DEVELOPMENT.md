@@ -55,7 +55,8 @@ uses no chart/UI library.
   `aegis train`), `*.sqlite`, `frontend/dist/`, `node_modules/`, caches, venv.
 
 ## Git & documentation discipline
-Small, logical commits; end messages with the `Co-Authored-By` trailer. **Keep
+Small, logical commits on an issue branch, never on `main`; no AI attribution
+trailers (see `docs/ENGINEERING_WORKFLOW.md`). **Keep
 docs in sync with code:** changing the API → `API.md`; a detector → `DETECTION.md`;
 features → `FEATURES.md`; an attack → `ATTACKS.md`; benchmark → `BENCHMARKING.md`;
 config → `CONFIGURATION.md`; modules → `FILE_REFERENCE.md`. Never claim a feature

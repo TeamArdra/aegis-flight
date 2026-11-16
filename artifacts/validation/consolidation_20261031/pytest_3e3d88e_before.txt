@@ -1,0 +1,25 @@
+.............................F.......................................... [  6%]
+........................................................................ [ 13%]
+........................................................................ [ 20%]
+........................................................................ [ 27%]
+........................................................................ [ 34%]
+........................................................................ [ 41%]
+........................................................................ [ 48%]
+........................................................................ [ 54%]
+........................................................................ [ 61%]
+........sss............................................................. [ 68%]
+........................................................................ [ 75%]
+........................................................................ [ 82%]
+........................................................................ [ 89%]
+........................................................................ [ 96%]
+........................................                                 [100%]
+___________ test_capture_007_backend_replay_matches_offline_replay ____________
+>       assert [e["evidence"][0][:80] for e in events[:len(prefixes)]] == prefixes
+E       AssertionError: assert ['coverage: l...alid fi', ...] == ['GNSS fix ne...alid fi', ...]
+E         
+E         At index 0 diff: 'coverage: learning link message-rate baseline (rate alarms suppressed)' != 'GNSS fix never acquired: fix_type=0, satellites=0 for 5 decisions (no valid fix '
+E         Use -v to get more diff
+tests\integration\test_app_live_source.py:960: AssertionError
+SKIPPED [1] tests\unit\test_mavlink_serial.py:1382: PTY pairs do not exist on Windows; socket:// tests cover the same transport paths there
+SKIPPED [1] tests\unit\test_mavlink_serial.py:1404: PTY pairs do not exist on Windows; socket:// tests cover the same transport paths there
+SKIPPED [1] tests\unit\test_mavlink_serial.py:1413: PTY pairs do not exist on Windows; socket:// tests cover the same transport paths there

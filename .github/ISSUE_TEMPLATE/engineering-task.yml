@@ -1,0 +1,57 @@
+name: Engineering task
+description: A feature, fix or chore that a teammate or a coding agent can implement in one PR.
+labels: ["type:feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Write it so a Claude Sonnet session can implement it from this issue alone (AGENTS.md §7).
+        Add `agent-ready` only when the acceptance criteria are testable and nothing blocks it.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What exists today, with file:line references. Mark each statement Verified or Hypothesis.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: direction
+    attributes:
+      label: Proposed direction
+      description: Files and interfaces likely to change. Say explicitly whether a frozen contract (AGENTS.md §4) or security boundary (§5) is touched.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checkboxes, each verifiable by a command or test.
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Test plan
+      description: Tests to add; whether the Stage-1 regression (6535 / 4 / 16826 / 65) applies.
+  - type: input
+    id: blocked
+    attributes:
+      label: Blocked by
+      description: Issue numbers that must close first, or "none".
+      placeholder: "none"
+  - type: dropdown
+    id: model
+    attributes:
+      label: Recommended implementer
+      options: ["Sonnet (routine)", "Opus (architecture / security-critical)", "Haiku (trivial)", "Human only"]
+  - type: dropdown
+    id: approval
+    attributes:
+      label: Human approval needed before coding?
+      options: ["No", "Yes: design or scope decision", "Yes: frozen contract change"]

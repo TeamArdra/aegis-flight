@@ -60,6 +60,7 @@ from ..pipeline import IDSPipeline
 from ..proxy.hooks import FrameContext
 from ..proxy.transport import split_frames
 from ..sources.mavlink_live import LiveMavlinkSource
+from ..sources.mavlink_serial import may_reach_vehicle
 from .mgmt_channel import FrameSender, MgmtChannel, drop_label, is_mgmt_command
 
 
@@ -146,6 +147,7 @@ class InlineIpsBridge:
         mgmt_clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.fc, self.gcs = fc, gcs
+        self._refuse_active_on_device(mode)
         self._secret_key = secret_key
         self.cfg = cfg or load_config(config_dir)
         proto = self.cfg.detector.get("protocol", {})
@@ -245,8 +247,16 @@ class InlineIpsBridge:
     def __exit__(self, *exc: object) -> None:
         self.close()
 
+    def _refuse_active_on_device(self, mode: DefenseMode | str) -> None:
+        """Receive-only boundary: ACTIVE_IPS (dropping and counter-commanding) is refused when the FC side is a
+        serial device, which may be a physical flight controller. SITL runs over socket:// links."""
+        if DefenseMode(mode) == DefenseMode.ACTIVE_IPS and may_reach_vehicle(getattr(self.fc, "port", None)):
+            raise ValueError(f"active-ips is refused on FC port {self.fc.port!r}: a serial device may be a physical "
+                             "flight controller (receive-only); use a socket:// SITL link")
+
     def set_mode(self, mode: DefenseMode | str, origin: str = "local") -> None:
         """Operator posture change. Leaving ACTIVE_IPS clears every enforcement state at once."""
+        self._refuse_active_on_device(mode)
         before = self.controller.mode
         self.controller.set_mode(mode)
         self.policy.set_enforce(self.controller.mode == DefenseMode.ACTIVE_IPS)
@@ -467,8 +477,12 @@ class InlineIpsBridge:
         return False
 
     def _analyse_loop(self) -> None:
+        # the vehicle's own downlink may legitimately be unsigned (ArduPilot over USB, or FC-side signing off): without
+        # this the PX4 id allowlist drops all its telemetry once a key is set and the detectors go blind. Forged
+        # ground-station frames (any other sysid) stay dropped; signed frames are still verified.
         self._source = LiveMavlinkSource(self.tap, sample_rate_hz=self.rate_hz, origin="start",
-                                         secret_key=self._secret_key)
+                                         secret_key=self._secret_key,
+                                         unsigned_allowed_sysids=frozenset(self.policy.vehicle_sysids))
         try:
             for tick in self._source.stream():
                 if self._stop.is_set():

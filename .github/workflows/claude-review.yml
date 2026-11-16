@@ -1,0 +1,192 @@
+# Independent automated PR reviewer (Claude Sonnet via anthropics/claude-code-action).
+#
+# Runs on: PR opened / reopened / new commits (synchronize) / ready_for_review, for
+# non-draft PRs from branches of THIS repository. A maintainer can force a run (also on a
+# draft) with the one-shot label `claude:review`, or escalate to a deeper model with
+# `claude:deep-review`. `claude:skip-review` suppresses automatic runs.
+#
+# Output: inline comments + one summary comment (by claude[bot]) and a commit status
+# `claude-review` on the reviewed head SHA (advisory; do NOT make it a required check).
+# The reviewer never approves, merges, pushes or edits.
+#
+# Security model: docs/CLAUDE_AUTOMATION.md. Key points:
+# - `pull_request` (not `pull_request_target`): fork PRs get no secrets and are skipped.
+# - The review rules are read from the BASE branch; the action itself restores CLAUDE.md,
+#   AGENTS.md and .claude/ from the base branch.
+# - The Claude GitHub App token exchange only succeeds when this file is identical to the
+#   copy on the default branch, so a PR that edits this workflow is skipped by design.
+name: Claude PR review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, labeled]
+
+permissions: {}
+
+jobs:
+  review:
+    name: claude-review
+    if: >-
+      github.event.pull_request.state == 'open' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (
+        (github.event.action == 'labeled' &&
+          (github.event.label.name == 'claude:review' || github.event.label.name == 'claude:deep-review')) ||
+        (github.event.action != 'labeled' &&
+          !github.event.pull_request.draft &&
+          !contains(github.event.pull_request.labels.*.name, 'claude:skip-review'))
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Job-level, so unrelated `labeled` events (job skipped) never cancel a running review.
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read        # checkout
+      pull-requests: write  # label housekeeping by the workflow token
+      issues: write         # labels live on the issue side of a PR
+      statuses: write       # `claude-review` commit status
+      id-token: write       # OIDC exchange for the Claude GitHub App token
+      actions: read         # lets the reviewer see CI results
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
+      EVENT_ACTION: ${{ github.event.action }}
+      DEEP: ${{ github.event.action == 'labeled' && github.event.label.name == 'claude:deep-review' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Mark review pending
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+            -f state=pending -f context=claude-review \
+            -f description="Automated review in progress" -f target_url="$RUN_URL" > /dev/null
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0            # history for incremental diffs (repo is ~7 MB)
+          persist-credentials: false
+
+      - name: Load review policy from the base branch
+        id: policy
+        run: |
+          set -euo pipefail
+          if ! policy="$(git show "origin/${BASE_REF}:.github/claude/review-policy.md")"; then
+            echo "::error::.github/claude/review-policy.md is missing on base branch '${BASE_REF}'. The reviewer only runs with a policy that is already merged."
+            exit 1
+          fi
+          delim="POLICY_$(openssl rand -hex 16)"
+          { echo "text<<$delim"; printf '%s\n' "$policy"; echo "$delim"; } >> "$GITHUB_OUTPUT"
+
+      - name: Choose model and review mode
+        id: cfg
+        env:
+          REVIEW_MODEL: ${{ vars.CLAUDE_REVIEW_MODEL || 'claude-sonnet-5-5' }}
+          DEEP_MODEL: ${{ vars.CLAUDE_DEEP_REVIEW_MODEL || 'claude-opus-5-5' }}
+          REVIEW_TURNS: ${{ vars.CLAUDE_REVIEW_MAX_TURNS || '30' }}
+        run: |
+          set -euo pipefail
+          if [ "$DEEP" = "true" ]; then model="$DEEP_MODEL"; turns=60; else model="$REVIEW_MODEL"; turns="$REVIEW_TURNS"; fi
+          [[ "$model" =~ ^[A-Za-z0-9._:@-]+$ ]] || { echo "::error::invalid model id '$model'"; exit 1; }
+          { [[ "$turns" =~ ^[0-9]+$ ]] && [ "$turns" -le 100 ]; } || { echo "::error::invalid max turns '$turns'"; exit 1; }
+
+          # Incremental mode: the newest earlier commit of this PR that already has a
+          # completed review status written by this workflow.
+          mode=full; prev=""
+          if [ "$DEEP" != "true" ] && [ "$EVENT_ACTION" = "synchronize" ]; then
+            mapfile -t shas < <(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits?per_page=100" --jq '.[].sha')
+            for (( i=${#shas[@]}-1; i>=0; i-- )); do
+              s="${shas[$i]}"; [ "$s" = "$HEAD_SHA" ] && continue
+              st=$(gh api "repos/$GITHUB_REPOSITORY/commits/$s/statuses?per_page=100" \
+                --jq '[.[] | select(.context=="claude-review" and .creator.login=="github-actions[bot]")][0].state // ""')
+              if [ "$st" = "success" ] || [ "$st" = "failure" ]; then
+                if git merge-base --is-ancestor "$s" "$HEAD_SHA" 2>/dev/null; then mode=incremental; prev="$s"; fi
+                break
+              fi
+            done
+          fi
+          { echo "model=$model"; echo "turns=$turns"; echo "mode=$mode"; echo "prev=$prev"; } >> "$GITHUB_OUTPUT"
+          echo "Review: model=$model max_turns=$turns mode=$mode prev=${prev:-none}"
+
+      - name: Claude review
+        id: review
+        uses: anthropics/claude-code-action@d1f58ad5e6f4d2b79547e63e37c2116064135896 # v1.0.277
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Re-review after a maintainer-requested remediation push (pushed by claude[bot]).
+          # Only the official Claude app is allowed; never '*'.
+          allowed_bots: claude
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            HEAD SHA: ${{ github.event.pull_request.head.sha }}
+            BASE BRANCH: ${{ github.event.pull_request.base.ref }}
+            REVIEW MODE: ${{ steps.cfg.outputs.mode }}
+            PREVIOUS REVIEWED SHA: ${{ steps.cfg.outputs.prev || 'none' }}
+            MODEL: ${{ steps.cfg.outputs.model }}
+
+            The PR head is checked out in the working directory with full history.
+            Review this pull request under the policy below. Post GitHub comments only;
+            your final message must be the structured result.
+
+            ${{ steps.policy.outputs.text }}
+          claude_args: |
+            --model ${{ steps.cfg.outputs.model }}
+            --max-turns ${{ steps.cfg.outputs.turns }}
+            --permission-mode default
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git blame:*),Bash(git status)"
+            --disallowedTools "Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Bash(gh pr review:*),Bash(gh pr merge:*),Bash(gh pr edit:*),Bash(gh pr close:*),Bash(gh api:*),Bash(gh workflow:*),Bash(git push:*),Bash(git commit:*)"
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["blocking","non-blocking","clean","incomplete"]},"p0":{"type":"integer","minimum":0},"p1":{"type":"integer","minimum":0},"p2":{"type":"integer","minimum":0},"p3":{"type":"integer","minimum":0},"escalate":{"type":"boolean"},"escalation_reason":{"type":"string"},"linked_issue":{"type":"integer"}},"required":["verdict","p0","p1","p2","p3","escalate"],"additionalProperties":false}'
+
+      - name: Publish review status
+        if: always()
+        env:
+          RESULT: ${{ steps.review.outputs.structured_output }}
+          OUTCOME: ${{ steps.review.outcome }}
+          MODEL: ${{ steps.cfg.outputs.model }}
+        run: |
+          set -uo pipefail
+          post() {
+            gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" -f state="$1" -f context=claude-review \
+              -f description="$2" -f target_url="$RUN_URL" > /dev/null
+          }
+          int() { if [[ "$1" =~ ^[0-9]+$ ]]; then echo "$1"; fi; }
+          verdict=""; p0=""; p1=""; p2=""; p3=""; esc="false"; reason=""
+          if [ -n "${RESULT:-}" ] && jq -e 'type=="object"' >/dev/null 2>&1 <<<"$RESULT"; then
+            verdict=$(jq -r '.verdict // ""' <<<"$RESULT")
+            p0=$(int "$(jq -r '.p0 // ""' <<<"$RESULT")"); p1=$(int "$(jq -r '.p1 // ""' <<<"$RESULT")")
+            p2=$(int "$(jq -r '.p2 // ""' <<<"$RESULT")"); p3=$(int "$(jq -r '.p3 // ""' <<<"$RESULT")")
+            esc=$(jq -r 'if .escalate == true then "true" else "false" end' <<<"$RESULT")
+            reason=$(jq -r '.escalation_reason // ""' <<<"$RESULT" | tr -d '\r' | head -c 300)
+          fi
+          if [ "$OUTCOME" = "cancelled" ]; then
+            post error "Review cancelled (superseded by a newer run)"; exit 0
+          fi
+          if [ "$OUTCOME" != "success" ] || [ -z "$p0" ] || [ -z "$p1" ] || [ -z "$p2" ] || [ -z "$p3" ] || [ "$verdict" = "incomplete" ]; then
+            post error "Review did not complete; see the run log"
+            echo "::warning::Claude review did not produce a complete result (outcome=$OUTCOME)."
+            exit 0
+          fi
+          counts="P0:$p0 P1:$p1 P2:$p2 P3:$p3"
+          if [ $((p0 + p1)) -gt 0 ] || [ "$verdict" = "blocking" ]; then
+            post failure "$counts (blocking findings; advisory)"
+          else
+            post success "$counts"
+          fi
+          if [ "$esc" = "true" ]; then
+            gh pr edit "$PR_NUMBER" --add-label "claude:escalation-recommended" || echo "::warning::could not add escalation label"
+          fi
+          {
+            echo "### Claude review of \`${HEAD_SHA:0:7}\`"
+            echo "- Model: \`$MODEL\` · verdict: **$verdict** · $counts"
+            if [ "$esc" = "true" ]; then echo "- Escalation recommended: $reason"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clear one-shot trigger label
+        if: always() && github.event.action == 'labeled'
+        env:
+          LABEL: ${{ github.event.label.name }}
+        run: gh pr edit "$PR_NUMBER" --remove-label "$LABEL" || true

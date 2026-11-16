@@ -78,3 +78,96 @@ Notes for the lead (code side, not edited):
 * `scripts/ardupilot/real_pixhawk/README.md`: its script table has no rows for `px_snapshot.py`, `px_restore.py`, `px_signing.py`, `px_common.py` or `px_signed_attack.py`. It also says "over the radio (about 2 KB/s)"; the 2 KB/s figure is the vendor setting, and the measured clean throughput is about 1.0 to 1.05 KB/s.
 * `scripts/radio_test/laptop_ctl.py` and `campaign.py` still hard-code the old addresses as defaults.
 * `px_restore.py` prints RESTORED after checking only the listed parameters. Its message could say so.
+
+## 2026-11-02: randomised campaign, batch 1 of 6 (brief "Results log", standing instruction)
+
+Brief items used: the Results-log entry "Real-Pixhawk randomised campaign batch 1 of 6: px1_passive_unsigned (2026-11-02)"; the standing instruction (record each batch, cite the artifact or command for every figure, keep the same sections, conservative wording); lessons 1 to 8, which were checked and are unchanged, with new lessons 18 to 20 added from this batch. The figures were checked against the run's output files `C:/afsitl/px_campaign_px1_passive_unsigned.json`, `C:/afsitl/px_events_px1_passive_unsigned.txt` and `C:/afsitl/run_px1.log`.
+
+| File | What changed |
+|---|---|
+| `docs/RADIO_TEST_RESULTS.md` (CRLF kept) | New subsection "Randomised attack campaign on the real Pixhawk: batch 1 of 6": setup and command, schedule, per-event table, what the batch shows, restore state, limits. Marked as batch 1 of 6, with no campaign-level judgement. The Rig row was corrected: the GPS fix varied by session (no fix in batch 1), and the firmware is ArduCopter 4.7.1 (version word 67503103, from the 2026-10-31 snapshot); the row had said "not recorded". Limits bullet and two Findings rows added (the GNSS masking; the missing per-event bridge counters). The "Not run" list now says batches 2 to 6 are not recorded yet. |
+| `docs/REAL_PIXHAWK_TEST.md` | Rig row: the GPS fix varied by session. Safety rule 2: the campaign driver stops when armed. New safety rule 9: the forged commands change the real vehicle's mode, so check and restore it. Software: campaign notes. Run order: step 15. Lesson 9: `px_campaign.py` uses the hub. New lessons 18 (a loopback status endpoint cannot be read from another host), 19 (`~` in a local shell expands on the laptop) and 20 (a persistent alert can hide momentary ones). Not run: batches 2 to 6. Sections 8 and 9: pointers to the masking finding and to the campaign results. New section 11: how to run the campaign, the scripts, the output paths, batch 1 marked as 1 of 6. |
+| `docs/WORKLOG.md` | This entry. |
+
+Not changed in this pass, because the task was limited to the three files above: `docs/RADIO_TEST.md` (campaign status in the phase lines), `docs/INLINE_IPS.md`, `docs/MINIMAL_BUILD.md`, `docs/README.md`, `README.md`, `docs/DETECTION.md`. No new document was created. `src/`, `tests/`, `scripts/` and `configs/` were not edited.
+
+Points found while checking the artifacts, not resolved here (for the lead):
+
+1. Every status read the driver made from the laptop was refused (`WinError 10061`), for all ten events and the final check. The per-event bridge counters are therefore missing from `C:/afsitl/px_campaign_px1_passive_unsigned.json`. The driver reads the Pi's LAN address, and the bridge's status server binds 127.0.0.1 by default (`src/aegisflight/cli/main.py`). This is code side and was not edited. The brief did not mention it.
+2. Alert timing: the brief's "5 to 9 s after each event started" does not match the bridge event log (first TELEMETRY_MANIPULATION row 3.1 s after the alt_bias start and 3.3 s after the batt_jump start) or the ground announcement texts (4.6 s and 4.9 s). Both sets are in the subsection. The record does not explain the difference.
+3. The driver's docstring says 9 events. Its code schedules 10.
+4. The bridge end-of-run status reports 1,633 analyser decisions; the event log has 88 rows. The record does not say how the two relate.
+5. The bridge's state read SAFE_HOLD at the end of a passive run, and "AEGIS: safe_hold" texts recur through it. Not explained, not investigated.
+6. The brief says "params, mission and firmware verified byte-identical". The subsection states only what the record supports: the listed parameters and the mission (dry run, 0 changed), and the file changed by `fw_tamper` restored byte-identical. The brief does not say which firmware was compared with the Pixhawk.
+
+Still open, and not marked done: batches 2 to 6 of the campaign (not recorded); the GPS false-alarm issue (user decision, not fixed); the new masking finding under a sustained GNSS condition (not fixed); the status-read defect in the driver (not fixed); the campaign scripts `px_campaign.py`, `px_fc_proxy.py`, `px_proxy_ctl.py` and `run_px_campaign.sh` are uncommitted (lead).
+
+## 2026-11-02: randomised campaign, batches 2 and 3 of 6 (brief "Results log", standing instruction)
+
+Brief items used: the Results-log entries "Real-Pixhawk randomised campaign batch 2 of 6: px2_advisory_unsigned" and "batch 3 of 6: px3_active-ips_unsigned"; the "Bug found and FIXED after batch 1" paragraph; the standing instruction (cite the artifact for every figure, same sections, conservative wording, no campaign-level claim). The figures were checked against `C:/afsitl/px_campaign_px2_advisory_unsigned.json`, `C:/afsitl/px_events_px2_advisory_unsigned.txt`, `C:/afsitl/px_campaign_px3_active-ips_unsigned.json` and `C:/afsitl/px_events_px3_active-ips_unsigned.txt`. Batch 1's figures were rechecked against its files (88 event rows, 45 texts, 13 `safe_hold`, the four mode changes) and matched the write-up.
+
+| File | What changed |
+|---|---|
+| `docs/RADIO_TEST_RESULTS.md` (CRLF kept) | Subsections added under batch 1: batch 2 (advisory) and batch 3 (active-ips), each with setup and command, schedule, per-event table, what the batch shows, restore state and limits. Batch 3 has a per-event counter table. Batch 1 corrected and extended: its counters are described as unavailable (status read refused), not as zero; the status-read defect is marked fixed before batch 3; a start-of-run mode-log note and a later "battery collapse" row added; the driver cosmetic bug marked fixed. Rig row: no fix in batches 1 to 3. Findings: the masking and counter rows updated, five rows added. "Not run" and limits now say batches 4 to 6 are pending. Judgement table unchanged. |
+| `docs/REAL_PIXHAWK_TEST.md` | Rig row; safety rule 9 (mode changes in batches 2 and 3); lessons 18 and 20 (batch 2 ran before the status fix; batch 3 has counters; masking reproduced); section 7, 8 and 9 pointers; section 11 retitled "batches 1 to 3 of 6", with the batch 2 and 3 labels and the `--allow-unsigned` note, and the counter note updated. |
+| `docs/RADIO_TEST.md` (CRLF kept) | Banner: batches 1 to 3 recorded, 4 to 6 pending. Phase 3, 4 and 5 status lines extended with the batch 2 and 3 results. The phase 4 line and the phase 4 judgement row said force-disarm and replay were not announced; that is now marked as true for the first (invalid) runs only, because the valid campaign batches announced both. All phases stay NOT PASS as written. Section 11 summary extended. |
+| `docs/WORKLOG.md` | This entry. |
+
+Not changed: `README.md` (its link text for the real-Pixhawk runs still describes the 2026-10-31 runs only), `docs/INLINE_IPS.md`, `docs/DETECTION.md`, `docs/README.md`. `src/`, `tests/`, `scripts/` and `configs/` were not edited. No rig run, no SSH, no commit.
+
+Points found while checking, not resolved here (for the lead):
+
+1. The lead's summary gives batch 3 as 88 % of 88 decisions DOS-class, and batch 2 as 76 of 89. The files give 77 of 88 (87.5 %) for batch 3, and 77 of 89 for batch 2 (the 76 leaves out one DOS HIGH "battery collapse" row). The docs use the file counts.
+2. Batch 3: the bridge announced "blocked RETURN_TO_LAUNCH sys255 x2" and "blocked LAND sys255 x2", with two burst drops in each window, yet the vehicle changed mode both times. The record does not give the copies sent per event. Not explained.
+3. Batch 3: the per-event drop changes (start to end of window) add to 375. The forged LAND and force-disarm windows overlap by about 5 s, so 3 frames are counted twice. The bridge total is 372. The lead's per-event figures (6, 3, 360, 2) are these windowed changes.
+4. Batch 3: `policy.rewritten` 11 is linked to the proxy's alt_bias rewrite, but the bridge also logged `sanitize_alt` in the same window, so the counter may include bridge-side rewrites. Batch 2's final status shows `rewritten` 0, and the proxy's batch 2 count is not in the record.
+5. In all three batches the mode log starts with ALT_HOLD at 0.1 s and returns to STABILIZE at about 3 s. The cause is not in the record. Batch 1's write-up did not mention it (now added to its limits).
+6. Batch 3: the bridge summary says LOITER engaged, and `counter_frames_sent` is 1, but the driver's mode log has no LOITER change. Not investigated.
+7. Batches 2 and 3: the schedule list in the driver JSON starts about 6 s before the actual event starts (forged RTL 41.3 s against 47.6 s). Not explained. The docs use the actual starts.
+8. Batch 2: ground texts arrive about 1.5 to 2 s after the matching bridge rows. Batch 3's texts match the rows to about 0.1 s. Not explained.
+9. "Pixhawk verified clean afterwards" for batches 2 and 3 is the lead's record. The restore dry run was not re-run in this pass.
+10. Not done: `README.md` and `docs/INLINE_IPS.md` have no campaign note. Say if you want one.
+
+## 2026-11-02: correction pass, batches 2 and 3 (lead's clarifications)
+
+Brief items used: "Clarifications for batch 2-3 open points (lead, 2026-11-02)", points 1 to 4. Checked against the driver code (`scripts/ardupilot/real_pixhawk/px_campaign.py`, `src/aegisflight/mitigation/inline_policy.py`, read only) and the run records `C:/afsitl/px_campaign_*.json` and `C:/afsitl/px_events_*.txt` (read only).
+
+| File | What changed |
+|---|---|
+| `docs/RADIO_TEST_RESULTS.md` (CRLF kept) | Batch 1 schedule paragraph: planned and actual times separated. Batch 2 and 3 schedule paragraphs: the time-base offset explained. Mode-log notes in batches 1 to 3: the ALT_HOLD/STABILIZE pair is the replay capture. Batch 3: the sysid-255 rows, the replay row, the bullets and the limits rewritten (three copies sent, the counts imply one passed, the burst rule explained). Findings: three rows resolved (copy count, dropped_burst, mode-log entries), one row added (schedule offset). |
+| `docs/REAL_PIXHAWK_TEST.md` | Safety rule 9 (sysid-255 wording); section 11 gains three reading notes (planned vs `t_start`, the mode-log entries, the copy counts). |
+| `docs/WORKLOG.md` | This entry. |
+
+Each point:
+
+1. **Fixed.** The "blocked x2, yet mode changed" framing no longer reads as a binary. The lead's arithmetic holds: `start_event` in `px_campaign.py` sends three identical copies for forged LAND, forced disarm, the RTL spoof and the spoofed LAND, so two drops with a mode change means one copy passed. The code gives the mechanism: `dropped_burst` counts a byte-identical sensitive command repeated within `cadence_s` (0.05 s by default, `_command_rule` in `inline_policy.py`), and sysid 255 is in the default trusted sysids (255, 254). The record does not show which copy passed; this is inferred from the counts. The other events were re-checked: forged LAND and forced disarm give 6 untrusted-control drops for 6 copies (the windows overlap; all blocked). The replay was sent twice, not three; both copies were dropped (1 replay, 1 burst) and the mode did not change, so "blocked" was already right and the row now states both drops. Batches 1 and 2 (passive, advisory) have no drops, so there is no binary-mischaracterization there.
+2. **Fixed.** The ALT_HOLD at 0.1 s and STABILIZE at about 3 s is the `capture_replay()` setup (`px_campaign.py`, lines 154 to 158). It is now written as intentional test setup in all three batches, and the open row is explained.
+3. **Fixed.** The JSON `schedule` is the planned time; `events[].t_start` is the actual time. Batch 1's table already used `t_start`, and its note now says so. The batch 2 and 3 sentences that said the record does not explain the offset are replaced: the offset is the time base. `t0` is set before `capture_replay()` (about 6 s of pumping), while the schedule is measured from `tstart`, which is set after it. Measured offsets: batch 1 6.1 to 7.3 s; batch 2 6.1 to 7.0 s except forged_land at 9.1 s; batch 3 6.0 to 6.5 s. The brief's "5 to 7 s" was slightly low. The batch 2 forged_land delay is not traced.
+4. **Confirmed; text unchanged.** Batch 3's events file has 88 decision rows: 72 DOS SUSPICIOUS and 5 DOS CRITICAL, so 77 of 88 = 87.5 %. All 77 DOS rows cite "GNSS fix never acquired". Batch 2, from the same check: 77 of 89 DOS-class.
+
+Not changed, and for the lead:
+- Batch 4 and later are untouched.
+- The three earlier open items for batches 1 to 3 in the entry above (items 2, 5 and 7) are now resolved by points 1, 2 and 3 here. The old text is kept as history.
+- The 10-31 active-ips and signed runs were made with other scripts (`px_attack.py`, `px_signed_attack.py`; neither has the three-copy loop). Their doc text was not changed, because their per-event copy counts were not checked in this pass.
+- The brief's statement that the three-copy pattern applies to every forged-command event is not right for the replay, which sends two copies.
+- `RADIO_TEST.md`, `INLINE_IPS.md` and `README.md` were searched for the same batch 2 and 3 sysid-255 wording; none was found, so they were not edited.
+- Not re-run: the restore dry run and the "Pixhawk verified clean" statements for batches 2 and 3 (the lead's record).
+- No rig run, no SSH, no commit, and no edits to `src/`, `tests/`, `scripts/` or `configs/`.
+
+## 2026-11-17: GitHub `main` merged into the management-channel and performance branch; signed-downlink fix; campaign batches 4 to 6 recorded
+
+Branch `integration/main-plus-mgmt-perf` (from `work/mgmt-channel-and-perf` at `b3ae666`, plus `origin/main` at `d6b00b6`). Nothing was pushed.
+
+| What | Detail |
+|---|---|
+| Merge | `origin/main` merged with two text conflicts, both resolved keeping both sides: `README.md` (step 3 wording: receive-only rule plus the 1,500 s proxied soak) and `src/aegisflight/hal/inline_ips.py` (imports; `set_mode` keeps the management channel's `origin` argument and the receive-only refusal). |
+| Code | `MavlinkFrameParser`, `LiveMavlinkSource` and the bridge analyser accept `unsigned_allowed_sysids`; the bridge passes its vehicle sysids. Cause and scope: `docs/REAL_PIXHAWK_TEST.md`, section 11. Tests: `tests/unit/test_signed_downlink_telemetry.py` (6). |
+| Docs | `docs/REAL_PIXHAWK_TEST.md` section 11 (all 6 batches, the gap, the fix), sections 7 and 9; `docs/RADIO_TEST_RESULTS.md` (batches 4 to 6, limits line); `docs/INLINE_IPS.md` (proxied-link note); `docs/README.md` (index entries for `MGMT_CHANNEL.md` and `PERFORMANCE.md`). |
+
+Checks run on the merged tree:
+
+* `python -m pytest`: 1455 passed, 11 skipped, 0 failed.
+* `ruff check src tests scripts backend`: all checks passed.
+* `aegis benchmark --out <scratch> --no-figures`: TP / FP / TN / FN 6535 / 4 / 16826 / 65, the committed line. The edit touches `src/aegisflight/sources/`, so this was required.
+
+Not done: the frontend tests and build (`frontend/node_modules` is not installed here, and installing it downloads packages); a bench re-run of the signed campaign after the fix; the intermittent bridge test of the team's fix list (not reproduced or changed).

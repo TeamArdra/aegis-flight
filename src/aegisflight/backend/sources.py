@@ -10,7 +10,8 @@ existing ingestion stack unchanged -- the same components ``scripts/hardware/run
 
 The environment label is DERIVED, never user-settable, so replayed or loopback data cannot be presented
 as physical telemetry: a ``socket://`` virtual serial port is ``REPLAY``, only a real serial port is
-``BENCH``. The feed itself only receives; counter-frames are sent by ``LiveEngine`` only in ACTIVE_IPS.
+``BENCH``. The feed itself only receives; counter-frames are sent by ``LiveEngine`` only in ACTIVE_IPS, and
+never on a serial device (``SourceSpec.transmit_allowed``): a physical flight controller link is receive-only.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from ..sources.mavlink_serial import may_reach_vehicle
 from ..sources.stream import TelemetryTick
 
 KINDS = ("sim", "replay", "serial", "udp")
@@ -67,6 +69,9 @@ class SourceSpec:
                 raise ValueError("serial source needs a port (e.g. COM7)")
             if self._is_url and not self.allow_url:
                 raise ValueError("a socket:// port is a virtual (non-physical) link; pass allow_url to use it")
+        if self.defense_mode == "active-ips" and not self.transmit_allowed:
+            raise ValueError(f"defense_mode 'active-ips' is refused on serial port {self.port!r}: a serial device may "
+                             "be a physical flight controller, which is receive-only (use a socket:// SITL link)")
         if self.kind == "replay" and (not self.tlog or not Path(self.tlog).is_file()):
             raise ValueError(f"replay source needs an existing tlog file, got {self.tlog!r}")
         if self.kind == "udp" and not self.udp_port:
@@ -91,6 +96,12 @@ class SourceSpec:
         """True only for an OS serial device that is not a known virtual one (never a URL, replay, UDP or
         the simulator). Configured, not proven: the frames' origin is not verifiable on an unsigned link."""
         return self.kind == "serial" and not self._is_url and not self._is_virtual_name
+
+    @property
+    def transmit_allowed(self) -> bool:
+        """False for a serial OS device (``may_reach_vehicle``): nothing is ever written to it -- no counter-frame,
+        no STATUSTEXT. A PTY / com0com name counts as a device here (it may be bridged to a real board)."""
+        return not (self.kind == "serial" and may_reach_vehicle(self.port))
 
     @property
     def environment(self) -> str:

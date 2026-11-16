@@ -11,7 +11,12 @@ Run with the project venv; the suite must pass in full (the count grows with new
 features — `pytest -q` prints it). The pyramid above shows the Stage-1 layout and its
 historic counts.
 
-**Latest full run (2026-10-29, hardware-free sprint, branch `sprint/hardware-free-20261029` from `docs/submission-readiness-20261029` d0d134b plus uncommitted sprint changes):** 907 passed, 3 skipped, 0 failed, 910 collected
+**Latest full run (2026-10-31, consolidated `main` `eb829e9`):** host 1061 passed, 3 skipped (POSIX PTY), 0 failed, 1064 collected
+(`tests/unit` 962, `tests/integration` 95, `tests/e2e` 2, `backend/tests` 5); clean clone + fresh venv 1052 passed, 12 skipped (git-ignored
+captures / model absent, PTY), 0 failed; frontend 31 passed; Stage-1 regression 6535 / 4 / 16826 / 65, 378 of 378 cells equal. On `3e3d88e`
+(`origin/main` after PR #3) the capture-007 parity test failed on the host (fixed in `537a5ee`). Saved in `artifacts/validation/consolidation_20261031/`.
+
+**Previous full run (2026-10-29, hardware-free sprint, branch `sprint/hardware-free-20261029` from `docs/submission-readiness-20261029` d0d134b plus uncommitted sprint changes):** 907 passed, 3 skipped, 0 failed, 910 collected
 (`tests/unit` 811 incl. the 8 label-independence tests, `tests/integration` 92, `tests/e2e` 2, `backend/tests` 5), 155.3 s; frontend 11 passed; saved in
 `artifacts/validation/submission_rerun_20261029/test_suite_run.json`. The run below it (899 / 902) is the previous one on the same branch family.
 
