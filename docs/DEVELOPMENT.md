@@ -61,3 +61,6 @@ docs in sync with code:** changing the API → `API.md`; a detector → `DETECTI
 features → `FEATURES.md`; an attack → `ATTACKS.md`; benchmark → `BENCHMARKING.md`;
 config → `CONFIGURATION.md`; modules → `FILE_REFERENCE.md`. Never claim a feature
 is implemented unless the code works and a test/benchmark backs it.
+
+The docs index is `docs/README.md`; start there when looking for the right
+guide to update.
