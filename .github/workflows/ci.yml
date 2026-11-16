@@ -49,8 +49,9 @@ jobs:
         run: ruff check src tests scripts backend
 
       - name: Pytest
-        # -p no:cacheprovider: no .pytest_cache writes (matches the local gate).
-        run: python -m pytest -q -p no:cacheprovider -r s
+        # pyproject addopts already adds -q; another -q (-qq) would hide the "N passed" line.
+        # -p no:cacheprovider: no .pytest_cache writes. -r s: list skip reasons.
+        run: python -m pytest -p no:cacheprovider -r s
 
       - name: Record resolved dependency versions
         if: always()

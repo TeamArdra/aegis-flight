@@ -11,7 +11,7 @@ Closes #
 ## How it was verified
 <!-- Exact commands and their summary lines. Write "not run" for anything you did not run. -->
 ```text
-$ python -m pytest -q
+$ python -m pytest
 <last line>
 $ ruff check src tests scripts backend
 <output>

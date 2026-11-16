@@ -184,9 +184,37 @@ outside the repo, and rotate it by replacing the secret.
 
 ## 8. Validation status
 
-| Check | Status |
+State when the infrastructure PR (#36) was opened, 2026-11-17. "Verified" means observed on
+GitHub or run locally; "not verified" items are covered by the post-merge test plan below.
+
+| Check | Result |
 |---|---|
-| _(filled in after the infrastructure PR runs)_ | |
+| YAML syntax, expressions, action inputs (`actionlint` 1.7.12) | Verified: clean |
+| `run:` scripts (`shellcheck` 0.11.0, severity ≥ warning) | Verified: 15/15 clean |
+| Actions security lint (`zizmor` 1.32.0, default persona) | Verified: no findings; `issue_comment` trigger suppressed with justification. Auditor persona adds `secrets-outside-env` (optional hardening: move the secret to an Environment) |
+| CI on GitHub (`ci-python`, `ci-frontend`) | Verified on PR #36: both green on Ubuntu (pytest + ruff 3 min; node tests 31/31 + build) |
+| Unrelated `labeled` events skip the review job and do not cancel it | Verified on PR #36 (two skipped runs) |
+| Reviewer fails closed when the policy is not on the base branch | Verified on PR #36: `fatal: path … exists on disk, but not in 'origin/main'`; status `pending → error` written by `github-actions[bot]` |
+| Remediation gate logic (15 scenarios: no write access, allowlist, fork, closed, head=main, no/forged/pending/error status, P3-only, proceed, forged cycle marker, cycle limit) | Verified locally with a stubbed `gh` against the exact workflow script |
+| Review status publisher (9 scenarios incl. malformed/injected structured output) and gate round-trip | Verified locally |
+| Incremental-mode selection (ignores user-forged statuses; force-push falls back to full) | Verified locally against real branch history |
+| Claude App OIDC token exchange, `CLAUDE_CODE_OAUTH_TOKEN` accepted, Sonnet model id accepted under the subscription | **Not verified**: needs the workflows on `main` |
+| Review comments/inline comments/structured output on a real PR; incremental re-review | **Not verified** (post-merge test plan) |
+| `@claude fix` end-to-end: tag-mode checkout, push to PR branch, re-review triggered by `claude[bot]` push | **Not verified** (post-merge test plan) |
+| Ruleset enforcement / no merge without human approval | **Not verified**: the ruleset is currently disabled (§9) |
+
+### Post-merge test plan
+
+1. Open a small PR from a branch in this repo (ready for review) → `claude-review` run, a
+   summary comment by `claude[bot]`, a `claude-review` status with counts.
+2. Push another commit → incremental review naming the previous SHA; a still-running earlier
+   review is cancelled.
+3. `@claude fix the verified P1 and P2 findings from the latest review` on a PR whose review
+   has no P0–P2 → refusal comment. Then on a PR seeded with a real defect → "cycle 1 of 2",
+   a `claude[bot]` push to the same branch, and a new review run.
+4. A third `@claude fix` after two cycles → refusal ("used all 2 cycles").
+5. `claude:deep-review` label → Opus review, label removed afterwards.
+6. With the ruleset active: merging without a second human's approval is blocked.
 
 ## 9. Admin setup and recommended repository settings
 

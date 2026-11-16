@@ -23,7 +23,7 @@ Real-attack detection on real vehicles is **not** claimed.
 - Windows dev machines: use `.venv/Scripts/python.exe`; PTY tests skip on Windows.
 
 ```bash
-pytest -q                                  # full suite (CI: ci-python)
+python -m pytest                           # full suite; prints "N passed" (addopts adds -q; do not add another)
 ruff check src tests scripts backend       # lint (CI: ci-python); must be clean
 npm --prefix frontend test                 # dashboard tests (CI: ci-frontend)
 npm --prefix frontend run build            # tsc + vite build (CI: ci-frontend)
@@ -129,7 +129,7 @@ Commit messages: imperative summary, a body explaining why. **No AI attribution 
 ## 8. Definition of done
 
 - Acceptance criteria of the issue met and demonstrated by commands anyone can re-run.
-- `pytest -q` passes and `ruff check src tests scripts backend` is clean; frontend tests and
+- `python -m pytest` passes and `ruff check src tests scripts backend` is clean; frontend tests and
   build pass if `frontend/` changed; Stage-1 regression line pasted if §6 applies.
 - New behaviour has tests that fail without the change.
 - Docs updated per `docs/DEVELOPMENT.md` (API, detection, features, attacks, benchmarking).
@@ -154,7 +154,7 @@ fixing review comments.
 4. Never: change a frozen contract (§4), weaken a security boundary (§5), delete or skip a
    test to make it pass, edit `.github/`, `AGENTS.md`, `CLAUDE.md`, `models/` or
    `artifacts/`, rewrite history, force-push, merge, approve, or open new PRs.
-5. Run `ruff check src tests scripts backend` and `python -m pytest -q` (plus frontend
+5. Run `ruff check src tests scripts backend` and `python -m pytest` (plus frontend
    tests/build if `frontend/` changed). If they fail for reasons unrelated to your change,
    say so instead of "fixing" unrelated code.
 6. Commit with a message such as `fix: address review findings R1, R3 (#<issue>)` and push

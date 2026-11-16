@@ -64,7 +64,7 @@ just because they are available; each PR costs review time and Claude usage.
 - Commits: small and logical; imperative subject; no AI attribution trailers.
 - PR: target `main`; title `<type>: <summary> (#<n>)`; body from the template, with
   `Closes #<n>` (or `Part of #<n>` when the issue needs several PRs). Paste the exact commands
-  and summary lines (`pytest -q` tail, `ruff`, frontend, Stage-1 regression when required).
+  and summary lines (`python -m pytest` summary line, `ruff`, frontend, Stage-1 regression when required).
 - Open as **draft** while iterating: drafts are not reviewed automatically, which saves usage.
   Mark *Ready for review* when you want the automated review.
 - Push in meaningful batches. Every push to a ready PR triggers a new review run.
