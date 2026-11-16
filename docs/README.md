@@ -55,6 +55,8 @@ QUICKSTART  →  HANDOFF  →  ARCHITECTURE  →  END_TO_END_FLOW  →  FILE_REF
 
 ## Contributing
 - [DEVELOPMENT.md](DEVELOPMENT.md) — conventions & boundaries.
+- [ENGINEERING_WORKFLOW.md](ENGINEERING_WORKFLOW.md) — issues, branches, PRs, automated review, remediation.
+- [CLAUDE_AUTOMATION.md](CLAUDE_AUTOMATION.md) — Claude PR reviewer + remediation workflows: design, security, setup.
 - [ADDING_A_NEW_ATTACK.md](ADDING_A_NEW_ATTACK.md)
 - [ADDING_A_NEW_DETECTOR.md](ADDING_A_NEW_DETECTOR.md)
 
