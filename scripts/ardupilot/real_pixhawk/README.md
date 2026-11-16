@@ -41,3 +41,7 @@ clear a two-item mission on an empty vehicle): afterwards run `px_restore_mode.p
    list (the scripting scratch parameters `SCR_USER1..6`) are NOT covered; a test that touches one must restore it by name. This was found when a
    deliberate change to two of them was invisible to the diff (they were put back by hand), and proven with a listed parameter (`NTF_BUZZ_VOLUME`,
    100 -> 50 -> restored, confirmed by a direct read).
+
+## Software replay of the signed-link detection gap
+
+`signed_downlink_replay.py ARM N OUT.json` (`ARM`: `unsigned`, `signed-fixed` or `signed-before`) needs no hardware. It drives the real `InlineIpsBridge` with a synthetic unsigned ArduPilot-style downlink and applies a +40 m altitude bias, as `px_fc_proxy.py alt_bias 40` does. Result with n = 10: unsigned 10/10 detected, signed with the fix 10/10, signed without it 0/10 (details: `docs/REAL_PIXHAWK_TEST.md`, section 11).

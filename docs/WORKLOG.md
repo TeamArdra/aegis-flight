@@ -171,3 +171,7 @@ Checks run on the merged tree:
 * `aegis benchmark --out <scratch> --no-figures`: TP / FP / TN / FN 6535 / 4 / 16826 / 65, the committed line. The edit touches `src/aegisflight/sources/`, so this was required.
 
 Not done: the frontend tests and build (`frontend/node_modules` is not installed here, and installing it downloads packages); a bench re-run of the signed campaign after the fix; the intermittent bridge test of the team's fix list (not reproduced or changed).
+
+## 2026-11-17: software replay of the signed-link detection gap
+
+New `scripts/ardupilot/real_pixhawk/signed_downlink_replay.py`: the real bridge, a synthetic unsigned ArduPilot-style downlink shaped like the bench, a +40 m altitude bias. n = 10 per arm: unsigned 10/10 detected, signed with the fix 10/10 (median 0.38 s), signed without the fix 0/10; no alert in any warm-up. Results and the re-run command are in `docs/REAL_PIXHAWK_TEST.md`, section 11. The vehicle stream is synthetic, so this is a software replay and not a bench result; the signed active-ips bench run is still to do.
