@@ -175,3 +175,7 @@ Not done: the frontend tests and build (`frontend/node_modules` is not installed
 ## 2026-11-17: software replay of the signed-link detection gap
 
 New `scripts/ardupilot/real_pixhawk/signed_downlink_replay.py`: the real bridge, a synthetic unsigned ArduPilot-style downlink shaped like the bench, a +40 m altitude bias. n = 10 per arm: unsigned 10/10 detected, signed with the fix 10/10 (median 0.38 s), signed without the fix 0/10; no alert in any warm-up. Results and the re-run command are in `docs/REAL_PIXHAWK_TEST.md`, section 11. The vehicle stream is synthetic, so this is a software replay and not a bench result; the signed active-ips bench run is still to do.
+
+## 2026-11-17: vehicle uplink filter (proposal and implementation on `feat/vehicle-uplink-filter`)
+
+New `docs/VEHICLE_UPLINK_FILTER.md` and the code behind it: `--vehicle-uplink-filter` on `aegis ips-bridge`, `InlineIpsBridge(vehicle_filter=...)` and `InlinePolicy.uplink_filter_only`. It drops forged / unsigned / wrong-key / replayed control frames from the GCS side before the flight controller on a vehicle link where `active-ips` is refused, never changes the downlink, never sends a counter-command, needs a signing key, cannot be combined with `active-ips`, and is fixed for the run (no status-API, radio or `set_mode` switch). 14 unit tests (`tests/unit/test_vehicle_uplink_filter.py`). Not agreed with the team (it touches the receive-only boundary of `AGENTS.md` section 5) and not run against the Pixhawk: the document lists the decisions and the bench tests that are still needed.

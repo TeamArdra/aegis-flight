@@ -240,6 +240,14 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         except (OSError, ValueError, UnicodeDecodeError) as exc:
             print(f"aegis ips-bridge: bad --mgmt-key-file: {exc}", file=sys.stderr)
             return 2
+    if args.vehicle_uplink_filter and key is None:
+        print("aegis ips-bridge: --vehicle-uplink-filter needs --signing-key-file: without a key the filter cannot tell the pilot "
+              "from a forger and would block the pilot.", file=sys.stderr)
+        return 2
+    if args.vehicle_uplink_filter and args.defense_mode == "active-ips":
+        print("aegis ips-bridge: --vehicle-uplink-filter is the alternative to --defense-mode active-ips on a vehicle link; "
+              "use passive or advisory with it.", file=sys.stderr)
+        return 2
     if args.defense_mode == "active-ips" and key is None and not args.allow_unsigned:
         print("aegis ips-bridge: refusing --defense-mode active-ips without --signing-key-file: an unsigned link "
               "cannot stop a counter-tracking forger. Provision a key, or pass --allow-unsigned to accept the risk.",
@@ -289,6 +297,7 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                              mgmt_state_path=args.mgmt_state, lock_posture_file=args.lock_posture_file,
                              audit_log_path=args.audit_log,
                              unsigned_acknowledged=args.allow_unsigned and key is None and args.defense_mode == "active-ips",
+                             vehicle_filter=args.vehicle_uplink_filter,
                              on_alarm=lambda m: print(f"aegis ips-bridge: ALARM {m}", flush=True))
     fc.start()
     gcs.start()
@@ -307,6 +316,9 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         except OSError as exc:
             print(f"aegis ips-bridge: cannot bind status port: {exc}", file=sys.stderr)
     print(f"aegis ips-bridge: {args.fc_port} <-> {args.gcs_port}, posture {args.defense_mode}", flush=True)
+    if args.vehicle_uplink_filter:
+        print("aegis ips-bridge: NOTICE --vehicle-uplink-filter is on: forged, unsigned, replayed and wrong-key control frames from the GCS "
+              "are DROPPED before the flight controller (the downlink is untouched, no counter-commands are sent). Fixed for this run.", flush=True)
     if args.defense_mode == "active-ips" and key is None:
         print("aegis ips-bridge: NOTICE active-ips without signing acknowledged via --allow-unsigned", flush=True)
     end = None if args.seconds is None else time.monotonic() + args.seconds
@@ -422,6 +434,8 @@ def build_parser() -> argparse.ArgumentParser:
     ib.add_argument("--defense-mode", choices=["passive", "advisory", "active-ips"], default="passive",
                     help="passive/advisory forward every frame byte-identically; active-ips filters and counter-acts "
                          "(refused when --fc-port is a serial device: a physical FC is receive-only)")
+    ib.add_argument("--vehicle-uplink-filter", action="store_true",
+                    help="drop forged / unsigned / replayed / wrong-key control frames from the GCS side before the flight controller, usable on a serial vehicle link (the downlink is never changed and no counter-command is ever sent). Needs --signing-key-file; not combinable with active-ips; fixed for the run (no status-API or radio switch). See docs/VEHICLE_UPLINK_FILTER.md")
     ib.add_argument("--trusted-sysid", type=int, action="append",
                     help="ground-station sysid allowed to command the vehicle (repeatable; default from detector.yaml)")
     ib.add_argument("--signing-key-file", default=None,

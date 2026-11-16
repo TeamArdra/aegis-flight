@@ -56,6 +56,7 @@ QUICKSTART  →  HANDOFF  →  ARCHITECTURE  →  END_TO_END_FLOW  →  FILE_REF
 - [TESTING.md](TESTING.md) — the test suite and the pre-release gate.
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — symptom → diagnostic → fix.
 - [MGMT_CHANNEL.md](MGMT_CHANNEL.md) — the in-band management channel over the telemetry radio (alerts, IPS actions, compact status, signed control); [PERFORMANCE.md](PERFORMANCE.md) — detection-pipeline, forwarding-path and dashboard speed-ups and Raspberry Pi measurements.
+- [VEHICLE_UPLINK_FILTER.md](VEHICLE_UPLINK_FILTER.md) — proposal (not agreed with the team): a receive-only-compatible uplink filter for a real vehicle link, kept apart from the postures.
 - [WORKLOG.md](WORKLOG.md) — running log of documentation changes, with the work items each entry covers.
 
 ## Contributing

@@ -235,6 +235,9 @@ class InlinePolicy:
         self._clock = clock
         self._lock = threading.Lock()
         self.enforce = False                # static uplink rules + dynamic rewrites; off = byte-identical forwarding
+        # receive-only-compatible filtering (InlineIpsBridge vehicle_filter): with enforce on, ONLY the uplink rules run;
+        # the downlink is forwarded untouched (no forged-frame drop, no rewrite) and no dynamic rule applies
+        self.uplink_filter_only = False
         self._last_touch: float | None = None
         # vehicle state learnt from the frames the policy itself forwards (no detector involved)
         self.armed: bool | None = None
@@ -304,6 +307,10 @@ class InlinePolicy:
                 self._recent.clear()
                 self._contested_until.clear()
                 self._alarms.clear()
+
+    def set_uplink_filter_only(self, flag: bool) -> None:
+        with self._lock:
+            self.uplink_filter_only = bool(flag)
 
     def take_alarms(self) -> list[int]:
         """Sysids with a new contested alarm to raise (rate-limited per source); the bridge sends the STATUSTEXT."""
@@ -390,14 +397,14 @@ class InlinePolicy:
             if self._verifier is not None:
                 forged = self._down_forged(ctx)
                 if forged:
-                    if self.enforce:
+                    if self.enforce and not self.uplink_filter_only:
                         self.dropped_forged_down += 1
                         return []  # never reaches the GCS and never feeds the learned vehicle state
                     self.observed_forged_down += 1
                     if len(self._observed_pending) < 64:
                         self._observed_pending.append((forged, ctx.raw, ctx.sysid, ctx.msgid))
             self._learn_state(ctx)
-            if not self.enforce or not self.dynamic_fresh or not self.sanitizer.active:
+            if not self.enforce or self.uplink_filter_only or not self.dynamic_fresh or not self.sanitizer.active:
                 return [ctx.raw]
             san = self.sanitizer
             if ctx.sysid in self.protected_sysids:
@@ -463,7 +470,7 @@ class InlinePolicy:
                 return self._replay_filter(ctx, self._after_provenance(ctx, trusted, cmd))
             if cmd is not None and cmd[0] in SENSITIVE_COMMANDS:
                 return self._command_rule(ctx, trusted, *cmd)
-            if self.dynamic_fresh and self.sanitizer.active and not trusted:
+            if self.dynamic_fresh and self.sanitizer.active and not trusted and not self.uplink_filter_only:
                 # quarantined / flooding sender on the uplink (the sanitizer drops both directions)
                 if ctx.sysid in self.sanitizer.quarantined_sysids and ctx.sysid not in self.protected_sysids:
                     self.dropped_dynamic += 1

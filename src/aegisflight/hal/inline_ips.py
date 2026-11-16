@@ -144,10 +144,18 @@ class InlineIpsBridge:
         lock_posture_file: str | None = None,
         audit_log_path: str | None = None,
         unsigned_acknowledged: bool = False,
+        vehicle_filter: bool = False,
         mgmt_clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.fc, self.gcs = fc, gcs
         self._refuse_active_on_device(mode)
+        # receive-only-compatible filtering of the uplink (docs/VEHICLE_UPLINK_FILTER.md): fixed at construction, never a
+        # posture, and nothing at run time (status API, management channel) can switch it on or off
+        if vehicle_filter and secret_key is None:
+            raise ValueError("vehicle_filter needs a signing key: without one the uplink filter cannot tell the pilot from a forger")
+        if vehicle_filter and DefenseMode(mode) == DefenseMode.ACTIVE_IPS:
+            raise ValueError("vehicle_filter is the alternative to active-ips on a vehicle link; use passive or advisory with it")
+        self._vehicle_filter = bool(vehicle_filter)
         self._secret_key = secret_key
         self.cfg = cfg or load_config(config_dir)
         proto = self.cfg.detector.get("protocol", {})
@@ -174,7 +182,7 @@ class InlineIpsBridge:
         self.on_alarm = on_alarm
         self._alarm_enc = MavlinkActuator(sysid=1, compid=192, secret_key=secret_key)
         self.alarms_sent = 0
-        self.policy.set_enforce(self.controller.mode == DefenseMode.ACTIVE_IPS)
+        self._apply_enforcement()
         self.tap = TapTransport()
         self.rate_hz = sample_rate_hz
         self.store = store
@@ -254,12 +262,19 @@ class InlineIpsBridge:
             raise ValueError(f"active-ips is refused on FC port {self.fc.port!r}: a serial device may be a physical "
                              "flight controller (receive-only); use a socket:// SITL link")
 
+    def _apply_enforcement(self) -> None:
+        """ACTIVE_IPS = full enforcement. vehicle_filter = the uplink rules only (no downlink change, no counter-commands: those are
+        gated on the controller being in ACTIVE_IPS). Neither = byte-identical forwarding."""
+        active = self.controller.mode == DefenseMode.ACTIVE_IPS
+        self.policy.set_uplink_filter_only(self._vehicle_filter and not active)
+        self.policy.set_enforce(active or self._vehicle_filter)
+
     def set_mode(self, mode: DefenseMode | str, origin: str = "local") -> None:
         """Operator posture change. Leaving ACTIVE_IPS clears every enforcement state at once."""
         self._refuse_active_on_device(mode)
         before = self.controller.mode
         self.controller.set_mode(mode)
-        self.policy.set_enforce(self.controller.mode == DefenseMode.ACTIVE_IPS)
+        self._apply_enforcement()
         if self.controller.mode != DefenseMode.ACTIVE_IPS:
             self.unsigned_acknowledged = False
         if self.controller.mode != before:
@@ -504,7 +519,7 @@ class InlineIpsBridge:
             return round(lat[min(len(lat) - 1, int(q * len(lat)))], 1) if lat else None
 
         return {
-            "mode": self.controller.mode.value, "state": self.controller.state.value,
+            "mode": self.controller.mode.value, "state": self.controller.state.value, "vehicle_filter": self._vehicle_filter,
             "frames": {"down": self.frames_down, "up": self.frames_up,
                        "forwarded_down": self.forwarded_down, "forwarded_up": self.forwarded_up,
                        "dropped_down": self.dropped_down, "dropped_up": self.dropped_up,

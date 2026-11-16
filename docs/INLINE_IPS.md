@@ -23,6 +23,9 @@ physical flight controller, so `active-ips` is refused on it: the CLI exits 2, `
 `advisory` the bridge still relays the operator's own uplink to the FC byte-identically, as a radio would. The
 real-Pixhawk bench runs of `active-ips` (`docs/REAL_PIXHAWK_TEST.md`) reached the Pixhawk through `px_fc_proxy.py` as a
 `socket://` link: they are bench evidence on a proxied link, not a statement about a flight configuration.
+A proposal for enforcement on a real vehicle link that keeps the postures receive-only (`--vehicle-uplink-filter`: drops forged uplink
+control only, never changes the downlink, never sends a counter-command, fixed for the run) is in `docs/VEHICLE_UPLINK_FILTER.md`. It is
+off by default and not agreed with the team.
 
 Code: `src/aegisflight/mitigation/inline_policy.py` (rules), `src/aegisflight/hal/inline_ips.py` (bridge),
 `mitigation/sanitizer.py` (downlink rewrite). Tests: `tests/unit/test_inline_ips.py` (synthetic frames, fake
