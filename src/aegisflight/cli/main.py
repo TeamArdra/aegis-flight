@@ -240,6 +240,9 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         except (OSError, ValueError, UnicodeDecodeError) as exc:
             print(f"aegis ips-bridge: bad --mgmt-key-file: {exc}", file=sys.stderr)
             return 2
+    if (args.filter_override_file or args.filter_lockout_failopen_s is not None) and not args.vehicle_uplink_filter:
+        print("aegis ips-bridge: --filter-override-file / --filter-lockout-failopen-s only apply with --vehicle-uplink-filter", file=sys.stderr)
+        return 2
     if args.vehicle_uplink_filter and key is None:
         print("aegis ips-bridge: --vehicle-uplink-filter needs --signing-key-file: without a key the filter cannot tell the pilot "
               "from a forger and would block the pilot.", file=sys.stderr)
@@ -297,7 +300,8 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                              mgmt_state_path=args.mgmt_state, lock_posture_file=args.lock_posture_file,
                              audit_log_path=args.audit_log,
                              unsigned_acknowledged=args.allow_unsigned and key is None and args.defense_mode == "active-ips",
-                             vehicle_filter=args.vehicle_uplink_filter,
+                             vehicle_filter=args.vehicle_uplink_filter, filter_override_file=args.filter_override_file,
+                             filter_lockout_failopen_s=args.filter_lockout_failopen_s,
                              on_alarm=lambda m: print(f"aegis ips-bridge: ALARM {m}", flush=True))
     fc.start()
     gcs.start()
@@ -318,7 +322,10 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
     print(f"aegis ips-bridge: {args.fc_port} <-> {args.gcs_port}, posture {args.defense_mode}", flush=True)
     if args.vehicle_uplink_filter:
         print("aegis ips-bridge: NOTICE --vehicle-uplink-filter is on: forged, unsigned, replayed and wrong-key control frames from the GCS "
-              "are DROPPED before the flight controller (the downlink is untouched, no counter-commands are sent). Fixed for this run.", flush=True)
+              "are DROPPED before the flight controller once a validly signed ground-station frame has proved the key (until then it only "
+              "reports). The downlink is untouched and no counter-command is sent. Not switchable over the radio or the status API.", flush=True)
+        if args.filter_override_file:
+            print(f"aegis ips-bridge: local override: while {args.filter_override_file} exists the filter only reports", flush=True)
     if args.defense_mode == "active-ips" and key is None:
         print("aegis ips-bridge: NOTICE active-ips without signing acknowledged via --allow-unsigned", flush=True)
     end = None if args.seconds is None else time.monotonic() + args.seconds
@@ -436,6 +443,13 @@ def build_parser() -> argparse.ArgumentParser:
                          "(refused when --fc-port is a serial device: a physical FC is receive-only)")
     ib.add_argument("--vehicle-uplink-filter", action="store_true",
                     help="drop forged / unsigned / replayed / wrong-key control frames from the GCS side before the flight controller, usable on a serial vehicle link (the downlink is never changed and no counter-command is ever sent). Needs --signing-key-file; not combinable with active-ips; fixed for the run (no status-API or radio switch). See docs/VEHICLE_UPLINK_FILTER.md")
+    ib.add_argument("--filter-override-file", default=None,
+                    help="with --vehicle-uplink-filter: LOCAL off switch. While this file exists on the bridge's disk the filter only reports; "
+                         "remove it and the filter re-proves the key before it drops anything again. Not reachable over the radio or the status API")
+    ib.add_argument("--filter-lockout-failopen-s", type=float, default=None,
+                    help="with --vehicle-uplink-filter, OPTIONAL watchdog (default off): if control frames from a trusted sysid keep failing "
+                         "the signature check and no validly signed ground-station frame was seen for this many seconds, forward everything "
+                         "until one is seen. Cannot tell a lock-out from an attacker spoofing the pilot's sysid while the real GCS is silent")
     ib.add_argument("--trusted-sysid", type=int, action="append",
                     help="ground-station sysid allowed to command the vehicle (repeatable; default from detector.yaml)")
     ib.add_argument("--signing-key-file", default=None,

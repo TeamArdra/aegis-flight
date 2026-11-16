@@ -29,15 +29,41 @@ What it never does:
 * It never sends a counter-command. Counter-commands are gated on the controller being in `active-ips`, and the filter requires a reporting posture.
 * It never applies the dynamic rules (flood quarantine, rate limiting, GPS rewriting): those stay with `active-ips`.
 
-## 3. Rules for turning it on
+## 3. Rules for turning it on, and the lock-out safeguards
 
 * Command line only: `aegis ips-bridge ... --vehicle-uplink-filter`. It needs `--signing-key-file` (without a key it cannot tell the pilot from a
   forger and would block the pilot) and a reporting posture (`passive` or `advisory`). `--defense-mode active-ips` with it is refused, exit code 2.
 * Fixed at construction. There is no setter. The status API's `POST /posture`, the management channel over the radio and `set_mode` cannot switch it
-  on or off, and a refused `active-ips` request on a serial port leaves it exactly as it was.
-* It is reported: `status()["vehicle_filter"]`, `policy.uplink_filter_only`, and a start-up notice on the console.
-* On a `socket://` SITL link, `set_mode("active-ips")` replaces the filter with full enforcement, and going back to a reporting posture restores it.
+  on or off, and a refused `active-ips` request on a serial port leaves it exactly as it was. A change between `passive` and `advisory` does not
+  disturb it.
+* It is reported: `status()["vehicle_filter"]` and `status()["vehicle_filter_state"]`, `policy.uplink_filter_only`, and a start-up notice on the console.
+* On a `socket://` SITL link, `set_mode("active-ips")` replaces the filter with full enforcement, and going back to a reporting posture restores it
+  (in the learning state, below).
 * The receive-only refusal of `active-ips` on a serial device is unchanged, in every entry point.
+
+**The filter has four states** (`status()["vehicle_filter_state"]`). Every change is announced: a short `AEGIS:` STATUSTEXT to the pilot's GCS and the
+full reason on the console.
+
+| State | What the bridge does | How it gets there |
+|---|---|---|
+| `learning` | forwards everything, reports signature verdicts only | the start state; also after an override is removed |
+| `engaged` | drops forged / unsigned / wrong-key / replayed control before the flight controller | the first **validly signed** frame from a ground-station sysid proves the key |
+| `override` | forwards everything, reports only | the local override file exists |
+| `failopen` | forwards everything, reports only | the optional watchdog (below) suspects a lock-out; a valid signed frame re-engages |
+
+1. **A wrong key can never lock the pilot out.** The filter drops nothing until a validly signed ground-station frame has been seen. If the key, the
+   signing timestamps or the GCS's signing do not match, no such frame ever arrives, the filter stays in `learning`, the pilot's commands pass, and the
+   mismatch shows up as reported bad-signature verdicts. The price: until the pilot's GCS has sent one validly signed frame (any frame counts, for example a
+   signed heartbeat; how soon a real GCS sends one has not been measured) a forged frame is forwarded, as with no filter.
+2. **A local off switch that needs no restart.** `--filter-override-file PATH`: while that file exists on the bridge's own disk the filter only reports.
+   It is read at most every 0.5 s. Remove it and the filter goes back to `learning` and re-proves the key before it drops anything. Nothing on the radio,
+   the status API or the management channel can create or remove the file; someone with a shell on the companion computer can.
+3. **An optional watchdog, off by default.** `--filter-lockout-failopen-s N`: if control frames from a *trusted* ground-station sysid keep failing the
+   signature check (at least 3 drops) and no validly signed ground-station frame has been seen for N seconds, the filter fails open and says so. A valid
+   signed frame re-engages it. The watchdog cannot tell a real lock-out from an attacker who spoofs the pilot's sysid while the real GCS is silent
+   (for example jammed), so it is a choice: with it, a lock-out ends by itself and a jam-and-spoof attack can open the filter; without it, a lock-out
+   stays until the operator uses the override file. While the real GCS keeps sending validly signed frames the watchdog stays quiet and forged frames are
+   still dropped.
 
 ## 4. What it blocks and what it does not
 
@@ -53,12 +79,13 @@ What it never does:
 
 ## 5. Risks, stated plainly
 
-1. **Pilot lock-out.** If the key, the signing timestamps or the GCS's signing do not match, the filter drops the pilot's own control frames. This is the
-   main risk and the reason the bench is mandatory before any flight use. Mitigations in the code: it needs a key; it fails open on a rule exception
-   (the frame is forwarded and `hook_errors` counts it); `--signing-permissive` (existing) lets unsigned frames from a trusted sysid through during rollout, at
-   the price of not stopping a forger who uses that sysid.
-2. **Cannot be turned off in flight.** Because nothing can switch it at run time, removing the filter needs a restart of the bridge. That is deliberate
-   (an attacker cannot remove it over the radio) and it is the trade-off the team has to accept or reject.
+1. **Pilot lock-out (reduced, not removed).** A key, timestamp or signing mismatch from the first minute can no longer block the pilot: the filter never
+   engages (section 3, point 1). What remains: the key or the GCS's signing breaks *after* the filter engaged. Then the pilot's frames are dropped until the
+   operator creates the override file, or, if the watchdog is on, until it fails open. The bench test with props off is still mandatory before any flight use.
+   It fails open on a rule exception (the frame is forwarded and `hook_errors` counts it), and `--signing-permissive` (existing) lets unsigned frames from a trusted
+   sysid through, at the price of not stopping a forger who uses that sysid.
+2. **Off switch.** There is a local one (the override file) and no remote one, on purpose: an attacker cannot remove the filter over the radio. Someone with a shell on
+   the companion computer can, and a pilot with no access to it cannot, so the practical question is who is allowed to touch that file in flight.
 3. **Legitimate frames the rules drop.** The burst rule and the in-flight plain-disarm rule can drop a pilot's own repeated command. Both are existing
    `active-ips` rules; the filter runs them on a vehicle link.
 4. **Clock and restart.** Signed timestamps must advance. A bridge restart without `--signing-state` opens a short replay window; with it the last timestamp survives.
@@ -66,19 +93,26 @@ What it never does:
 
 ## 6. What has been shown, and what has not
 
-Shown (software only, 14 unit tests in `tests/unit/test_vehicle_uplink_filter.py`, with `ruff` clean and the full suite passing):
+Shown (software only: 23 unit tests in `tests/unit/test_vehicle_uplink_filter.py`, and 2 in `tests/unit/test_vehicle_uplink_filter_sockets.py` that run the bridge's own threads over real `socket://` transports (stable in 25 consecutive runs); `ruff` clean and the full suite passing):
 
 * it refuses to start without a key and with `active-ips`, in the constructor and in the command line;
 * it runs on a serial-device port where `active-ips` is still refused, in both reporting postures;
 * it drops unsigned, wrong-key and replayed control frames and forwards the validly signed one;
 * the downlink is forwarded untouched, including an unsigned frame from a source that had been signing;
-* no counter-command is sent, and no posture change switches it on or off;
-* without it, `passive` and `advisory` forward every frame byte-identically (unchanged behaviour).
+* no counter-command is sent, and no posture change switches it on or off or makes it re-learn;
+* a GCS signing with the wrong key is never blocked (5 signed heartbeats and 5 signed commands pass, the filter stays in `learning`, the verdicts are reported);
+* an unsigned pilot is forwarded and reported until a signed frame proves the key, and is dropped after that;
+* the override file turns the filter off and back on at run time, and the filter then re-proves the key before it drops again;
+* the posture API and the management channel cannot reach the override;
+* the watchdog: off by default (a lock-out keeps dropping), it fails open after the silence and three drops, it re-engages on a valid signed frame, and it stays quiet
+  while a valid signed stream continues, with a spoofing forger still dropped every time;
+* without the filter, `passive` and `advisory` forward every frame byte-identically (unchanged behaviour).
 
 Not shown:
 
 * any run against the real Pixhawk through a real serial port with the filter on (needs the hardware);
-* a pilot-lock-out test with a real GCS signing its commands (needs the hardware, and a flight controller that accepts the GCS key);
+* a lock-out test with a real GCS signing its commands (needs the hardware, and a flight controller that accepts the GCS key);
+* the value of the watchdog's timeout in practice, and how long a real GCS takes to send its first signed frame;
 * any flight. Nothing here is a flight claim.
 
 ## 7. Decisions the team has to make
@@ -87,13 +121,15 @@ Not shown:
    The filter transmits nothing of its own, but it does decide which of the pilot's frames reach the flight controller.
 2. Whether it should additionally require signing to be enabled on the flight controller, so the pilot's commands are authenticated end to end.
 3. Fail-open (current) or fail-closed when a rule throws.
-4. Whether a local, physical override is wanted (for example a lock file that disables the filter at the next frame), which is not a radio switch.
+4. Who may touch the override file in flight, and whether the watchdog should be on by default (section 3, point 3).
 5. The flag name and where it is documented (this file, `docs/INLINE_IPS.md`).
 6. The acceptance test before any flight use: a bench run with props off in which the pilot's signed commands pass 100% and each forged class is dropped.
 
 ## 8. Code
 
-* `src/aegisflight/mitigation/inline_policy.py`: `uplink_filter_only` and `set_uplink_filter_only` (with `enforce` on, only the uplink rules run).
-* `src/aegisflight/hal/inline_ips.py`: the `vehicle_filter` argument, its checks, `_apply_enforcement`, and `status()["vehicle_filter"]`.
-* `src/aegisflight/cli/main.py`: `--vehicle-uplink-filter` and its refusals.
+* `src/aegisflight/mitigation/inline_policy.py`: `uplink_filter_only` and `set_uplink_filter_only` (with `enforce` on, only the uplink rules run), the
+  `filter_state` machine (`_filter_gate`, `_note_valid`, `_note_lockout_drop`), `filter_override` and `lockout_failopen_s`.
+* `src/aegisflight/hal/inline_ips.py`: the `vehicle_filter`, `filter_override_file` and `filter_lockout_failopen_s` arguments, their checks, `_apply_enforcement`,
+  `_poll_override`, `_announce_filter`, and `status()["vehicle_filter"]` / `["vehicle_filter_state"]`.
+* `src/aegisflight/cli/main.py`: `--vehicle-uplink-filter`, `--filter-override-file`, `--filter-lockout-failopen-s` and their refusals.
 * `tests/unit/test_vehicle_uplink_filter.py`.

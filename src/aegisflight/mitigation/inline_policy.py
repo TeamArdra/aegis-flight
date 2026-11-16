@@ -238,6 +238,16 @@ class InlinePolicy:
         # receive-only-compatible filtering (InlineIpsBridge vehicle_filter): with enforce on, ONLY the uplink rules run;
         # the downlink is forwarded untouched (no forged-frame drop, no rewrite) and no dynamic rule applies
         self.uplink_filter_only = False
+        # safeguards of that filter (docs/VEHICLE_UPLINK_FILTER.md, section 5): it starts in 'learning' (forwarding everything, only
+        # reporting) and engages on the first validly signed frame from a ground station, which proves the key; 'override' is the
+        # operator's local off switch; 'failopen' is the optional lock-out watchdog. 'off' = the filter was not requested.
+        self.filter_state = "off"
+        self.filter_override = False
+        self.lockout_failopen_s: float | None = None
+        self._last_valid_t: float | None = None
+        self._engaged_t: float | None = None
+        self._lockout_drops = 0
+        self.filter_events: list[tuple[str, str]] = []
         self._last_touch: float | None = None
         # vehicle state learnt from the frames the policy itself forwards (no detector involved)
         self.armed: bool | None = None
@@ -310,7 +320,68 @@ class InlinePolicy:
 
     def set_uplink_filter_only(self, flag: bool) -> None:
         with self._lock:
+            if bool(flag) == self.uplink_filter_only:
+                return  # unchanged: a posture change between the reporting postures must not make the filter re-learn the key
             self.uplink_filter_only = bool(flag)
+            self.filter_state = "learning" if flag else "off"
+            self._lockout_drops = 0
+
+    def _set_filter_state(self, state: str, detail: str = "") -> None:
+        if state == self.filter_state:
+            return
+        self.filter_state = state
+        now = self._clock()
+        self._engaged_t = now if state == "engaged" else None
+        self._lockout_drops = 0
+        if len(self.filter_events) < 16:
+            self.filter_events.append((state, detail))
+
+    def take_filter_events(self) -> list[tuple[str, str]]:
+        out, self.filter_events = self.filter_events, []
+        return out
+
+    def _filter_gate(self, ctx: FrameContext) -> bool:
+        """Vehicle uplink filter safeguards. True = forward this frame untouched (the filter is not acting on it)."""
+        if self.filter_override:
+            self._set_filter_state("override", "local override file present: forwarding everything, reporting only")
+        elif self.filter_state == "override":
+            self._set_filter_state("learning", "override cleared: waiting for a validly signed ground-station frame")
+        v = self._verifier
+        if v is None:
+            return True
+        gcs_signed = ctx.signed and ctx.sysid not in self.vehicle_sysids
+        if self.filter_state == "engaged":
+            if self.lockout_failopen_s is not None and gcs_signed and not self._is_control(ctx):
+                if self._check_signature(ctx, observe=True) == "ok":
+                    self._note_valid()
+            return False
+        if gcs_signed and self.filter_state in ("learning", "failopen") and self._check_signature(ctx, observe=True) == "ok":
+            self._note_valid()
+            self._set_filter_state("engaged", "a validly signed ground-station frame proves the key: filtering uplink control")
+            return True
+        self._observe_signature(ctx)
+        return True
+
+    def _is_control(self, ctx: FrameContext) -> bool:
+        cmd = _command(ctx.raw, ctx.msgid) if ctx.msgid in _COMMAND_MSGIDS else None
+        return ctx.msgid in CONTROL_MSGIDS or (cmd is not None and cmd[0] in SENSITIVE_COMMANDS)
+
+    def _note_valid(self) -> None:
+        self._last_valid_t = self._clock()
+        self._lockout_drops = 0
+
+    def _note_lockout_drop(self, ctx: FrameContext, verdict: str) -> None:
+        """Optional watchdog. Pilot lock-out looks like this: control frames from a TRUSTED ground-station sysid keep failing the
+        signature check while no validly signed ground-station frame has been seen for lockout_failopen_s. It cannot tell that from an
+        attacker who spoofs the pilot's sysid while the real GCS is silent, which is why it is off by default."""
+        if self.lockout_failopen_s is None or ctx.sysid not in self.trusted_sysids or verdict not in ("unsigned", "bad_signature"):
+            return
+        self._lockout_drops += 1
+        since = self._last_valid_t if self._last_valid_t is not None else self._engaged_t
+        if self._lockout_drops >= 3 and since is not None and self._clock() - since >= self.lockout_failopen_s:
+            self._set_filter_state("failopen", f"pilot lock-out suspected: no valid signed ground-station frame for "
+                                  f"{self.lockout_failopen_s:.0f} s while control frames from a trusted sysid were dropped; "
+                                  "forwarding everything until a signed frame is seen")
 
     def take_alarms(self) -> list[int]:
         """Sysids with a new contested alarm to raise (rate-limited per source); the bridge sends the STATUSTEXT."""
@@ -432,6 +503,8 @@ class InlinePolicy:
     def up(self, ctx: FrameContext) -> list[bytes]:
         """GCS -> FC."""
         try:
+            if self.uplink_filter_only and self._filter_gate(ctx):
+                return [ctx.raw]
             if not self.enforce:
                 if self._verifier is not None:
                     self._observe_signature(ctx)
@@ -444,9 +517,15 @@ class InlinePolicy:
                 verdict = self._check_signature(ctx)
                 if verdict == "ok":
                     trusted = True  # a valid signature, not the sysid, makes the sender trusted
+                    if self.uplink_filter_only:
+                        self._note_valid()
                 elif verdict == "unsigned" and trusted and self.allow_unsigned_from_trusted:
                     pass  # rollout mode: an unsigned frame from a trusted sysid still passes
                 else:
+                    if self.uplink_filter_only:
+                        self._note_lockout_drop(ctx, verdict)
+                        if self.filter_state == "failopen":
+                            return [ctx.raw]
                     return []
             track = self.provenance and self._verifier is None
             verdict = self._observe_seq(ctx) if track else "unknown"

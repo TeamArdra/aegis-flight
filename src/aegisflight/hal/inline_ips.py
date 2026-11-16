@@ -35,6 +35,7 @@ on the host it runs on; nothing here has been measured on a companion computer o
 from __future__ import annotations
 
 import contextlib
+import os
 import threading
 import time
 from collections import deque
@@ -145,6 +146,8 @@ class InlineIpsBridge:
         audit_log_path: str | None = None,
         unsigned_acknowledged: bool = False,
         vehicle_filter: bool = False,
+        filter_override_file: str | None = None,
+        filter_lockout_failopen_s: float | None = None,
         mgmt_clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.fc, self.gcs = fc, gcs
@@ -156,6 +159,13 @@ class InlineIpsBridge:
         if vehicle_filter and DefenseMode(mode) == DefenseMode.ACTIVE_IPS:
             raise ValueError("vehicle_filter is the alternative to active-ips on a vehicle link; use passive or advisory with it")
         self._vehicle_filter = bool(vehicle_filter)
+        if (filter_override_file is not None or filter_lockout_failopen_s is not None) and not vehicle_filter:
+            raise ValueError("filter_override_file / filter_lockout_failopen_s only apply with vehicle_filter")
+        if filter_lockout_failopen_s is not None and filter_lockout_failopen_s <= 0:
+            raise ValueError("filter_lockout_failopen_s must be > 0")
+        self._override_file = filter_override_file
+        self._override_interval_s = 0.5
+        self._override_next = 0.0
         self._secret_key = secret_key
         self.cfg = cfg or load_config(config_dir)
         proto = self.cfg.detector.get("protocol", {})
@@ -183,6 +193,7 @@ class InlineIpsBridge:
         self._alarm_enc = MavlinkActuator(sysid=1, compid=192, secret_key=secret_key)
         self.alarms_sent = 0
         self._apply_enforcement()
+        self.policy.lockout_failopen_s = filter_lockout_failopen_s
         self.tap = TapTransport()
         self.rate_hz = sample_rate_hz
         self.store = store
@@ -314,13 +325,37 @@ class InlineIpsBridge:
     def pump_once(self) -> int:
         """One non-blocking forwarding cycle (also driven directly by tests). Returns frames handled."""
         n = 0
+        self._poll_override()
         for stamp, data in self.fc.poll():
             n += self._handle(stamp, data, "down")
         for stamp, data in self.gcs.poll():
             n += self._handle(stamp, data, "up")
         self._send_alarms()
+        self._announce_filter()
         self.mgmt.service()
         return n
+
+    def _poll_override(self) -> None:
+        """Operator's LOCAL off switch for the vehicle uplink filter: while the file exists the filter only reports. Read from the
+        bridge's own disk at most every 0.5 s; nothing on the radio or the status API can create or remove it."""
+        if self._override_file is None:
+            return
+        now = time.monotonic()
+        if now < self._override_next:
+            return
+        self._override_next = now + self._override_interval_s
+        self.policy.filter_override = os.path.exists(self._override_file)
+
+    def _announce_filter(self) -> None:
+        """Every change of the filter's state is told to the pilot's GCS (a short STATUSTEXT) and, with the full reason, to the console."""
+        if not self._vehicle_filter:
+            return
+        for state, detail in self.policy.take_filter_events():
+            with contextlib.suppress(Exception):
+                self.mgmt.action(f"FILTER_{state.upper()}", "")
+            if self.on_alarm is not None:
+                with contextlib.suppress(Exception):
+                    self.on_alarm(f"vehicle uplink filter {state}: {detail}")
 
     def _send_alarms(self) -> None:
         """Contested-source alarm: STATUSTEXT (warning) to the GCS side only, signed when a key is configured."""
@@ -520,6 +555,7 @@ class InlineIpsBridge:
 
         return {
             "mode": self.controller.mode.value, "state": self.controller.state.value, "vehicle_filter": self._vehicle_filter,
+            "vehicle_filter_state": self.policy.filter_state,
             "frames": {"down": self.frames_down, "up": self.frames_up,
                        "forwarded_down": self.forwarded_down, "forwarded_up": self.forwarded_up,
                        "dropped_down": self.dropped_down, "dropped_up": self.dropped_up,
