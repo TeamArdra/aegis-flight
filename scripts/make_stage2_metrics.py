@@ -36,7 +36,10 @@ PRE_ARM = {"boot", "await_gps", "post_link"}
 CLAIM = "link-level detection (false-alarm reference); not flight-hour or real-world validation"
 CLAIM_BENCH = "link-level detection on a disarmed, props-off bench FC; exposure is wall time, not flight time"
 PX4_LIVE = ["artifacts/sitl/live_run_001.jsonl", "artifacts/sitl/live_run_002.jsonl"]
-BENCH = ["artifacts/hardware/serial_ids_com7_001", "artifacts/hardware/serial_ids_com7_002"]
+BENCH = ["artifacts/hardware/serial_ids_com7_001", "artifacts/hardware/serial_ids_com7_002",
+         "artifacts/hardware/gps_hw_verify_20261029/live_capture"]
+# BENCH runs whose own manifest states their environment and claim class; the others take CLAIM_BENCH
+BENCH_MANIFEST = {"artifacts/hardware/gps_hw_verify_20261029/live_capture": "artifacts/hardware/gps_hw_verify_20261029/manifest.json"}
 PX4_P2 = ["artifacts/sitl/p2_final_trial_001", "artifacts/sitl/p2_final_trial_002", "artifacts/sitl/p2_final_trial_003"]
 REPLAY_TLOG = "artifacts/sitl/benign_replay_stage1_default.json"
 ALFA = "artifacts/external/alfa/results.json"
@@ -53,7 +56,7 @@ def required_inputs() -> list[str]:
             + [f"artifacts/ardupilot/{d}/evaluation.json" for d in AP_DRIFT]
             + PX4_LIVE
             + [f"{d}{ext}" for d in PX4_P2 for ext in (".manifest.json", ".ids_decisions.jsonl")]
-            + [f"{d}/summary.json" for d in BENCH]
+            + [f"{d}/summary.json" for d in BENCH] + list(BENCH_MANIFEST.values())
             + [REPLAY_TLOG, ALFA])
 
 
@@ -217,17 +220,26 @@ def px4_live(root: Path) -> dict:
 
 
 def bench(root: Path) -> dict:
+    """Serial-monitor runs: ``alert_decisions`` in summary.json is the engine's own ``is_alert`` count
+    (``scripts/hardware/run_serial_ids.py``), i.e. alert events; exposure is the run's wall time."""
     out = {}
     for d in BENCH:
         p = f"{d}/summary.json"
         s = json.loads((root / p).read_text())
         exp = float(s["wall_s"])
-        out[Path(d).name] = {"source": p, "alert_events": s["alert_decisions"], "exposure_h": r6(exp / 3600),
-                             "false_alerts_per_h": r6(m.rate_per_hour(s["alert_decisions"], exp)),
-                             "false_alerts_per_h_upper95": r6(m.rate_upper_per_hour(s["alert_decisions"], exp)),
-                             "decisions": s["decisions"], "threat_decisions": s["threat_decisions"],
-                             "decision_fpr": r6(s["threat_decisions"] / s["decisions"]),
-                             "note": CLAIM_BENCH}
+        if d in BENCH_MANIFEST:
+            man = json.loads((root / BENCH_MANIFEST[d]).read_text())
+            env, claim, cs = man["environment"]["live"], man["claim_class"], BENCH_MANIFEST[d]
+        else:
+            env, claim, cs = "BENCH", CLAIM_BENCH, "docs/HARDWARE_BENCH_PIXHAWK6X.md"
+        out[d.removeprefix("artifacts/hardware/")] = {
+            "source": p, "alert_events": s["alert_decisions"], "exposure_h": r6(exp / 3600),
+            "false_alerts_per_h": r6(m.rate_per_hour(s["alert_decisions"], exp)),
+            "false_alerts_per_h_upper95": r6(m.rate_upper_per_hour(s["alert_decisions"], exp)),
+            "decisions": s["decisions"], "threat_decisions": s["threat_decisions"],
+            "decision_fpr": r6(s["threat_decisions"] / s["decisions"]),
+            "environment": env, "claim_class": claim, "claim_class_source": cs,
+            "alert_events_from": "summary.json alert_decisions (engine is_alert count, not re-derived); exposure = wall_s"}
     return out
 
 
@@ -298,7 +310,7 @@ def fmt(x):
 def to_md(r: dict) -> str:
     L = ["# Stage 2 metrics", "", f"Definitions: `{r['definitions']}`. Decision period {r['decision_period_s']} s.", "",
          f"**Claim class (every SIM / SITL / REPLAY figure): {r['claim_class']}.** "
-         f"BENCH: {r['claim_class_bench']}. No figure here is real-flight evidence.", "",
+         "BENCH: claim class and environment per run, listed under the table. No figure here is real-flight evidence.", "",
          "## 1. False alerts per hour (alert events after cooldown, benign ground truth)", "",
          "| source | set | events | exposure h | per h | 95% upper | decision FPR | artifact |", "|---|---|---|---|---|---|---|---|"]
 
@@ -317,6 +329,9 @@ def to_md(r: dict) -> str:
         row("SITL-PX4", k, b)
     for k, b in fa["BENCH"].items():
         row("BENCH", k, b)
+    L += ["", "BENCH runs (environment; claim class; source of that statement):", ""]
+    L += [f"- {k}: {b['environment']}; {b['claim_class']} (`{b['claim_class_source']}`). Events: {b['alert_events_from']}."
+          for k, b in fa["BENCH"].items()]
     L += ["", "REPLAY (decision level only, no alert flags logged):", ""]
     L += [f"- {x['flight']}: decision FPR {fmt(x['decision_fpr'])} ({x['threat_decisions']}/{x['decisions']}), `{x['source']}`"
           for x in fa["REPLAY"]["benign_tlog_replay"]]

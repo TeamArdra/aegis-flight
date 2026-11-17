@@ -2,7 +2,7 @@
 
 Definitions: `src/aegisflight/metrics/stage2.py; docs/BENCHMARKING.md#stage-2-metrics`. Decision period 0.2 s.
 
-**Claim class (every SIM / SITL / REPLAY figure): link-level detection (false-alarm reference); not flight-hour or real-world validation.** BENCH: link-level detection on a disarmed, props-off bench FC; exposure is wall time, not flight time. No figure here is real-flight evidence.
+**Claim class (every SIM / SITL / REPLAY figure): link-level detection (false-alarm reference); not flight-hour or real-world validation.** BENCH: claim class and environment per run, listed under the table. No figure here is real-flight evidence.
 
 ## 1. False alerts per hour (alert events after cooldown, benign ground truth)
 
@@ -35,6 +35,13 @@ Definitions: `src/aegisflight/metrics/stage2.py; docs/BENCHMARKING.md#stage-2-me
 | SITL-PX4 | live_run_002 | 39 | 0.03889 | 1003 | 1310 | 1 | `artifacts/sitl/live_run_002.jsonl` |
 | BENCH | serial_ids_com7_001 | 16 | 0.01667 | 960 | 1458 | 0.9867 | `artifacts/hardware/serial_ids_com7_001/summary.json` |
 | BENCH | serial_ids_com7_002 | 0 | 0.01667 | 0 | 179.7 | 0 | `artifacts/hardware/serial_ids_com7_002/summary.json` |
+| BENCH | gps_hw_verify_20261029/live_capture | 0 | 0.025 | 0 | 119.8 | 0 | `artifacts/hardware/gps_hw_verify_20261029/live_capture/summary.json` |
+
+BENCH runs (environment; claim class; source of that statement):
+
+- serial_ids_com7_001: BENCH; link-level detection on a disarmed, props-off bench FC; exposure is wall time, not flight time (`docs/HARDWARE_BENCH_PIXHAWK6X.md`). Events: summary.json alert_decisions (engine is_alert count, not re-derived); exposure = wall_s.
+- serial_ids_com7_002: BENCH; link-level detection on a disarmed, props-off bench FC; exposure is wall time, not flight time (`docs/HARDWARE_BENCH_PIXHAWK6X.md`). Events: summary.json alert_decisions (engine is_alert count, not re-derived); exposure = wall_s.
+- gps_hw_verify_20261029/live_capture: BENCH-class (physical ArduPilot-family quadrotor, disarmed and stationary per telemetry; props/airframe state not confirmed); none (receiver/estimator reports + false-alarm behaviour on one benign stream; not detection evidence) (`artifacts/hardware/gps_hw_verify_20261029/manifest.json`). Events: summary.json alert_decisions (engine is_alert count, not re-derived); exposure = wall_s.
 
 REPLAY (decision level only, no alert flags logged):
 

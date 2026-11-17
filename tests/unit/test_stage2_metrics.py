@@ -235,3 +235,26 @@ def test_make_stage2_metrics_fails_loudly_on_a_missing_named_input(tmp_path, cap
     assert g.main(["--tag", "t", "--root", str(src), "--out-dir", str(tmp_path / "partial")]) == 2
     err = capsys.readouterr().err
     assert all(p in err for p in gone) and not (tmp_path / "partial").exists()
+
+
+def test_bench_covers_every_live_serial_monitor_run_with_its_own_claim_class():
+    """F15 regression (#48 audit): the 90 s gps_hw_verify_20261029 live capture was omitted. Every committed serial-monitor
+    run on a physical port (``socket://`` ports are loopback replays) must be a BENCH row, labelled by its own manifest
+    where it has one."""
+    import json
+
+    root, g = _generator()
+    hw = root / "artifacts" / "hardware"
+    live = sorted(p.parent.relative_to(root).as_posix() for p in hw.rglob("summary.json")
+                  if json.loads(p.read_text()).get("schema") == "aegisflight.serial_monitor_run/1"
+                  and not str(json.loads(p.read_text()).get("port", "")).startswith("socket://"))
+    assert sorted(g.BENCH) == live
+    b = g.bench(root)
+    for d in g.BENCH:
+        s = json.loads((root / d / "summary.json").read_text())
+        row = b[d.removeprefix("artifacts/hardware/")]
+        assert (row["alert_events"], row["decisions"], row["exposure_h"]) == (s["alert_decisions"], s["decisions"],
+                                                                                round(s["wall_s"] / 3600, 6))
+        if d in g.BENCH_MANIFEST:
+            man = json.loads((root / g.BENCH_MANIFEST[d]).read_text())
+            assert (row["claim_class"], row["environment"]) == (man["claim_class"], man["environment"]["live"])
