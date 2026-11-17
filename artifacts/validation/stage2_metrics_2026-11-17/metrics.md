@@ -113,7 +113,7 @@ Benign session FPR:
 | MAVLINK_ANOMALY | 0.6711 | 0.4937 | 0.5689 | 1752 |
 | TELEMETRY_MANIPULATION | 0.9659 | 0.9165 | 0.9405 | 1760 |
 
-Macro-F1 0.8203.
+Macro-F1, attack classes only (the class set of `metrics/scoring.py` `Evaluation.macro()`): 0.7927. Macro-F1 including BENIGN: 0.8203. Which one is the headline needs definition sign-off (#28 AC4).
 
 Confusion (rows true, columns predicted):
 
@@ -139,7 +139,7 @@ Confusion (rows true, columns predicted):
 | MAVLINK_ANOMALY | 0.6674 | 0.4937 | 0.5676 | 1752 |
 | TELEMETRY_MANIPULATION | 0.9567 | 0.9165 | 0.9362 | 1760 |
 
-Macro-F1 0.804.
+Macro-F1, attack classes only (the class set of `metrics/scoring.py` `Evaluation.macro()`): 0.7744. Macro-F1 including BENIGN: 0.804. Which one is the headline needs definition sign-off (#28 AC4).
 
 Confusion (rows true, columns predicted):
 
@@ -155,8 +155,8 @@ Confusion (rows true, columns predicted):
 
 ## 6. Accuracy (last; dominated by the benign majority)
 
-- grace5: 0.9496 (`artifacts/benchmarks_extended/results.json#confusion_grace5`)
-- grace0: 0.9432 (`artifacts/benchmarks_extended/results.json#confusion_grace0`)
+- grace5: binary accuracy (attack = positive, as `docs/BENCHMARKING.md` defines accuracy) 0.9771 (equals `artifacts/benchmarks_extended/results.json` `binary_grace5.accuracy`: True); multiclass (attribution) accuracy 0.9496 (`artifacts/benchmarks_extended/results.json#confusion_grace5`)
+- grace0: binary accuracy (attack = positive, as `docs/BENCHMARKING.md` defines accuracy) 0.9697 (equals `artifacts/benchmarks_extended/results.json` `binary_grace0.accuracy`: True); multiclass (attribution) accuracy 0.9432 (`artifacts/benchmarks_extended/results.json#confusion_grace0`)
 
 ## Missing inputs
 

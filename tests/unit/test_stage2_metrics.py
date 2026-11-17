@@ -258,3 +258,42 @@ def test_bench_covers_every_live_serial_monitor_run_with_its_own_claim_class():
         if d in g.BENCH_MANIFEST:
             man = json.loads((root / g.BENCH_MANIFEST[d]).read_text())
             assert (row["claim_class"], row["environment"]) == (man["claim_class"], man["environment"]["live"])
+
+
+def test_macro_f1_and_accuracy_definitions_hand_values():
+    """F2 / F3 (#48 audit): both definitions are reported, so both are pinned. Hand fixture (rows true, cols predicted):
+    BENIGN 8 -> BENIGN, 2 -> A; A: 1 -> BENIGN, 3 -> A, 1 -> B; B: 5 -> B.  N = 20."""
+    cm = {"BENIGN": {"BENIGN": 8, "A": 2}, "A": {"BENIGN": 1, "A": 3, "B": 1}, "B": {"B": 5}}
+    prf = m.per_class_prf(cm)
+    # BENIGN P 8/9, R 8/10 -> F1 16/19; A P 3/5, R 3/5 -> F1 0.6; B P 5/6, R 1 -> F1 10/11
+    assert prf["BENIGN"]["f1"] == pytest.approx(16 / 19) and prf["A"]["f1"] == pytest.approx(0.6)
+    assert prf["B"]["f1"] == pytest.approx(10 / 11)
+    assert m.macro_f1(prf, ["A", "B"]) == pytest.approx((0.6 + 10 / 11) / 2)              # attack classes only: 0.754545
+    assert m.macro_f1(prf) == pytest.approx((16 / 19 + 0.6 + 10 / 11) / 3)                # including BENIGN: 0.783732
+    assert m.accuracy(cm) == pytest.approx((8 + 3 + 5) / 20)                              # multiclass: 0.80
+    # binary, attack = positive: TN 8, TP = 3 + 1 (A -> B is detected, misattributed) + 5 = 9  ->  17 / 20
+    assert m.binary_accuracy(cm) == pytest.approx(17 / 20)
+
+
+@pytest.mark.parametrize("g", ["grace5", "grace0"])
+def test_reported_macro_f1_and_accuracy_match_the_repo_definitions(g):
+    """The attack-only macro-F1 equals ``metrics/scoring.py`` ``Evaluation.macro()`` on the same confusion matrix, and
+    the binary accuracy equals the benchmark's own ``results.json`` value."""
+    import json
+
+    from aegisflight.core.enums import AttackType
+    from aegisflight.metrics.scoring import ClassScore, Evaluation
+
+    root, gen = _generator()
+    c = gen.classification(root)[g]
+    cm = c["confusion"]
+    per = {}
+    for a in AttackType:
+        tp, support = cm[a.value].get(a.value, 0), sum(cm[a.value].values())
+        predicted = sum(cm[t].get(a.value, 0) for t in cm)
+        per[a] = ClassScore(a, tp=tp, fp=predicted - tp, fn=support - tp, support=support)
+    assert Evaluation(binary=None, per_class=per, confusion={}, n=0).macro()["f1"] == round(c["macro_f1_attack_classes"], 4)
+    assert c["macro_f1_incl_benign"] > c["macro_f1_attack_classes"]           # BENIGN F1 ~0.98 lifts the mean
+    j = json.loads((root / "artifacts" / "benchmarks_extended" / "results.json").read_text())
+    assert c["accuracy_binary_matches_results_json"] and c["accuracy_binary"] == round(j[f"binary_{g}"]["accuracy"], 6)
+    assert c["accuracy_multiclass"] < c["accuracy_binary"]

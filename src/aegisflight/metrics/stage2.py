@@ -19,7 +19,11 @@ Definitions (stated here once; ``scripts/make_stage2_metrics.py`` and ``docs/BEN
   decision (the attacker stops) to the same detection; negative when detection came before the release.
 * **Per-class precision / recall / F1** from a confusion matrix ``cm[true][pred]``. A class with support but no
   predictions has precision 0 (and F1 0), not NaN, so it pulls the macro average down instead of disappearing.
-  Macro-F1 is the unweighted mean over classes with non-zero support.
+  Macro-F1 is the unweighted mean over a stated class set, and two sets are reported, labelled: **attack classes only**
+  (the set ``metrics/scoring.py`` ``Evaluation.macro()`` averages) and **including BENIGN** (every class with support).
+* **Accuracy** is reported two ways, labelled: **binary** (attack = positive, any attack label counts as detected; the
+  ``docs/BENCHMARKING.md`` definition and ``results.json`` ``binary_*.accuracy``) and **multiclass** (attribution: the
+  exact class must match). Both are dominated by the benign majority and are listed last.
 * **Percentiles**: nearest-rank (no interpolation), so a reported p95 is an observed value; always reported with n.
 """
 
@@ -154,5 +158,15 @@ def macro_f1(prf: Mapping[str, Mapping[str, float | int]], classes: Iterable[str
 
 
 def accuracy(cm: Mapping[str, Mapping[str, int]]) -> float:
+    """Multiclass (attribution) accuracy: the diagonal over all decisions."""
     tot = sum(v for row in cm.values() for v in row.values())
     return sum(cm[c].get(c, 0) for c in cm) / tot if tot else float("nan")
+
+
+def binary_accuracy(cm: Mapping[str, Mapping[str, int]], negative: str = "BENIGN") -> float:
+    """Binary accuracy, attack = positive: (TN + TP) / N, where TN = ``cm[negative][negative]`` and TP counts every
+    attack decision predicted as any attack class (a misattributed attack is still detected)."""
+    tot = sum(v for row in cm.values() for v in row.values())
+    tn = cm.get(negative, {}).get(negative, 0)
+    tp = sum(v for t, row in cm.items() if t != negative for p, v in row.items() if p != negative)
+    return (tn + tp) / tot if tot else float("nan")

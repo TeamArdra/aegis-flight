@@ -261,11 +261,16 @@ def classification(root: Path) -> dict:
     for g in ("grace5", "grace0"):
         cm = j[f"confusion_{g}"]
         prf = m.per_class_prf(cm)
+        attacks = [c for c in prf if c != "BENIGN" and prf[c]["support"]]
+        acc_bin = r6(m.binary_accuracy(cm))
         out[g] = {"source": f"{p}#confusion_{g}", "confusion": cm,
                   "per_class": {c: {k: r6(v) if isinstance(v, float) else v for k, v in d.items()} for c, d in prf.items()},
-                  "macro_f1": r6(m.macro_f1(prf)),
+                  "macro_f1_attack_classes": r6(m.macro_f1(prf, attacks)),
+                  "macro_f1_incl_benign": r6(m.macro_f1(prf)),
                   "binary": {k: r6(v) if isinstance(v, float) else v for k, v in j[f"binary_{g}"].items()},
-                  "accuracy": r6(m.accuracy(cm))}
+                  "accuracy_binary": acc_bin,
+                  "accuracy_binary_matches_results_json": acc_bin == r6(j[f"binary_{g}"]["accuracy"]),
+                  "accuracy_multiclass": r6(m.accuracy(cm))}
     return out
 
 
@@ -366,12 +371,17 @@ def to_md(r: dict) -> str:
         L += [f"### {g} (`{c['source']}`)", "", "| class | P | R | F1 | support |", "|---|---|---|---|---|"]
         L += [f"| {k} | {fmt(v['precision'])} | {fmt(v['recall'])} | {fmt(v['f1'])} | {v['support']} |" for k, v in c["per_class"].items()]
         labels = list(c["confusion"])
-        L += ["", f"Macro-F1 {fmt(c['macro_f1'])}.", "", "Confusion (rows true, columns predicted):", "",
+        L += ["", f"Macro-F1, attack classes only (the class set of `metrics/scoring.py` `Evaluation.macro()`): "
+              f"{fmt(c['macro_f1_attack_classes'])}. Macro-F1 including BENIGN: {fmt(c['macro_f1_incl_benign'])}. "
+              "Which one is the headline needs definition sign-off (#28 AC4).", "", "Confusion (rows true, columns predicted):", "",
               "| true \\ pred | " + " | ".join(labels) + " |", "|---" * (len(labels) + 1) + "|"]
         L += [f"| {t} | " + " | ".join(str(c["confusion"][t].get(p, 0)) for p in labels) + " |" for t in labels]
         L.append("")
     L += ["## 6. Accuracy (last; dominated by the benign majority)", ""]
-    L += [f"- {g}: {fmt(c['accuracy'])} (`{c['source']}`)" for g, c in r["classification"].items()]
+    L += [f"- {g}: binary accuracy (attack = positive, as `docs/BENCHMARKING.md` defines accuracy) {fmt(c['accuracy_binary'])} "
+          f"(equals `{EXT}/results.json` `binary_{g}.accuracy`: {c['accuracy_binary_matches_results_json']}); "
+          f"multiclass (attribution) accuracy {fmt(c['accuracy_multiclass'])} (`{c['source']}`)"
+          for g, c in r["classification"].items()]
     L += ["", "## Missing inputs", ""] + [f"- {x['source']}: missing {x['missing']} -> {x['effect']}" for x in r["missing_inputs"]]
     return "\n".join(L) + "\n"
 
