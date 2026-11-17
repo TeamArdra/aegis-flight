@@ -201,6 +201,17 @@ PX4_SITL_EXTRA_CRC: dict[int, int] = {
 }
 
 
+class GcsSideDatagram(bytes):
+    """Bytes that reached an inline bridge from its ground-station / radio side (``hal/inline_ips.py`` tags its tap with it).
+
+    Equal to, and hashed like, the plain bytes. The only difference: :class:`MavlinkFrameParser` never applies its
+    ``unsigned_allowed_sysids`` exemption to frames in such a datagram. The vehicle's own telemetry cannot legitimately
+    arrive from that side, so an unsigned frame there claiming a vehicle sysid is judged like any other unsigned frame.
+    """
+
+    __slots__ = ()
+
+
 class MavlinkFrameParser:
     """Raw bytes -> ``MessageEnvelope`` list, header-first (see module docstring).
 
@@ -227,7 +238,7 @@ class MavlinkFrameParser:
     unsigned telemetry, so an unsigned frame claiming its id is a forgery and is dropped (``sig_invalid``) instead of
     reaching the detectors. If that source sends no valid signed frame for ``SIGNING_LAPSE_S`` (signing turned off on
     the flight controller, a reboot into an unsigned configuration) the exemption returns, so the detectors are not
-    blinded; ``signing_lapses`` counts it.
+    blinded; ``signing_lapses`` counts it. The exemption never applies to a :class:`GcsSideDatagram`.
 
     Only a frame whose MAC truly verified counts as ``sig_valid`` and as evidence that its source signs, and only such a
     frame may advance the per-stream anti-replay timestamp: a claimed signature with a bad MAC (accepted or not) changes
@@ -265,6 +276,7 @@ class MavlinkFrameParser:
         self._cur_compid = -1
         self._cur_signed = False
         self._cur_t = 0.0
+        self._cur_gcs_side = False  # the datagram being parsed is a GcsSideDatagram: no sysid exemption
         self._unsigned_sysids = unsigned_allowed_sysids
         self._signed_src: dict[tuple[int, int], tuple[int, float]] = {}  # (sysid, compid) -> (valid signed, last t)
         self.signing_lapses = 0
@@ -275,7 +287,7 @@ class MavlinkFrameParser:
             )
 
     def _sysid_exempt(self) -> bool:
-        if self._cur_signed or self._cur_sysid not in self._unsigned_sysids:
+        if self._cur_signed or self._cur_gcs_side or self._cur_sysid not in self._unsigned_sysids:
             return False
         src = (self._cur_sysid, self._cur_compid)
         n, last = self._signed_src.get(src, (0, 0.0))
@@ -302,6 +314,7 @@ class MavlinkFrameParser:
         """
         st = self.stats
         st.datagrams_received += 1
+        self._cur_gcs_side = isinstance(data, GcsSideDatagram)
         out: list[MessageEnvelope] = []
         n = len(data)
         i = 0

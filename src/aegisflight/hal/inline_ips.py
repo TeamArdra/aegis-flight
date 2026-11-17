@@ -60,7 +60,7 @@ from ..mitigation.types import DefenseMode
 from ..pipeline import IDSPipeline
 from ..proxy.hooks import FrameContext
 from ..proxy.transport import split_frames
-from ..sources.mavlink_live import LiveMavlinkSource
+from ..sources.mavlink_live import GcsSideDatagram, LiveMavlinkSource
 from ..sources.mavlink_serial import may_reach_vehicle
 from .mgmt_channel import MAX_CMD_AGE_S, FrameSender, MgmtChannel, drop_label, is_mgmt_command
 
@@ -233,6 +233,8 @@ class InlineIpsBridge:
         self.dropped_down = 0
         self.dropped_up = 0
         self.send_failures = 0
+        # signed link: unsigned frames claiming a vehicle sysid that arrived from the GCS side (report-only; see _handle)
+        self.forged_vehicle_up = 0
         self.counter_frames_sent = 0
         self.decisions = 0
         self.alerts = 0
@@ -387,7 +389,15 @@ class InlineIpsBridge:
                 n += 1
                 continue
             t0 = perf_ns()
-            tap_push(stamp, fr.raw)  # the detectors always see the original
+            if not down and not fr.signed and fr.sysid in policy.vehicle_sysids and self._secret_key is not None:
+                # the vehicle's own telemetry never arrives from the GCS / radio side: the detectors still see the original
+                # (and count it as a signing violation) but never under the unsigned-vehicle exemption; reported, not blocked
+                tap_push(stamp, GcsSideDatagram(fr.raw))
+                self.forged_vehicle_up += 1
+                with contextlib.suppress(Exception):
+                    self.mgmt.note_observed(drop_label(fr.raw, fr.sysid, fr.msgid, direction), "forged_vehicle_up")
+            else:
+                tap_push(stamp, fr.raw)  # the detectors always see the original
             ctx = FrameContext(direction, fr.raw, stamp, fr.sysid, fr.compid, fr.seq, fr.msgid, fr.signed)  # type: ignore[arg-type]
             try:
                 out = hook(ctx)
@@ -535,7 +545,8 @@ class InlineIpsBridge:
     def _analyse_loop(self) -> None:
         # the vehicle's own downlink may legitimately be unsigned (ArduPilot over USB, or FC-side signing off): without
         # this the PX4 id allowlist drops all its telemetry once a key is set and the detectors go blind. Forged
-        # ground-station frames (any other sysid) stay dropped; signed frames are still verified.
+        # ground-station frames (any other sysid) stay dropped; signed frames are still verified. Frames that came from
+        # the GCS side are tapped as GcsSideDatagram, which never gets the exemption (see _handle).
         self._source = LiveMavlinkSource(self.tap, sample_rate_hz=self.rate_hz, origin="start",
                                          secret_key=self._secret_key,
                                          unsigned_allowed_sysids=frozenset(self.policy.vehicle_sysids))
@@ -565,7 +576,8 @@ class InlineIpsBridge:
             "frames": {"down": self.frames_down, "up": self.frames_up,
                        "forwarded_down": self.forwarded_down, "forwarded_up": self.forwarded_up,
                        "dropped_down": self.dropped_down, "dropped_up": self.dropped_up,
-                       "send_failures": self.send_failures, "tap_overflow": self.tap.dropped_overflow},
+                       "send_failures": self.send_failures, "tap_overflow": self.tap.dropped_overflow,
+                       "forged_vehicle_up": self.forged_vehicle_up},
             "latency_us": {"p50": pct(0.50), "p95": pct(0.95), "max": round(lat[-1], 1) if lat else None,
                            "samples": len(lat)},
             "policy": self.policy.stats(),

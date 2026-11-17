@@ -17,10 +17,13 @@ from __future__ import annotations
 import os
 import struct
 
+import pytest
+
 os.environ.setdefault("MAVLINK20", "1")
 
 from pymavlink.dialects.v20 import common as mv  # noqa: E402
 
+from aegisflight.hal.inline_ips import InlineIpsBridge  # noqa: E402
 from aegisflight.mavlink.signing import x25_crc  # noqa: E402
 from aegisflight.sources.mavlink_live import MavlinkFrameParser  # noqa: E402
 
@@ -155,3 +158,97 @@ def test_a_replayed_signed_heartbeat_is_not_a_valid_signature_either() -> None:
     assert _names(p, hb, 0.0) == ["HEARTBEAT"] and p.stats.sig_valid == 1
     assert _names(p, hb, 0.1) == ["HEARTBEAT"]  # PX4 allowlist: still parseable ...
     assert p.stats.sig_valid == 1  # ... but not counted as a second valid signature
+
+
+# --------------------------------------------------------------------------- F3
+
+
+class _Link:
+    connected = True
+    port = "socket://127.0.0.1:1"
+
+    def __init__(self) -> None:
+        self.inbox: list[tuple[int, bytes]] = []
+        self.sent: list[bytes] = []
+
+    def poll(self):  # type: ignore[no-untyped-def]
+        out, self.inbox = self.inbox, []
+        return out
+
+    def send(self, data: bytes) -> bool:
+        self.sent.append(bytes(data))
+        return True
+
+    def start(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+
+def _statustexts(frames: list[bytes]) -> list[str]:
+    dec = mv.MAVLink(None)
+    dec.robust_parsing = True
+    out = []
+    for f in frames:
+        try:
+            msg = dec.decode(bytearray(f))
+        except Exception:  # noqa: BLE001 - not every frame needs to decode here
+            continue
+        if msg.get_type() == "STATUSTEXT":
+            out.append(msg.text)
+    return out
+
+
+@pytest.mark.parametrize("mode", ["passive", "advisory", "active-ips"])
+def test_an_unsigned_vehicle_sysid_frame_from_the_gcs_side_is_reported_and_not_ingested(mode: str) -> None:
+    key = os.urandom(32)
+    clock = [1000.0]
+    fc, gcs = _Link(), _Link()
+    b = InlineIpsBridge(fc, gcs, mode=mode, secret_key=key, crossend_interval_s=0,  # type: ignore[arg-type]
+                        mgmt_status_interval_s=0, mgmt_clock=lambda: clock[0])
+    genuine, forged = _unsigned_gpi(1, alt_mm=10000), _unsigned_gpi(1, alt_mm=90000)
+    fc.inbox.append((1_000_000_000, genuine))   # the (unsigned) vehicle's own telemetry, FC side
+    gcs.inbox.append((1_100_000_000, forged))   # the attacker's frame claiming sysid 1, GCS / radio side
+    while fc.inbox or gcs.inbox:
+        b.pump_once()
+    tap = b.tap.poll()
+    assert [bytes(d) for _s, d in tap] == [genuine, forged]  # the detectors still see both originals
+    p = MavlinkFrameParser(secret_key=key, unsigned_allowed_sysids=frozenset(b.policy.vehicle_sysids))
+    ingested = [(e.msgname, e.fields["alt"]) for s, d in tap for e in p.parse(d, s / 1e9)]
+    assert ingested == [("GLOBAL_POSITION_INT", 10000)]
+    assert p.stats.sig_invalid == 1  # counted as a signing violation (detector evidence), as without the exemption
+    assert b.status()["frames"]["forged_vehicle_up"] == 1
+    # forwarding is unchanged: the uplink frame still reaches the FC byte-identically and nothing else is sent to the FC
+    assert fc.sent == [forged]
+    assert gcs.sent[:1] == [genuine]
+    clock[0] += 2.0  # next 1 s report window: the pilot's GCS is told
+    b.pump_once()
+    assert fc.sent == [forged]
+    assert any("forged-vehicle-up GLOBAL_POSITION_INT sys1" in t for t in _statustexts(gcs.sent[1:]))
+
+
+def test_without_a_key_the_gcs_side_vehicle_sysid_frame_is_untouched() -> None:
+    fc, gcs = _Link(), _Link()
+    b = InlineIpsBridge(fc, gcs, mode="passive", crossend_interval_s=0, mgmt_status_interval_s=0)  # type: ignore[arg-type]
+    forged = _unsigned_gpi(1, alt_mm=90000)
+    gcs.inbox.append((1_100_000_000, forged))
+    b.pump_once()
+    tap = b.tap.poll()
+    assert [type(d) for _s, d in tap] == [bytes] and tap[0][1] == forged
+    assert b.status()["frames"]["forged_vehicle_up"] == 0
+    assert fc.sent == [forged]
+
+
+def test_the_parser_never_applies_the_exemption_to_gcs_side_datagrams() -> None:
+    # imported here, not at module level: the name is absent before the F3 fix, and the F1/F2 tests must still collect
+    from aegisflight.sources.mavlink_live import GcsSideDatagram
+
+    key = os.urandom(32)
+    p = MavlinkFrameParser(secret_key=key, unsigned_allowed_sysids=VEHICLE)
+    gpi = _unsigned_gpi(1)
+    assert GcsSideDatagram(gpi) == gpi
+    assert _names(p, GcsSideDatagram(gpi), 0.0) == []
+    assert p.stats.sig_invalid == 1
+    assert _names(p, gpi, 0.1) == ["GLOBAL_POSITION_INT"]  # the same bytes from the FC side keep the exemption
+    assert _names(p, GcsSideDatagram(_unsigned_heartbeat(1)), 0.2) == ["HEARTBEAT"]  # PX4 id allowlist unchanged
