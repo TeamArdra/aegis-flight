@@ -472,6 +472,10 @@ class MgmtChannel:
         clock: Callable[[], float] = time.monotonic,
         wall_clock: Callable[[], float] = time.time,
     ) -> None:
+        if mgmt_key is not None and not state_path:
+            # without persisted anti-replay state a restart accepts a recorded management command again (the CLI's
+            # --mgmt-state check is not enough: scripts construct the bridge / channel directly)
+            raise ValueError("a management key needs a replay-state path (state_path / mgmt_state_path / --mgmt-state)")
         self._send, self.sender, self.host = send, sender, host
         self.alerts_enabled = bool(alerts_enabled)
         self.status_interval_s = float(status_interval_s)

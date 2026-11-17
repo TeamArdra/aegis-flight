@@ -23,6 +23,7 @@ import multiprocessing as mp
 import os
 import pty
 import sys
+import tempfile
 import threading
 import time
 import tty
@@ -146,8 +147,11 @@ def main() -> int:
     child = ctx.Process(target=_emulators, args=(master_a, master_b, a.seconds, a.rate_mult, q, a.signing, a.mgmt))
     fc.start()
     gcs.start()
+    # a management key requires persisted replay state: a throw-away file for this soak run
+    state_dir = tempfile.TemporaryDirectory(prefix="pi_soak_mgmt_") if a.mgmt else None
     bridge = InlineIpsBridge(fc, gcs, mode=a.mode, secret_key=FLIGHT_KEY if a.signing else None,
-                             mgmt_key=MGMT_KEY if a.mgmt else None)
+                             mgmt_key=MGMT_KEY if a.mgmt else None,
+                             mgmt_state_path=str(Path(state_dir.name) / "mgmt_state.json") if state_dir else None)
     bridge.start()
     proc = psutil.Process()
     cpu0, wall0 = sum(proc.cpu_times()[:2]), time.monotonic()

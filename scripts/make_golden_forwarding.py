@@ -23,6 +23,7 @@ import random
 import secrets
 import struct
 import sys
+import tempfile
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -582,8 +583,15 @@ def make_bridge(scn: Scn, posture: str, clk: Clk) -> tuple[InlineIpsBridge, Link
     kw = dict(scn.kw)
     fc = Link(kw.pop("fc_fail_every", 0))
     gcs = Link(kw.pop("gcs_fail_every", 0))
+    state_dir = None
+    if kw.get("mgmt_key") is not None:
+        # a management key requires persisted replay state; a fresh file per run, so no run sees another's state
+        state_dir = tempfile.TemporaryDirectory(prefix="golden_mgmt_")
+        kw["mgmt_state_path"] = str(Path(state_dir.name) / "mgmt_state.json")
     bridge = InlineIpsBridge(fc, gcs, mode=posture, clock_ns=lambda: int(clk.t * 1e9), mgmt_clock=clk, **kw)
     bridge.policy._clock = clk  # the bridge does not take a policy clock
+    if state_dir is not None:
+        bridge._golden_state_dir = state_dir  # type: ignore[attr-defined]  # removed with the bridge
     return bridge, fc, gcs
 
 

@@ -125,6 +125,20 @@ def acks(link: Link, key: bytes | None = KEY_M) -> list[dict]:
     return out
 
 
+_STATE = SimpleNamespace(dir=None, n=0)
+
+
+@pytest.fixture(autouse=True)
+def _mgmt_state_dir(tmp_path_factory):
+    _STATE.dir, _STATE.n = tmp_path_factory.mktemp("mgmt_state"), 0
+
+
+def _fresh_state_path() -> str:
+    """A management key needs persisted replay state; a fresh file per bridge keeps bridges independent of each other."""
+    _STATE.n += 1
+    return str(_STATE.dir / f"state{_STATE.n}.json")
+
+
 def make_bridge(tmp_path=None, mode="passive", **kw):
     clock = Clock()
     fc, gcs = Link(), Link()
@@ -133,6 +147,8 @@ def make_bridge(tmp_path=None, mode="passive", **kw):
     if tmp_path is not None:
         kw.setdefault("audit_log_path", str(tmp_path / "audit.jsonl"))
         kw.setdefault("mgmt_state_path", str(tmp_path / "state.json"))
+    elif kw.get("mgmt_key") is not None:
+        kw.setdefault("mgmt_state_path", _fresh_state_path())
     return InlineIpsBridge(fc, gcs, mode=mode, **kw), fc, gcs, clock
 
 
@@ -536,7 +552,8 @@ def test_a_command_signed_long_ago_is_ignored_and_an_unset_clock_never_rejects()
     req = {"target_system": 1, "src_sysid": 255, "src_compid": 190, "params": [OP_SET_POSTURE, 1, 0, 0]}
     for wall, executed in ((time.time(), False), (1_000_000.0, True)):  # 1970: clock not set -> no age check
         h = Host()
-        ch = MgmtChannel(lambda _b: True, FrameSender(), h, mgmt_key=KEY_M, wall_clock=lambda w=wall: w)
+        ch = MgmtChannel(lambda _b: True, FrameSender(), h, mgmt_key=KEY_M, wall_clock=lambda w=wall: w,
+                         state_path=_fresh_state_path())
         ch.handle_command(raw, req)
         assert (getattr(h, "mode", None) == "advisory") is executed
         assert ch.replays_rejected == (0 if executed else 1)
