@@ -1,7 +1,9 @@
 <!--
 Title: <type>: <summary> (#<issue>)   e.g. fix: treat satellites_visible=255 as unknown (#16)
 Rules: AGENTS.md §7–§8. Open as draft while iterating (drafts are not auto-reviewed).
-Do not add AI attribution lines. A human approves and merges.
+Do not add AI attribution lines. Never approve or merge your own PR: routine PRs are approved
+and merged only by the merge gate (docs/AUTONOMOUS_PIPELINE.md), escalated ones by a human.
+Branch `<type>/<issue>-<slug>` and exactly one `Closes #<issue>` are required for automatic merge.
 -->
 
 Closes #

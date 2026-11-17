@@ -5,16 +5,21 @@
 # draft) with the one-shot label `claude:review`, or escalate to a deeper model with
 # `claude:deep-review`. `claude:skip-review` suppresses automatic runs.
 #
-# Output: inline comments + one summary comment (by claude[bot]) and a commit status
-# `claude-review` on the reviewed head SHA (advisory; do NOT make it a required check).
+# Output: inline comments + one summary comment (by claude[bot]); a commit status
+# `claude-review` on the reviewed head SHA (advisory; do NOT make it a required check); and
+# the TRUSTED REVIEW RECORD: artifact `aegis-review-record` (review-record.json), built
+# deterministically from Claude's structured output by base-branch tooling. The merge gate
+# (aegis-orchestrator.yml) trusts only that artifact, after verifying from GitHub's run
+# metadata that this exact workflow file produced it for the PR's current head SHA.
 # The reviewer never approves, merges, pushes or edits.
 #
-# Security model: docs/CLAUDE_AUTOMATION.md. Key points:
+# Security model: docs/CLAUDE_AUTOMATION.md and docs/AUTONOMOUS_PIPELINE.md. Key points:
 # - `pull_request` (not `pull_request_target`): fork PRs get no secrets and are skipped.
-# - The review rules are read from the BASE branch; the action itself restores CLAUDE.md,
-#   AGENTS.md and .claude/ from the base branch.
+# - The review rules, the record builder and its JSON schema are read from the BASE branch;
+#   the action itself restores CLAUDE.md, AGENTS.md and .claude/ from the base branch.
 # - The Claude GitHub App token exchange only succeeds when this file is identical to the
-#   copy on the default branch, so a PR that edits this workflow is skipped by design.
+#   copy on the default branch, so a PR that edits this workflow is skipped by design (and
+#   is always escalated to a human by the merge gate).
 name: Claude PR review
 
 on:
@@ -48,7 +53,7 @@ jobs:
       issues: write         # labels live on the issue side of a PR
       statuses: write       # `claude-review` commit status
       id-token: write       # OIDC exchange for the Claude GitHub App token
-      actions: read         # lets the reviewer see CI results
+      actions: read         # lets the reviewer see CI results; dedupe and provenance checks
     env:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -57,14 +62,34 @@ jobs:
       EVENT_ACTION: ${{ github.event.action }}
       DEEP: ${{ github.event.action == 'labeled' && github.event.label.name == 'claude:deep-review' }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      REVIEW_WORKFLOW: .github/workflows/claude-review.yml
     steps:
+      # Duplicate-event protection: `reopened` / `ready_for_review` on a head that already has
+      # a completed review record re-uses it (no new model run). Label requests always run.
+      - name: Skip a head that already has a review record
+        id: dedupe
+        run: |
+          set -euo pipefail
+          skip=false
+          if [ "$EVENT_ACTION" = "reopened" ] || [ "$EVENT_ACTION" = "ready_for_review" ]; then
+            mapfile -t ids < <(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$HEAD_SHA&event=pull_request&status=completed&per_page=100" \
+              --jq ".workflow_runs[] | select(.path == \"$REVIEW_WORKFLOW\" and .conclusion == \"success\" and .id != $GITHUB_RUN_ID) | .id")
+            for id in "${ids[@]}"; do
+              n=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/artifacts" --jq '[.artifacts[] | select(.name == "aegis-review-record" and (.expired | not))] | length')
+              if [ "$n" = "1" ]; then skip=true; echo "Head ${HEAD_SHA:0:7} already reviewed in run $id; not reviewing again."; break; fi
+            done
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
       - name: Mark review pending
+        if: steps.dedupe.outputs.skip != 'true'
         run: |
           gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
             -f state=pending -f context=claude-review \
             -f description="Automated review in progress" -f target_url="$RUN_URL" > /dev/null
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.dedupe.outputs.skip != 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0            # history for incremental diffs (repo is ~7 MB)
@@ -72,6 +97,7 @@ jobs:
 
       - name: Load review policy from the base branch
         id: policy
+        if: steps.dedupe.outputs.skip != 'true'
         run: |
           set -euo pipefail
           if ! policy="$(git show "origin/${BASE_REF}:.github/claude/review-policy.md")"; then
@@ -81,8 +107,26 @@ jobs:
           delim="POLICY_$(openssl rand -hex 16)"
           { echo "text<<$delim"; printf '%s\n' "$policy"; echo "$delim"; } >> "$GITHUB_OUTPUT"
 
+      # The record builder, its JSON schema and the merge policy come from the BASE branch,
+      # like the review policy above: a PR cannot change how its own review is recorded.
+      - name: Load review-record tooling from the base branch
+        id: automation
+        if: steps.dedupe.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          base="$RUNNER_TEMP/aegis-base"
+          mkdir -p "$base"
+          if ! git archive "origin/${BASE_REF}" scripts/aegis_automation .github/automation .github/claude/review-policy.md | tar -x -C "$base"; then
+            echo "::error::scripts/aegis_automation is missing on base branch '${BASE_REF}'. The review record can only be produced by merged tooling."
+            exit 1
+          fi
+          schema="$(PYTHONPATH="$base/scripts" python3 -m aegis_automation.review_record schema)"
+          policy_sha="$(PYTHONPATH="$base/scripts" python3 -m aegis_automation.review_record hash "$base/.github/claude/review-policy.md")"
+          { echo "dir=$base"; echo "schema=$schema"; echo "policy_sha=$policy_sha"; } >> "$GITHUB_OUTPUT"
+
       - name: Choose model and review mode
         id: cfg
+        if: steps.dedupe.outputs.skip != 'true'
         env:
           REVIEW_MODEL: ${{ vars.CLAUDE_REVIEW_MODEL || 'claude-sonnet-5-5' }}
           DEEP_MODEL: ${{ vars.CLAUDE_DEEP_REVIEW_MODEL || 'claude-opus-5-5' }}
@@ -93,19 +137,25 @@ jobs:
           [[ "$model" =~ ^[A-Za-z0-9._:@-]+$ ]] || { echo "::error::invalid model id '$model'"; exit 1; }
           { [[ "$turns" =~ ^[0-9]+$ ]] && [ "$turns" -le 100 ]; } || { echo "::error::invalid max turns '$turns'"; exit 1; }
 
-          # Incremental mode: the newest earlier commit of this PR that already has a
-          # completed review status written by this workflow.
+          # Incremental mode: the newest earlier commit of this PR with a completed review.
+          # A `claude-review` status alone is forgeable (any workflow token can write one), so
+          # the status must point at a run that GitHub records as THIS workflow, for a
+          # pull_request event, on that same commit. Otherwise: full review (fail safe).
           mode=full; prev=""
           if [ "$DEEP" != "true" ] && [ "$EVENT_ACTION" = "synchronize" ]; then
             mapfile -t shas < <(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits?per_page=100" --jq '.[].sha')
             for (( i=${#shas[@]}-1; i>=0; i-- )); do
               s="${shas[$i]}"; [ "$s" = "$HEAD_SHA" ] && continue
-              st=$(gh api "repos/$GITHUB_REPOSITORY/commits/$s/statuses?per_page=100" \
-                --jq '[.[] | select(.context=="claude-review" and .creator.login=="github-actions[bot]")][0].state // ""')
-              if [ "$st" = "success" ] || [ "$st" = "failure" ]; then
+              [[ "$s" =~ ^[0-9a-f]{40}$ ]] || continue
+              url=$(gh api "repos/$GITHUB_REPOSITORY/commits/$s/statuses?per_page=100" \
+                --jq '[.[] | select(.context=="claude-review" and .creator.login=="github-actions[bot]" and (.state=="success" or .state=="failure"))][0].target_url // ""')
+              [ -n "$url" ] || continue
+              rid="${url##*/actions/runs/}"; rid="${rid%%[!0-9]*}"
+              if [ -n "$rid" ] && [ "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$rid" \
+                   --jq "select(.path == \"$REVIEW_WORKFLOW\" and .event == \"pull_request\" and .head_sha == \"$s\") | .id" 2>/dev/null)" = "$rid" ]; then
                 if git merge-base --is-ancestor "$s" "$HEAD_SHA" 2>/dev/null; then mode=incremental; prev="$s"; fi
-                break
               fi
+              break
             done
           fi
           { echo "model=$model"; echo "turns=$turns"; echo "mode=$mode"; echo "prev=$prev"; } >> "$GITHUB_OUTPUT"
@@ -113,10 +163,11 @@ jobs:
 
       - name: Claude review
         id: review
+        if: steps.dedupe.outputs.skip != 'true'
         uses: anthropics/claude-code-action@d1f58ad5e6f4d2b79547e63e37c2116064135896 # v1.0.277
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Re-review after a maintainer-requested remediation push (pushed by claude[bot]).
+          # Re-review after a remediation push (pushed by claude[bot]).
           # Only the official Claude app is allowed; never '*'.
           allowed_bots: claude
           prompt: |
@@ -139,51 +190,63 @@ jobs:
             --permission-mode default
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git blame:*),Bash(git status)"
             --disallowedTools "Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Bash(gh pr review:*),Bash(gh pr merge:*),Bash(gh pr edit:*),Bash(gh pr close:*),Bash(gh api:*),Bash(gh workflow:*),Bash(git push:*),Bash(git commit:*)"
-            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["blocking","non-blocking","clean","incomplete"]},"p0":{"type":"integer","minimum":0},"p1":{"type":"integer","minimum":0},"p2":{"type":"integer","minimum":0},"p3":{"type":"integer","minimum":0},"escalate":{"type":"boolean"},"escalation_reason":{"type":"string"},"linked_issue":{"type":"integer"}},"required":["verdict","p0","p1","p2","p3","escalate"],"additionalProperties":false}'
+            --json-schema '${{ steps.automation.outputs.schema }}'
 
-      - name: Publish review status
-        if: always()
+      - name: Snapshot CI state for the record
+        if: always() && steps.dedupe.outputs.skip != 'true'
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?per_page=100" \
+            --jq '[.check_runs[] | {name, status, conclusion}]' > "$RUNNER_TEMP/ci-snapshot.json" 2>/dev/null \
+            || echo '[]' > "$RUNNER_TEMP/ci-snapshot.json"
+
+      # Deterministic: the verdict is recomputed from the findings (review_record.py), so
+      # ERROR (run failed/cancelled), INCOMPLETE (malformed/inconsistent output) and READY
+      # are never confused. All inputs arrive through env, never interpolated into the script.
+      - name: Build the review record
+        id: record
+        if: always() && steps.dedupe.outputs.skip != 'true' && steps.automation.outcome == 'success'
         env:
           RESULT: ${{ steps.review.outputs.structured_output }}
           OUTCOME: ${{ steps.review.outcome }}
           MODEL: ${{ steps.cfg.outputs.model }}
+          MODE: ${{ steps.cfg.outputs.mode }}
+          PREV: ${{ steps.cfg.outputs.prev }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          POLICY_SHA256: ${{ steps.automation.outputs.policy_sha }}
+          AUTOMATION_DIR: ${{ steps.automation.outputs.dir }}
+        run: |
+          CI_SNAPSHOT_FILE="$RUNNER_TEMP/ci-snapshot.json" PYTHONPATH="$AUTOMATION_DIR/scripts" \
+            python3 -m aegis_automation.review_record build --out "$RUNNER_TEMP/review-record"
+
+      - name: Publish advisory review status
+        if: always() && steps.dedupe.outputs.skip != 'true'
+        env:
+          STATE: ${{ steps.record.outputs.state || 'error' }}
+          DESCRIPTION: ${{ steps.record.outputs.description || 'Review did not complete; see the run log' }}
+          ESCALATE: ${{ steps.record.outputs.escalate }}
+          OUTCOME: ${{ steps.review.outcome }}
         run: |
           set -uo pipefail
-          post() {
-            gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" -f state="$1" -f context=claude-review \
-              -f description="$2" -f target_url="$RUN_URL" > /dev/null
-          }
-          int() { if [[ "$1" =~ ^[0-9]+$ ]]; then echo "$1"; fi; }
-          verdict=""; p0=""; p1=""; p2=""; p3=""; esc="false"; reason=""
-          if [ -n "${RESULT:-}" ] && jq -e 'type=="object"' >/dev/null 2>&1 <<<"$RESULT"; then
-            verdict=$(jq -r '.verdict // ""' <<<"$RESULT")
-            p0=$(int "$(jq -r '.p0 // ""' <<<"$RESULT")"); p1=$(int "$(jq -r '.p1 // ""' <<<"$RESULT")")
-            p2=$(int "$(jq -r '.p2 // ""' <<<"$RESULT")"); p3=$(int "$(jq -r '.p3 // ""' <<<"$RESULT")")
-            esc=$(jq -r 'if .escalate == true then "true" else "false" end' <<<"$RESULT")
-            reason=$(jq -r '.escalation_reason // ""' <<<"$RESULT" | tr -d '\r' | head -c 300)
-          fi
           if [ "$OUTCOME" = "cancelled" ]; then
-            post error "Review cancelled (superseded by a newer run)"; exit 0
+            STATE=error; DESCRIPTION="Review cancelled (superseded by a newer run)"
           fi
-          if [ "$OUTCOME" != "success" ] || [ -z "$p0" ] || [ -z "$p1" ] || [ -z "$p2" ] || [ -z "$p3" ] || [ "$verdict" = "incomplete" ]; then
-            post error "Review did not complete; see the run log"
-            echo "::warning::Claude review did not produce a complete result (outcome=$OUTCOME)."
-            exit 0
-          fi
-          counts="P0:$p0 P1:$p1 P2:$p2 P3:$p3"
-          if [ $((p0 + p1)) -gt 0 ] || [ "$verdict" = "blocking" ]; then
-            post failure "$counts (blocking findings; advisory)"
-          else
-            post success "$counts"
-          fi
-          if [ "$esc" = "true" ]; then
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" -f state="$STATE" -f context=claude-review \
+            -f description="$DESCRIPTION" -f target_url="$RUN_URL" > /dev/null
+          if [ "$ESCALATE" = "true" ]; then
             gh pr edit "$PR_NUMBER" --add-label "claude:escalation-recommended" || echo "::warning::could not add escalation label"
           fi
-          {
-            echo "### Claude review of \`${HEAD_SHA:0:7}\`"
-            echo "- Model: \`$MODEL\` · verdict: **$verdict** · $counts"
-            if [ "$esc" = "true" ]; then echo "- Escalation recommended: $reason"; fi
-          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the trusted review record
+        if: always() && steps.record.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: aegis-review-record
+          path: ${{ runner.temp }}/review-record/review-record.json
+          retention-days: 90
+          if-no-files-found: error
+          # A re-run attempt (bounded ERROR retry) replaces the earlier attempt's record, so
+          # the run always holds exactly one record (the merge gate rejects duplicates).
+          overwrite: true
 
       - name: Clear one-shot trigger label
         if: always() && github.event.action == 'labeled'
