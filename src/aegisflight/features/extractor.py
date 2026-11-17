@@ -88,7 +88,7 @@ ML_FEATURES = (
 )
 
 
-@dataclass(slots=True)
+@dataclass
 class CommandEvent:
     recv_time: float
     sysid: int
@@ -97,7 +97,7 @@ class CommandEvent:
     params: tuple[float, ...] = ()
 
 
-@dataclass(slots=True)
+@dataclass
 class FeatureFrame:
     t: float
     snapshot: TelemetrySnapshot

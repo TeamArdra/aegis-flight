@@ -247,7 +247,9 @@ radio stream (sysid 1, compid 191/192; `docs/MGMT_CHANNEL.md`):
 rest empty) for SIM, replay, or when nothing was heard for 10 s. `authenticated` is true only with `--signing-key-file`.
 
 `aegis serve --mgmt-key-file PATH` (32-byte key, separate from the flight key) enables control: `control_available` is true only
-with that key AND a live serial/udp transport. `POST /api/bridge/posture` body `{"mode": "passive|advisory|active-ips",
+with that key AND a live transport the bridge may write to: UDP or a `socket://` URL. A serial OS device
+(`COM7`, `/dev/ttyACM0`, a PTY) is receive-only (`may_reach_vehicle()`): it may be the flight controller itself, so
+`control_available` is false there and the route returns 403. `POST /api/bridge/posture` body `{"mode": "passive|advisory|active-ips",
 "allow_unsigned"?: bool, "confirm"?: bool}` builds and signs the command, sends it on the live transport and returns
 `{"ok": true, "pending": true}`; the bridge's COMMAND_ACK updates `last_command`. Errors: `400` bad body, `403
 control_unavailable` (no management key, or replay/SIM/no transport), `409 signing_required` (same wording as

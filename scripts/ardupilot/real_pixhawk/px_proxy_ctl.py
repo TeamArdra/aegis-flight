@@ -1,7 +1,7 @@
-# ruff: noqa  (bench script: quick one-off driver; not library code)
 """Send one rewrite-mode command to px_fc_proxy.py's loopback control port (ctl port = data port + 1). Run ON THE PI
 (or invoked there over ssh from the laptop campaign driver, which has no route to the Pi's loopback otherwise).
 usage: px_proxy_ctl.py DATA_PORT alt_bias 40 | batt_jump 3 | freeze | heading 90 | off"""
+
 import socket
 import sys
 

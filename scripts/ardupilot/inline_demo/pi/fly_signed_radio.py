@@ -1,4 +1,3 @@
-# ruff: noqa  (bench script: quick one-off driver, not library code)
 """Radio variant (low stream rates) of fly_signed.py. Pilot for the signing scenario: arm, take off, fly, make a legitimate mode change, keep flying.
 
 usage: fly_signed.py <label> <keyfile|->

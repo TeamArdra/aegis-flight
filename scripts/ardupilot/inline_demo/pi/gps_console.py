@@ -1,4 +1,3 @@
-# ruff: noqa  (bench script: quick one-off driver, not library code)
 """Holds SITL SERIAL0 (5760) like holder.py; writes / clears the GPS fault when a flag file appears. usage: gps_console.py <label>"""
 
 import os

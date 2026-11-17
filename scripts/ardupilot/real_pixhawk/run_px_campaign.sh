@@ -37,6 +37,7 @@ else
 fi
 
 ssh -i "$PI_KEY" -o BatchMode=yes "$PI_HOST" "cd ~/aegis_test && export PYTHONPATH=\$HOME/aegis_test/src
+# px_fc_proxy.py refuses to start unless the operator exports AEGIS_REAL_FC_BENCH=props-off-disarmed (bench only, see its docstring)
 nohup venv/bin/python scripts/ardupilot/real_pixhawk/px_fc_proxy.py /dev/ttyACM0 $PROXY_PORT > $D/proxy.log 2>&1 &
 sleep 2
 nohup venv/bin/python -c 'from aegisflight.cli.main import main; main()' ips-bridge --fc-port socket://127.0.0.1:$PROXY_PORT --allow-url --gcs-port /dev/ttyUSB0 --gcs-baud 115200 $BOPT --config-dir configs/ardupilot_copter --status-port 8090 --firmware-dir ~/aegis_fw --firmware-recheck-s 5 --db $D/bridge.sqlite --seconds 600 > $D/bridge.log 2>&1 &

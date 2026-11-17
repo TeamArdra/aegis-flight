@@ -2,6 +2,13 @@
 
     python scripts/make_golden.py            # (re)write tests/golden/golden.json from the CURRENT code
     python scripts/make_golden.py --check    # recompute and compare, exit 1 on any difference
+    python scripts/make_golden.py --add-portable   # add the rounded layers to the fixture, ONLY if every bit-exact
+                                                   # digest still matches here (so they come from the same results)
+
+``env_tag()`` names the platform; the bit-exact layers are compared only in the environments listed in the fixture's
+``strict_envs`` (where they were generated or re-verified). Elsewhere the C maths library can differ in the last bit
+(measured: Linux x86-64 CI changes the ``frame`` / ``detectors`` digests while ``parse`` / ``stats`` / ``assess`` match),
+so the guard compares ``frame_r`` / ``detectors_r``: the same layers with floats rounded to 9 significant digits.
 
 Every case drives ``parse -> FeatureExtractor -> 4 detectors -> fusion -> ThreatAssessment``
 (through ``IDSPipeline.process_tick``) and hashes, per decision, THREE canonical serialisations:
@@ -63,27 +70,42 @@ _SKIP = {"wall_time", "latency_ms"}
 # canonical serialisation
 # --------------------------------------------------------------------------- #
 
-def ser(x) -> str:
-    """Deterministic, type-preserving text form; floats are ``repr`` (exact round-trip)."""
+
+def _rfloat(v: float) -> str:
+    """Portable float form: 9 significant digits, |v| < 1e-9 as 0 (absorbs last-bit libm differences)."""
+    if v != v or v in (float("inf"), float("-inf")):
+        return repr(v)
+    return "0" if abs(v) < 1e-9 else f"{v:.9g}"
+
+
+def ser(x, rnd: bool = False) -> str:
+    """Deterministic, type-preserving text form; floats are ``repr`` (exact round-trip), or ``_rfloat`` with ``rnd``."""
     if x is None or isinstance(x, bool | int | str):
         return repr(x)
     if isinstance(x, enum.Enum):
         return f"E<{type(x).__name__}.{x.name}={x.value!r}>"
     if isinstance(x, float):
-        return repr(x)
+        return _rfloat(x) if rnd else repr(x)
     if isinstance(x, np.generic):
-        return f"np<{type(x).__name__}:{x.item()!r}>"
+        v = x.item()
+        return f"np<{type(x).__name__}:{_rfloat(v) if rnd and isinstance(v, float) else repr(v)}>"
     if is_dataclass(x) and not isinstance(x, type):
-        return type(x).__name__ + "(" + ",".join(f"{f.name}={ser(getattr(x, f.name))}"
-                                                 for f in fields(x) if f.name not in _SKIP) + ")"
+        return (
+            type(x).__name__
+            + "("
+            + ",".join(
+                f"{f.name}={ser(getattr(x, f.name), rnd)}" for f in fields(x) if f.name not in _SKIP
+            )
+            + ")"
+        )
     if isinstance(x, dict):
-        return "{" + ",".join(f"{ser(k)}:{ser(v)}" for k, v in x.items()) + "}"
+        return "{" + ",".join(f"{ser(k, rnd)}:{ser(v, rnd)}" for k, v in x.items()) + "}"
     if isinstance(x, list):
-        return "[" + ",".join(ser(v) for v in x) + "]"
+        return "[" + ",".join(ser(v, rnd) for v in x) + "]"
     if isinstance(x, tuple):
-        return "(" + ",".join(ser(v) for v in x) + ")"
+        return "(" + ",".join(ser(v, rnd) for v in x) + ")"
     if isinstance(x, set | frozenset):
-        return "{" + ",".join(sorted(ser(v) for v in x)) + "}"
+        return "{" + ",".join(sorted(ser(v, rnd) for v in x)) + "}"
     if isinstance(x, bytes | bytearray):
         return "b" + bytes(x).hex()
     raise TypeError(f"unserialisable {type(x)}")
@@ -94,7 +116,10 @@ class CaseRecorder:
 
     def __init__(self, pipe: IDSPipeline) -> None:
         self.pipe = pipe
-        self.h = {k: hashlib.sha256() for k in ("assess", "frame", "detectors", "parse")}
+        self.h = {
+            k: hashlib.sha256()
+            for k in ("assess", "frame", "detectors", "parse", "frame_r", "detectors_r")
+        }
         self.n = 0
         self.n_frames = 0
         self.threats = 0
@@ -124,34 +149,57 @@ class CaseRecorder:
         self.h["assess"].update(ser(a).encode())
         self.h["frame"].update(ser(self.pipe.last_frame).encode())
         self.h["detectors"].update(ser(self._cur).encode())
+        self.h["frame_r"].update(ser(self.pipe.last_frame, rnd=True).encode())
+        self.h["detectors_r"].update(ser(self._cur, rnd=True).encode())
         self.threats += int(a.threat)
         self.alerts += int(a.is_alert)
         if a.threat:
             self.types.add(a.attack_type.value)
-        self.last = {"t": a.t, "threat_score": repr(a.threat_score), "severity": a.severity.value,
-                     "attack_type": a.attack_type.value, "confidence": repr(a.confidence)}
+        self.last = {
+            "t": a.t,
+            "threat_score": repr(a.threat_score),
+            "severity": a.severity.value,
+            "attack_type": a.attack_type.value,
+            "confidence": repr(a.confidence),
+        }
 
     def result(self, extra: str = "") -> dict:
         d = {k: v.hexdigest() for k, v in self.h.items() if k != "parse" or self.n_frames}
         if extra:
             d["stats"] = hashlib.sha256(extra.encode()).hexdigest()
-        return {"digests": d, "n_decisions": self.n, "n_messages": self.n_frames,
-                "threat_decisions": self.threats, "alerts": self.alerts,
-                "attack_types": sorted(self.types), "last": self.last}
+        return {
+            "digests": d,
+            "n_decisions": self.n,
+            "n_messages": self.n_frames,
+            "threat_decisions": self.threats,
+            "alerts": self.alerts,
+            "attack_types": sorted(self.types),
+            "last": self.last,
+        }
 
 
 # --------------------------------------------------------------------------- #
 # SIM cases
 # --------------------------------------------------------------------------- #
 
+
 def _sim_spec(idx: int, scenario: str, mode: str, seed: int, kind: str, link: dict | None = None):
     r = np.random.default_rng(seed)
     return SessionSpec(
-        idx=idx, kind=kind, scenario=scenario, mode=mode, seed=seed,
+        idx=idx,
+        kind=kind,
+        scenario=scenario,
+        mode=mode,
+        seed=seed,
         route=("survey_box", "out_and_back", "perimeter")[seed % 3],
-        speed=float(r.uniform(8, 16)), alt=float(r.uniform(35, 90)),
-        noise_scale=float(r.uniform(0.7, 1.6)), onset=14.0 + seed % 5,
-        duration=14.0, offset2=4.0 if kind == "combo" else 0.0, link=link or {})
+        speed=float(r.uniform(8, 16)),
+        alt=float(r.uniform(35, 90)),
+        noise_scale=float(r.uniform(0.7, 1.6)),
+        onset=14.0 + seed % 5,
+        duration=14.0,
+        offset2=4.0 if kind == "combo" else 0.0,
+        link=link or {},
+    )
 
 
 def sim_cases() -> list[tuple[str, SessionSpec]]:
@@ -163,15 +211,25 @@ def sim_cases() -> list[tuple[str, SessionSpec]]:
     for atk, modes in MODES.items():
         for m in modes:
             for s in SIM_SEEDS:
-                out.append((f"sim/{atk}:{m}/s{s}", _sim_spec(i, atk, "" if m == "default" else m, s,
-                                                             "single")))
+                out.append(
+                    (
+                        f"sim/{atk}:{m}/s{s}",
+                        _sim_spec(i, atk, "" if m == "default" else m, s, "single"),
+                    )
+                )
                 i += 1
-    for combo in ("gps_spoofing+mavlink_anomaly", "gps_spoofing+command_injection",
-                  "dos+telemetry_manipulation", "telemetry_manipulation+firmware_integrity"):
+    for combo in (
+        "gps_spoofing+mavlink_anomaly",
+        "gps_spoofing+command_injection",
+        "dos+telemetry_manipulation",
+        "telemetry_manipulation+firmware_integrity",
+    ):
         out.append((f"sim/combo/{combo}", _sim_spec(i, combo, "", 5, "combo")))
         i += 1
-    for kind, link in (("link_fifo", {"mean_delay_ms": 25.0, "loss_prob": 0.02, "fifo": True}),
-                       ("link_reorder", {"mean_delay_ms": 25.0, "loss_prob": 0.02, "fifo": False})):
+    for kind, link in (
+        ("link_fifo", {"mean_delay_ms": 25.0, "loss_prob": 0.02, "fifo": True}),
+        ("link_reorder", {"mean_delay_ms": 25.0, "loss_prob": 0.02, "fifo": False}),
+    ):
         out.append((f"sim/{kind}_benign/s7", _sim_spec(i, "benign", "", 7, kind, link)))
         i += 1
     return out
@@ -197,7 +255,10 @@ def run_sim_case(spec: SessionSpec, ml: bool) -> dict:
 
 _MAVS: dict = {}
 LAT0, LON0, M_PER_DEG = 47.0, 8.0, 111194.9
-HEALTHY, NOSOL = 0x37, 0x87  # EKF flags: att+vel+pos(abs)+vert / const-pos-mode, no horizontal position
+HEALTHY, NOSOL = (
+    0x37,
+    0x87,
+)  # EKF flags: att+vel+pos(abs)+vert / const-pos-mode, no horizontal position
 KEY = bytes(range(32))
 
 
@@ -210,8 +271,22 @@ def pk(sysid: int, comp: int, seq: int, name: str, *args, dialect=apm) -> bytes:
     return bytes(getattr(m, name + "_encode")(*args).pack(m))
 
 
-SCENARIOS = ("benign", "ekf_gate", "gps_sig", "mission", "cmds", "seq", "flood", "crossend",
-             "crossend_keyed", "mgmt", "garbage", "signed", "spoof_drift", "dropout")
+SCENARIOS = (
+    "benign",
+    "ekf_gate",
+    "gps_sig",
+    "mission",
+    "cmds",
+    "seq",
+    "flood",
+    "crossend",
+    "crossend_keyed",
+    "mgmt",
+    "garbage",
+    "signed",
+    "spoof_drift",
+    "dropout",
+)
 
 
 def gen_stream(scn: str, seed: int = 5, dur: float = 70.0) -> list[tuple[float, bytes]]:
@@ -226,13 +301,25 @@ def gen_stream(scn: str, seed: int = 5, dur: float = 70.0) -> list[tuple[float, 
         out.append((t, pk(sysid, comp, s, name, *args, dialect=dialect)))
 
     def gpi_args(t, north, east, vx=1000, vy=0):
-        return (int(t * 1000), int((LAT0 + north / M_PER_DEG) * 1e7),
-                int((LON0 + east / (M_PER_DEG * kcos)) * 1e7), 100000 + int(rnd.gauss(0, 200)),
-                50000, vx, vy, 0, 0)
+        return (
+            int(t * 1000),
+            int((LAT0 + north / M_PER_DEG) * 1e7),
+            int((LON0 + east / (M_PER_DEG * kcos)) * 1e7),
+            100000 + int(rnd.gauss(0, 200)),
+            50000,
+            vx,
+            vy,
+            0,
+            0,
+        )
 
     if scn == "mission":
-        wps = [(LAT0 + 0.0, LON0), (LAT0 + 700 / M_PER_DEG, LON0),
-               (LAT0 + 700 / M_PER_DEG, LON0 + 700 / (M_PER_DEG * kcos)), (LAT0, LON0 + 700 / (M_PER_DEG * kcos))]
+        wps = [
+            (LAT0 + 0.0, LON0),
+            (LAT0 + 700 / M_PER_DEG, LON0),
+            (LAT0 + 700 / M_PER_DEG, LON0 + 700 / (M_PER_DEG * kcos)),
+            (LAT0, LON0 + 700 / (M_PER_DEG * kcos)),
+        ]
     n = int(dur * 10)
     summaries: list[tuple] = []
     for i in range(n):
@@ -252,8 +339,7 @@ def gen_stream(scn: str, seed: int = 5, dur: float = 70.0) -> list[tuple[float, 
         hb_ok = not (scn == "dropout" and 50 <= t < 60)
         mode = 3 if scn == "mission" else 5  # ArduCopter AUTO=3, LOITER=5
 
-        send(t, 1, 1, "attitude", int(t * 1000), 0.01 * math.sin(t), -0.02, 0.0,
-             0.0, 0.0, 0.0)
+        send(t, 1, 1, "attitude", int(t * 1000), 0.01 * math.sin(t), -0.02, 0.0, 0.0, 0.0, 0.0)
         if scn == "flood" and 25 <= t < 35:
             for _ in range(12):
                 send(t, 1, 1, "attitude", int(t * 1000), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -271,16 +357,61 @@ def gen_stream(scn: str, seed: int = 5, dur: float = 70.0) -> list[tuple[float, 
             rawvel = 1000 if not (scn == "gps_sig" and 35 <= t < 45) else 0
             if scn == "gps_sig" and 50 <= t < 55:
                 sats = 0
-            send(t, 1, 1, "gps_raw_int", int(t * 1e6), fix, int((LAT0 + north / M_PER_DEG) * 1e7),
-                 int(LON0 * 1e7), 100000, 90 + i % 7, 150, rawvel, 0, sats)
+            send(
+                t,
+                1,
+                1,
+                "gps_raw_int",
+                int(t * 1e6),
+                fix,
+                int((LAT0 + north / M_PER_DEG) * 1e7),
+                int(LON0 * 1e7),
+                100000,
+                90 + i % 7,
+                150,
+                rawvel,
+                0,
+                sats,
+            )
         if i % 10 == 0:
             if hb_ok:
                 send(t, 1, 1, "heartbeat", 2, 3, 0x80 if t > 3 else 0, mode, 4)
-            send(t, 1, 1, "sys_status", 0, 0, 0, 300, 12400 - int(t * 3), 5000, 90 - int(t / 20),
-                 0, 0, 0, 0, 0, 0)
-            snr = ([40] * 14 if scn == "gps_sig" and t >= 25 else [30 + (k * 7) % 13 for k in range(14)]) + [0] * 6
-            send(t, 1, 1, "gps_status", 14, [k + 1 for k in range(20)], [1] * 20, [45] * 20,
-                 [0] * 20, snr)
+            send(
+                t,
+                1,
+                1,
+                "sys_status",
+                0,
+                0,
+                0,
+                300,
+                12400 - int(t * 3),
+                5000,
+                90 - int(t / 20),
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+            )
+            snr = (
+                [40] * 14
+                if scn == "gps_sig" and t >= 25
+                else [30 + (k * 7) % 13 for k in range(14)]
+            ) + [0] * 6
+            send(
+                t,
+                1,
+                1,
+                "gps_status",
+                14,
+                [k + 1 for k in range(20)],
+                [1] * 20,
+                [45] * 20,
+                [0] * 20,
+                snr,
+            )
             var = 1.5 if (scn == "ekf_gate" and t >= 55) else 0.3
             send(t, 1, 1, "ekf_status_report", flags, var, var / 2, 0.2, 0.1, 0.0)
         if i % 10 == 5:
@@ -289,8 +420,27 @@ def gen_stream(scn: str, seed: int = 5, dur: float = 70.0) -> list[tuple[float, 
             if i == 20:
                 send(t, 255, 190, "mission_count", 1, 1, len(wps), 0)
                 for k, (la, lo) in enumerate(wps):
-                    send(t, 255, 190, "mission_item_int", 1, 1, k, 6, 16, 0, 1, 0, 0, 0, 0,
-                         int(la * 1e7), int(lo * 1e7), 50.0, 0)
+                    send(
+                        t,
+                        255,
+                        190,
+                        "mission_item_int",
+                        1,
+                        1,
+                        k,
+                        6,
+                        16,
+                        0,
+                        1,
+                        0,
+                        0,
+                        0,
+                        0,
+                        int(la * 1e7),
+                        int(lo * 1e7),
+                        50.0,
+                        0,
+                    )
             if i % 10 == 3 and t > 2:
                 send(t, 1, 1, "mission_current", 1)
         if scn == "cmds":
@@ -344,8 +494,15 @@ def gen_stream(scn: str, seed: int = 5, dur: float = 70.0) -> list[tuple[float, 
                 out.append((t, bytes(bad)))  # bad crc
             else:
                 payload = bytes([i % 256, 2, 3])
-                out.append((t, bytes([0xFD, 3, 0, 0, i % 256, 9, 1]) + (9999).to_bytes(3, "little")
-                            + payload + b"\xaa\xbb"))  # unknown id, header sane
+                out.append(
+                    (
+                        t,
+                        bytes([0xFD, 3, 0, 0, i % 256, 9, 1])
+                        + (9999).to_bytes(3, "little")
+                        + payload
+                        + b"\xaa\xbb",
+                    )
+                )  # unknown id, header sane
                 a = pk(1, 1, seqs[(1, 1)], "attitude", 1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
                 b = pk(1, 1, (seqs[(1, 1)] + 1) % 256, "heartbeat", 2, 3, 0x80, 5, 4)
                 seqs[(1, 1)] = (seqs[(1, 1)] + 2) % 256
@@ -375,7 +532,11 @@ def _resign(frames: list[tuple[float, bytes]]) -> list[tuple[float, bytes]]:
 
 
 def run_live_case(scn: str, variant: str, ml: bool) -> dict:
-    cfg = load_config(REPO / "configs" / "ardupilot_copter") if variant == "profile" else load_config()
+    cfg = (
+        load_config(REPO / "configs" / "ardupilot_copter")
+        if variant == "profile"
+        else load_config()
+    )
     if variant == "profile":
         cfg.detector["protocol"]["auto_rate_baseline"] = True
     crossend = None
@@ -401,6 +562,7 @@ def live_cases() -> list[tuple[str, str, str]]:
 # driver
 # --------------------------------------------------------------------------- #
 
+
 def compute(ml: bool, only: str | None = None) -> dict[str, dict]:
     res: dict[str, dict] = {}
     for name, spec in sim_cases():
@@ -424,7 +586,42 @@ def build_golden() -> dict:
     return g
 
 
+def env_tag() -> str:
+    import platform
+
+    return f"{platform.system()}-{platform.machine().lower()}-py{sys.version_info[0]}.{sys.version_info[1]}"
+
+
+PORTABLE = ("frame_r", "detectors_r")
+
+
 def main(argv: list[str]) -> int:
+    if "--add-portable" in argv:
+        gold = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
+        bad = 0
+        for key, ml in (("no_ml", False), ("ml", True)):
+            if key not in gold or (ml and not MODEL_PATH.exists()):
+                continue
+            now = compute(ml)
+            for name, want in gold[key].items():
+                got = now[name]
+                exact = {k: v for k, v in got["digests"].items() if k not in PORTABLE}
+                same = exact == {
+                    k: v for k, v in want["digests"].items() if k not in PORTABLE
+                } and all(got[k] == want[k] for k in want if k != "digests")
+                if not same:
+                    bad += 1
+                    print("MISMATCH", key, name)
+                    continue
+                want["digests"].update({k: got["digests"][k] for k in PORTABLE})
+        if bad:
+            print("not written: the bit-exact digests do not match in this environment")
+            return 1
+        envs = set(gold.get("strict_envs", [])) | {env_tag()}
+        gold["strict_envs"] = sorted(envs)
+        GOLDEN_PATH.write_text(json.dumps(gold, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+        print(f"added {PORTABLE} to {GOLDEN_PATH}; strict_envs = {gold['strict_envs']}")
+        return 0
     if "--check" in argv:
         gold = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
         bad = 0

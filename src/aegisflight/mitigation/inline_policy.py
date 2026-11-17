@@ -302,6 +302,8 @@ class InlinePolicy:
         self.dropped_forged_down = 0
         self.observed_forged_down = 0
         self._down_signed: dict[tuple[int, int], int] = {}  # (sysid, compid) -> valid signed frames seen
+        self._down_signed_t: dict[tuple[int, int], int] = {}  # (sysid, compid) -> recv_ns of the last valid signed frame
+        self.signing_lapsed = 0  # sources that stopped signing (not in stats(): the forwarding guard hashes it)
         self.rewritten = 0
         self.hook_errors = 0
 
@@ -436,6 +438,7 @@ class InlinePolicy:
     # -- hooks --------------------------------------------------------------- #
 
     SIGNED_SOURCE_MIN = 20  # valid signed frames before a source counts as "signs its frames"
+    SIGNING_LAPSE_NS = 10_000_000_000  # no valid signed frame for this long: the source no longer counts as signing
 
     def _down_forged(self, ctx: FrameContext) -> str | None:
         """Signed link: a source that has been signing its frames and now sends an unsigned (or badly signed) one is a forgery.
@@ -448,14 +451,25 @@ class InlinePolicy:
         assert v is not None
         src = (ctx.sysid, ctx.compid)
         n = self._down_signed.get(src, 0)
+        if n >= self.SIGNED_SOURCE_MIN and ctx.recv_ns - self._down_signed_t.get(src, ctx.recv_ns) > self.SIGNING_LAPSE_NS:
+            # the source stopped signing (FC signing turned off, a reboot into an unsigned setup): dropping all of its
+            # telemetry from now on would black the vehicle out for the pilot, so it is judged afresh -- and said loudly
+            n = 0
+            del self._down_signed[src]
+            self.signing_lapsed += 1
+            if len(self._observed_pending) < 64:
+                self._observed_pending.append(("signing_lapsed", ctx.raw, ctx.sysid, ctx.msgid))
         if not ctx.signed:
             return "unsigned" if n >= self.SIGNED_SOURCE_MIN else None
         res = v.verify_frame(ctx.raw)
         if res.valid:
             self.max_signed_ts = max(self.max_signed_ts, res.timestamp_10us)
+            self._down_signed_t[src] = ctx.recv_ns
             if n < self.SIGNED_SOURCE_MIN + 5:
                 if len(self._down_signed) >= 256 and src not in self._down_signed:
-                    self._down_signed.pop(next(iter(self._down_signed)))
+                    evict = next(iter(self._down_signed))
+                    self._down_signed.pop(evict)
+                    self._down_signed_t.pop(evict, None)
                 self._down_signed[src] = n + 1
             return None
         if n >= self.SIGNED_SOURCE_MIN and res.signed and not res.replayed:

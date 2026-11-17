@@ -222,8 +222,16 @@ class MavlinkFrameParser:
     accepted for every message id, like an allowlisted id. For a vehicle whose own downlink is not signed (ArduPilot
     on its USB port, or with FC-side signing off), the PX4 id allowlist above would otherwise drop all of its
     telemetry once a key is set. A frame that CLAIMS a signature is still verified, and unsigned frames from any
-    other system id (a forged ground-station command) are still dropped.
+    other system id (a forged ground-station command) are still dropped. The exemption ends for a (sysid, compid) once
+    it has sent ``SIGNED_SOURCE_MIN`` validly signed frames: a vehicle that signs its own downlink does not send
+    unsigned telemetry, so an unsigned frame claiming its id is a forgery and is dropped (``sig_invalid``) instead of
+    reaching the detectors. If that source sends no valid signed frame for ``SIGNING_LAPSE_S`` (signing turned off on
+    the flight controller, a reboot into an unsigned configuration) the exemption returns, so the detectors are not
+    blinded; ``signing_lapses`` counts it.
     """
+
+    SIGNED_SOURCE_MIN = 20
+    SIGNING_LAPSE_S = 10.0
 
     def __init__(self, stats: LiveStats | None = None, *,
                  extra_crc: dict[int, int] | None = None,
@@ -249,13 +257,37 @@ class MavlinkFrameParser:
         # sysid / signed bit of the frame being decoded: the pymavlink callback only receives the msgid, and it is also
         # consulted for a frame whose signature FAILED, so the sysid exemption must check the frame is truly unsigned
         self._cur_sysid = -1
+        self._cur_compid = -1
         self._cur_signed = False
+        self._cur_t = 0.0
+        self._unsigned_sysids = unsigned_allowed_sysids
+        self._signed_src: dict[tuple[int, int], tuple[int, float]] = {}  # (sysid, compid) -> (valid signed, last t)
+        self.signing_lapses = 0
         if self._verify:
             self._mav.signing.secret_key = secret_key
             self._mav.signing.allow_unsigned_callback = (
-                lambda _mav, msgid: msgid in unsigned_allowed_msgids
-                or (not self._cur_signed and self._cur_sysid in unsigned_allowed_sysids)
+                lambda _mav, msgid: msgid in unsigned_allowed_msgids or self._sysid_exempt()
             )
+
+    def _sysid_exempt(self) -> bool:
+        if self._cur_signed or self._cur_sysid not in self._unsigned_sysids:
+            return False
+        src = (self._cur_sysid, self._cur_compid)
+        n, last = self._signed_src.get(src, (0, 0.0))
+        if n < self.SIGNED_SOURCE_MIN:
+            return True
+        if self._cur_t - last > self.SIGNING_LAPSE_S:
+            del self._signed_src[src]
+            self.signing_lapses += 1
+            return True
+        return False
+
+    def _note_signed(self, sysid: int, compid: int, t: float) -> None:
+        src = (sysid, compid)
+        n = self._signed_src.get(src, (0, 0.0))[0]
+        if src not in self._signed_src and len(self._signed_src) >= 256:
+            self._signed_src.pop(next(iter(self._signed_src)))
+        self._signed_src[src] = (min(n + 1, self.SIGNED_SOURCE_MIN), t)
 
     def parse(self, data: bytes, recv_time: float) -> list[MessageEnvelope]:
         """Parse the frames in ``data`` (one datagram may hold several). Never raises.
@@ -331,13 +363,14 @@ class MavlinkFrameParser:
                 name, fields = f"MSG_{msgid}", {}
             else:
                 try:
-                    self._cur_sysid, self._cur_signed = sysid, signed
+                    self._cur_sysid, self._cur_compid, self._cur_signed, self._cur_t = sysid, compid, signed, recv_time
                     msg = self._mav.decode(bytearray(frame))
                     fields = msg.to_dict()
                     fields.pop("mavpackettype", None)
                     name = getattr(cls, "msgname", None) or msg.get_type()
                     if self._verify and signed:
                         st.sig_valid += 1  # decode() above already raised if the HMAC did not match
+                        self._note_signed(sysid, compid, recv_time)
                 except self._mav_error as exc:
                     if self._verify and str(exc) == "Invalid signature":
                         st.sig_invalid += 1

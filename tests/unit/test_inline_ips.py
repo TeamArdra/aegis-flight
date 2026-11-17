@@ -347,7 +347,11 @@ def test_bridge_over_real_serial_transports_filters_hostile_uplink_and_passes_th
                                 accept_unverified_ids=True)
     gcs = SerialMavlinkTransport(f"socket://127.0.0.1:{gcs_srv.getsockname()[1]}", allow_url=True,
                                  accept_unverified_ids=True)
-    bridge = InlineIpsBridge(fc, gcs, mode="active-ips")
+    # the 1 Hz cross-end summary (tests/unit/test_crossend.py covers it) is not under test here: it is sent to the GCS side and
+    # can land inside the read window below, between the forwarded telemetry frames; the same holds for the management
+    # channel's status MEMORY_VECT and its "AEGIS: blocked ..." STATUSTEXT (this test drops one hostile frame by design)
+    bridge = InlineIpsBridge(fc, gcs, mode="active-ips", crossend_interval_s=0, gcs_alerts=False,
+                             mgmt_status_interval_s=0)
     fc.start()
     gcs.start()
     bridge.start()
@@ -375,10 +379,22 @@ def test_bridge_over_real_serial_transports_filters_hostile_uplink_and_passes_th
 
         got_gcs = read_all(conns["gcs"], sum(map(len, down_frames)))
         got_fc = read_all(conns["fc"], len(pilot))
-        time.sleep(0.3)  # any wrongly forwarded hostile frame would have arrived by now
+        # negative check without the clock: wait until the bridge has handled BOTH uplink frames (an event), then drain the
+        # socket until it has been quiet for a moment, so a wrongly forwarded hostile frame would be in got_fc
+        wait_end = time.monotonic() + 5
+        while bridge.frames_up < 2 and time.monotonic() < wait_end:
+            time.sleep(0.01)
+        assert bridge.frames_up == 2
         conns["fc"].settimeout(0.2)
-        with __import__("contextlib").suppress(TimeoutError):
-            got_fc += conns["fc"].recv(4096)
+        drain_end = time.monotonic() + 2
+        while time.monotonic() < drain_end:
+            try:
+                chunk = conns["fc"].recv(4096)
+            except TimeoutError:
+                break
+            if not chunk:
+                break
+            got_fc += chunk
         assert got_gcs == b"".join(down_frames)
         assert got_fc == pilot                       # the hostile command never reached the flight controller
         assert bridge.dropped_up == 1 and bridge.status()["latency_us"]["samples"] >= 5

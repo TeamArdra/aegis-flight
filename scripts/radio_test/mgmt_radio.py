@@ -8,7 +8,7 @@
    unsigned, wrong key, lowering without the two-step), recording every COMMAND_ACK; the same counters run throughout.
 Compared: management bytes against the 150 B/s budget (worst case ``burst + rate x T``) and telemetry bytes/s with vs
 without management traffic.  Valid commands are paced (the bridge allows 1/s); the three bad frames stay under the
-5-bad-signature lockout.  Test key ``bytes(range(1, 33))`` unless ``--mgmt-key-file``.  ``--lower-to`` completes the
+5-bad-signature alarm (bad frames never lock out valid commands).  Test key ``bytes(range(1, 33))`` unless ``--mgmt-key-file``.  ``--lower-to`` completes the
 two-step lowering at the end (default: leave the posture raised).
 """
 

@@ -80,6 +80,25 @@ With a key, in `active-ips`:
   frames still do not;
 - the bridge's own counter-frames are signed with the same key, and the IDS side verifies signatures too (`sig_invalid`).
 
+Downlink (vehicle -> GCS) on a signed link, in every posture:
+- the vehicle's own telemetry may be unsigned (ArduPilot over USB, FC-side signing off), so the analyser accepts unsigned
+  frames from the vehicle sysids. That exemption ends for a (sysid, compid) once it has sent 20 validly signed frames: an
+  unsigned frame claiming that source is then a forgery. It is reported (`signing_observed.forged_down_*`, an `AEGIS:`
+  STATUSTEXT), never ingested by the detectors, and in `active-ips` dropped before the GCS;
+- if that source sends no valid signed frame for 10 s (signing turned off on the FC, a reboot into an unsigned setup) it
+  no longer counts as signing: its telemetry flows and reaches the detectors again, instead of a self-inflicted blackout,
+  and the lapse is announced (`AEGIS: signing-lapsed ...`, `policy.signing_lapsed`). The cost: a man in the middle who
+  suppresses all of the vehicle's signed frames for 10 s can then inject unsigned telemetry. The lapse is visible to the
+  pilot when it happens. Tests: `tests/unit/test_signed_downlink_telemetry.py`.
+
+Boot quiet: for the first 20 s after the bridge starts, and only while the vehicle is not armed, GPS_SPOOFING and DOS alerts
+(any severity) and their RATE_LIMIT / SANITIZE_GPS / ANTI_JAM_DR / GPS_RECOVERED actions are detected, logged and acted on
+but not announced to the GCS: a GPS that has not converged raises CRITICAL GPS_SPOOFING at power-on on the bench, and a
+burst of parameter traffic looks like a flood. Every other alert class is always announced, and arming ends the window at
+once. The cost: real GPS spoofing or a flood that starts within 20 s of bridge start while disarmed is announced late (it
+is still logged and acted on). After an in-flight bridge restart the window also applies until the first heartbeat shows
+the vehicle armed (at most 20 s).
+
 Not covered: signing must be enabled on the GCS and the flight controller (`SETUP_SIGNING`; PX4 and ArduPilot accept the
 first key from whoever sends it first, so provision on a trusted link). Signed downlink telemetry cannot be rewritten
 (GPS correction does not apply to it). Rules are only checked for control traffic, not for every frame. The verifier matches

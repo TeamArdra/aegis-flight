@@ -62,7 +62,7 @@ from ..proxy.hooks import FrameContext
 from ..proxy.transport import split_frames
 from ..sources.mavlink_live import LiveMavlinkSource
 from ..sources.mavlink_serial import may_reach_vehicle
-from .mgmt_channel import FrameSender, MgmtChannel, drop_label, is_mgmt_command
+from .mgmt_channel import MAX_CMD_AGE_S, FrameSender, MgmtChannel, drop_label, is_mgmt_command
 
 
 class BridgeTransport(Protocol):
@@ -149,6 +149,7 @@ class InlineIpsBridge:
         filter_override_file: str | None = None,
         filter_lockout_failopen_s: float | None = None,
         mgmt_clock: Callable[[], float] = time.monotonic,
+        mgmt_max_cmd_age_s: float | None = MAX_CMD_AGE_S,
     ) -> None:
         self.fc, self.gcs = fc, gcs
         self._refuse_active_on_device(mode)
@@ -219,7 +220,7 @@ class InlineIpsBridge:
             status_interval_s=mgmt_status_interval_s, max_bytes_per_s=mgmt_max_bytes_per_s, mgmt_key=mgmt_key,
             flight_signing=secret_key is not None, vehicle_sysid=vsys[0],
             state_path=mgmt_state_path, audit_path=audit_log_path, lock_posture_file=lock_posture_file,
-            clock=mgmt_clock)
+            max_cmd_age_s=mgmt_max_cmd_age_s, clock=mgmt_clock)
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
         self._source: LiveMavlinkSource | None = None
@@ -450,6 +451,11 @@ class InlineIpsBridge:
 
     _boot_held = False
 
+    def _hold_at_boot(self, assessment: Any) -> bool:
+        """Start-up noise only: a GPS_SPOOFING / DOS alert while disarmed in the first BOOT_QUIET_S, at any severity (a
+        converging GPS on the bench raises CRITICAL GPS_SPOOFING at power-on). Every other class is always announced."""
+        return assessment.attack_type.value in self._BOOT_NOISE and self._boot_quiet()
+
     def analyse_tick(self, tick: Any) -> None:
         """Process one tick: detect, run the controller, push its state into the policy, send counter-frames."""
         self._last_analyse_wall = time.monotonic()
@@ -465,7 +471,7 @@ class InlineIpsBridge:
         if assessment.is_alert:
             self.alerts += 1
             rogue = getattr(getattr(act, "params", None), "rogue_sysids", ())
-            if assessment.attack_type.value in self._BOOT_NOISE and self._boot_quiet():
+            if self._hold_at_boot(assessment):
                 self._boot_held = True
             else:
                 with contextlib.suppress(Exception):

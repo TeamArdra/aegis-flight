@@ -1,4 +1,3 @@
-# ruff: noqa  (bench script: quick one-off driver, not library code)
 """Observer on the hub (5802): log arrival time of every vehicle HEARTBEAT, report outages > 1.5 s."""
 
 import json
@@ -20,6 +19,8 @@ while time.time() < end:
     msgs += 1
     if msg.get_type() == "HEARTBEAT" and msg.get_srcSystem() == 1 and msg.get_srcComponent() == 1:
         ts.append(time.time())
-gaps = [(round(a - ts[0], 1), round(b - a, 1)) for a, b in zip(ts, ts[1:]) if b - a > 1.5]
+gaps = [
+    (round(a - ts[0], 1), round(b - a, 1)) for a, b in zip(ts, ts[1:], strict=False) if b - a > 1.5
+]
 json.dump({"heartbeats": len(ts), "msgs": msgs, "gaps_at_s_len_s": gaps}, open(out, "w"))
 print("watch done", len(ts), "heartbeats", msgs, "msgs gaps", gaps, flush=True)

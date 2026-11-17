@@ -1,4 +1,3 @@
-# ruff: noqa  (bench script: quick one-off driver, not library code)
 """Per-event outcome table for the campaign runs. usage: analyze_campaign.py <label> [<label> ...]   (env REPO for the hub capture reader)"""
 
 import bisect
@@ -86,7 +85,7 @@ for label in sys.argv[1:]:
         win = [x[1] for x in texts["texts"] if e["t_start"] - 1 <= x[0] + off <= t1]
         hit = sorted({k for k in KEYS[e["event"]] if any(k in w for w in win)})
 
-        def d(k):
+        def d(k, f=f, b=b):
             return (f.get(k) or 0) - (b.get(k) or 0)
 
         print(

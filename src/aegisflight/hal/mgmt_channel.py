@@ -34,7 +34,7 @@ from typing import Any
 from pymavlink.dialects.v20 import common as mav2
 
 from ..core.enums import AttackType, Severity
-from ..mavlink.signing import MavlinkSignatureVerifier
+from ..mavlink.signing import MAVLINK_EPOCH_UNIX_S, MavlinkSignatureVerifier
 from ..mitigation.types import DefenseMode, MitigationState
 
 # --------------------------------------------------------------------------- #
@@ -76,9 +76,16 @@ DENY_TEXT = {D_CONTROL_DISABLED: "control disabled (no management key)", D_LOCKE
              D_RATE_LIMITED: "rate limited (1 command/s)", D_SIGNING_REQUIRED: "flight signing key required",
              D_POSTURE_LOCKED: "posture locked (local override file)", D_BAD_PARAM: "bad parameter"}
 CONFIRM_TTL_S = 10.0
+# >= LOCKOUT_BAD unauthenticated frames in LOCKOUT_WINDOW_S raise one "bad signatures" alarm per LOCKOUT_S. They never
+# lock out a validly signed command (D_LOCKED_OUT is kept as a reserved wire code): otherwise anyone with a radio could
+# keep remote control locked with a few unsigned frames a minute, exactly while an attack is in progress.
 LOCKOUT_BAD = 5
 LOCKOUT_WINDOW_S = 60.0
 LOCKOUT_S = 60.0
+# a validly signed command whose signing timestamp is older than this (vs the bridge's wall clock) is a replay of a
+# recording; only applied while the bridge clock looks set (after MIN_SANE_WALL_S), so an unset Pi clock never rejects
+MAX_CMD_AGE_S = 300.0
+MIN_SANE_WALL_S = 1_735_689_600.0  # 2025-01-01
 MIN_CMD_INTERVAL_S = 1.0
 
 # priorities (lower = more important)
@@ -461,7 +468,9 @@ class MgmtChannel:
         state_path: str | None = None,
         audit_path: str | None = None,
         lock_posture_file: str | None = None,
+        max_cmd_age_s: float | None = MAX_CMD_AGE_S,
         clock: Callable[[], float] = time.monotonic,
+        wall_clock: Callable[[], float] = time.time,
     ) -> None:
         self._send, self.sender, self.host = send, sender, host
         self.alerts_enabled = bool(alerts_enabled)
@@ -477,6 +486,9 @@ class MgmtChannel:
         self._ack_signer = MavlinkSignatureVerifier(mgmt_key) if mgmt_key is not None else None
         self._verifier = MavlinkSignatureVerifier(mgmt_key) if mgmt_key is not None else None
         self._state_path = Path(state_path) if state_path else None
+        self.max_cmd_age_s = max_cmd_age_s if max_cmd_age_s and max_cmd_age_s > 0 else None
+        self._wall = wall_clock
+        self._ts_floor = 0  # newest signing timestamp ever executed, on ANY stream (persisted)
         self._load_state()
         self._queue: deque[tuple[int, str, Callable[[], bytes], float]] = deque(maxlen=8)
         self._drops: dict[str, int] = {}
@@ -504,7 +516,8 @@ class MgmtChannel:
         self.cmd_denied = 0
         self.cmd_ignored = 0
         self.bad_signatures = 0
-        self.lockouts = 0
+        self.lockouts = 0  # number of "bad signatures" alarms (the name is kept for the status / stats schema)
+        self.replays_rejected = 0  # not in stats(): the forwarding golden guard hashes it
 
     # -- state ----------------------------------------------------------------- #
 
@@ -516,13 +529,15 @@ class MgmtChannel:
             for k, ts in data.get("streams", {}).items():
                 link, sysid, compid = (int(x) for x in k.split(","))
                 self._verifier._last_timestamps[(link, sysid, compid)] = int(ts)
+            self._ts_floor = int(data.get("floor", max(self._verifier._last_timestamps.values(), default=0)))
         except (OSError, ValueError, TypeError):
             pass
 
     def _persist(self) -> None:
         if self._state_path is None or self._verifier is None:
             return
-        data = {"streams": {f"{a},{b},{c}": ts for (a, b, c), ts in self._verifier._last_timestamps.items()}}
+        data = {"streams": {f"{a},{b},{c}": ts for (a, b, c), ts in self._verifier._last_timestamps.items()},
+                "floor": self._ts_floor}
         tmp = self._state_path.with_name(self._state_path.name + ".tmp")
         try:
             tmp.write_text(json.dumps(data), encoding="utf-8")
@@ -532,7 +547,7 @@ class MgmtChannel:
 
     @property
     def locked_out(self) -> bool:
-        return self._clock() < self._lock_until
+        return False  # unauthenticated frames never lock out authenticated control (see LOCKOUT_BAD)
 
     @property
     def control_enabled(self) -> bool:
@@ -697,10 +712,10 @@ class MgmtChannel:
         if not res.valid or not res.signed:
             self._note_bad_signature(now, res.reason if res.signed or not res.valid else "unsigned", ev)
             return
-        self._persist()  # the replay window is closed on disk BEFORE anything is executed
-        if now < self._lock_until:
-            self._deny(req, D_LOCKED_OUT, ev, announce=False)
+        if not self._fresh(res.timestamp_10us, ev):
             return
+        self._ts_floor = res.timestamp_10us
+        self._persist()  # the replay window is closed on disk BEFORE anything is executed
         if now - self._last_cmd_t < MIN_CMD_INTERVAL_S:
             self._deny(req, D_RATE_LIMITED, ev, announce=False)
             return
@@ -732,6 +747,24 @@ class MgmtChannel:
             self.audit.append("command", result="denied", reason=DENY_TEXT[D_CONTROL_DISABLED], **ev)
             self._ack(req, R_DENIED, D_CONTROL_DISABLED, signed=False)
 
+    def _fresh(self, ts_10us: int, ev: dict[str, Any]) -> bool:
+        """A validly signed frame is still a replay if it is not newer than the newest command ever executed (on any
+        stream: a recording replayed under another link id / sysid) or, with a set wall clock, older than
+        ``max_cmd_age_s``. Replays get no ACK and are audited; they do not count toward the bad-signature alarm."""
+        why = None
+        if ts_10us <= self._ts_floor:
+            why = "replay_older_than_last_command"
+        elif self.max_cmd_age_s is not None:
+            wall = self._wall()
+            if wall >= MIN_SANE_WALL_S and ts_10us / 100_000 + MAVLINK_EPOCH_UNIX_S < wall - self.max_cmd_age_s:
+                why = "replay_stale_timestamp"
+        if why is None:
+            return True
+        self.replays_rejected += 1
+        self.cmd_ignored += 1
+        self.audit.append("command", result="ignored", reason=why, **ev)
+        return False
+
     def _note_bad_signature(self, now: float, reason: str, ev: dict[str, Any]) -> None:
         self.bad_signatures += 1
         self.cmd_ignored += 1
@@ -746,7 +779,7 @@ class MgmtChannel:
             self._bad_sig.clear()
             self.lockouts += 1
             self.audit.append("lockout", seconds=LOCKOUT_S, total_bad=self.bad_signatures)
-            self._text(f"AEGIS: mgmt control LOCKED {int(LOCKOUT_S)}s (bad signatures)", 3, P_CRITICAL, "other")
+            self._text(f"AEGIS: mgmt bad signatures x{LOCKOUT_BAD}+ (ignored)", 3, P_CRITICAL, "other")
 
     def _lock_file_present(self) -> bool:
         return bool(self.lock_posture_file) and os.path.exists(self.lock_posture_file)

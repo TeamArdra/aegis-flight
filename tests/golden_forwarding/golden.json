@@ -547,9 +547,9 @@
    }
   },
   "mgmt_alerts_actions_status|active-ips": {
-   "digest": "15859611eccb5413f8b1aa19250258b0fa0ec1295e1790ffc5bb0e71ccc94bf3",
+   "digest": "0d3c6d897fe3c071ef44d31011dca35ee949426790ff619191ff4d0a4bacf8b4",
    "summary": {
-    "down_sha": "7be0e12d4278bd16",
+    "down_sha": "8a17556b36e4f7ca",
     "dropped_down": 0,
     "dropped_up": 4,
     "hook_errors": 0,
@@ -561,9 +561,9 @@
    }
   },
   "mgmt_alerts_actions_status|advisory": {
-   "digest": "5d5fae33a47344b063bbf61d2e004369959a204cfef6f45974a06b037e6448bc",
+   "digest": "ed7602093e035863dc764a9c58f82f260ddde358215a190100352b44f047c5b5",
    "summary": {
-    "down_sha": "80347b3a0ba24101",
+    "down_sha": "17773783afa172b2",
     "dropped_down": 0,
     "dropped_up": 2,
     "hook_errors": 0,
@@ -575,9 +575,9 @@
    }
   },
   "mgmt_alerts_actions_status|passive": {
-   "digest": "47435b1f162fc7dc49ce1b7bafa073909cb85a2a7a356145801edd2b40c7fe73",
+   "digest": "5b9228a7b38a94bdad069bcba7423d3d3bf2305cb20a16e8cf7082b610fe3c09",
    "summary": {
-    "down_sha": "d4a6abd99ed3c3ab",
+    "down_sha": "2679ae56e97f3a07",
     "dropped_down": 0,
     "dropped_up": 2,
     "hook_errors": 0,

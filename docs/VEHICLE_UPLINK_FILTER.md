@@ -76,6 +76,11 @@ full reason on the console.
 | Traffic that does not pass the Pi (a radio wired straight to the flight controller, a second link) | | no |
 | Telemetry manipulation on the downlink | reported only | no |
 | Jamming or loss of the radio | | no |
+| Messages outside the filter's control set: MANUAL_CONTROL, DO_MOTOR_TEST, DO_SET_SERVO, SERIAL_CONTROL, FILE_TRANSFER_PROTOCOL, GPS_INPUT, DO_CHANGE_SPEED, DO_SET_HOME | | no (forwarded unchecked) |
+| Anything before the first validly signed GCS frame (the `learning` state forwards everything) | | no |
+
+The campaign's "0 of 10 forged events changed the mode" covers forged **mode changes** only; the messages in the row above
+were not tested.
 
 ## 5. Risks, stated plainly
 

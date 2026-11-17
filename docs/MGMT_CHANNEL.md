@@ -16,7 +16,7 @@ counter and signer for the 1/191 stream).
 
 | Direction | Message | Content |
 |---|---|---|
-| bridge -> ground | STATUSTEXT (253) | `AEGIS: COMMAND_INJECTION HIGH sys66` (alert), `AEGIS: blocked DO_SET_MODE(LAND) sys66 x3` (the drop label is the MAV_CMD or message name; a forged mode change also names the requested ArduCopter mode), `AEGIS: set ALT_HOLD (GPS fault)`, `AEGIS: quarantine sys42`, `AEGIS: posture ACTIVE_IPS`, `AEGIS: cmd denied: ...`, `AEGIS: mgmt control LOCKED 60s (bad signatures)`. <= 50 bytes. Severity: CRITICAL 2, HIGH 3, SUSPICIOUS 4, WATCH 5 (actions 5, drops 4) |
+| bridge -> ground | STATUSTEXT (253) | `AEGIS: COMMAND_INJECTION HIGH sys66` (alert), `AEGIS: blocked DO_SET_MODE(LAND) sys66 x3` (the drop label is the MAV_CMD or message name; a forged mode change also names the requested ArduCopter mode), `AEGIS: set ALT_HOLD (GPS fault)`, `AEGIS: quarantine sys42`, `AEGIS: posture ACTIVE_IPS`, `AEGIS: cmd denied: ...`, `AEGIS: mgmt bad signatures x5+ (ignored)`. <= 50 bytes. Severity: CRITICAL 2, HIGH 3, SUSPICIOUS 4, WATCH 5 (actions 5, drops 4) |
 | bridge -> ground | MEMORY_VECT (249) | status, marker address `0xAE57` / ver 1 / type 1 (the cross-end summary is `0xAE15` / 1 / 0), 32-byte payload below |
 | ground -> bridge | COMMAND_LONG (76) | `MAV_CMD_USER_1` (31010), target_system = vehicle sysid, target_component = 191 |
 | bridge -> ground | COMMAND_ACK (77) | answer to the command |
@@ -61,11 +61,17 @@ the local JSON status line), `--mgmt-max-bytes-per-s N`, `--mgmt-key-file`, `--m
 * The command frame MUST carry a valid MAVLink 2 signature made with a **separate management key** (`--mgmt-key-file`, 32 raw
   bytes or 64 hex; independent of the flight key, because the flight controller never sees these frames). No management key =
   control disabled: every command is answered DENIED (unsigned) and nothing executes.
-* Strictly increasing signature timestamp per stream; the last timestamps are persisted in `--mgmt-state` BEFORE a command runs, so
-  a restart does not reopen a replay window. (Keep the ground clock sane: a ground station whose clock is behind the persisted
-  state is rejected as a replay.)
-* At most 1 command per second (others DENIED). 5 bad-signature (wrong key, unsigned, truncated, replayed) frames in 60 s lock
-  control for 60 s; this is counted, announced (`AEGIS: mgmt control LOCKED`) and audited. Bad-signature frames get no ACK.
+* Strictly increasing signature timestamp per stream, AND newer than the last command executed on any stream; both are persisted in
+  `--mgmt-state` BEFORE a command runs, so a restart does not reopen a replay window. `ips-bridge` refuses `--mgmt-key-file`
+  without `--mgmt-state`. A command signed more than `--mgmt-max-age-s` (default 300 s) before the bridge's wall clock is ignored
+  as a replayed recording; this check is skipped while the bridge clock is unset (before 2025), so an unset Pi clock never
+  rejects. (Keep the ground clock sane: a ground station whose clock is behind the persisted state is rejected as a replay.)
+* At most 1 command per second (others DENIED). Unauthenticated frames (wrong key, unsigned, truncated, replayed) get no ACK and
+  NEVER lock out a validly signed command: 5 of them in 60 s raise one `AEGIS: mgmt bad signatures` alarm per 60 s (counted as
+  `lockouts`, audited). An earlier version locked control for 60 s instead; that let anyone with a radio keep the pilot's control
+  locked with 5 unsigned frames a minute (review finding M7), so it was removed.
+* Boot quiet (see `docs/INLINE_IPS.md`): GPS_SPOOFING / DOS announcements (any severity) are held for the first 20 s while
+  disarmed; every other class is always announced, and arming ends the window.
 * Raising to `active-ips` needs the flight signing key configured on the bridge OR `param3 == 1` (same gate as the HTTP API).
 * Lowering from `active-ips` is two-step: the first valid command answers IN_PROGRESS with a token, the same command with that
   token (param4) within 10 s executes (a wrong, expired or other-posture token just returns a new token). advisory -> passive is one step.
@@ -104,7 +110,7 @@ which agree unless a range is given. One `off` reference run (`--mgmt-status-int
 |---|---|
 | (a) forged LAND (DO_SET_MODE + SET_MODE to mode 9) from sysid 66, active-ips | ground `bridge_remote.recent` showed `AEGIS: COMMAND_INJECTION SUSP sys66` after 0.1-0.2 s and `blocked DO_SET_MODE(LAND) sys66 xN` after 0.7-0.8 s; status age 1.1-1.4 s; posture, counters (`dropped_up`, `alerts`) and flags matched the bridge's own `/status` |
 | (b) same attack in `passive` | alert arrived; the forged frames reached the FC as designed for passive; `fc_tap` saw 0 frames from 1/191, 0 MAV_CMD_USER_1, 0 `AEGIS` STATUSTEXT, 0 MEMORY_VECT sent to the FC in that window |
-| (c) control from the ground | passive -> advisory -> active-ips (`allow_unsigned`) accepted (0.2-0.3 s to the ACK); active-ips -> passive: first call `confirm_required`, second with confirm accepted; lowering with the lock file present: denied "posture locked"; wrong-key frames x3: no ACK; a byte-identical replay of a valid command: no ACK; 3 valid commands within 150 ms: 1 accepted, 2 DENIED rate-limited; 5 wrong-key frames: `AEGIS: mgmt control LOCKED` announced, a valid command during the lock DENIED (locked); after 60 s a valid command was accepted again |
+| (c) control from the ground | passive -> advisory -> active-ips (`allow_unsigned`) accepted (0.2-0.3 s to the ACK); active-ips -> passive: first call `confirm_required`, second with confirm accepted; lowering with the lock file present: denied "posture locked"; wrong-key frames x3: no ACK; a byte-identical replay of a valid command: no ACK; 3 valid commands within 150 ms: 1 accepted, 2 DENIED rate-limited; 5 wrong-key frames: `AEGIS: mgmt control LOCKED` announced, a valid command during the lock DENIED (locked); after 60 s a valid command was accepted again (this run used the earlier lock-out behaviour, since removed; see above) |
 | (d) audit log | hash chain verified, 20 entries (4 posture changes, 7 accepted, 4 denied, 1 confirm-required, 3 ignored bad-signature lines, 1 lockout; bad-signature lines are audited at most 1/s, the total is a counter) |
 | (e) bytes/s at the hub (management stream only) | nominal 24 B/s (one unsigned 48 B status per 2 s; signed it is 61 B per 2 s); 15 s forged-command flood at 20 Hz x2: 133.5-133.6 B/s averaged over the 18 s window (2403-2405 B; peak 1 s 204-247 B, which is the 300 B initial bucket); whole run 41 B/s. The worst-case bound 300 + 150 T B held. The cross-end summary (not in the budget) added a separate 35-37 B/s |
 | (f) flight telemetry unaffected | forced forged flood: forwarded_down 2461 vs 2464, dropped_up 590 vs 590 (on vs off); other downlink 4786 vs 4764 B/s nominal, 4793 vs 4777 B/s in the flood; the pilot's 28 (on) / 10 (off) mode commands were all ACKed; the ground IDS stored 0 events in on and off runs (management frames in all postures, a ground restart included), no sequence-gap alarm |

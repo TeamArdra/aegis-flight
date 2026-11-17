@@ -1,4 +1,3 @@
-# ruff: noqa  (bench script: quick one-off driver, not library code)
 """Long-run pilot for the Pi soak: take off, hold, benign mode probe every 30 s, forged LAND every 5 min.
 
 usage: soak_pilot.py <label> <seconds> -- writes soak_<label>.json
@@ -96,7 +95,11 @@ while time.time() - tf < total:
         if st["mode"] == 9:
             lands += 1
     pump(0.5)
-gaps = [(round(x - hb_t[0], 1), round(y - x, 1)) for x, y in zip(hb_t, hb_t[1:]) if y - x > 1.5]
+gaps = [
+    (round(x - hb_t[0], 1), round(y - x, 1))
+    for x, y in zip(hb_t, hb_t[1:], strict=False)
+    if y - x > 1.5
+]
 out = {
     "flight_s": round(time.time() - tf),
     "heartbeats": len(hb_t),

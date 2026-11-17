@@ -466,18 +466,93 @@ def test_rate_limit_one_command_per_second():
     assert run_cmd(b, fc, gcs, clock, g, OP_SET_POSTURE, 0, dt=1.1)["result"] == 0
 
 
-def test_five_bad_signatures_lock_control_for_60s_and_announce():
+def test_five_bad_signatures_raise_an_alarm_but_never_lock_out_a_valid_command():
     b, fc, gcs, clock = make_bridge(mgmt_key=KEY_M)
     bad = Ground(WRONG)
     for _ in range(5):
         run_cmd(b, fc, gcs, clock, bad, OP_STATUS_NOW, dt=1.0)
-    assert b.mgmt.lockouts == 1 and b.mgmt.locked_out
-    assert any("LOCKED" in t for t in texts(gcs))
+    assert b.mgmt.lockouts == 1 and not b.mgmt.locked_out
+    assert any("bad signatures" in t for t in texts(gcs))
     a = run_cmd(b, fc, gcs, clock, Ground(), OP_SET_POSTURE, 1, dt=2)
-    assert a["result"] == 2 and a["result_param2"] == 2 and b.controller.mode.value == "passive"
-    assert unpack_status(pack_status(b.mgmt.status_report())).flags["control_enabled"] is False
-    clock.t += 61
-    assert run_cmd(b, fc, gcs, clock, Ground(), OP_SET_POSTURE, 1, dt=0)["result"] == 0
+    assert a["result"] == 0 and b.controller.mode.value == "advisory"
+    assert unpack_status(pack_status(b.mgmt.status_report())).flags["control_enabled"] is True
+
+
+def _unsigned_cmd(op: int = OP_SET_POSTURE, posture: int = 0) -> bytes:
+    m = mav2.MAVLink(None, srcSystem=255, srcComponent=190)
+    return bytes(m.command_long_encode(1, 191, CMD_MGMT, 0, op, posture, 0, 0, 0, 0, 0).pack(m))
+
+
+def test_an_unsigned_flood_does_not_stop_the_pilots_signed_command():
+    # M7: an attacker with a radio sends unsigned management frames continuously; the pilot can still change posture
+    b, fc, gcs, clock = make_bridge(mgmt_key=KEY_M)
+    g = Ground()
+    for k in range(3):
+        for _ in range(20):
+            gcs.feed(_unsigned_cmd())
+            clock.t += 0.05
+            b.pump_once()
+        a = run_cmd(b, fc, gcs, clock, g, OP_SET_POSTURE, (1, 2, 1)[k] if k < 2 else 0, allow=True, dt=1.1)
+        assert a is not None and a["result"] in (0, 5), a  # accepted, or the two-step confirm when lowering
+    assert b.mgmt.bad_signatures == 60 and b.controller.mode.value == "active-ips"
+    assert fc.sent == []
+
+
+def test_a_recorded_command_is_not_accepted_after_a_restart(tmp_path):
+    # M6: record a valid signed command, restart the bridge on the same state file, replay it
+    b, fc, gcs, clock = make_bridge(tmp_path, mgmt_key=KEY_M)
+    g = Ground()
+    rec = g.frame(OP_SET_POSTURE, 1)
+    gcs.feed(rec)
+    clock.t += 1.5
+    b.pump_once()
+    assert b.controller.mode.value == "advisory"
+    b2, _fc2, gcs2, clock2 = make_bridge(tmp_path, mode="passive", mgmt_key=KEY_M)
+    gcs2.feed(rec)
+    clock2.t += 1.5
+    b2.pump_once()
+    assert b2.controller.mode.value == "passive" and acks(gcs2, KEY_M) == []
+    # the same recording under a different signing stream (link id) is still older than the last executed command
+    assert b2.mgmt._ts_floor > 0
+
+
+def test_a_command_signed_long_ago_is_ignored_and_an_unset_clock_never_rejects():
+    from aegisflight.hal.mgmt_channel import FrameSender, MgmtChannel
+
+    class Host:
+        def mgmt_snapshot(self):
+            return {"posture": "passive"}
+
+        def mgmt_set_posture(self, mode, allow_unsigned):
+            self.mode = mode
+
+        def mgmt_ack_alarms(self):
+            pass
+
+    enc = mav2.MAVLink(None, srcSystem=255, srcComponent=190)
+    body = bytes(enc.command_long_encode(1, 191, CMD_MGMT, 0, OP_SET_POSTURE, 1, 0, 0, 0, 0, 0).pack(enc))
+    # validly signed with the management key, one minute after the 2015 MAVLink epoch (a very old recording)
+    raw = MavlinkSignatureVerifier(KEY_M).sign_frame(body, link_id=1, timestamp_10us=100_000 * 60)
+    req = {"target_system": 1, "src_sysid": 255, "src_compid": 190, "params": [OP_SET_POSTURE, 1, 0, 0]}
+    for wall, executed in ((time.time(), False), (1_000_000.0, True)):  # 1970: clock not set -> no age check
+        h = Host()
+        ch = MgmtChannel(lambda _b: True, FrameSender(), h, mgmt_key=KEY_M, wall_clock=lambda w=wall: w)
+        ch.handle_command(raw, req)
+        assert (getattr(h, "mode", None) == "advisory") is executed
+        assert ch.replays_rejected == (0 if executed else 1)
+
+
+def test_cli_refuses_a_management_key_without_persisted_state(tmp_path, capsys):
+    import importlib
+
+    cli = importlib.import_module("aegisflight.cli.main")
+
+    keyf = tmp_path / "mgmt.key"
+    keyf.write_bytes(KEY_M)
+    args = ["ips-bridge", "--fc-port", "socket://127.0.0.1:1", "--gcs-port", "socket://127.0.0.1:2", "--allow-url",
+            "--mgmt-key-file", str(keyf)]
+    assert cli.main(args) == 2
+    assert "without --mgmt-state" in capsys.readouterr().err
 
 
 def test_lowering_from_active_is_two_step_with_a_10s_token():
@@ -707,8 +782,8 @@ def api(tmp_path, monkeypatch):
     keyf.write_bytes(KEY_M)
     monkeypatch.delenv("AEGIS_API_TOKEN", raising=False)
 
-    def make(kind="udp", mgmt=True, writable=True):
-        spec = SourceSpec(kind=kind, udp_port=14999 if kind == "udp" else None,
+    def make(kind="udp", mgmt=True, writable=True, port=None):
+        spec = SourceSpec(kind=kind, udp_port=14999 if kind == "udp" else None, port=port,
                           mgmt_key_file=str(keyf) if mgmt else None)
         eng = LiveEngine(spec=spec, db_path=str(tmp_path / "e.sqlite"))
         link = Link()
@@ -745,6 +820,18 @@ def test_api_control_unavailable_without_key_or_live_transport(api):
     c, _eng, _ = api(kind="sim", mgmt=True, writable=False)
     assert c.post("/api/bridge/posture", json={"mode": "advisory"}).status_code == 403
     assert c.get("/api/status").json()["bridge_remote"]["control_available"] is False
+
+
+@pytest.mark.parametrize("port", ["COM7", "/dev/ttyACM0", "/dev/pts/3"])
+def test_api_never_writes_a_management_command_to_a_serial_device(api, port):
+    # a serial OS device may be the flight controller itself: receive-only, so not even a signed management command
+    c, eng, link = api(kind="serial", port=port)
+    assert eng.spec.transmit_allowed is False
+    assert c.get("/api/status").json()["bridge_remote"]["control_available"] is False
+    r = c.post("/api/bridge/posture", json={"mode": "advisory"})
+    assert r.status_code == 403 and r.json()["error"] == "control_unavailable"
+    assert eng.send_bridge_posture("advisory") == {"ok": False, "error": "control_unavailable"}
+    assert link.sent == []
 
 
 def test_api_signing_required_when_bridge_reports_unsigned(api):
@@ -893,6 +980,26 @@ def test_boot_quiet_holds_only_start_up_noise_not_real_actions():
                                         {"t": 1.1, "tag": "QUARANTINE", "detail": "Quarantined anomalous sender SysID 42"}])
     b._announce_actions()
     assert texts(gcs) == ["AEGIS: quarantine sys42"]
+
+
+def test_boot_quiet_holds_only_gps_and_dos_while_disarmed_and_only_for_20_s():
+    b, _fc, _gcs, clock = make_bridge()
+    b._clock_ns = lambda: int(clock.t * 1e9)
+    b.policy.armed = None
+
+    def a(atk, sev):
+        return SimpleNamespace(attack_type=SimpleNamespace(value=atk), severity=SimpleNamespace(value=sev))
+
+    assert b._hold_at_boot(a("GPS_SPOOFING", "HIGH")) is True
+    assert b._hold_at_boot(a("DOS", "SUSPICIOUS")) is True
+    assert b._hold_at_boot(a("GPS_SPOOFING", "CRITICAL")) is True   # the power-on GPS false alarm is CRITICAL
+    assert b._hold_at_boot(a("COMMAND_INJECTION", "CRITICAL")) is False
+    assert b._hold_at_boot(a("FIRMWARE_INTEGRITY", "HIGH")) is False
+    b.policy.armed = True
+    assert b._hold_at_boot(a("GPS_SPOOFING", "CRITICAL")) is False   # arming ends the window at once
+    b.policy.armed = None
+    clock.t += b.BOOT_QUIET_S + 1
+    assert b._hold_at_boot(a("GPS_SPOOFING", "HIGH")) is False
 
 
 # --------------------------------------------------------------------------- #

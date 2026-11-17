@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
-import platform
+import os
 from pathlib import Path
 
 import pytest
@@ -29,19 +29,21 @@ _SIM = dict(mg.sim_cases())
 _LIVE = {n: (s, v) for n, s, v in mg.live_cases()}
 
 
-# The fixture was generated on x86-64. Float results can differ in the last bit on another CPU / libm (measured on a
-# Raspberry Pi 3B+: ML-off decisions of all 48 simulator cases were byte-identical to x86, but ~1% of the
-# internal feature values differ by <= 4.4e-16), so off x86 the guard compares what is portable: the parsed messages,
-# the parser statistics, the decision summary (counts, attack types, alerts) and, with ML off, the full
-# ThreatAssessment hashes. The detector / feature layers and the ML-on assessments stay bit-exact on x86 only.
-_STRICT = platform.machine().lower() in ("x86_64", "amd64")
+# Float results can differ in the last bit with another CPU or C maths library. Measured: on a Raspberry Pi 3B+ ~1% of
+# the internal feature values differ by <= 4.4e-16; on Linux x86-64 CI (Python 3.13) the frame / detector digests of
+# every ML-off case differ while parse / stats / assess match. So the guard is bit-exact only in the environments
+# listed in the fixture's ``strict_envs`` (where every digest was verified, see make_golden.py --add-portable). Elsewhere
+# it compares the parsed messages, the parser statistics, the decision summary, with ML off the full ThreatAssessment
+# hashes, and the feature / detector layers with floats rounded to 9 significant digits (``frame_r`` / ``detectors_r``).
+# AEGIS_GOLDEN_STRICT=1 forces the bit-exact comparison anywhere.
+_STRICT = mg.env_tag() in GOLD.get("strict_envs", []) or os.environ.get("AEGIS_GOLDEN_STRICT") == "1"
 
 
 def _compare(got: dict, want: dict, ml: bool) -> None:
     if _STRICT:
         assert got == want
         return
-    portable = ("parse", "stats") if ml else ("parse", "stats", "assess")
+    portable = ("parse", "stats") if ml else ("parse", "stats", "assess", *mg.PORTABLE)
     for k in portable:
         assert got["digests"].get(k) == want["digests"].get(k), k
     summary = ("alerts", "attack_types", "n_decisions", "n_messages", "threat_decisions")

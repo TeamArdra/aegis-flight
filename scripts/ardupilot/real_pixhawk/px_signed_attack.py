@@ -1,7 +1,7 @@
-# ruff: noqa  (bench script: quick one-off driver against a real, DISARMED, prop-less flight controller; not library code)
 """Signed-link attack sequence through the radio hub (tcp 5801) against a DISARMED, prop-less ArduCopter behind an ips-bridge that
 enforces MAVLink-2 signing (--signing-key-file). The vehicle itself is the oracle: a forged command that changes its flight mode got
 past the bridge. Never arms. usage: px_signed_attack.py KEYFILE [HOST:PORT]"""
+
 import os
 import socket
 import sys
@@ -15,7 +15,10 @@ host, port = addr.split(":")
 sock = socket.create_connection((host, int(port)))
 sock.settimeout(0.02)
 wrong = os.urandom(32)
-now10 = lambda: int((time.time() - 1420070400) * 100000)
+
+
+def now10():
+    return int((time.time() - 1420070400) * 100000)
 
 
 def mk(sysid, comp, k=None, seq=0):
@@ -29,7 +32,12 @@ def mk(sysid, comp, k=None, seq=0):
     return m
 
 
-pilot, evil, spoof, wrongkey = mk(255, 190, key), mk(77, 1, None, 40), mk(255, 190, None, 100), mk(255, 190, wrong, 150)
+pilot, evil, spoof, wrongkey = (
+    mk(255, 190, key),
+    mk(77, 1, None, 40),
+    mk(255, 190, None, 100),
+    mk(255, 190, wrong, 150),
+)
 rx = mav.MAVLink(None)
 rx.robust_parsing = True
 NAMES = {0: "STABILIZE", 2: "ALT_HOLD", 5: "LOITER", 6: "RTL", 9: "LAND", 4: "GUIDED", 3: "AUTO"}
@@ -60,11 +68,13 @@ def poll(sec):
     end = time.time() + sec
     while time.time() < end:
         if time.time() >= next_hb[0]:
-            send(pilot, pilot.heartbeat_encode(mav.MAV_TYPE_GCS, mav.MAV_AUTOPILOT_INVALID, 0, 0, 0))
+            send(
+                pilot, pilot.heartbeat_encode(mav.MAV_TYPE_GCS, mav.MAV_AUTOPILOT_INVALID, 0, 0, 0)
+            )
             next_hb[0] += 1
         try:
             data = sock.recv(4096)
-        except socket.timeout:
+        except TimeoutError:
             data = b""
         for b in data:
             r = rx.parse_char(bytes([b]))
@@ -83,8 +93,14 @@ def poll(sec):
                 acks.append((now(), r.command, r.result))
 
 
-mode_name = lambda: NAMES.get(st["mode"], st["mode"])
-restore = lambda: send(pilot, cmd(pilot, 176, 1, 0))  # signed set STABILIZE
+def mode_name():
+    return NAMES.get(st["mode"], st["mode"])
+
+
+def restore():
+    return send(pilot, cmd(pilot, 176, 1, 0))  # signed set STABILIZE
+
+
 poll(3)
 for stream in (2, 6, 10, 12):
     send(pilot, pilot.request_data_stream_encode(1, 1, stream, 1, 1))
@@ -105,8 +121,19 @@ def event(name, attack, wait=6):
     poll(6)
     leaked = after != before
     aegis = [x for t, x in texts if t >= t_a and str(x).startswith("AEGIS")]
-    events.append({"event": name, "mode_before": before, "mode_after_attack": after, "restored": mode_name(), "leaked": leaked})
-    print(f"{t_a:6.1f} {name:34s} mode {before}->{after} {'LEAKED to the vehicle' if leaked else 'held'} (restored {mode_name()}) acks={[(c, r) for t, c, r in acks if t >= t_a][:3]} AEGIS={sorted(set(aegis))[:3]}", flush=True)
+    events.append(
+        {
+            "event": name,
+            "mode_before": before,
+            "mode_after_attack": after,
+            "restored": mode_name(),
+            "leaked": leaked,
+        }
+    )
+    print(
+        f"{t_a:6.1f} {name:34s} mode {before}->{after} {'LEAKED to the vehicle' if leaked else 'held'} (restored {mode_name()}) acks={[(c, r) for t, c, r in acks if t >= t_a][:3]} AEGIS={sorted(set(aegis))[:3]}",
+        flush=True,
+    )
 
 
 cap = {}
@@ -129,7 +156,12 @@ def flood():
     end = time.time() + 5
     n = 0
     while time.time() < end:
-        send(evil, evil.heartbeat_encode(mav.MAV_TYPE_QUADROTOR, mav.MAV_AUTOPILOT_ARDUPILOTMEGA, 81, 0, 3))
+        send(
+            evil,
+            evil.heartbeat_encode(
+                mav.MAV_TYPE_QUADROTOR, mav.MAV_AUTOPILOT_ARDUPILOTMEGA, 81, 0, 3
+            ),
+        )
         n += 1
         time.sleep(0.01)
     print("   flood frames written:", n)
@@ -139,4 +171,11 @@ event("unsigned heartbeat flood (sysid 77, 5 s)", flood)
 poll(4)
 bad = [e for e in events[1:] if e["leaked"]]
 print("mode log:", mode_log)
-print("RESULT: legit signed command", "PASSED" if events[0]["leaked"] else "did NOT pass", "| forged/replayed events that reached the vehicle:", len(bad), "of", len(events) - 1)
+print(
+    "RESULT: legit signed command",
+    "PASSED" if events[0]["leaked"] else "did NOT pass",
+    "| forged/replayed events that reached the vehicle:",
+    len(bad),
+    "of",
+    len(events) - 1,
+)

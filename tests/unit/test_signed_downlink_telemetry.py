@@ -107,3 +107,116 @@ def test_the_bridge_analyser_allows_its_vehicle_sysids(monkeypatch) -> None:  # 
     bridge._analyse_loop()
     assert seen["secret_key"] == KEY
     assert seen["unsigned_allowed_sysids"] == frozenset({1})
+
+
+# --------------------------------------------------------------------------- #
+# review M8 / X1: once the vehicle has been seen signing, an unsigned frame claiming its sysid is a forgery
+# --------------------------------------------------------------------------- #
+
+
+def _signed_stream(sysid: int, n: int, key: bytes = KEY) -> list[bytes]:
+    sink = _Sink()
+    m = mv.MAVLink(sink, srcSystem=sysid, srcComponent=1)
+    m.signing.secret_key = key
+    m.signing.sign_outgoing = True
+    m.signing.link_id = 0
+    m.signing.timestamp = 1
+    out = []
+    for k in range(n):
+        sink.buf = b""
+        m.attitude_send(1000 + k, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        out.append(sink.buf)
+    return out
+
+
+def _forged_position(sysid: int = 1) -> bytes:
+    sink = _Sink()
+    m = mv.MAVLink(sink, srcSystem=sysid, srcComponent=1)
+    m.global_position_int_send(1000, 0, 0, 50000, 45000, 0, 0, 0, 0)  # +40 m: what the attacker wants believed
+    return sink.buf
+
+
+def test_an_unsigned_vehicle_frame_is_dropped_once_that_source_has_been_seen_signing() -> None:
+    p = MavlinkFrameParser(secret_key=KEY, unsigned_allowed_sysids=frozenset({1}))
+    for i, f in enumerate(_signed_stream(1, 20)):
+        assert _names_at(p, f, i * 0.1) == ["ATTITUDE"]
+    assert _names_at(p, _forged_position(), 2.1) == []
+    assert p.stats.sig_invalid == 1
+
+
+def test_a_vehicle_that_never_signed_stays_exempt() -> None:
+    p = MavlinkFrameParser(secret_key=KEY, unsigned_allowed_sysids=frozenset({1}))
+    for i in range(30):
+        assert _names_at(p, _forged_position(), i * 0.1) == ["GLOBAL_POSITION_INT"]
+
+
+def test_a_vehicle_that_stops_signing_is_not_blacked_out_after_the_lapse() -> None:
+    p = MavlinkFrameParser(secret_key=KEY, unsigned_allowed_sysids=frozenset({1}))
+    for i, f in enumerate(_signed_stream(1, 25)):
+        _names_at(p, f, i * 0.1)
+    assert _names_at(p, _forged_position(), 5.0) == []          # 2.6 s after the last signed frame: forgery
+    assert _names_at(p, _forged_position(), 13.0) == ["GLOBAL_POSITION_INT"]  # > 10 s of no signed frame: lapse
+    assert p.signing_lapses == 1
+
+
+def _names_at(parser: MavlinkFrameParser, data: bytes, t: float) -> list[str]:
+    return [e.msgname for e in parser.parse(data, t)]
+
+
+class _Link:
+    connected = True
+
+    def __init__(self) -> None:
+        self.inbox: list[tuple[int, bytes]] = []
+        self.sent: list[bytes] = []
+
+    def poll(self):  # type: ignore[no-untyped-def]
+        out, self.inbox = self.inbox, []
+        return out
+
+    def send(self, data: bytes) -> bool:
+        self.sent.append(bytes(data))
+        return True
+
+    def start(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+
+def _run_bridge(mode: str):  # type: ignore[no-untyped-def]
+    fc, gcs = _Link(), _Link()
+    b = InlineIpsBridge(fc, gcs, mode=mode, secret_key=KEY, crossend_interval_s=0, mgmt_status_interval_s=0)  # type: ignore[arg-type]
+    for i, f in enumerate(_signed_stream(1, 25)):
+        fc.inbox.append((1_000_000_000 + i * 100_000_000, f))
+    fc.inbox.append((4_000_000_000, _forged_position()))
+    while fc.inbox:
+        b.pump_once()
+    analyser = MavlinkFrameParser(secret_key=KEY, unsigned_allowed_sysids=frozenset(b.policy.vehicle_sysids))
+    ingested = [e.msgname for stamp, data in b.tap.poll() for e in analyser.parse(data, stamp / 1e9)]
+    return b, gcs, ingested
+
+
+def test_end_to_end_a_forged_unsigned_vehicle_frame_is_reported_and_not_ingested_in_every_posture() -> None:
+    for mode in ("passive", "advisory", "active-ips"):
+        b, gcs, ingested = _run_bridge(mode)
+        obs = b.policy.observed_stats()
+        assert obs["forged_down_observed"] + obs["forged_down_dropped"] == 1, mode
+        assert "GLOBAL_POSITION_INT" not in ingested and ingested.count("ATTITUDE") == 25, mode
+        forged_reached_gcs = any(f == _forged_position() for f in gcs.sent)
+        assert forged_reached_gcs is (mode != "active-ips"), mode  # only active-ips may drop the vehicle's downlink
+
+
+def test_active_ips_does_not_black_out_a_vehicle_that_stops_signing() -> None:
+    # X1: 25 signed frames, then the FC's signing is turned off; after the 10 s lapse its telemetry flows again, loudly
+    fc, gcs = _Link(), _Link()
+    b = InlineIpsBridge(fc, gcs, mode="active-ips", secret_key=KEY, crossend_interval_s=0, mgmt_status_interval_s=0)  # type: ignore[arg-type]
+    for i, f in enumerate(_signed_stream(1, 25)):
+        fc.inbox.append((1_000_000_000 + i * 100_000_000, f))
+    fc.inbox.append((5_000_000_000, _forged_position()))   # 1.6 s after the last signed frame: still a forgery
+    fc.inbox.append((15_000_000_000, _forged_position()))  # 11.6 s: the source no longer counts as signing
+    while fc.inbox:
+        b.pump_once()
+    assert b.policy.dropped_forged_down == 1 and b.policy.signing_lapsed == 1
+    assert sum(f == _forged_position() for f in gcs.sent) == 1

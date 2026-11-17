@@ -1107,6 +1107,12 @@ The same seed 11 and the same ten event slots as batches 1 to 3, on the signed l
 
 **Open finding of batch 6, since explained.** The altitude bias, battery jump and attitude freeze were injected (the proxy log shows 34 altered frames; the altitude shifted by +40 m) and raised **no** `TELEMETRY_MANIPULATION` alert and no bridge-side rewrite record, where the same forgery in batch 3 (unsigned) was detected. A focused probe (`px_altbias_probe.py`, one variable changed, GPS held constant) reproduced it: unsigned detected the +40 m bias in 0.2 s, signed detected nothing. Cause: with a key set, the analyser's frame parser dropped every unsigned `GLOBAL_POSITION_INT`, `SYS_STATUS` and `ATTITUDE` from the vehicle (PX4's unsigned-id list does not contain them), so only the heartbeat reached the detectors. Fixed in the parser and the bridge by letting unsigned frames from the vehicle's own sysid through; a frame that claims a signature is still verified and unsigned frames from other sysids are still dropped. The fix is unit-tested and has not been re-run on the bench. Details: `docs/REAL_PIXHAWK_TEST.md`, section 11.
 
+**Evidence status.** Unverified session records, not committed and not recomputed from the raw files (see
+`docs/REAL_PIXHAWK_TEST.md` section 11). **Red/blue disclosure (AGENTS.md section 5):** the battery, attitude-repeat and
+heading cross-checks (`features/extractor.py`, `configs/ardupilot_copter/detector.yaml`) were written after the same
+`px_fc_proxy.py` rewrites went undetected in earlier runs, and were then scored on those rewrites. Their detections here
+are not independent of the attack implementation, and their tolerances are uncalibrated.
+
 **Campaign summary.** Passive and advisory block nothing on either link type. Signed active-ips blocked every forged uplink command (0 of 10 events changed the mode); unsigned active-ips blocked most but let 1 of 3 repeated sysid-255 copies through. Firmware-tamper and attitude-freeze visibility depended on the GPS state. Limits: one seed, one run per cell, a stationary disarmed vehicle, a proxied link.
 
 ### Not run

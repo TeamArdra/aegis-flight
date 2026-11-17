@@ -215,6 +215,13 @@ What the bench data show, and what they do not:
 
 All 6 batches ran on 2026-11-02 with seed 11: batches 1 to 3 on the unsigned link (passive, advisory, active-ips), batches 4 to 6 on the signed link (passive, advisory, active-ips). After every run the Pixhawk was checked against its baseline snapshot: parameters (outside the boot-time volatile set), mission and firmware were identical each time. The per-batch results and their limits are in `docs/RADIO_TEST_RESULTS.md`, subsections "Randomised attack campaign on the real Pixhawk: batch 1 of 6" to "... batches 4 to 6 of 6 (signed link)".
 
+**Evidence status: unverified session records.** The figures in this section were taken from the session records
+(`C:/afsitl/px_campaign_<label>.json`, `C:/afsitl/px_events_<label>.txt`, `~/aegis_runs/...` on the Pi). Those files are not
+in the repository and the figures have not been recomputed from them in a fresh pass, so they cannot be re-checked from the
+repo. No environment tag from {SIM, REPLAY, SITL, HITL, FIELD} fits a real, disarmed flight controller behind a proxied
+`socket://` link; a maintainer has to assign one (PR #39 review, M9). Claim class: command-path effect on a proxied bench
+link, not real-world validation.
+
 **Environment.** Every active-ips run reached the Pixhawk through `px_fc_proxy.py` as a `socket://` link, and the vehicle was disarmed with the propellers removed. It is bench evidence on a proxied link. `main` refuses active-ips on a serial device, so this is not a flight configuration.
 
 **What the six runs show**

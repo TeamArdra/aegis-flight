@@ -240,6 +240,10 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         except (OSError, ValueError, UnicodeDecodeError) as exc:
             print(f"aegis ips-bridge: bad --mgmt-key-file: {exc}", file=sys.stderr)
             return 2
+        if not args.mgmt_state:
+            print("aegis ips-bridge: refusing --mgmt-key-file without --mgmt-state: without the persisted anti-replay state "
+                  "a restart would accept a recorded management command again", file=sys.stderr)
+            return 2
     if (args.filter_override_file or args.filter_lockout_failopen_s is not None) and not args.vehicle_uplink_filter:
         print("aegis ips-bridge: --filter-override-file / --filter-lockout-failopen-s only apply with --vehicle-uplink-filter", file=sys.stderr)
         return 2
@@ -298,6 +302,7 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                              mgmt_status_interval_s=args.mgmt_status_interval,
                              mgmt_max_bytes_per_s=args.mgmt_max_bytes_per_s, mgmt_key=mgmt_key,
                              mgmt_state_path=args.mgmt_state, lock_posture_file=args.lock_posture_file,
+                             mgmt_max_cmd_age_s=args.mgmt_max_age_s,
                              audit_log_path=args.audit_log,
                              unsigned_acknowledged=args.allow_unsigned and key is None and args.defense_mode == "active-ips",
                              vehicle_filter=args.vehicle_uplink_filter, filter_override_file=args.filter_override_file,
@@ -488,7 +493,11 @@ def build_parser() -> argparse.ArgumentParser:
                     help="byte budget for ALL management traffic (alerts, actions, status, ACKs)")
     ib.add_argument("--mgmt-key-file", default=None,
                     help="32-byte MANAGEMENT key (raw or 64 hex), independent of the flight key; none = remote control disabled")
-    ib.add_argument("--mgmt-state", default=None, help="persisted anti-replay state of the management channel")
+    ib.add_argument("--mgmt-state", default=None,
+                    help="persisted anti-replay state of the management channel (required with --mgmt-key-file)")
+    ib.add_argument("--mgmt-max-age-s", type=float, default=300.0,
+                    help="ignore a signed management command older than this vs the bridge's wall clock (applied only "
+                         "while the clock is set; 0 = off)")
     ib.add_argument("--lock-posture-file", default=None,
                     help="while this file exists remote commands can only RAISE the posture (local override)")
     ib.add_argument("--audit-log", default=None, help="hash-chained JSONL audit log of management commands")

@@ -445,8 +445,10 @@ class LiveEngine:
         return {"mode": self.mitigation.mode.value}
 
     def control_writable(self) -> bool:
-        """True only for a live serial / UDP transport that can carry the management command (never SIM / replay)."""
-        return (self.spec.kind in ("serial", "udp") and self.feed is not None
+        """True only for a live transport that can carry the management command (never SIM / replay) AND that the
+        receive-only rule lets us write to (``transmit_allowed``): a serial OS device may be the flight controller
+        itself, so nothing, not even a signed management command, is written to it."""
+        return (self.spec.kind in ("serial", "udp") and self.spec.transmit_allowed and self.feed is not None
                 and getattr(self.feed, "transport", None) is not None and not self.feed.ended)
 
     def bridge_remote_info(self) -> dict:
@@ -455,6 +457,8 @@ class LiveEngine:
     def send_bridge_posture(self, mode: str, allow_unsigned: bool = False, confirm: bool = False) -> dict:
         """Build, sign and send the posture command on the live transport. The ACK updates ``last_command``."""
         from ..hal.mgmt_channel import OP_SET_POSTURE
+        if not self.control_writable():  # second gate: callers other than the API route must not bypass it
+            return {"ok": False, "error": "control_unavailable"}
         frame = self.bridge_remote.build_command(OP_SET_POSTURE, mode, allow_unsigned, confirm)
         try:
             ok = bool(self.feed.transport.send(frame))

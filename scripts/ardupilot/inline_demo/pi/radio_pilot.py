@@ -1,4 +1,3 @@
-# ruff: noqa  (bench script: quick one-off driver, not library code)
 """Pilot for the real-radio session. Low stream rates (the LR900 carries ~1 KB/s each way), takeoff, hold, benign probes,
 forged LAND at the given times. usage: radio_pilot.py <label> <flight_seconds> [attack_at_s ...]"""
 
@@ -110,7 +109,9 @@ while time.time() - tf < total:
         if st["mode"] == 9:
             lands += 1
     pump(0.5)
-gaps = [(round(x - hb[0], 1), round(y - x, 1)) for x, y in zip(hb, hb[1:]) if y - x > 3.0]
+gaps = [
+    (round(x - hb[0], 1), round(y - x, 1)) for x, y in zip(hb, hb[1:], strict=False) if y - x > 3.0
+]
 out = {
     "flight_s": round(time.time() - tf),
     "heartbeats": len(hb),

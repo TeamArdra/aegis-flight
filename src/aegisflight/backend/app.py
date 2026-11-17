@@ -301,7 +301,8 @@ def bridge_posture(payload: dict, request: Request) -> JSONResponse:
     if not eng.control_writable() or eng.bridge_remote.mgmt_key is None:
         return JSONResponse(status_code=403, content={
             "ok": False, "error": "control_unavailable",
-            "message": "needs a live serial/udp source and --mgmt-key-file; replay and simulation never send"})
+            "message": "needs a live UDP / socket:// source and --mgmt-key-file; replay, simulation and serial devices "
+                       "(receive-only) never send"})
     allow_unsigned = body.get("allow_unsigned") is True
     if mode == "active-ips" and not allow_unsigned and eng.bridge_remote.bridge_signing() is False:
         return JSONResponse(status_code=409, content={
