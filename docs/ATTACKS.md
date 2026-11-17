@@ -60,7 +60,7 @@ Notes:
 - **DoS `gnss_jamming`** (new) models RF denial of the *GNSS* channel: GPS_RAW_INT reports
   fix_type 1, 0–3 satellites, HDOP 99.99 while GLOBAL_POSITION_INT keeps streaming the
   dead-reckoned estimate. Detected by the new protocol rule *GNSS fix lost* (fix_type < 3 or
-  satellites < 5 for ≥ 5 consecutive decisions), or *GNSS fix never acquired* if no valid fix
+  satellites < 5 for ≥ 5 consecutive decisions; with an unknown count, MAVLink 255, only fix_type is judged), or *GNSS fix never acquired* if no valid fix
   (fix_type ≥ 3 and satellites ≥ 5) was seen since start/`reset()`; SIM and SITL jamming start after a
   fix, so they read *lost*. Scored under the **DOS** class (denial of the
   navigation channel); a dedicated GPS_JAMMING class would need enum/dashboard changes.
