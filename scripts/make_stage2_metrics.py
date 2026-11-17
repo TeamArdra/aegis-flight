@@ -28,12 +28,22 @@ from make_p2_summary import load_trial  # noqa: E402
 
 from aegisflight.metrics import stage2 as m  # noqa: E402
 
+PERCENTILES = ("nearest rank, no interpolation: the median is the lower middle value for even n, and with n < 20 the "
+               "nearest-rank p95 is the maximum")
+RULE_SIM = ("first threat decision (any type) among the decisions labelled with the attack; onset = the first labelled "
+            "decision (benchmark ttd_s; sessions.csv)")
+RULE_AP = ("first is_alert decision (any type) in [window onset, window end + post_window_grace_s]; onset and release = "
+           "evaluation.json window_decision_time onset_t_s / end_t_s (scripts/ardupilot/evaluate_ap_attack.py)")
+RULE_P2 = ("first GPS_SPOOFING threat decision at or after the window end (onset_s + duration_s); onset = manifest "
+           "onset_s (scripts/sitl/make_p2_summary.py load_trial; preregistered P2 rule)")
 PERIOD_S = 0.2                                     # decision spacing: every committed decisions log steps t by 0.2 s
 EXT = "artifacts/benchmarks_extended"
 AP_BENIGN = ["ap_benign_final_noml_001", "ap_benign_final_noml_002", "ap_benign_groups_001",
              "ap_benign_six_001", "ap_benign_six_002", "ap_benign_six_003", "ap_benign_six_004"]
 AP_DRIFT = ["ap_attack_final_drift_001", "ap_attack_final_drift_002", "ap_attack_final_drift_003"]
-PRE_ARM = {"boot", "await_gps", "post_link"}
+# ArduPilot phases: boot, await_gps, arm, takeoff, square, rtl, landed, post_link (decisions after the link span, which
+# the run's own summary.json also excludes). artifacts/ardupilot/BASELINE_SUMMARY.md counts arm as ground.
+BEFORE_ARM = {"boot", "await_gps"}
 CLAIM = "link-level detection (false-alarm reference); not flight-hour or real-world validation"
 CLAIM_BENCH = "link-level detection on a disarmed, props-off bench FC; exposure is wall time, not flight time"
 PX4_LIVE = ["artifacts/sitl/live_run_001.jsonl", "artifacts/sitl/live_run_002.jsonl"]
@@ -214,14 +224,14 @@ def sim_sessions(rows, sess) -> dict:
             det[cls].append(s["detected"] == "True")
             if s["ttd_s"]:
                 ttd[cls].append(float(s["ttd_s"]))
-    out: dict = {"detection": {}, "benign_session_fpr": {}}
+    out: dict = {"latency_detection_rule": RULE_SIM, "detection": {}, "benign_session_fpr": {}}
     for cls, d in sorted(det.items()):
         k, n = sum(d), len(d)
         lo, hi = m.wilson(k, n)
         lat = ttd[cls]
         out["detection"][cls] = {"source": src, "detected": k, "sessions": n, "rate": r6(k / n), "wilson95": [r6(lo), r6(hi)],
                                  "latency_from_onset_s": {"n": len(lat), "median": r6(m.nearest_rank(lat, 50)),
-                                                          "p95": r6(m.nearest_rank(lat, 95))}}
+                                                          "p95": r6(m.nearest_rank(lat, 95)), "p95_is_max": len(lat) < 20}}
     for kind in ("benign", "link_fifo_benign", "link_reorder_benign"):
         ids = [i for i, s in sess.items() if s["kind"] == kind]
         for label, hit in (("any_threat_decision", lambda i: int(sess[i]["fp_decisions"]) > 0),
@@ -263,9 +273,12 @@ def drift_latency(root: Path) -> dict:
 
     def summ(xs, key):
         v = [x[key] for x in xs if x[key] is not None]
-        return {"n": len(v), "of": len(xs), "median": r6(m.nearest_rank(v, 50)), "p95": r6(m.nearest_rank(v, 95))}
-    return {"sitl_ardupilot": {"trials": ap, "from_onset": summ(ap, "from_onset_s"), "from_release": summ(ap, "from_release_s")},
-            "sitl_px4": {"trials": px, "from_onset": summ(px, "from_onset_s"), "from_release": summ(px, "from_release_s")}}
+        return {"n": len(v), "of": len(xs), "median": r6(m.nearest_rank(v, 50)), "p95": r6(m.nearest_rank(v, 95)),
+                "p95_is_max": len(v) < 20}
+    return {"sitl_ardupilot": {"detection_rule": RULE_AP, "trials": ap, "from_onset": summ(ap, "from_onset_s"),
+                               "from_release": summ(ap, "from_release_s")},
+            "sitl_px4": {"detection_rule": RULE_P2, "trials": px, "from_onset": summ(px, "from_onset_s"),
+                         "from_release": summ(px, "from_release_s")}}
 
 
 def sitl_benign(root: Path, prov: dict) -> dict:
@@ -274,18 +287,21 @@ def sitl_benign(root: Path, prov: dict) -> dict:
         p = f"artifacts/ardupilot/{d}/decisions.jsonl"
         rs = [json.loads(ln) for ln in (root / p).read_text().splitlines() if ln]
         rs = [r for r in rs if r.get("phase") != "post_link"]
-        fl = [r for r in rs if r.get("phase") not in PRE_ARM]
-        out[d] = {"all_phases": rate_block(sum(r["alert"] for r in rs), len(rs), sum(r["threat"] for r in rs), p),
-                  "armed_phases": rate_block(sum(r["alert"] for r in fl), len(fl), sum(r["threat"] for r in fl), p,
-                                             "excludes boot / await_gps (pre-arm GPS convergence)")}
+        fl = [r for r in rs if r.get("phase") not in BEFORE_ARM]
+        out[d] = {"in_link_span": rate_block(sum(r["alert"] for r in rs), len(rs), sum(r["threat"] for r in rs), p,
+                                             "every phase inside the link span (post_link excluded, as in summary.json)"),
+                  "from_arm_phase": rate_block(sum(r["alert"] for r in fl), len(fl), sum(r["threat"] for r in fl), p,
+                                               "arm, takeoff, square, rtl, landed: excludes boot / await_gps and post_link; "
+                                               "includes the on-ground arm phase, so it is not an in-flight figure")}
     def pool(runs: list[str], note: str = "") -> dict:
         res: dict = {"runs": runs,
                      "stream_configs": sorted({prov[f"artifacts/ardupilot/{d}"]["stream_config"] for d in runs})}
-        for part in ("all_phases", "armed_phases"):
+        for part in ("in_link_span", "from_arm_phase"):
             ev = sum(out[d][part]["alert_events"] for d in runs)
             n = sum(out[d][part]["decisions"] for d in runs)
             th = sum(out[d][part]["threat_decisions"] for d in runs)
-            res[part] = rate_block(ev, n, th, "artifacts/ardupilot/{" + ",".join(runs) + "}/decisions.jsonl", note)
+            res[part] = rate_block(ev, n, th, "artifacts/ardupilot/{" + ",".join(runs) + "}/decisions.jsonl",
+                                   note or out[runs[0]][part]["note"])
         return res
 
     groups: dict = defaultdict(list)             # pool only like with like: same ML state and same recorded commit
@@ -391,6 +407,7 @@ def build(root: Path) -> dict:
         "schema": "aegisflight.stage2_metrics/1",
         "definitions": "src/aegisflight/metrics/stage2.py; docs/BENCHMARKING.md#stage-2-metrics",
         "decision_period_s": PERIOD_S,
+        "percentile_method": PERCENTILES,
         "claim_class": CLAIM, "claim_class_bench": CLAIM_BENCH,
         "snapshot": snapshot(prov),
         "provenance": prov,
@@ -414,6 +431,14 @@ def short(x) -> str:
     return re.sub(r"\b([0-9a-f]{12})[0-9a-f]{28,52}\b", r"\1...", str(x))
 
 
+def p95_txt(d: dict) -> str:
+    return f"max {fmt(d['p95'])} (n={d['n']})" if d["p95_is_max"] else fmt(d["p95"])
+
+
+def lat_txt(d: dict) -> str:
+    return f"n {d['n']} of {d['of']}, median {fmt(d['median'])} s, p95 {p95_txt(d)} s"
+
+
 def to_md(r: dict) -> str:
     sn = r["snapshot"]
     L = ["# Stage 2 metrics", "", f"Definitions: `{r['definitions']}`. Decision period {r['decision_period_s']} s.", "",
@@ -427,7 +452,8 @@ def to_md(r: dict) -> str:
     L += [f"| `{k}` | {short(v['commit'])} | {v['working_tree_dirty']} | {short(v['config'])} | {v['ml']} | "
           f"{v['utc']} ({v['utc_field']}) | {v.get('note', '')} |" for k, v in r["provenance"].items()]
     L += ["", "## 1. False alerts per hour (alert events after cooldown, benign ground truth)", "",
-         "| source | set | events | exposure h | per h | 95% upper | decision FPR | artifact |", "|---|---|---|---|---|---|---|---|"]
+         "| source | set | events | exposure h | per h | 95% upper (one-sided Poisson) | decision FPR | artifact |",
+         "|---|---|---|---|---|---|---|---|"]
 
     def row(src, name, b):
         L.append(f"| {src} | {name} | {b['alert_events']} | {fmt(b['exposure_h'])} | {fmt(b['false_alerts_per_h'])} | "
@@ -436,10 +462,10 @@ def to_md(r: dict) -> str:
     for k, b in fa["SIM"].items():
         row("SIM", k, b)
     for k, b in fa["SITL_ardupilot"]["runs"].items():
-        row("SITL", f"{k} all", b["all_phases"])
-        row("SITL", f"{k} armed", b["armed_phases"])
+        row("SITL", f"{k} in_link_span", b["in_link_span"])
+        row("SITL", f"{k} from_arm_phase", b["from_arm_phase"])
     for k, g in fa["SITL_ardupilot"]["pooled"].items():
-        for part in ("all_phases", "armed_phases"):
+        for part in ("in_link_span", "from_arm_phase"):
             row("SITL", f"pooled {k} ({len(g['runs'])} runs) {part}", g[part])
     for k, b in fa["SITL_px4_live"].items():
         row("SITL-PX4", k, b)
@@ -447,8 +473,11 @@ def to_md(r: dict) -> str:
         row("BENCH", k, b)
     L += ["", "SITL ArduPilot pools (runs grouped by recorded ML state and commit, see section 0):", ""]
     L += [f"- {k}: {', '.join(g['runs'])}; stream configs {', '.join(g['stream_configs'])}"
-          + (f". {g['all_phases']['note']}" if g["all_phases"].get("note") else "") + "."
+          + (f". {g['in_link_span']['note']}" if g["in_link_span"]["note"].startswith("WARNING") else "") + "."
           for k, g in fa["SITL_ardupilot"]["pooled"].items()]
+    first = next(iter(fa["SITL_ardupilot"]["runs"].values()))
+    L += ["", "SITL ArduPilot phase sets: `in_link_span` = " + first["in_link_span"]["note"] + "; `from_arm_phase` = "
+          + first["from_arm_phase"]["note"] + "."]
     L += ["", "BENCH runs (environment; claim class; source of that statement):", ""]
     L += [f"- {k}: {b['environment']}; {b['claim_class']} (`{b['claim_class_source']}`). Events: {b['alert_events_from']}."
           + (f" Note: {b['note']}." if b.get("note") else "") for k, b in fa["BENCH"].items()]
@@ -463,23 +492,27 @@ def to_md(r: dict) -> str:
         for g in ("grace5", "grace0"):
             b = fa["SIM"][f"{kind}_attack_sessions_benign_decisions_{g}"]
             L.append(f"- {kind} {g}: {b['alert_events']} events / {fmt(b['exposure_h'])} h "
-                     f"({fmt(b['false_alerts_per_h'])}/h, upper {fmt(b['false_alerts_per_h_upper95'])}), "
-                     f"decision FPR {fmt(b['decision_fpr'])}")
+                     f"({fmt(b['false_alerts_per_h'])}/h, one-sided 95% upper {fmt(b['false_alerts_per_h_upper95'])}), "
+                     f"decision FPR {fmt(b['decision_fpr'])} (`{b['source']}`)")
     L += ["", f"Recomputed benign row vs `{EXT}/results.json` (benign + single sessions): "
           f"{r['confusion_crosscheck_vs_results_json']}."]
-    L += ["", "## 3. Session-level detection (Wilson 95%) and onset latency", "",
-          "| class | detected/n | rate | 95% CI | latency n | median s | p95 s |", "|---|---|---|---|---|---|---|"]
+    L += ["", "## 3. Session-level detection (two-sided Wilson 95%) and onset latency", "",
+          f"Percentiles: {r['percentile_method']}. Detection rule: {r['sessions']['latency_detection_rule']}.", "",
+          "| class | detected/n | rate | two-sided 95% Wilson CI | latency n | median s (nearest rank) | p95 s (nearest rank) |",
+          "|---|---|---|---|---|---|---|"]
     for c, d in r["sessions"]["detection"].items():
         lat = d["latency_from_onset_s"]
         L.append(f"| {c} | {d['detected']}/{d['sessions']} | {fmt(d['rate'])} | {fmt(d['wilson95'][0])}-{fmt(d['wilson95'][1])} | "
-                 f"{lat['n']} | {fmt(lat['median'])} | {fmt(lat['p95'])} |")
+                 f"{lat['n']} | {fmt(lat['median'])} | {p95_txt(lat)} |")
     L += ["", f"Source: `{EXT}/sessions.csv`. Recomputed latency vs `ttd_s`: {r['latency_crosscheck_vs_sessions_csv']}.", "",
           "Benign session FPR:", ""]
     for k, d in r["sessions"]["benign_session_fpr"].items():
-        L.append(f"- {k}: {d['sessions_flagged']}/{d['sessions']}, CI {fmt(d['wilson95'][0])}-{fmt(d['wilson95'][1])} (`{d['source']}`)")
+        L.append(f"- {k}: {d['sessions_flagged']}/{d['sessions']}, two-sided Wilson 95% CI "
+                 f"{fmt(d['wilson95'][0])}-{fmt(d['wilson95'][1])} (`{d['source']}`)")
     L += ["", "## 4. Drift latency (from onset and from release)", ""]
     for env, d in r["drift_latency"].items():
-        L.append(f"- {env}: from onset {d['from_onset']}, from release {d['from_release']}")
+        L.append(f"- {env}: from onset {lat_txt(d['from_onset'])}; from release {lat_txt(d['from_release'])}. "
+                 f"Detection rule: {d['detection_rule']}.")
         L += [f"  - `{t['source']}`: onset {fmt(t['from_onset_s'])} s, release {fmt(t['from_release_s'])} s" for t in d["trials"]]
     L += ["", "## 5. Per-class precision / recall / F1 (extended benchmark)", ""]
     for g, c in r["classification"].items():

@@ -332,12 +332,12 @@ def test_ardupilot_pools_only_like_with_like():
     for name, pool in pools.items():
         keys = {(prov[f"artifacts/ardupilot/{d}"]["ml"], prov[f"artifacts/ardupilot/{d}"]["commit"]) for d in pool["runs"]}
         if name == "all_runs_mixed":
-            assert len(keys) > 1 and pool["all_phases"]["note"].startswith("WARNING")
+            assert len(keys) > 1 and pool["in_link_span"]["note"].startswith("WARNING")
         else:
-            assert len(keys) == 1 and "note" not in pool["all_phases"]
+            assert len(keys) == 1 and not pool["in_link_span"]["note"].startswith("WARNING")
     groups = [p for n, p in pools.items() if n != "all_runs_mixed"]
     assert sorted(d for p in groups for d in p["runs"]) == sorted(g.AP_BENIGN)
-    for part in ("all_phases", "armed_phases"):
+    for part in ("in_link_span", "from_arm_phase"):
         assert sum(p[part]["alert_events"] for p in groups) == pools["all_runs_mixed"][part]["alert_events"]
 
 
@@ -346,3 +346,24 @@ def test_bench_runs_of_different_code_and_policy_are_annotated():
     root, g = _generator()
     b = g.bench(root)
     assert "not run-to-run variation" in b["serial_ids_com7_001"]["note"] and "2026-10-15" in b["serial_ids_com7_002"]["note"]
+
+
+def test_nearest_rank_labels_lower_median_and_p95_max_below_20():
+    """F8 (#48 audit): the labels printed next to the percentiles must be true of the function."""
+    assert m.nearest_rank([1.0, 2.0, 3.0, 4.0], 50) == 2.0                     # lower middle value, not 2.5
+    for n in range(1, 20):
+        assert m.nearest_rank([float(x) for x in range(n)], 95) == n - 1        # n < 20: p95 is the maximum
+    assert m.nearest_rank([float(x) for x in range(20)], 95) == 18.0            # n = 20: it is not
+
+
+def test_every_latency_row_states_its_detection_rule_and_sidedness_is_printed():
+    """F9 / F10 (#48 audit): three different "detection" definitions feed the latency rows; each is stated, and the md
+    says which interval is one-sided (Poisson) and which two-sided (Wilson)."""
+    root, g = _generator()
+    r = g.build(root)
+    assert r["sessions"]["latency_detection_rule"] == g.RULE_SIM
+    assert {k: v["detection_rule"] for k, v in r["drift_latency"].items()} == {"sitl_ardupilot": g.RULE_AP,
+                                                                              "sitl_px4": g.RULE_P2}
+    md = g.to_md(r)
+    assert "95% upper (one-sided Poisson)" in md and "two-sided Wilson 95% CI" in md and "two-sided 95% Wilson CI" in md
+    assert all(rule in md for rule in (g.RULE_SIM, g.RULE_AP, g.RULE_P2))

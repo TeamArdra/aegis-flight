@@ -16,7 +16,9 @@ Definitions (stated here once; ``scripts/make_stage2_metrics.py`` and ``docs/BEN
   which stay inside [0, 1] and behave at 0 / n and n / n, where the normal approximation does not.
 * **Onset latency**: time from the first decision labelled with the attack to the first threat decision inside the
   attack window (the benchmark's ``time_to_detect_s``). **Release latency** (drift): from the last labelled attack
-  decision (the attacker stops) to the same detection; negative when detection came before the release.
+  decision (the attacker stops) to the same detection; negative when detection came before the release. The SITL drift
+  rows take onset, release and "detection" from each source's own evaluation rule, which differ; the generator states
+  the rule next to every latency row (``detection_rule``).
 * **Per-class precision / recall / F1** from a confusion matrix ``cm[true][pred]``. A class with support but no
   predictions has precision 0 (and F1 0), not NaN, so it pulls the macro average down instead of disappearing.
   Macro-F1 is the unweighted mean over a stated class set, and two sets are reported, labelled: **attack classes only**
@@ -25,6 +27,8 @@ Definitions (stated here once; ``scripts/make_stage2_metrics.py`` and ``docs/BEN
   ``docs/BENCHMARKING.md`` definition and ``results.json`` ``binary_*.accuracy``) and **multiclass** (attribution: the
   exact class must match). Both are dominated by the benign majority and are listed last.
 * **Percentiles**: nearest-rank (no interpolation), so a reported p95 is an observed value; always reported with n.
+  The nearest-rank median is the lower middle value for even n, and for n < 20 the nearest-rank p95 is the maximum
+  (``ceil(0.95 n) = n``), so it is labelled as such. ``metrics/scoring.py`` interpolates (numpy default) instead.
 """
 
 from __future__ import annotations
