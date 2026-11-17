@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from pymavlink.dialects.v20 import ardupilotmega as _apm
 
 from ..core.geo import EARTH_RADIUS_M, wrap_deg_180
+from ..core.gps_health import satellites_or_none
 from ..core.types import MessageEnvelope, TelemetrySnapshot
 from ..mavlink.codec import MODE_NAMES
 from .mission import MissionTracker
@@ -344,14 +345,17 @@ class FeatureExtractor:
             self._batt_hist.append((t, self.snapshot.battery_voltage))
         elif name == "GPS_RAW_INT":
             self._gps_raw_seen = True
-            self.snapshot.satellites = int(f.get("satellites_visible", 0))
+            # MAVLink: 255 = count unknown (None), not 255 satellites. Credit: unmerged 035fb5e.
+            self.snapshot.satellites = satellites_or_none(f.get("satellites_visible", 0))
             self.snapshot.gps_fix_type = int(f.get("fix_type", 0))
             self.snapshot.hdop = f.get("eph", 0) / 100.0
             sats = self.snapshot.satellites
             # a jump counts only with a 3D fix on BOTH reports: satellites returning after a fix
             # loss (or leaving with it) is receiver recovery / jamming, handled by other rules
             valid = self.snapshot.gps_fix_type >= 3
-            if self._prev_sats is not None and valid and self._prev_valid and sats != self._prev_sats:
+            # an unknown count (None) on either report can never count as a jump
+            if (sats is not None and self._prev_sats is not None and valid and self._prev_valid
+                    and sats != self._prev_sats):
                 self._sat_jump = abs(sats - self._prev_sats)
                 self._sat_jump_t = t
             self._prev_sats = sats

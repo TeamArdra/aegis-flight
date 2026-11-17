@@ -150,3 +150,37 @@ def test_plain_set_mode_message_is_recorded_as_a_do_set_mode_command():
                               signed=False, byte_len=14, fields={"target_system": 1, "base_mode": 1, "custom_mode": 5}))
     cmds = ex.extract(1.2).commands_recent
     assert len(cmds) == 1 and cmds[0].command == 176 and cmds[0].sysid == 255 and cmds[0].params[1] == 5.0
+
+
+# ---- GPS_RAW_INT.satellites_visible == 255 is "unknown", not 255 satellites (issue #16) ----- #
+
+def test_satellites_255_is_unknown_in_the_snapshot_and_other_counts_are_kept():
+    ex = FeatureExtractor()
+    ex.update(_env(0.0, "GPS_RAW_INT", 24, satellites_visible=255, fix_type=3, eph=100))
+    assert ex.extract(0.1).snapshot.satellites is None
+    ex.update(_env(0.5, "GPS_RAW_INT", 24, satellites_visible=254, fix_type=3, eph=100))
+    assert ex.extract(0.6).snapshot.satellites == 254
+    ex.update(_env(1.0, "GPS_RAW_INT", 24, satellites_visible=0, fix_type=0, eph=100))
+    assert ex.extract(1.1).snapshot.satellites == 0
+
+
+def test_unknown_satellite_count_never_produces_a_sat_jump():
+    ex = FeatureExtractor()
+    ex.update(_env(0.0, "GPS_STATUS", 25, satellite_snr=[40] * 12 + [0] * 8, satellites_visible=12))
+    ex.update(_env(0.0, "GPS_RAW_INT", 24, satellites_visible=14, fix_type=3, eph=100))
+    ex.update(_env(1.0, "GPS_RAW_INT", 24, satellites_visible=255, fix_type=3, eph=100))
+    assert ex.extract(1.1).gps_sat_jump == 0  # 14 -> 255 is not a 241-satellite jump
+    ex.update(_env(2.0, "GPS_RAW_INT", 24, satellites_visible=12, fix_type=3, eph=100))
+    assert ex.extract(2.1).gps_sat_jump == 0  # 255 -> 12 is not a jump either (unknown breaks the pair)
+    ex.update(_env(3.0, "GPS_RAW_INT", 24, satellites_visible=4, fix_type=3, eph=100))
+    assert ex.extract(3.1).gps_sat_jump == 8  # known -> known still counts
+
+
+def test_physics_satellite_jump_rule_ignores_unknown_counts_end_to_end():
+    ex, det = FeatureExtractor(), PhysicsDetector(CFG)
+    res = []
+    ex.update(_env(0.0, "GPS_STATUS", 25, satellite_snr=[40] * 12 + [0] * 8, satellites_visible=12))
+    for i, sats in enumerate([14, 255, 255, 14, 255]):
+        ex.update(_env(float(i), "GPS_RAW_INT", 24, satellites_visible=sats, fix_type=3, eph=100))
+        res.append(det.process(ex.extract(i + 0.1)))
+    assert not any(any("satellites_visible" in e for e in r.evidence) for r in res)

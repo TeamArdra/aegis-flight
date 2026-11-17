@@ -153,3 +153,13 @@ def test_link_monitor_without_estimator_messages_reports_unknown():
     lm.observe(TelemetryTick(t=1.0, tick=0, messages=[_env("GPS_RAW_INT", 1.0, fix_type=3, satellites_visible=10, eph=100)]))
     gps = lm.snapshot()["gps"]
     assert gps["horizontal_solution"] is None and gps["gps_healthy"] is None and gps["quality_flags"] == []
+
+
+def test_satellites_255_is_reported_as_unknown_none():
+    from aegisflight.core.gps_health import GpsHealthObserver, satellites_or_none
+
+    assert satellites_or_none(255) is None and satellites_or_none(12) == 12
+    assert satellites_or_none(None) is None and satellites_or_none(0) == 0
+    obs = GpsHealthObserver()
+    obs.observe("GPS_RAW_INT", {"fix_type": 3, "satellites_visible": 255, "eph": 100}, 1.0)
+    assert obs.snapshot(1.0)["satellites"] is None

@@ -36,7 +36,7 @@ from ..attacks.base import NoAttack
 from ..config import AegisConfig, load_config
 from ..core.enums import AttackType, IntegrityStatus
 from ..core.geo import haversine_m, offset_latlon
-from ..core.gps_health import GpsHealthObserver
+from ..core.gps_health import GpsHealthObserver, satellites_or_none
 from ..logging import EventStore
 from ..mitigation import DefenseMode, MitigationController, MitigationState
 from ..mitigation.types import AttackSubMode
@@ -94,7 +94,7 @@ class LinkMonitor:
             self.health.observe(m.msgname, f, tick.t)
             if m.msgname == "GPS_RAW_INT":
                 self.fix = int(f.get("fix_type", 0))
-                self.sats = int(f.get("satellites_visible", 0))
+                self.sats = satellites_or_none(f.get("satellites_visible", 0))
                 self.gps_raw_t = tick.t
             elif m.msgname == "GLOBAL_POSITION_INT":
                 self.gpi_t = tick.t
@@ -104,7 +104,7 @@ class LinkMonitor:
         return None if last is None or self.t is None else round(self.t - last, 2)
 
     def snapshot(self) -> dict:
-        valid = None if self.fix is None else bool(self.fix >= self.min_fix and (self.sats or 0) >= self.min_sats)
+        valid = None if self.fix is None else bool(self.fix >= self.min_fix and (self.sats is None or self.sats >= self.min_sats))
         h = self.health.snapshot(self.t if self.t is not None else 0.0)
         return {
             "frames": self.frames,

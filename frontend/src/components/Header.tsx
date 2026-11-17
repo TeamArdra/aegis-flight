@@ -93,7 +93,7 @@ export function SourceBar({ source, link, linkView, runId, eventsCount }: {
       <span>link <b>{linkView.label}</b>{linkView.detail ? ` — ${linkView.detail}` : ""}</span>
       {gps && gps.fix_type != null && (
         <span>
-          GPS as reported (unauthenticated) <b>{fmt(gps.fix_name)}</b> · {fmt(gps.satellites)} sats · usable fix{" "}
+          GPS as reported (unauthenticated) <b>{fmt(gps.fix_name)}</b> · {gps.satellites == null ? "unknown" : gps.satellites} sats · usable fix{" "}
           <b>{gps.valid_fix ? "yes" : "no"}</b>
         </span>
       )}
