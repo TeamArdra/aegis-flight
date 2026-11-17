@@ -48,7 +48,7 @@ aegis benchmark             # -> artifacts/benchmarks/summary.md + artifacts/fig
 ```bash
 python scripts/verify_stage2.py   # runs full 8/8 Stage 2 audit suites in ~40 ms
 pytest tests/unit -q             # fast unit subset (hundreds of tests)
-pytest                           # full verification suite (`pytest -q` prints the count)
+pytest                           # full verification suite (`python -m pytest` prints the count)
 ruff check src tests scripts     # lint (0 errors)
 ```
 

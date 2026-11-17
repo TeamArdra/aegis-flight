@@ -142,7 +142,7 @@ The `src/aegisflight/hal/` module abstracts serial communication, companion comp
 ├── docs/                           # Comprehensive technical documentation
 ├── scripts/                        # Automated audit & benchmark runners
 │   └── verify_stage2.py            # 8-suite automated Stage 2 verification gate
-└── tests/                          # unit, integration and E2E tests (`pytest -q` prints the count)
+└── tests/                          # unit, integration and E2E tests (`python -m pytest` prints the count)
 ```
 
 ---
@@ -352,7 +352,7 @@ python scripts/verify_stage2.py
 # 2. Fast unit verification (34 tests, < 1 s):
 pytest tests/unit/test_mitigation.py tests/unit/test_hal.py -q
 
-# 3. Full test suite (`pytest -q` prints the count):
+# 3. Full test suite (`python -m pytest` prints the count):
 pytest
 
 # 4. Code quality & linting:
