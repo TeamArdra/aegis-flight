@@ -29,7 +29,7 @@ frontend/            # React 18 + TS dashboard + Tauri 2.0 Rust desktop GCS
 rust/aegis_fastpath/ # zero-allocation Rust MAVLink frame sanitizer
 scripts/             # verify_stage2.py, train_models.py, benchmark.py, run_demo.py
 configs/             # simulation.yaml, detector.yaml, attacks.yaml
-tests/               # unit / integration / e2e tests (`pytest -q` prints the count)
+tests/               # unit / integration / e2e tests (`python -m pytest` prints the count)
 backend/tests/       # FastAPI API tests
 artifacts/           # benchmark results.json/csv/summary.md + figures (committed)
 models/              # isoforest.joblib (regenerable; gitignored)
