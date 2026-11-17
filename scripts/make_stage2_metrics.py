@@ -30,6 +30,9 @@ AP_BENIGN = ["ap_benign_final_noml_001", "ap_benign_final_noml_002", "ap_benign_
              "ap_benign_six_001", "ap_benign_six_002", "ap_benign_six_003", "ap_benign_six_004"]
 AP_DRIFT = ["ap_attack_final_drift_001", "ap_attack_final_drift_002", "ap_attack_final_drift_003"]
 PRE_ARM = {"boot", "await_gps", "post_link"}
+CLAIM = "link-level detection (false-alarm reference); not flight-hour or real-world validation"
+CLAIM_BENCH = "link-level detection on a disarmed, props-off bench FC; exposure is wall time, not flight time"
+PX4_LIVE = ["artifacts/sitl/live_run_001.jsonl", "artifacts/sitl/live_run_002.jsonl"]
 BENCH = ["artifacts/hardware/serial_ids_com7_001", "artifacts/hardware/serial_ids_com7_002"]
 
 
@@ -174,6 +177,18 @@ def sitl_benign(root: Path) -> dict:
     return {"runs": out, "pooled": tot}
 
 
+def px4_live(root: Path) -> dict:
+    """PX4 live-UDP benign runs log (t, threat, type) per decision; alert events are re-derived with the engine rule."""
+    out = {}
+    for p in PX4_LIVE:
+        rs = [json.loads(ln) for ln in (root / p).read_text().splitlines() if ln]
+        ev = m.alert_events([(float(r["t"]), bool(r["threat"]), r["type"]) for r in rs])
+        out[Path(p).stem] = rate_block(sum(ev), len(rs), sum(bool(r["threat"]) for r in rs), p,
+                                       "alert events re-derived (severity not logged; shipped config: threat implies "
+                                       ">= SUSPICIOUS); run predates per-vehicle calibration")
+    return out
+
+
 def bench(root: Path) -> dict:
     out = {}
     for d in BENCH:
@@ -185,7 +200,7 @@ def bench(root: Path) -> dict:
                              "false_alerts_per_h_upper95": r6(m.rate_upper_per_hour(s["alert_decisions"], exp)),
                              "decisions": s["decisions"], "threat_decisions": s["threat_decisions"],
                              "decision_fpr": r6(s["threat_decisions"] / s["decisions"]),
-                             "note": "props-off, disarmed bench FC on serial; exposure is wall time, not flight time"}
+                             "note": CLAIM_BENCH}
     return out
 
 
@@ -216,7 +231,10 @@ def classification(root: Path) -> dict:
 
 
 MISSING = [
-    {"source": "SITL PX4 live_run_00*.summary.json", "missing": "per-decision alert flags", "effect": "no PX4 false alerts per hour"},
+    {"source": "REPLAY data/sitl/raw/benign_00*.tlog", "missing": "the tlogs are not committed (only their .json metadata)",
+     "effect": "replay alert events cannot be re-derived; replay figure stays decision level"},
+    {"source": "REPLAY ALFA raw tlogs", "missing": "external dataset not in the repository",
+     "effect": "ALFA alert events cannot be re-derived"},
     {"source": "REPLAY artifacts/sitl/benign_replay_stage1_default.json", "missing": "per-decision alert flags",
      "effect": "decision-level FPR only"},
     {"source": "REPLAY artifacts/external/alfa/results.json", "missing": "per-decision alert flags",
@@ -233,7 +251,8 @@ def build(root: Path) -> dict:
         "schema": "aegisflight.stage2_metrics/1",
         "definitions": "src/aegisflight/metrics/stage2.py; docs/BENCHMARKING.md#stage-2-metrics",
         "decision_period_s": PERIOD_S,
-        "false_alerts_per_hour": {"SIM": sim, "SITL_ardupilot": sitl_benign(root),
+        "claim_class": CLAIM, "claim_class_bench": CLAIM_BENCH,
+        "false_alerts_per_hour": {"SIM": sim, "SITL_ardupilot": sitl_benign(root), "SITL_px4_live": px4_live(root),
                                   "REPLAY": replay(root), "BENCH": bench(root)},
         "sessions": sim_sessions(rows, sess),
         "confusion_crosscheck_vs_results_json": confusion_crosscheck(sim, root),
@@ -250,6 +269,8 @@ def fmt(x):
 
 def to_md(r: dict) -> str:
     L = ["# Stage 2 metrics", "", f"Definitions: `{r['definitions']}`. Decision period {r['decision_period_s']} s.", "",
+         f"**Claim class (every SIM / SITL / REPLAY figure): {r['claim_class']}.** "
+         f"BENCH: {r['claim_class_bench']}. No figure here is real-flight evidence.", "",
          "## 1. False alerts per hour (alert events after cooldown, benign ground truth)", "",
          "| source | set | events | exposure h | per h | 95% upper | decision FPR | artifact |", "|---|---|---|---|---|---|---|---|"]
 
@@ -264,6 +285,8 @@ def to_md(r: dict) -> str:
         row("SITL", f"{k} armed", b["armed_phases"])
     for k, b in fa["SITL_ardupilot"]["pooled"].items():
         row("SITL", f"pooled {k}", b)
+    for k, b in fa["SITL_px4_live"].items():
+        row("SITL-PX4", k, b)
     for k, b in fa["BENCH"].items():
         row("BENCH", k, b)
     L += ["", "REPLAY (decision level only, no alert flags logged):", ""]
@@ -320,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
     res = build(root)
     out = Path(a.out_dir) if a.out_dir else root / "artifacts" / "validation" / f"stage2_metrics_{a.tag}"
     out.mkdir(parents=True, exist_ok=True)
-    (out / "metrics.json").write_text(json.dumps(res, indent=1, sort_keys=False) + "\n", encoding="utf-8")
+    (out / "metrics.json").write_text(json.dumps(res, separators=(",", ":")) + "\n", encoding="utf-8")
     (out / "metrics.md").write_text(to_md(res), encoding="utf-8")
     print(out)
     return 0

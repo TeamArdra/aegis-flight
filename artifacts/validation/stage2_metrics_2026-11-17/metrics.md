@@ -2,6 +2,8 @@
 
 Definitions: `src/aegisflight/metrics/stage2.py; docs/BENCHMARKING.md#stage-2-metrics`. Decision period 0.2 s.
 
+**Claim class (every SIM / SITL / REPLAY figure): link-level detection (false-alarm reference); not flight-hour or real-world validation.** BENCH: link-level detection on a disarmed, props-off bench FC; exposure is wall time, not flight time. No figure here is real-flight evidence.
+
 ## 1. False alerts per hour (alert events after cooldown, benign ground truth)
 
 | source | set | events | exposure h | per h | 95% upper | decision FPR | artifact |
@@ -29,6 +31,8 @@ Definitions: `src/aegisflight/metrics/stage2.py; docs/BENCHMARKING.md#stage-2-me
 | SITL | ap_benign_six_004 armed | 34 | 0.036 | 944.4 | 1257 | 0.8796 | `artifacts/ardupilot/ap_benign_six_004/decisions.jsonl` |
 | SITL | pooled all_phases | 211 | 0.2663 | 792.4 | 888.2 | 0.6752 | `artifacts/ardupilot/{ap_benign_final_noml_001,ap_benign_final_noml_002,ap_benign_groups_001,ap_benign_six_001,ap_benign_six_002,ap_benign_six_003,ap_benign_six_004}/decisions.jsonl` |
 | SITL | pooled armed_phases | 171 | 0.2453 | 697 | 791.3 | 0.6526 | `artifacts/ardupilot/{ap_benign_final_noml_001,ap_benign_final_noml_002,ap_benign_groups_001,ap_benign_six_001,ap_benign_six_002,ap_benign_six_003,ap_benign_six_004}/decisions.jsonl` |
+| SITL-PX4 | live_run_001 | 35 | 0.0375 | 933.3 | 1237 | 1 | `artifacts/sitl/live_run_001.jsonl` |
+| SITL-PX4 | live_run_002 | 39 | 0.03889 | 1003 | 1310 | 1 | `artifacts/sitl/live_run_002.jsonl` |
 | BENCH | serial_ids_com7_001 | 16 | 0.01667 | 960 | 1458 | 0.9867 | `artifacts/hardware/serial_ids_com7_001/summary.json` |
 | BENCH | serial_ids_com7_002 | 0 | 0.01667 | 0 | 179.7 | 0 | `artifacts/hardware/serial_ids_com7_002/summary.json` |
 
@@ -149,7 +153,8 @@ Confusion (rows true, columns predicted):
 
 ## Missing inputs
 
-- SITL PX4 live_run_00*.summary.json: missing per-decision alert flags -> no PX4 false alerts per hour
+- REPLAY data/sitl/raw/benign_00*.tlog: missing the tlogs are not committed (only their .json metadata) -> replay alert events cannot be re-derived; replay figure stays decision level
+- REPLAY ALFA raw tlogs: missing external dataset not in the repository -> ALFA alert events cannot be re-derived
 - REPLAY artifacts/sitl/benign_replay_stage1_default.json: missing per-decision alert flags -> decision-level FPR only
 - REPLAY artifacts/external/alfa/results.json: missing per-decision alert flags -> decision-level only
 - BENCH: missing any airborne exposure -> bench rate is per wall hour on a disarmed FC

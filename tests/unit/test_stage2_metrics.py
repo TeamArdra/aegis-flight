@@ -132,4 +132,6 @@ def test_make_stage2_metrics_reconciles_with_committed_results(tmp_path):
     assert all(v["match"] for v in r["confusion_crosscheck_vs_results_json"].values())
     assert r["latency_crosscheck_vs_sessions_csv"]["max_abs_diff_s"] == 0.0
     assert r["false_alerts_per_hour"]["SIM"]["benign"]["decision_fpr"] == pytest.approx(4 / 6900, abs=1e-6)
+    assert r["claim_class"].startswith("link-level") and "claim class" in (tmp_path / "metrics.md").read_text().lower()
+    assert set(r["false_alerts_per_hour"]["SITL_px4_live"]) == {"live_run_001", "live_run_002"}
     assert r["missing_inputs"] and (tmp_path / "metrics.md").read_text().rstrip().endswith("none is claimed")
