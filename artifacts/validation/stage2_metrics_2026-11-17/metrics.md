@@ -12,7 +12,7 @@ Definitions: `src/aegisflight/metrics/stage2.py; docs/BENCHMARKING.md#stage-2-me
 | SIM | link_fifo_benign | 217 | 0.1917 | 1132 | 1267 | 0.6128 | `artifacts/benchmarks_extended/decisions.csv.gz` |
 | SIM | link_reorder_benign | 243 | 0.1917 | 1268 | 1410 | 0.9997 | `artifacts/benchmarks_extended/decisions.csv.gz` |
 | SIM | single_attack_sessions_benign_decisions_grace5 | 26 | 1.886 | 13.78 | 19.13 | 0.001031 | `artifacts/benchmarks_extended/decisions.csv.gz` |
-| SIM | single_attack_sessions_benign_decisions_grace0 | 54 | 1.988 | 27.17 | 34.08 | 0.01302 | `artifacts/benchmarks_extended/decisions.csv.gz` |
+| SIM | single_attack_sessions_benign_decisions_grace0 | 53 | 1.988 | 26.66 | 33.52 | 0.01302 | `artifacts/benchmarks_extended/decisions.csv.gz` |
 | SIM | combo_attack_sessions_benign_decisions_grace5 | 4 | 0.2306 | 17.35 | 39.7 | 0.001205 | `artifacts/benchmarks_extended/decisions.csv.gz` |
 | SIM | combo_attack_sessions_benign_decisions_grace0 | 6 | 0.2426 | 24.74 | 48.82 | 0.01649 | `artifacts/benchmarks_extended/decisions.csv.gz` |
 | SITL | ap_benign_final_noml_001 all | 5 | 0.03578 | 139.8 | 293.8 | 0.08851 | `artifacts/ardupilot/ap_benign_final_noml_001/decisions.jsonl` |
@@ -49,7 +49,7 @@ REPLAY (decision level only, no alert flags logged):
 Grace excludes benign decisions in the 5 s after an attack stops: the recovery tail, where the detector state (residual windows, rate counters) still reflects the attack, so a threat there is late attribution of a real attack, not a false alarm on benign traffic. Both are shown; grace0 is the conservative figure.
 
 - single grace5: 26 events / 1.886 h (13.78/h, upper 19.13), decision FPR 0.001031
-- single grace0: 54 events / 1.988 h (27.17/h, upper 34.08), decision FPR 0.01302
+- single grace0: 53 events / 1.988 h (26.66/h, upper 33.52), decision FPR 0.01302
 - combo grace5: 4 events / 0.2306 h (17.35/h, upper 39.7), decision FPR 0.001205
 - combo grace0: 6 events / 0.2426 h (24.74/h, upper 48.82), decision FPR 0.01649
 

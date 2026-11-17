@@ -343,8 +343,9 @@ def main(argv: list[str] | None = None) -> int:
     res = build(root)
     out = Path(a.out_dir) if a.out_dir else root / "artifacts" / "validation" / f"stage2_metrics_{a.tag}"
     out.mkdir(parents=True, exist_ok=True)
-    (out / "metrics.json").write_text(json.dumps(res, separators=(",", ":")) + "\n", encoding="utf-8")
-    (out / "metrics.md").write_text(to_md(res), encoding="utf-8")
+    # newline="\n": LF on every OS, so a regeneration on Windows is byte-identical to the committed (eol=lf) evidence
+    (out / "metrics.json").write_text(json.dumps(res, separators=(",", ":")) + "\n", encoding="utf-8", newline="\n")
+    (out / "metrics.md").write_text(to_md(res), encoding="utf-8", newline="\n")
     print(out)
     return 0
 

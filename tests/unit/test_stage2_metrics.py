@@ -87,7 +87,7 @@ def test_nearest_rank_percentile():
 
 
 def test_alert_events_hand_sequence():
-    # cooldown 4 s, clear after 4 non-threat decisions
+    # The rule itself on exact times (tick_s=None: t used as given). cooldown 4 s, clear after 4 non-threat decisions
     rows = [(0, True, "A"),   # first threat: alert
             (1, True, "A"),   # same type, active, 1 s < cooldown: suppressed
             (2, False, "-"), (3, False, "-"), (4, False, "-"),
@@ -96,23 +96,85 @@ def test_alert_events_hand_sequence():
             (7, True, "B"),   # a different type has its own cooldown: alert
             (8, True, "A"),   # A again, active, 8 - 6 = 2 s: suppressed
             (10, True, "A")]  # 10 - 6 = 4 s >= cooldown: alert
-    assert m.alert_events(rows) == [True, False, False, False, False, False, True, True, False, True]
+    assert m.alert_events(rows, tick_s=None) == [True, False, False, False, False, False, True, True, False, True]
     # a short gap (< clear_ticks) keeps the state active, so the cooldown applies
     rows2 = [(0, True, "A"), (1, False, "-"), (2, True, "A")]
-    assert m.alert_events(rows2) == [True, False, False]
+    assert m.alert_events(rows2, tick_s=None) == [True, False, False]
+
+
+def test_engine_tick_time_float_facts_and_grid_check():
+    # The engine stamps tick k as k * 0.1; logs keep round(t, 2). At a 40-tick (4.0 s) gap the two disagree by one ulp,
+    # in both directions (hand-checked IEEE-754 values):
+    assert 646 * 0.1 - 606 * 0.1 == 4.000000000000007 and 64.6 - 60.6 == 3.999999999999993
+    assert 648 * 0.1 - 608 * 0.1 == 3.999999999999993 and 64.8 - 60.8 == 4.0
+    assert m.engine_tick_time(64.6) == 646 * 0.1 and m.engine_tick_time(646 * 0.1) == 646 * 0.1   # idempotent on raw t
+    assert m.engine_tick_time(64.6) != 64.6
+    with pytest.raises(ValueError):
+        m.engine_tick_time(64.65)                                     # off the 0.1 s grid: refuse to guess
+
+
+@pytest.mark.parametrize("k0", [606, 608])
+def test_alert_events_exact_cooldown_boundary_matches_the_real_engine(k0):
+    """F1 regression (#48 audit): a 4.0 s gap decided on rounded logged t, as the PR's first version did, puts the
+    alert one decision early or late. Session 51 of the extended benchmark is the k0 = 606 case (engine alert at 64.6,
+    rounded-t rule at 64.8). Ground truth is the real FusionEngine fed its raw tick times."""
+    from aegisflight.config import load_config
+    from aegisflight.core.enums import AttackType, DetectorName, IntegrityStatus
+    from aegisflight.core.types import DetectorResult
+    from aegisflight.fusion.engine import FusionEngine
+
+    eng = FusionEngine(load_config().detector["fusion"])
+    hit = [DetectorResult(DetectorName.PHYSICS, 1.0, True, attack_votes={AttackType.COMMAND_INJECTION: 1.0})]
+    ks = range(k0, k0 + 46, 2)                                         # a decision every 2nd tick, threat throughout
+    want = [eng.fuse(k * 0.1, 0.0, hit, IntegrityStatus.VALID).is_alert for k in ks]
+    logged = [(round(k * 0.1, 2), True, "COMMAND_INJECTION") for k in ks]   # what decisions.csv / the jsonl logs keep
+    assert m.alert_events(logged) == want
+    # hand-derived: the engine re-alerts at tick k0 + 40 when the raw gap is >= 4.0, else at k0 + 42
+    second = k0 + 40 if (k0 + 40) * 0.1 - k0 * 0.1 >= 4.0 else k0 + 42
+    assert [k for k, a in zip(ks, want, strict=True) if a][:2] == [k0, second]
+    assert m.alert_events(logged, tick_s=None) != want                 # the old rule (rounded t as given) is wrong here
+
+
+AP_RUNS = ["ap_benign_final_noml_001", "ap_benign_final_noml_002", "ap_benign_groups_001", "ap_benign_six_001",
+           "ap_benign_six_002", "ap_benign_six_003", "ap_benign_six_004", "ap_attack_final_drift_001",
+           "ap_attack_final_drift_002", "ap_attack_final_drift_003"]
+
+
+@pytest.mark.parametrize("run", AP_RUNS)
+def test_alert_reconstruction_matches_logged_engine_alerts(run):
+    """ArduPilot decision logs record the engine's own ``alert`` next to the rounded ``t``: the re-derivation must
+    reproduce it row for row (the first version mismatched 62 rows of groups_001 and 1 event of six_001)."""
+    import json
+    from pathlib import Path
+
+    p = Path(__file__).resolve().parents[2] / "artifacts" / "ardupilot" / run / "decisions.jsonl"
+    rs = [json.loads(ln) for ln in p.read_text().splitlines() if ln]
+    assert m.alert_events([(float(r["t"]), bool(r["threat"]), r["type"]) for r in rs]) == [bool(r["alert"]) for r in rs]
+
+
+def test_alert_rule_defaults_match_the_shipped_config():
+    import inspect
+
+    from aegisflight.config import load_config
+
+    cfg = load_config()
+    sig = inspect.signature(m.alert_events).parameters
+    assert sig["cooldown_s"].default == float(cfg.detector["fusion"]["cooldown_s"])
+    assert sig["clear_ticks"].default == int(cfg.detector["fusion"]["clear_ticks"])
+    assert m.TICK_S == 1.0 / float(cfg.simulation["sample_rate_hz"])
 
 
 @pytest.mark.parametrize("scenario", ["benign", "gps_spoofing", "dos", "command_injection"])
 def test_alert_reconstruction_matches_the_fusion_engine(scenario):
-    """The engine's own is_alert, recomputed from (t, threat, attack_type) only: what decisions.csv logs."""
+    """The engine's own is_alert, recomputed from (t, threat, attack_type) only, with t rounded as decisions.csv logs it."""
     from aegisflight.benchmark.runner import run_session
     from aegisflight.config import load_config
 
     cfg = load_config()
     res = run_session(cfg, scenario, seed=7, model_path=None)
-    fus = cfg.raw["fusion"] if hasattr(cfg, "raw") else {}
-    rows = [(a.t, bool(a.threat), a.attack_type.value) for a in res.assessments]
-    got = m.alert_events(rows, cooldown_s=float(fus.get("cooldown_s", 4.0)), clear_ticks=int(fus.get("clear_ticks", 4)))
+    fus = cfg.detector["fusion"]
+    rows = [(round(a.t, 2), bool(a.threat), a.attack_type.value) for a in res.assessments]
+    got = m.alert_events(rows, cooldown_s=float(fus["cooldown_s"]), clear_ticks=int(fus["clear_ticks"]))
     want = [bool(a.is_alert) for a in res.assessments]
     assert sum(want) > 0 or scenario == "benign"
     assert got == want
@@ -129,6 +191,10 @@ def test_make_stage2_metrics_reconciles_with_committed_results(tmp_path):
     subprocess.run([sys.executable, str(root / "scripts" / "make_stage2_metrics.py"), "--tag", "t", "--out-dir", str(tmp_path)],
                    check=True, cwd=root)
     r = json.loads((tmp_path / "metrics.json").read_text())
+    committed = root / "artifacts" / "validation" / "stage2_metrics_2026-11-17"
+    assert r == json.loads((committed / "metrics.json").read_text())          # committed evidence = generator output
+    assert (tmp_path / "metrics.md").read_bytes() == (committed / "metrics.md").read_bytes().replace(b"\r\n", b"\n")
+    assert not any(b"\r" in (tmp_path / f).read_bytes() for f in ("metrics.json", "metrics.md"))   # LF on every OS
     assert all(v["match"] for v in r["confusion_crosscheck_vs_results_json"].values())
     assert r["latency_crosscheck_vs_sessions_csv"]["max_abs_diff_s"] == 0.0
     assert r["false_alerts_per_hour"]["SIM"]["benign"]["decision_fpr"] == pytest.approx(4 / 6900, abs=1e-6)
