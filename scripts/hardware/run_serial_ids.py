@@ -49,6 +49,13 @@ from aegisflight.logging import EventStore
 from aegisflight.mavlink.gcs_notifier import is_loopback_host
 from aegisflight.mitigation import DefenseMode, MitigationController
 from aegisflight.pipeline import IDSPipeline
+from aegisflight.run_provenance import (
+    add_provenance_args,
+    begin_run,
+    finish_run,
+    require_clean_tree,
+    write_manifest,
+)
 from aegisflight.sources.frame_tap import TapTransport
 from aegisflight.sources.mavlink_live import LiveMavlinkSource
 from aegisflight.sources.mavlink_serial import SerialMavlinkTransport
@@ -94,6 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     # receive-only monitor: there is no 'active-ips' here; mitigation decisions are reported, never transmitted
     ap.add_argument("--defense-mode", choices=["passive", "advisory"], default="passive",
                     help="defense engine posture (report-only): passive (default) or advisory")
+    add_provenance_args(ap)
     a = ap.parse_args(argv)
     if a.gcs_notify and not is_loopback_host(a.gcs_notify_host):
         print(f"FAIL: --gcs-notify-host must be a loopback address (got {a.gcs_notify_host!r})", file=sys.stderr)
@@ -102,6 +110,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"refusing to start: --tlog {a.tlog} already exists (a capture is never overwritten)", file=sys.stderr)
         return 2
 
+    require_clean_tree(a.allow_dirty)  # before any output is created (#25)
     out = Path(a.out_dir)
     out.mkdir(parents=True, exist_ok=True)
     cfg = load_config(a.config_dir)
@@ -109,10 +118,11 @@ def main(argv: list[str] | None = None) -> int:
     model = a.model if a.ml and Path(a.model).exists() else None
     if a.ml and model is None:
         print("WARNING: --ml requested but the model file is missing: running without ML", file=sys.stderr)
+    run_prov = begin_run(allow_dirty=a.allow_dirty, profile_dir=a.config_dir, model_path=model, ml_enabled=model is not None)
     pipe = IDSPipeline(cfg, model_path=model, firmware_dir=None)
     mitigation = MitigationController(mode=DefenseMode(a.defense_mode))
     db = out / "events.sqlite"
-    if any((out / n).exists() for n in ("events.sqlite", "alerts.jsonl", "health.jsonl", "summary.json")):
+    if any((out / n).exists() for n in ("events.sqlite", "alerts.jsonl", "health.jsonl", "summary.json", "run_manifest.json")):
         # never clobber a previous run's tamper-evident log (a restart loop must not erase the alerts before a crash)
         print(f"refusing to start: {out} already holds a previous run; use a fresh --out-dir", file=sys.stderr)
         return 2
@@ -249,6 +259,8 @@ def main(argv: list[str] | None = None) -> int:
                "passive_check": {"bytes_sent": t_stats["bytes_sent"], "write_errors": t_stats["write_errors"],
                                  "passed": t_stats["bytes_sent"] == 0 and t_stats["write_errors"] == 0},
                "hash_chain": {"ok": chain.ok, "length": chain.length}, "exit_code": rc}
+    summary["run_provenance"] = finish_run(run_prov)
+    write_manifest(out, run_prov)
     (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
     print(json.dumps({k: summary[k] for k in ("wall_s", "decisions", "alert_decisions", "alert_types",
                                               "telemetry_coverage", "passive_check", "hash_chain")}, indent=2))

@@ -20,6 +20,7 @@ import argparse
 import json
 from pathlib import Path
 
+from provenance import add_provenance_args, begin_run, finish_run, require_clean_tree, stamp_stem
 from replay_benign import MODEL, replay
 
 from aegisflight.config import load_config
@@ -31,7 +32,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("tlog")
     ap.add_argument("--out", required=True)
     ap.add_argument("--tol", type=float, default=1e-3)
+    add_provenance_args(ap)
     a = ap.parse_args(argv)
+    require_clean_tree(a.allow_dirty)  # (#25)
+    run = begin_run(allow_dirty=a.allow_dirty, profile_dir=None, model_path=MODEL if Path(MODEL).exists() else None)
 
     live = {round(r["t"], 2): r for r in (json.loads(x) for x in Path(a.live_jsonl).read_text().splitlines() if x)}
     cfg = load_config()
@@ -55,6 +59,8 @@ def main(argv: list[str] | None = None) -> int:
         "score_mismatches_over_tol": bad_score, "score_tol": a.tol, "max_abs_score_diff": max_diff,
         "caveat": "shared assembler+parser: not an independent decode check; all-alarm regime makes flag agreement weak",
     }
+    doc["run_provenance"] = finish_run(run)
+    stamp_stem(Path(a.out).with_suffix(""), run)
     Path(a.out).write_text(json.dumps(doc, indent=2))
     print(json.dumps(doc, indent=2))
     return 0

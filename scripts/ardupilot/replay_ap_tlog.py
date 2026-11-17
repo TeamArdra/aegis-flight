@@ -29,6 +29,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 sys.path.insert(0, str(REPO / "scripts" / "sitl"))
 
+from provenance import add_provenance_args, begin_run, finish_run, require_clean_tree, stamp_stem  # noqa: E402
 from tlog_stats import iter_raw_frames  # noqa: E402
 
 from aegisflight.config import load_config  # noqa: E402
@@ -108,7 +109,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-ml", action="store_true")
     ap.add_argument("--check-live", action="store_true")
     ap.add_argument("--json")
+    add_provenance_args(ap)
     a = ap.parse_args(argv)
+    require_clean_tree(a.allow_dirty)  # (#25)
     sys.stdout.reconfigure(encoding="utf-8")
 
     cfg = load_config(a.config_dir)
@@ -118,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     run = Path(a.run) if a.run else None
     phases, offset_s = load_phases(run)
     label_phases(rows, phases)
+    run_prov = begin_run(allow_dirty=a.allow_dirty, profile_dir=a.config_dir, model_path=model, ml_enabled=model is not None)
     out = {"tlog": a.tlog, "config_dir": a.config_dir or "configs (Stage-1 default)", "ml_enabled": model is not None,
            "clock_offset_s_used_for_phases": offset_s, **summarise(rows)}
     if a.check_live and run and (run / "decisions.jsonl").exists():
@@ -128,7 +132,9 @@ def main(argv: list[str] | None = None) -> int:
                           "same_threat_verdict": sum(live[i]["threat"] == rows[i]["threat"] for i in range(n)),
                           "same_alert_verdict": sum(live[i]["alert"] == rows[i]["alert"] for i in range(n)),
                           "compared": n}
+    out["run_provenance"] = finish_run(run_prov)
     if a.json:
+        stamp_stem(Path(a.json).with_suffix(""), run_prov)
         Path(a.json).parent.mkdir(parents=True, exist_ok=True)
         Path(a.json).write_text(json.dumps(out, indent=2, default=str), encoding="utf-8")
     print(json.dumps({k: v for k, v in out.items() if k != "alert_evidence_top"}, indent=2, default=str))

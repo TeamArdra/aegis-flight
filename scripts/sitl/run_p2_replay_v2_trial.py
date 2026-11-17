@@ -208,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
                         "no-op accept)"},
         actual_effect=effect, frames_skipped_signed=attack.frames_skipped_signed,
     )
-    write_manifest(out, manifest, prov["full_provenance"],
+    write_manifest(out, manifest, prov["full_provenance"], run_provenance=prov["run_provenance"], ids_summary=
                    {"decisions": n_decisions, "threat_decisions": n_threats, "source_stats": ids_stats,
                     "relay_stats": relay.stats,
                     # diagnostic only (not a schema field relied on elsewhere): every up/down hook call's

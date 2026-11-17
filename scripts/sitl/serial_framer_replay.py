@@ -37,6 +37,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))  # sibling script modules (tlog_stats, calib_common)
 
 import calib_common as cc  # noqa: E402
+from provenance import add_provenance_args, begin_run, finish_run, require_clean_tree, stamp_stem  # noqa: E402
 from tlog_stats import iter_raw_frames  # noqa: E402
 
 from aegisflight.pipeline import IDSPipeline  # noqa: E402
@@ -218,9 +219,16 @@ def main() -> None:
     ap.add_argument("--read-size", type=int, default=256)
     ap.add_argument("--no-features", action="store_true", help="skip the pipeline replays (fast)")
     ap.add_argument("--json", type=Path, help="write the results here")
+    add_provenance_args(ap)
     a = ap.parse_args()
-    text = json.dumps(replay(a.tlog, a.read_size, not a.no_features), indent=2)
+    require_clean_tree(a.allow_dirty)  # (#25)
+    run = begin_run(allow_dirty=a.allow_dirty, profile_dir="configs/px4_sitl",
+                    model_path=None if a.no_features else "models/isoforest_px4.joblib", ml_enabled=not a.no_features)
+    result = replay(a.tlog, a.read_size, not a.no_features)
+    result["run_provenance"] = finish_run(run)
+    text = json.dumps(result, indent=2)
     if a.json:
+        stamp_stem(a.json.with_suffix(""), run)
         a.json.write_text(text + "\n", encoding="utf-8")
     print(text)
 

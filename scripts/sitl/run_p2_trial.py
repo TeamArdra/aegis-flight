@@ -27,7 +27,14 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from provenance import collect
+from provenance import (
+    add_provenance_args,
+    begin_run,
+    collect,
+    finish_run,
+    require_clean_tree,
+    stamp_stem,
+)
 
 from aegisflight.config import load_config
 from aegisflight.pipeline import IDSPipeline
@@ -79,7 +86,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--profile", default="configs/px4_sitl", help="load_config dir; use '' for Stage-1 default")
     ap.add_argument("--model", choices=("px4", "stage1", "none"), default=None,
                     help="default: 'px4' if --profile is set, else 'stage1' (B2 cross-pairing is refused)")
+    add_provenance_args(ap)
     a = ap.parse_args(argv)
+    require_clean_tree(a.allow_dirty)  # before any output is created (#25)
+    run_started = datetime.now(UTC).isoformat()
     sys.stdout.reconfigure(encoding="utf-8")
 
     out = Path(a.out)
@@ -148,6 +158,9 @@ def main(argv: list[str] | None = None) -> int:
 
     actual = compute_actual_effect(out.with_suffix(".frames.jsonl"), ref_lat_deg=PX4_HOME_LAT)
     prov_raw = collect(python_version=sys.version.split()[0])
+    run_prov = finish_run(begin_run(allow_dirty=a.allow_dirty, profile_dir=a.profile or None, model_path=model,
+                                    px4_git_describe=px4_describe(), started_utc=run_started))
+    stamp_stem(out, run_prov)
     import importlib.metadata as md
 
     manifest = Manifest(
@@ -169,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
     out.with_suffix(".manifest.json").write_text(json.dumps(
         {**manifest.__dict__, "schema_id": manifest.schema_id, "schema_version": manifest.schema_version,
          "detector_decision": manifest.detector_decision, "time_to_detection_s": manifest.time_to_detection_s,
-         "full_provenance": prov_raw,
+         "full_provenance": prov_raw, "run_provenance": run_prov,
          "ids_summary": {"decisions": n_decisions, "threat_decisions": n_threats, "source_stats": ids_stats,
                          "relay_stats": relay.stats}},
         indent=2, default=str))

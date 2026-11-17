@@ -21,7 +21,10 @@ import argparse
 import json
 import sys
 from collections import Counter
+from datetime import UTC, datetime
 from pathlib import Path
+
+from provenance import add_provenance_args, begin_run, finish_run, require_clean_tree, stamp_stem
 
 from aegisflight.config import load_config
 from aegisflight.external import realdata, tlog_adapter
@@ -88,7 +91,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="directory holding detector.yaml overrides (default: configs/ = Stage-1); "
                          "e.g. configs/px4_sitl for the PX4 SITL calibration profile")
     ap.add_argument("--model", default=MODEL, help="anomaly model bundle (default: Stage-1 models/isoforest.joblib)")
+    add_provenance_args(ap)
     a = ap.parse_args(argv)
+    require_clean_tree(a.allow_dirty)  # before any output is created (#25)
+    run_started = datetime.now(UTC).isoformat()
     sys.stdout.reconfigure(encoding="utf-8")  # evidence strings contain non-cp1252 glyphs
     cfg = load_config(a.config_dir)
     model = None if a.no_ml or not Path(a.model).exists() else a.model
@@ -105,7 +111,11 @@ def main(argv: list[str] | None = None) -> int:
            "claim_class": "none (false-alarm reference)", "model": model, "ml_enabled": model is not None, "adapter": a.adapter,
            "config_dir": a.config_dir or "configs (Stage-1 default)",
            "runs": runs, "pooled": summarise_run("POOLED", all_rows)}
+    doc["run_provenance"] = finish_run(begin_run(
+        allow_dirty=a.allow_dirty, profile_dir=a.config_dir, model_path=model, ml_enabled=model is not None,
+        started_utc=run_started))
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
+    stamp_stem(Path(a.out).with_suffix(""), doc["run_provenance"])
     Path(a.out).write_text(json.dumps(doc, indent=2, default=str))
     return 0
 

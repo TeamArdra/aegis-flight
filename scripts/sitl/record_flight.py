@@ -23,7 +23,15 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from provenance import collect, sha256_file
+from provenance import (
+    add_provenance_args,
+    begin_run,
+    collect,
+    finish_run,
+    require_clean_tree,
+    sha256_file,
+    stamp_stem,
+)
 from pymavlink import mavutil
 
 DISTRO = "Ubuntu-24.04"
@@ -173,7 +181,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--side", type=float, default=40.0)
     ap.add_argument("--hover-only", type=float, default=0.0, help="record N seconds without flying")
     ap.add_argument("--purpose", default="benign PX4 SITL reference capture")
+    add_provenance_args(ap)
     a = ap.parse_args(argv)
+    require_clean_tree(a.allow_dirty)  # before any output is created (#25)
+    run_started = datetime.now(UTC).isoformat()
 
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -210,6 +221,10 @@ def main(argv: list[str] | None = None) -> int:
         "gazebo_note": "installed version (gz sim --versions), not queried from the running server",
         "provenance": collect(tlog_sha256=sha256_file(out.with_suffix(".tlog"))),
     }
+    manifest["run_provenance"] = finish_run(begin_run(
+        allow_dirty=a.allow_dirty, profile_dir=None, model_path=None, ml_enabled=False,
+        px4_git_describe=manifest["px4_git_describe"], started_utc=run_started))
+    stamp_stem(out, manifest["run_provenance"])
     out.with_suffix(".json").write_text(json.dumps(manifest, indent=2))
     print(json.dumps({k: manifest[k] for k in ("duration_s", "frames", "vehicle", "px4_git_describe")}, indent=2))
     return 0

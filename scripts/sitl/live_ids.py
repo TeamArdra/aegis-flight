@@ -24,7 +24,16 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
-from provenance import collect, sha256_file
+from p2_trial_common import px4_describe
+from provenance import (
+    add_provenance_args,
+    begin_run,
+    collect,
+    finish_run,
+    require_clean_tree,
+    sha256_file,
+    stamp_stem,
+)
 
 from aegisflight.config import load_config
 from aegisflight.pipeline import IDSPipeline
@@ -86,7 +95,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seconds", type=float, default=60.0)
     ap.add_argument("--out", required=True)
     ap.add_argument("--no-ml", action="store_true")
+    add_provenance_args(ap)
     a = ap.parse_args(argv)
+    require_clean_tree(a.allow_dirty)  # before any output is created (#25)
+    run_started = datetime.now(UTC).isoformat()
     sys.stdout.reconfigure(encoding="utf-8")
 
     cfg = load_config()
@@ -129,6 +141,10 @@ def main(argv: list[str] | None = None) -> int:
                                 "p95": lat_s[int(0.95 * (len(lat_s) - 1))] if lat_s else None},
     }
     summary["provenance"] = collect(tlog_sha256=sha256_file(out.with_suffix(".tlog")))
+    summary["run_provenance"] = finish_run(begin_run(
+        allow_dirty=a.allow_dirty, profile_dir=None, model_path=model, ml_enabled=model is not None,
+        px4_git_describe=px4_describe(), started_utc=run_started))
+    stamp_stem(out, summary["run_provenance"])
     out.with_suffix(".summary.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2))
     return 0

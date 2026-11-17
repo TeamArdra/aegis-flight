@@ -126,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
                         "predicted_detection": "dos-style attack_type (hypothesis, not asserted)"},
         actual_effect=actual, frames_skipped_signed=attack.frames_skipped_signed,
     )
-    write_manifest(out, manifest, prov["full_provenance"],
+    write_manifest(out, manifest, prov["full_provenance"], run_provenance=prov["run_provenance"], ids_summary=
                    {"decisions": n_decisions, "threat_decisions": n_threats, "source_stats": ids_stats,
                     "relay_stats": relay.stats})
     print(json.dumps({"frames_seen": attack.frames_seen, "frames_dropped": attack.frames_dropped,
