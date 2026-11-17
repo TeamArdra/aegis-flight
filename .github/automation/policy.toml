@@ -1,0 +1,221 @@
+# AegisFlight autonomous-merge policy.
+#
+# Read by scripts/aegis_automation (merge gate, orchestrator, review-record builder) from the
+# DEFAULT BRANCH only: the orchestrator runs on default-branch events (workflow_run,
+# issue_comment, workflow_dispatch) and the review workflow extracts this file from the PR's
+# base branch. A pull request therefore cannot relax the policy it is judged under, and any
+# PR that edits this file is itself escalated to a human (category "automation_governance").
+#
+# Runtime switches that an admin flips without a PR live in repository variables, not here:
+#   AEGIS_AUTOMERGE            off | dry-run | on        (unset = dry-run)
+#   AEGIS_AUTOREMEDIATE        off | on                  (unset = off)
+#   CLAUDE_MAX_REMEDIATION_CYCLES                        (unset = [remediation].max_cycles)
+# Documentation: docs/AUTONOMOUS_PIPELINE.md.
+
+schema = 1
+
+[repository]
+default_branch = "main"
+# Workflow files whose runs are trusted evidence. A run is accepted only if GitHub reports
+# exactly this path, event "pull_request" and the PR's current head SHA.
+review_workflow_path = ".github/workflows/claude-review.yml"
+ci_workflow_path = ".github/workflows/ci.yml"
+review_record_artifact = "aegis-review-record"
+review_record_file = "review-record.json"
+# Login of the independent reviewer (the official Claude GitHub App).
+reviewer_login = "claude[bot]"
+# Login that writes the advisory `claude-review` commit status (the workflow token).
+status_writer_login = "github-actions[bot]"
+
+[ci]
+# Jobs of ci_workflow_path that must have concluded "success" on the head SHA. Every
+# required status check of the default-branch ruleset is also enforced (read live).
+required_jobs = ["ci-python", "ci-frontend"]
+# Check runs / statuses ignored when looking for "any other failing check" (advisory ones
+# whose meaning is already covered by the trusted review record).
+advisory_contexts = ["claude-review", "claude-remediate", "aegis-orchestrator"]
+
+[authors]
+# Repository permission an author needs (in addition to: same-repository branch).
+minimum_permission = "write"
+# Approved coding-agent identities that may author PRs even without a collaborator
+# permission entry (GitHub App bot logins). Empty by default: agents push through the
+# account of the teammate who runs them. The reviewer and merge identities can never be
+# authors (enforced in code, independent of this list).
+trusted_agent_identities = []
+# Branch names an auto-mergeable PR must use; the number must equal the linked issue.
+branch_pattern = '^(feat|fix|chore|docs|test|evidence|refactor|perf)/(?P<issue>[0-9]+)-[a-z0-9][a-z0-9._-]*$'
+require_issue_number_in_branch = true
+
+[issue]
+# The linked issue (GitHub "closing issue reference") must exist, be open, and contain an
+# acceptance-criteria section with at least one item.
+acceptance_heading = "acceptance criteria"
+# Issue or PR labels that always route the PR to a human.
+escalation_labels = [
+  "needs:human-approval",
+  "needs:frozen-contract",
+  "needs:hardware",
+  "model:human",
+  "area:security",
+  "area:hardware",
+  "type:evidence",
+  "claude:escalation-recommended",
+  "automerge:hold",
+]
+
+[review]
+# Severities that block an automatic merge outright. P2 blocks unless waived (below).
+blocking_severities = ["P0", "P1"]
+# A P2 can be waived only by a write-access human who is not the PR author, with a PR
+# comment bound to the current head:  /aegis waive R3 <head-sha-prefix> <reason>
+allow_p2_waivers = true
+waiver_requires_non_author = true
+min_waiver_sha_prefix = 7
+# Every acceptance criterion in the record must be "met"; "cannot_verify" fails closed.
+require_all_acceptance_met = true
+# Bounded retry of a review run that ended in ERROR (infrastructure failure, usage limit).
+max_review_attempts = 2
+
+[remediation]
+max_cycles = 2
+# Only Confirmed findings of these severities are sent to automatic remediation.
+auto_severities = ["P0", "P1", "P2"]
+cycle_marker = "<!-- aegis-remediation-cycle -->"
+auto_request_marker = "aegis-auto-remediation"
+# Automatic requests per head SHA. A second one is only posted after a newer review of the
+# same head (e.g. when the first remediation run failed for infrastructure reasons). The
+# cycle limit above still bounds the total.
+max_auto_requests_per_head = 2
+
+[merge]
+method = "squash"
+# Resolve the reviewer's own inline threads whose finding the latest trusted record marks
+# "fixed" or "superseded". Threads opened by humans are never resolved automatically.
+resolve_fixed_reviewer_threads = true
+
+[limits]
+# Changes larger than this cannot be confidently validated by an automated review.
+max_changed_files = 40
+max_changed_lines = 1200
+
+# ---------------------------------------------------------------------------------------
+# Escalation categories. A PR matching ANY category is reviewed normally but never
+# approved or merged automatically. Globs use fnmatch semantics on the repository path
+# ("*" also crosses "/"). `added_line_patterns` are Python regexes matched against lines
+# the PR adds in files matching `content_globs`.
+# ---------------------------------------------------------------------------------------
+
+[escalation.automation_governance]
+description = "CI, reviewer, remediation or merge automation; agent instructions"
+paths = [
+  ".github/*",
+  "scripts/aegis_automation/*",
+  "tests/automation/*",
+  "AGENTS.md", "*/AGENTS.md",
+  "CLAUDE.md", "*/CLAUDE.md",
+  ".claude/*",
+  "docs/AUTONOMOUS_PIPELINE.md",
+  "docs/CLAUDE_AUTOMATION.md",
+  "docs/MERGE_APP_SETUP.md",
+]
+
+[escalation.secrets_and_auth]
+description = "authentication, secrets, MAVLink signing or key handling"
+paths = [
+  "src/aegisflight/mavlink/signing.py",
+  "*signing*", "*secret*", "*credential*",
+  "*.pem", "*.key", "*.p12", "*.env", ".env*",
+]
+content_globs = ["*"]
+added_line_patterns = [
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----',
+  'gh[pousr]_[A-Za-z0-9]{30,}',
+  'github_pat_[A-Za-z0-9_]{30,}',
+  'sk-ant-[A-Za-z0-9_-]{20,}',
+  'AKIA[0-9A-Z]{16}',
+]
+
+[escalation.vehicle_link_safety]
+description = "receive-only vs transmit-capable vehicle link, inline IPS, MITM proxy, flight-control safety"
+paths = [
+  "src/aegisflight/sources/mavlink_serial.py",
+  "src/aegisflight/sources/mavlink_live.py",
+  "src/aegisflight/sources/frame_pipe.py",
+  "src/aegisflight/mitigation/*",
+  "src/aegisflight/proxy/*",
+  "src/aegisflight/hal/*",
+  "src/aegisflight/mavlink/gcs_notifier.py",
+  "scripts/sitl/*",
+  "scripts/ardupilot/*",
+]
+content_globs = ["*.py"]
+added_line_patterns = ['may_reach_vehicle', 'mav\.send\(', '\.mav\.[a-z_]+_send\(']
+
+[escalation.frozen_contracts]
+description = "frozen AegisFlight contracts (AGENTS.md section 4)"
+paths = [
+  "src/aegisflight/core/*",
+  "src/aegisflight/features/extractor.py",
+  "src/aegisflight/mavlink/codec.py",
+  "src/aegisflight/attacks/base.py",
+  "src/aegisflight/benchmark/*",
+  "src/aegisflight/metrics/*",
+  "docs/HANDOFF.md",
+]
+
+[escalation.event_log_integrity]
+description = "event log schema, hash chain or integrity verification"
+paths = ["src/aegisflight/logging/*", "src/aegisflight/integrity/*"]
+
+[escalation.detector_metrics]
+description = "detector architecture, thresholds, model or pipeline wiring (moves competition metrics)"
+paths = [
+  "src/aegisflight/detectors/*",
+  "src/aegisflight/fusion/*",
+  "src/aegisflight/features/*",
+  "src/aegisflight/pipeline.py",
+  "src/aegisflight/config.py",
+  "configs/*",
+  "models/*",
+  "scripts/train_models.py",
+  "scripts/train_px4_baseline.py",
+]
+
+[escalation.evidence_claims]
+description = "committed evidence or real-hardware / field validation claims"
+paths = [
+  "artifacts/*",
+  "scripts/hardware/*",
+  "docs/*EVIDENCE*",
+  "docs/*VALIDATION*",
+  "docs/stage2_report*",
+]
+content_globs = ["*.md"]
+added_line_patterns = ['\bHITL\b', '\bFIELD\b', '(?i)real[- ]world validat', '(?i)flight[- ]tested', '(?i)on (the )?real hardware']
+
+[escalation.network_listeners]
+description = "new network listeners or privileged services"
+paths = ["src/aegisflight/hal/status_server.py", "Dockerfile*", "docker-compose*"]
+content_globs = ["*.py", "*.ts", "*.tsx", "*.js", "*.sh", "*.yml", "*.yaml", "*.toml"]
+added_line_patterns = [
+  '0\.0\.0\.0',
+  '\.bind\(',
+  '\.listen\(',
+  'uvicorn\.run\(',
+  'create_server\(',
+  'start_server\(',
+  'socketserver\.',
+  'HTTPServer\(',
+  '(?i)\bsudo\b',
+]
+
+[escalation.dependencies]
+description = "new or changed third-party dependencies (supply chain)"
+paths = [
+  "pyproject.toml",
+  "requirements*.txt",
+  "uv.lock", "poetry.lock",
+  "frontend/package.json",
+  "frontend/package-lock.json",
+]

@@ -11,8 +11,9 @@ in [`CLAUDE_AUTOMATION.md`](CLAUDE_AUTOMATION.md).
 | Principal architect | Claude Opus, started by a human for a specific task | Architecture, cross-cutting design, frozen-contract migrations, this infrastructure | Routine issue work by default |
 | Implementation engineer | A teammate's **local** Claude Code session on Sonnet (or the teammate) | One issue → one branch → one PR; tests; answers review findings | Works on `main`, merges, changes contracts or automation as a side effect |
 | Independent reviewer | Claude Sonnet in GitHub Actions (`claude-review`) | Reviews every PR push; posts findings; sets an advisory status | Approves, merges, pushes, edits |
-| Remediation agent | Claude Sonnet in GitHub Actions (`claude-remediate`), **only on a maintainer's `@claude fix` request** | Verifies and fixes P0–P2 findings on the PR branch, at most 2 cycles per PR | Starts itself, touches P3, merges |
-| Humans | Team Ardra maintainers | Choose work, approve designs, approve and merge PRs, change repo settings, sign off hardware evidence | Delegate final approval or merging to an agent |
+| Remediation agent | Claude Sonnet in GitHub Actions (`claude-remediate`), on a maintainer's `@claude fix` request or, when `AEGIS_AUTOREMEDIATE=on`, on the merge App's verified automatic request | Verifies and fixes P0–P2 findings on the PR branch, at most 2 cycles per PR | Touches P3, edits automation, merges |
+| Merge orchestrator | Dedicated GitHub App in Actions (`aegis-orchestrator`), no model | Verifies 20 gates against GitHub run metadata and the trusted review record; approves and squash-merges routine PRs | Pushes code, merges escalated PRs, trusts comments or statuses |
+| Humans | Team Ardra maintainers | Choose work, approve designs, approve and merge **escalated** PRs, waive P2s, change repo settings, sign off hardware evidence | Let an agent merge security-sensitive or contract changes |
 
 ## 2. Lifecycle
 
@@ -23,8 +24,13 @@ issue (agent-ready, unassigned, unblocked)
   → CI (ci-python, ci-frontend)  +  Claude review (comments + claude-review status)
   → author fixes / answers findings     → push → CI + incremental re-review
      (optional) maintainer: "@claude fix …" → remediation push → re-review   [≤ 2 cycles]
-  → all conversations resolved, CI green → human approval → human squash-merge
+  → all conversations resolved, CI green
+  → routine PR: merge gate verifies 20 conditions → merge App approves + squash-merges
+    escalated PR (security, contracts, automation, evidence, …): human approval + merge
 ```
+The merge gate and its escalation rules: [`AUTONOMOUS_PIPELINE.md`](AUTONOMOUS_PIPELINE.md).
+Until an admin installs the merge App and sets `AEGIS_AUTOMERGE=on`, the gate only reports
+(dry-run) and humans merge as before.
 
 ## 3. Choosing and claiming an issue
 
@@ -40,13 +46,16 @@ The backlog is tracked in issue #4 (tracker) with epics #5–#9. Labels:
 | `model:sonnet` / `model:opus` / `model:haiku` | Recommended model |
 | `type:*`, `area:*`, `size:*` | Kind, subsystem, effort |
 
-Before starting, check that nobody else is on it:
+Claim through the claiming protocol (it checks eligibility, open blockers and open PRs, and
+resolves races between agents: the earliest claim comment wins, losers withdraw):
 
 ```bash
-gh issue view <n> --json assignees,state,labels,body      # unassigned? read "Blocked by"
-gh pr list --state open --search "<n> in:body"            # no open PR already references it
-gh issue edit <n> --add-assignee @me
-gh issue comment <n> --body "Claiming: branch fix/<n>-<slug>"
+export PYTHONPATH=scripts                                   # token: GH_TOKEN or `gh auth login`
+python -m aegis_automation.issue_claim ready                # claimable issues
+python -m aegis_automation.issue_claim check 16             # why / why not
+python -m aegis_automation.issue_claim claim 16 --branch fix/16-sats-unknown --agent alice-sonnet-1
+python -m aegis_automation.issue_claim status 16 in-review  # when the PR is ready
+python -m aegis_automation.issue_claim release 16 --agent alice-sonnet-1 --reason "blocked on #14"
 ```
 
 Blocked issues ("Blocked by #m" in the table at the top of each issue) wait until `#m` is
@@ -129,13 +138,24 @@ Nothing merges automatically. Details: [`CLAUDE_AUTOMATION.md`](CLAUDE_AUTOMATIO
 Other `@claude …` comments do nothing: general chat with Claude on GitHub is disabled to save
 usage. Use a local session instead.
 
-## 7. Merging (humans only)
+## 7. Merging
 
-Merge when: CI checks are green; the latest `claude-review` status is not `failure`, or every
-P0/P1 has been rebutted in its thread; all conversations are resolved; another human has
-approved the latest push. Use **squash merge**. GitHub adds `Co-authored-by:` lines for other
-commit authors (for example `claude[bot]` after a remediation) to the squash message. Remove
-them in the merge dialog if the team wants human-only authorship.
+**Routine PRs (merge gate).** The *AegisFlight merge orchestrator* re-evaluates the PR whenever
+CI or the review finishes, and keeps one "AegisFlight merge gate" comment up to date with
+every gate (✅/❌ and why). When all pass and `AEGIS_AUTOMERGE=on`, the merge App approves the
+exact head commit and squash-merges it (its message has no co-author trailers). Useful commands
+(write-access humans):
+- `/aegis merge-check`: re-evaluate now (after resolving a thread, removing a hold label …).
+- `/aegis waive R3 <head-sha> <reason>`: accept a P2 finding for this exact head (not the PR
+  author; P0/P1 cannot be waived; a new push needs a new waiver).
+- Label `automerge:hold`: never auto-merge this PR.
+
+**Escalated PRs (humans).** Merge when: CI checks are green; the latest `claude-review` status
+is not `failure`, or every P0/P1 has been rebutted in its thread; all conversations are
+resolved; another human has approved the latest push. Use **squash merge**. GitHub adds
+`Co-authored-by:` lines for other commit authors (for example `claude[bot]` after a
+remediation) to the squash message. Remove them in the merge dialog if the team wants
+human-only authorship.
 
 ## 8. Usage etiquette
 

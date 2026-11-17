@@ -1,0 +1,110 @@
+# AegisFlight merge orchestrator: verified approval and squash merge of routine PRs.
+#
+# Event-driven (no polling, no model calls). It runs when:
+#   - a `CI` or `Claude PR review` run for a same-repository pull_request completes;
+#   - a write-access human comments `/aegis merge-check` or `/aegis waive R<n> <sha> <reason>`;
+#   - a maintainer dispatches it manually for one PR.
+# These events always execute the DEFAULT-BRANCH copy of this file and of
+# scripts/aegis_automation + .github/automation/policy.toml, so a pull request can never
+# change the gate it is judged by. No PR code is checked out or executed here.
+#
+# Identities (separation of duties):
+#   implementation agent / human -> pushes the branch, opens the PR
+#   claude[bot]                  -> reviews (claude-review.yml), remediates on request
+#   merge App (this workflow)    -> approves + squash-merges, only after every gate passes
+# The workflow token is used for reads and, in dry-run, for the gate report. It is NEVER
+# used to approve or merge: mode "on" without the App credentials fails (no fallback).
+#
+# Switches (repository variables): AEGIS_AUTOMERGE off|dry-run|on (unset = dry-run),
+# AEGIS_AUTOREMEDIATE off|on (unset = off), AEGIS_MERGE_APP_CLIENT_ID, AEGIS_MERGE_APP_SLUG.
+# Secret (environment `automerge`, deployment branch = main only): AEGIS_MERGE_APP_PRIVATE_KEY.
+# Documentation: docs/AUTONOMOUS_PIPELINE.md, docs/MERGE_APP_SETUP.md.
+name: AegisFlight merge orchestrator
+
+on:
+  workflow_run:
+    workflows: ["Claude PR review", "CI"]
+    types: [completed]
+  # Comment-triggered by design (`/aegis` commands from write-access humans; the permission
+  # is re-checked through the API). No event text is interpolated into `run:` scripts.
+  issue_comment: # zizmor: ignore[dangerous-triggers]
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to evaluate
+        required: true
+        type: string
+
+permissions: {}
+
+# One evaluation per PR at a time; a newer event waits and re-evaluates fresh state.
+concurrency:
+  group: aegis-orchestrator-${{ github.event.workflow_run.pull_requests[0].number || github.event.issue.number || inputs.pr || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  orchestrate:
+    name: aegis-orchestrator
+    # workflow_run matches workflows by NAME; the script re-checks the recorded file path.
+    if: >-
+      vars.AEGIS_AUTOMERGE != 'off' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (
+        (github.event_name == 'workflow_run' &&
+          github.event.workflow_run.event == 'pull_request' &&
+          github.event.workflow_run.head_repository.full_name == github.repository) ||
+        (github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request &&
+          github.event.comment.user.type == 'User' &&
+          startsWith(github.event.comment.body, '/aegis ')) ||
+        github.event_name == 'workflow_dispatch'
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # The merge App private key lives only in this environment, whose deployment-branch
+    # policy admits `main` alone: workflows on feature branches cannot read it.
+    environment: automerge
+    permissions:
+      contents: read        # sparse checkout of the default branch
+      actions: read         # workflow runs, jobs and the review-record artifact
+      checks: read          # check runs of the head commit
+      statuses: read        # commit statuses of the head commit
+      pull-requests: write  # gate report comment when no App token is configured (dry-run)
+      issues: write         # same (PR comments live on the issue side)
+    steps:
+      - name: Check out trusted tooling from the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/aegis_automation
+            .github/automation
+
+      - name: Create the merge App installation token
+        id: app
+        if: vars.AEGIS_MERGE_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.AEGIS_MERGE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AEGIS_MERGE_APP_PRIVATE_KEY }}
+          # Least privilege for this token (must be a subset of the App's permissions).
+          permission-contents: write        # merge
+          permission-pull-requests: write   # approve, resolve own-reviewer threads, report
+          permission-issues: write          # report / remediation-request comments
+          permission-actions: write         # re-run an ERROR review once
+          permission-checks: read
+          permission-statuses: read
+
+      - name: Evaluate and act
+        env:
+          READ_TOKEN: ${{ github.token }}
+          APP_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          EXPECTED_APP_SLUG: ${{ vars.AEGIS_MERGE_APP_SLUG }}
+          AEGIS_AUTOMERGE: ${{ vars.AEGIS_AUTOMERGE }}
+          AEGIS_AUTOREMEDIATE: ${{ vars.AEGIS_AUTOREMEDIATE }}
+          MAX_CYCLES: ${{ vars.CLAUDE_MAX_REMEDIATION_CYCLES }}
+          POLICY_PATH: .github/automation/policy.toml
+        run: PYTHONPATH=scripts python3 -m aegis_automation.orchestrator

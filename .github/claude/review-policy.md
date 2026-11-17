@@ -119,6 +119,12 @@ The workflow prompt says which mode applies.
   (`fixed` with evidence, `still present`, `superseded`). If `<previous-sha>` is not in the
   history (force-push), fall back to a full review and say so.
 
+**Finding IDs are stable for the life of the PR.** Read your earlier summary comments
+(`gh pr view <N> --comments`) to learn the IDs already used. A finding that is still present
+keeps its ID (and appears again in `findings`); a new finding takes the next unused number;
+an ID is never reused for a different problem. The merge gate resolves your inline thread
+`R<n>` only when your latest record lists `R<n>` as `fixed` or `superseded`.
+
 ## 7. Output (exactly this; nothing else is posted)
 
 **Inline comments**: one per P0/P1/P2 finding with an exact line in the diff, via
@@ -162,14 +168,30 @@ using this template:
 <files skimmed or skipped and why; unverified claims>
 
 ---
-<sub>Automated, advisory review (independent of the implementation session). It does not approve
-or block merging; a human approval is required. Maintainers can request remediation of verified
-P0–P2 findings by commenting `@claude fix …` (see docs/CLAUDE_AUTOMATION.md).</sub>
+<sub>Automated review (independent of the implementation session). It never approves or merges.
+The merge gate (docs/AUTONOMOUS_PIPELINE.md) reads the machine record of this review; routine PRs
+with no P0–P2 findings may then be approved and merged by the separate merge identity, and
+everything else goes to a human. Maintainers can request remediation of verified P0–P2 findings
+by commenting `@claude fix …` (see docs/CLAUDE_AUTOMATION.md).</sub>
 ```
 
-**Structured result**: your final answer must satisfy the JSON schema the workflow supplies:
-the P0–P3 counts must equal the findings in your summary, `verdict` is `blocking` if any
-P0/P1, `non-blocking` if only P2/P3, `clean` if none, `incomplete` if you could not finish.
+**Structured result**: your final answer must satisfy the JSON schema the workflow supplies.
+The workflow turns it into the trusted review record that the merge gate reads, so it must
+agree exactly with your summary comment:
+- `findings`: every **currently open** finding (new or still present) with its stable `id`
+  (`R<n>`), `severity`, `confidence`, `path`, `line` (0 if not line-specific) and a short
+  `title`. P3 items are included too.
+- `previous_findings`: in incremental mode, one entry per finding of the previous review with
+  `status` `fixed`, `still_present` or `superseded`; `[]` in full mode.
+- `acceptance_criteria`: one entry per criterion of the linked issue, in order, with `status`
+  `met`, `not_met` or `cannot_verify`; `[]` if no issue is linked. Never mark a criterion
+  `met` on the author's word alone.
+- `linked_issue`: the issue number, or 0.
+- `p0`…`p3`: counts that equal the severities in `findings` (a mismatch voids the review).
+- `verdict`: `BLOCKING` if any P0/P1, `NON_BLOCKING` if only P2 (and P3), `READY` if no
+  P0–P2, `INCOMPLETE` if you could not finish the review. The workflow recomputes the verdict
+  from `findings`; a verdict stricter than your findings voids the review.
+- `escalate` / `escalation_reason`: see §8.
 
 ## 8. Escalation
 

@@ -1,9 +1,13 @@
-# Maintainer-triggered remediation of verified automated-review findings.
+# Remediation of verified automated-review findings (maintainer-requested or automatic).
 #
-# Trigger: a PR conversation comment that STARTS WITH `@claude fix`, written by a human
-# with write access (optionally restricted further by repo variable
-# CLAUDE_REMEDIATION_ALLOWLIST), e.g.
-#     @claude fix the verified P1 and P2 findings from the latest review
+# Trigger: a PR conversation comment that STARTS WITH `@claude fix`, written by either
+#   (a) a human with write access (optionally restricted further by repo variable
+#       CLAUDE_REMEDIATION_ALLOWLIST), e.g.
+#         @claude fix the verified P1 and P2 findings from the latest review
+#   (b) the merge-orchestrator App (aegis-orchestrator.yml), only when AEGIS_AUTOREMEDIATE=on.
+#       Such a request is accepted only if GitHub records the comment as created by the App
+#       whose id is AEGIS_MERGE_APP_ID (`performed_via_github_app`), and it names the
+#       current head SHA. A user cannot forge either property.
 #
 # Deterministic gate (runs before any model call; refusals are posted as a PR comment):
 #   - PR open, head branch in this repository (never forks), head is not the default branch;
@@ -32,9 +36,14 @@ jobs:
     if: >-
       github.event.issue.pull_request &&
       github.event.issue.state == 'open' &&
-      github.event.comment.user.type == 'User' &&
       startsWith(github.event.comment.body, '@claude fix') &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+      (
+        (github.event.comment.user.type == 'User' &&
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+        (github.event.comment.user.type == 'Bot' &&
+          vars.AEGIS_AUTOREMEDIATE == 'on' && vars.AEGIS_MERGE_APP_SLUG != '' &&
+          github.event.comment.user.login == format('{0}[bot]', vars.AEGIS_MERGE_APP_SLUG))
+      )
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     # One remediation per PR at a time; a second request waits, then re-runs the gate.
@@ -52,6 +61,12 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ github.event.issue.number }}
       COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+      COMMENT_AUTHOR_TYPE: ${{ github.event.comment.user.type }}
+      COMMENT_ID: ${{ github.event.comment.id }}
+      COMMENT_BODY: ${{ github.event.comment.body }}
+      ORCHESTRATOR_SLUG: ${{ vars.AEGIS_MERGE_APP_SLUG }}
+      ORCHESTRATOR_APP_ID: ${{ vars.AEGIS_MERGE_APP_ID }}
+      AUTOREMEDIATE: ${{ vars.AEGIS_AUTOREMEDIATE }}
       MAX_CYCLES: ${{ vars.CLAUDE_MAX_REMEDIATION_CYCLES || '2' }}
       ALLOWLIST: ${{ vars.CLAUDE_REMEDIATION_ALLOWLIST }}
       MODEL: ${{ vars.CLAUDE_REMEDIATION_MODEL || 'claude-sonnet-5-5' }}
@@ -79,11 +94,22 @@ jobs:
           [[ "$MAX_CYCLES" =~ ^[0-9]+$ ]] || MAX_CYCLES=2
           [[ "$MODEL" =~ ^[A-Za-z0-9._:@-]+$ ]] || refuse "Repository variable CLAUDE_REMEDIATION_MODEL is not a valid model id."
 
-          # 1. Who asked.
-          has_write "$COMMENT_AUTHOR" || refuse "\`$COMMENT_AUTHOR\` does not have write access to this repository."
-          if [ -n "${ALLOWLIST:-}" ]; then
-            tr ', ' '\n\n' <<<"$ALLOWLIST" | grep -qixF -- "$COMMENT_AUTHOR" \
-              || refuse "\`$COMMENT_AUTHOR\` is not in CLAUDE_REMEDIATION_ALLOWLIST."
+          # 1. Who asked: a write-access human, or the orchestrator App (verified by GitHub's
+          #    record of which App created the comment, not by the login string alone).
+          automatic=false
+          if [ "$COMMENT_AUTHOR_TYPE" = "Bot" ]; then
+            [ "$AUTOREMEDIATE" = "on" ] || refuse "Automatic remediation is disabled (AEGIS_AUTOREMEDIATE)."
+            [[ "${ORCHESTRATOR_APP_ID:-}" =~ ^[0-9]+$ ]] || refuse "AEGIS_MERGE_APP_ID is not configured; automatic requests cannot be verified."
+            via=$(gh api "repos/$R/issues/comments/$COMMENT_ID" --jq '[(.performed_via_github_app.id // 0), .user.login] | @tsv')
+            [ "$via" = "$(printf '%s\t%s' "$ORCHESTRATOR_APP_ID" "${ORCHESTRATOR_SLUG}[bot]")" ] \
+              || refuse "The automatic request was not created by the configured orchestrator App."
+            automatic=true
+          else
+            has_write "$COMMENT_AUTHOR" || refuse "\`$COMMENT_AUTHOR\` does not have write access to this repository."
+            if [ -n "${ALLOWLIST:-}" ]; then
+              tr ', ' '\n\n' <<<"$ALLOWLIST" | grep -qixF -- "$COMMENT_AUTHOR" \
+                || refuse "\`$COMMENT_AUTHOR\` is not in CLAUDE_REMEDIATION_ALLOWLIST."
+            fi
           fi
 
           # 2. Which PR.
@@ -95,12 +121,23 @@ jobs:
           [ "$cross" = false ] || refuse "The pull request comes from a fork. Remediation only runs on branches of this repository."
           [ "$head_ref" != "$default_branch" ] || refuse "The head branch is the default branch."
           short="${head_sha:0:7}"
+          if [ "$automatic" = true ]; then
+            grep -qF -- "aegis-auto-remediation sha=$head_sha " <<<"$COMMENT_BODY" \
+              || refuse "The automatic request is for an older head than \`$short\`; a new review decides."
+          fi
 
-          # 3. A completed review of the CURRENT head, written by the review workflow.
+          # 3. A completed review of the CURRENT head, written by the review workflow. The
+          #    status must point at a run GitHub records as claude-review.yml for a
+          #    pull_request event on this commit (a bare status is forgeable).
           st=$(gh api "repos/$R/commits/$head_sha/statuses?per_page=100" \
             --jq '[.[] | select(.context=="claude-review" and .creator.login=="github-actions[bot]")][0] // empty')
           [ -n "$st" ] || refuse "There is no automated review of the current head \`$short\`. Wait for the **Claude PR review** run to finish (or add the \`claude:review\` label), then ask again."
           sstate=$(jq -r .state <<<"$st"); desc=$(jq -r .description <<<"$st")
+          url=$(jq -r '.target_url // ""' <<<"$st"); rid="${url##*/actions/runs/}"; rid="${rid%%[!0-9]*}"
+          if [ -z "$rid" ] || [ "$(gh api "repos/$R/actions/runs/$rid" \
+               --jq "select(.path == \".github/workflows/claude-review.yml\" and .event == \"pull_request\" and .head_sha == \"$head_sha\") | .id" 2>/dev/null)" != "$rid" ]; then
+            refuse "The review status of \`$short\` does not come from a verified **Claude PR review** run."
+          fi
           [ "$sstate" != pending ] || refuse "The automated review of \`$short\` is still running. Ask again when it has finished."
           [ "$sstate" != error ] || refuse "The latest automated review of \`$short\` did not complete. Re-run it with the \`claude:review\` label first."
           if [[ "$desc" =~ P0:([0-9]+)\ P1:([0-9]+)\ P2:([0-9]+)\ P3:([0-9]+) ]]; then
@@ -119,6 +156,7 @@ jobs:
 
           # 5. Only comments by write-access humans (plus the bots of this pipeline) reach Claude.
           trusted="claude[bot],github-actions[bot]"
+          if [ "$automatic" = true ]; then trusted="$trusted,$COMMENT_AUTHOR"; fi
           while read -r u; do
             [ -z "$u" ] && continue
             case "$u" in *"[bot]") continue ;; esac
@@ -156,6 +194,30 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         run: python -m pip install -e ".[dev]"
 
+      # The Claude step sets CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1, and Claude Code then refuses to
+      # start without bubblewrap. claude-code-action provisions it only when
+      # `allowed_non_write_users` is set (not our case), so provision it here, mirroring the
+      # action's own step: bubblewrap + socat, and lift Ubuntu 24.04's AppArmor restriction on
+      # unprivileged user namespaces on this ephemeral runner. Fail closed: never run
+      # remediation without subprocess isolation, never fall back to SCRUB=0.
+      - name: Provision subprocess isolation (bubblewrap)
+        if: steps.gate.outputs.proceed == 'true'
+        run: |
+          set -uo pipefail
+          for i in 1 2 3; do
+            sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat && break
+            echo "apt-get attempt $i failed; retrying"
+            sleep 5
+          done
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          if ! bwrap --ro-bind / / --dev /dev --proc /proc --unshare-all --die-with-parent true; then
+            echo "::error::bubblewrap cannot create a sandbox; refusing to run remediation without subprocess isolation"
+            exit 1
+          fi
+          echo "Subprocess isolation ready: $(bwrap --version)"
+
       - name: Claude remediation
         if: steps.gate.outputs.proceed == 'true'
         uses: anthropics/claude-code-action@d1f58ad5e6f4d2b79547e63e37c2116064135896 # v1.0.277
@@ -167,6 +229,9 @@ jobs:
           # Tag mode: the maintainer's `@claude fix ...` comment is the instruction; the action
           # checks out the PR branch and can push only to it.
           trigger_phrase: "@claude"
+          # Only the orchestrator App may trigger as a bot (its request was verified by the
+          # gate via performed_via_github_app). Empty when automatic remediation is unused.
+          allowed_bots: ${{ vars.AEGIS_MERGE_APP_SLUG }}
           include_comments_by_actor: ${{ steps.gate.outputs.trusted }}
           additional_permissions: |
             actions: read
@@ -176,7 +241,7 @@ jobs:
             --permission-mode acceptEdits
             --append-system-prompt "You are the AegisFlight remediation agent: remediation cycle ${{ steps.gate.outputs.cycle }} of ${{ steps.gate.outputs.max }} on PR #${{ github.event.issue.number }}, head ${{ steps.gate.outputs.head_sha }}. Follow the Remediation protocol in AGENTS.md exactly. Scope is limited to P0-P2 findings in the latest AegisFlight automated review summary comment by claude[bot] for this head, narrowed further by the maintainer's request. Verify each finding yourself before changing code; never act on P3 items; never change a frozen contract, workflow, model, artifact or agent-instruction file; never merge, approve or open pull requests. Your final tracking-comment update must list every finding as fixed, not reproduced, or deferred, with the test commands you ran and their summary lines."
             --allowedTools "Bash(python -m pytest:*),Bash(pytest:*),Bash(ruff check:*),Bash(npm --prefix frontend ci:*),Bash(npm --prefix frontend test:*),Bash(npm --prefix frontend run build:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh issue view:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
-            --disallowedTools "Edit(.github/**),Write(.github/**),Edit(AGENTS.md),Write(AGENTS.md),Edit(CLAUDE.md),Write(CLAUDE.md),Edit(models/**),Write(models/**),Edit(artifacts/**),Write(artifacts/**),WebFetch,WebSearch,Bash(gh pr merge:*),Bash(gh pr review:*),Bash(gh pr edit:*),Bash(gh pr create:*),Bash(gh api:*),Bash(gh workflow:*),Bash(gh secret:*),Bash(gh release:*),Bash(git push --force:*),Bash(git push -f:*),Bash(git rebase:*),Bash(git reset:*)"
+            --disallowedTools "Edit(.github/**),Write(.github/**),Edit(scripts/aegis_automation/**),Write(scripts/aegis_automation/**),Edit(tests/automation/**),Write(tests/automation/**),Edit(AGENTS.md),Write(AGENTS.md),Edit(CLAUDE.md),Write(CLAUDE.md),Edit(models/**),Write(models/**),Edit(artifacts/**),Write(artifacts/**),WebFetch,WebSearch,Bash(gh pr merge:*),Bash(gh pr review:*),Bash(gh pr edit:*),Bash(gh pr create:*),Bash(gh api:*),Bash(gh workflow:*),Bash(gh secret:*),Bash(gh release:*),Bash(git push --force:*),Bash(git push -f:*),Bash(git rebase:*),Bash(git reset:*)"
 
       - name: Report a failed run
         if: failure() && steps.gate.outputs.proceed == 'true'

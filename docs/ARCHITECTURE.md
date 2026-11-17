@@ -248,5 +248,5 @@ AegisFlight has been validated across 9 comprehensive verification suites:
 | **Real Flights — PX4 Review** | 40 Real Multirotor Telemetry Logs | Validated under real-world sensor noise and dropouts |
 | **Hardware bench** (`docs/HARDWARE_BENCH_PIXHAWK6X.md`, `docs/REAL_PIXHAWK_TEST.md`) | Pixhawk 6X over USB, disarmed, propellers removed (no UART run) | Read-only captures and bench runs; no DMA measurement in the repository |
 | **Stage 2 Verification Suite** (`verify_stage2.py`) | 8 Comprehensive Audit Suites | **8/8 Suites Passed in 40.5 ms** (100% compliant) |
-| **Unit Test Suite** (`pytest`) | Core, Detectors, Mitigation, HAL | `pytest -q` prints the current count |
+| **Unit Test Suite** (`pytest`) | Core, Detectors, Mitigation, HAL | `python -m pytest` prints the current count |
 | **Frontend Production Build** | TypeScript + Vite + Tauri Rust | **Built in 259 ms, 0 errors** |

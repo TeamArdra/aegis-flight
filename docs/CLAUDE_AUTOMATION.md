@@ -1,9 +1,15 @@
 # Claude automation: PR review and controlled remediation
 
 This document describes the GitHub automation that reviews every pull request with Claude
-and, **on a maintainer's request only**, lets Claude fix verified findings. It is the
-reference for maintainers and repository admins. Contributors start with
-[`ENGINEERING_WORKFLOW.md`](ENGINEERING_WORKFLOW.md).
+and lets Claude fix verified findings, on a maintainer's request or (when enabled)
+automatically. It is the reference for maintainers and repository admins. Contributors start
+with [`ENGINEERING_WORKFLOW.md`](ENGINEERING_WORKFLOW.md).
+
+> **Autonomous merge pipeline.** The trusted review record, the merge orchestrator (separate
+> merge App identity, 20 fail-closed gates), automatic remediation requests and the
+> issue-claiming protocol are documented in [`AUTONOMOUS_PIPELINE.md`](AUTONOMOUS_PIPELINE.md);
+> admin setup in [`MERGE_APP_SETUP.md`](MERGE_APP_SETUP.md). This document stays the reference
+> for the reviewer and remediation workflows themselves.
 
 ## 1. Architecture
 
@@ -24,8 +30,10 @@ reference for maintainers and repository admins. Contributors start with
 ```
 
 Design rules:
-1. **Review is automatic; remediation is never automatic.** Only a human with write access
-   starts remediation, and at most 2 cycles per PR.
+1. **Review is automatic; remediation is requested, never self-started.** A human with write
+   access starts it, or (only when an admin sets `AEGIS_AUTOREMEDIATE=on`) the merge App on a
+   verified review with Confirmed P0–P2 findings; at most 2 cycles per PR either way
+   ([`AUTONOMOUS_PIPELINE.md`](AUTONOMOUS_PIPELINE.md) §7).
 2. **The reviewer cannot change code; the fixer cannot judge its own work.** Remediation
    pushes trigger a fresh, independent review run.
 3. **The rules come from `main`.** The review policy is read from the base branch; the action
@@ -99,12 +107,27 @@ architectural decisions.
 `@claude fix the verified P1 and P2 findings from the latest review`. Other `@claude` comments
 do nothing (general GitHub chat is disabled for cost).
 
+**Automatic requests** (`AEGIS_AUTOREMEDIATE=on` only): the merge orchestrator posts, as the
+merge App, `@claude fix the verified findings R1, R2 …` with a marker naming the head SHA, for
+Confirmed P0–P2 findings of a verified review of a non-escalated PR, at most twice per head
+and the second time only after a newer review of it
+([`AUTONOMOUS_PIPELINE.md`](AUTONOMOUS_PIPELINE.md) §7).
+
+**Subprocess isolation**: the Claude step runs with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which
+makes Claude Code require bubblewrap. The job installs `bubblewrap`/`socat`, allows
+unprivileged user namespaces on the ephemeral runner and checks that `bwrap` can create a
+sandbox before Claude starts; if not, the run fails (isolation is never switched off).
+
 **Gate** (shell, before any model call; each refusal is posted on the PR):
 1. Commenter is a human with `write`/`maintain`/`admin` (checked via the API, not just
-   `author_association`), and in `CLAUDE_REMEDIATION_ALLOWLIST` if that variable is set.
+   `author_association`), and in `CLAUDE_REMEDIATION_ALLOWLIST` if that variable is set; **or**
+   the comment is a bot comment that GitHub records as created by App id `AEGIS_MERGE_APP_ID`
+   (`performed_via_github_app`, login `<AEGIS_MERGE_APP_SLUG>[bot]`), automatic remediation is
+   on, and its marker names the current head.
 2. PR is open, head branch is in this repository (no forks), head is not the default branch.
-3. The **current head** has a `claude-review` status created by `github-actions[bot]` that
-   is complete (`success`/`failure`) and reports ≥ 1 P0–P2 finding. P3 is never remediated.
+3. The **current head** has a `claude-review` status created by `github-actions[bot]` whose
+   `target_url` is a run GitHub records as `claude-review.yml` / `pull_request` on that commit,
+   that is complete (`success`/`failure`) and reports ≥ 1 P0–P2 finding. P3 is never remediated.
 4. Fewer than `CLAUDE_MAX_REMEDIATION_CYCLES` (default **2**) cycles used on this PR, counted
    from marker comments posted by `github-actions[bot]` (users cannot forge them).
 5. Only comments by write-access humans and the pipeline bots are passed to Claude
@@ -113,7 +136,8 @@ do nothing (general GitHub chat is disabled for cost).
 **Run**: tag mode (`trigger_phrase: "@claude"`), so the action checks out the PR branch and its
 push wrapper can update **only that branch**. `--permission-mode acceptEdits` with an explicit
 allow-list (pytest, ruff, frontend test/build, read-only `gh`/`git`). Denied: editing
-`.github/**`, `AGENTS.md`, `CLAUDE.md`, `models/**`, `artifacts/**`; web; `gh pr
+`.github/**`, `scripts/aegis_automation/**`, `tests/automation/**`, `AGENTS.md`, `CLAUDE.md`,
+`models/**`, `artifacts/**`; web; `gh pr
 merge|review|edit|create`, `gh api|workflow|secret|release`; force-push, rebase, reset.
 The appended system prompt points Claude to `AGENTS.md` §9: verify each finding, fix only
 confirmed ones with regression tests, run tests, push, report *fixed / not reproduced /
@@ -220,9 +244,14 @@ GitHub or run locally; "not verified" items are covered by the post-merge test p
 
 These are **not** changed by the infrastructure PR; a repository admin applies them.
 
-1. **Ruleset "Claude Automation" (id 27404843): currently ineffective.** At the time of
-   writing its enforcement is `disabled` **and** its target list is empty, so `main` has no
-   protection (`GET /repos/TeamArdra/techfest-2026/rules/branches/main` returns `[]`).
+> **Update 2026-11-17:** the ruleset below is now **active** on `~DEFAULT_BRANCH` with the
+> listed rules and required checks `ci-python`/`ci-frontend`; its bypass list holds
+> *Organization admin* and the *Repository admin* role (the admin emergency override). It
+> needs no change for the merge App ([`MERGE_APP_SETUP.md`](MERGE_APP_SETUP.md) §5). The text
+> below is kept as the original setup record.
+
+1. **Ruleset "Claude Automation" (id 27404843)** (state when PR #36 was written: enforcement
+   `disabled` and no target, so `main` had no protection).
    Settings → Rules → Rulesets → *Claude Automation*:
    - *Target branches* → Add target → **Include default branch**.
    - Keep: restrict deletions, block force pushes, require linear history, require a PR with
@@ -264,16 +293,17 @@ These are **not** changed by the infrastructure PR; a repository admin applies t
 | Remediation push did not trigger a review | Check that `allowed_bots: claude` is still set in `claude-review.yml` and that the push came from `claude[bot]`. |
 | Review comments missing but run succeeded | Check the run log for denied tool calls; the allow-list may need a new `gh` subcommand. |
 
-## 11. Future autonomy (not enabled)
+## 11. Autonomy
 
-Options if the team later wants more autonomy, each with the safeguard it needs:
-1. **Auto-remediate P0/P1 only, once per PR**: trigger remediation from the review
-   workflow's result (`workflow_run` on *Claude PR review*, conclusion success, status
-   `failure`). Requires: same-repo check on `workflow_run.head_repository`, the cycle counter
-   (unchanged), and a kill-switch variable (`CLAUDE_AUTOREMEDIATE=off` by default).
-2. **Issue-to-PR agent**: `@claude implement` on an `agent-ready` issue by a maintainer, in
+Implemented (see [`AUTONOMOUS_PIPELINE.md`](AUTONOMOUS_PIPELINE.md)), each behind a switch:
+verified merge of routine PRs by a separate merge App (`AEGIS_AUTOMERGE`, default dry-run) and
+automatic remediation requests for Confirmed P0–P2 findings (`AEGIS_AUTOREMEDIATE`, default
+off; same cycle counter; never for escalated PRs).
+
+Still not enabled:
+1. **Issue-to-PR agent**: `@claude implement` on an `agent-ready` issue by a maintainer, in
    tag mode (creates `claude/issue-N` and a PR link, never merges). Needs a per-day run cap.
-3. **Required advisory check**: make `claude-review` required only after weeks of
+2. **Required advisory check**: make `claude-review` required only after weeks of
    false-positive data, with a documented human override.
 Each of these increases subscription usage and the blast radius of a bad model output; none
 should be enabled without the account owner's agreement.
