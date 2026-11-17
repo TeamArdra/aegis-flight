@@ -9,7 +9,7 @@ from aegisflight.core.enums import AttackType
 from aegisflight.detectors.crossend import CrossEndMonitor, gpi_from_frame
 from aegisflight.hal.inline_ips import InlineIpsBridge
 from aegisflight.proxy.transport import split_frames
-from aegisflight.sources.mavlink_live import MavlinkFrameParser
+from aegisflight.sources.mavlink_live import MavlinkFrameParser, frame_ticks
 
 KEY = bytes(range(32))
 
@@ -197,3 +197,46 @@ def test_pipeline_merges_into_protocol_and_is_identical_without_summary():
 @pytest.mark.parametrize("bad", [b"", b"\x00" * 3])
 def test_gpi_from_frame_rejects_garbage(bad):
     assert gpi_from_frame(bad) is None
+
+
+class SerialLink(Link):
+    """A link that looks like a serial device, which may be a physical flight controller (receive-only)."""
+
+    port = "/dev/ttyACM0"
+
+
+def _pilot(kind: str, i: int = 0) -> bytes:
+    m = mav2.MAVLink(None, srcSystem=255, srcComponent=190)
+    m.robust_parsing = True
+    if kind == "heartbeat":
+        return bytes(m.heartbeat_encode(6, 8, 0, 0, 4).pack(m))
+    return bytes(m.command_long_encode(1, 1, 176, 0, 1.0, 4.0 + i, 0, 0, 0, 0, 0).pack(m))  # DO_SET_MODE
+
+
+@pytest.mark.parametrize("mode", ["passive", "advisory"])
+def test_on_a_serial_flight_controller_port_the_bridge_writes_only_what_the_pilot_sent(mode):
+    """Real-flight property over a 12 s flight with the analyser running: the cross-end summary (default 1 Hz) is sent to the GCS
+    side only, and everything written to the flight-controller port is, byte for byte and in order, a frame the pilot's GCS sent.
+    (This scenario raises no detector alert, so alert delivery is not covered here.)"""
+    fc, gcs, clk = SerialLink(), Link(), Clock()
+    b = InlineIpsBridge(fc, gcs, mode=mode, clock_ns=clk)           # default crossend_interval_s=1.0
+    uplink: list[bytes] = []
+    timeline = []
+    for sec in range(12):
+        for k in range(10):
+            t = sec + k / 10
+            timeline.append((t, gpi(int(t * 1000))))
+        fc.inbox += [(1, gpi(int(sec * 1000)))]
+        pilot_frames = [_pilot("heartbeat"), _pilot("command", sec)]
+        gcs.inbox += [(1, f) for f in pilot_frames]
+        uplink += pilot_frames
+        b.pump_once()
+        for tick in frame_ticks(timeline[-10:], sample_rate_hz=10.0):
+            b.analyse_tick(tick)
+        clk.ns += 1_000_000_000
+        b.pump_once()
+    bridge_frames = [f for d in gcs.sent for f in split_frames(d)[0] if f.compid in (191, 192)]
+    assert any(f.msgid == 249 for f in bridge_frames), "the cross-end summary must have been sent (to the GCS)"
+    assert fc.sent == uplink                                          # nothing of the bridge's own, nothing missing, nothing reordered
+    assert all(f.compid not in (191, 192) for d in fc.sent for f in split_frames(d)[0])
+    assert b.counter_frames_sent == 0 and b.dropped_up == 0 and b.dropped_down == 0
