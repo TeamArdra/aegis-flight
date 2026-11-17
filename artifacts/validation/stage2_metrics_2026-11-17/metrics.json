@@ -1,0 +1,954 @@
+{
+ "schema": "aegisflight.stage2_metrics/1",
+ "definitions": "src/aegisflight/metrics/stage2.py; docs/BENCHMARKING.md#stage-2-metrics",
+ "decision_period_s": 0.2,
+ "false_alerts_per_hour": {
+  "SIM": {
+   "benign": {
+    "source": "artifacts/benchmarks_extended/decisions.csv.gz",
+    "alert_events": 4,
+    "decisions": 6900,
+    "exposure_h": 0.383333,
+    "false_alerts_per_h": 10.434783,
+    "false_alerts_per_h_upper95": 23.878745,
+    "threat_decisions": 4,
+    "decision_fpr": 0.00058
+   },
+   "link_fifo_benign": {
+    "source": "artifacts/benchmarks_extended/decisions.csv.gz",
+    "alert_events": 217,
+    "decisions": 3450,
+    "exposure_h": 0.191667,
+    "false_alerts_per_h": 1132.173913,
+    "false_alerts_per_h_upper95": 1266.996839,
+    "threat_decisions": 2114,
+    "decision_fpr": 0.612754
+   },
+   "link_reorder_benign": {
+    "source": "artifacts/benchmarks_extended/decisions.csv.gz",
+    "alert_events": 243,
+    "decisions": 3450,
+    "exposure_h": 0.191667,
+    "false_alerts_per_h": 1267.826087,
+    "false_alerts_per_h_upper95": 1409.996168,
+    "threat_decisions": 3449,
+    "decision_fpr": 0.99971
+   },
+   "single_attack_sessions_benign_decisions_grace5": {
+    "source": "artifacts/benchmarks_extended/decisions.csv.gz",
+    "alert_events": 26,
+    "decisions": 33952,
+    "exposure_h": 1.886222,
+    "false_alerts_per_h": 13.784166,
+    "false_alerts_per_h_upper95": 19.126383,
+    "threat_decisions": 35,
+    "decision_fpr": 0.001031
+   },
+   "single_attack_sessions_benign_decisions_grace0": {
+    "source": "artifacts/benchmarks_extended/decisions.csv.gz",
+    "alert_events": 54,
+    "decisions": 35779,
+    "exposure_h": 1.987722,
+    "false_alerts_per_h": 27.166774,
+    "false_alerts_per_h_upper95": 34.079253,
+    "threat_decisions": 466,
+    "decision_fpr": 0.013024
+   },
+   "combo_attack_sessions_benign_decisions_grace5": {
+    "source": "artifacts/benchmarks_extended/decisions.csv.gz",
+    "alert_events": 4,
+    "decisions": 4150,
+    "exposure_h": 0.230556,
+    "false_alerts_per_h": 17.349398,
+    "false_alerts_per_h_upper95": 39.70201,
+    "threat_decisions": 5,
+    "decision_fpr": 0.001205
+   },
+   "combo_attack_sessions_benign_decisions_grace0": {
+    "source": "artifacts/benchmarks_extended/decisions.csv.gz",
+    "alert_events": 6,
+    "decisions": 4366,
+    "exposure_h": 0.242556,
+    "false_alerts_per_h": 24.736601,
+    "false_alerts_per_h_upper95": 48.823436,
+    "threat_decisions": 72,
+    "decision_fpr": 0.016491
+   }
+  },
+  "SITL_ardupilot": {
+   "runs": {
+    "ap_benign_final_noml_001": {
+     "all_phases": {
+      "source": "artifacts/ardupilot/ap_benign_final_noml_001/decisions.jsonl",
+      "alert_events": 5,
+      "decisions": 644,
+      "exposure_h": 0.035778,
+      "false_alerts_per_h": 139.751553,
+      "false_alerts_per_h_upper95": 293.842591,
+      "threat_decisions": 57,
+      "decision_fpr": 0.088509
+     },
+     "armed_phases": {
+      "source": "artifacts/ardupilot/ap_benign_final_noml_001/decisions.jsonl",
+      "alert_events": 0,
+      "decisions": 592,
+      "exposure_h": 0.032889,
+      "false_alerts_per_h": 0.0,
+      "false_alerts_per_h_upper95": 91.086454,
+      "threat_decisions": 9,
+      "decision_fpr": 0.015203,
+      "note": "excludes boot / await_gps (pre-arm GPS convergence)"
+     }
+    },
+    "ap_benign_final_noml_002": {
+     "all_phases": {
+      "source": "artifacts/ardupilot/ap_benign_final_noml_002/decisions.jsonl",
+      "alert_events": 5,
+      "decisions": 644,
+      "exposure_h": 0.035778,
+      "false_alerts_per_h": 139.751553,
+      "false_alerts_per_h_upper95": 293.842591,
+      "threat_decisions": 57,
+      "decision_fpr": 0.088509
+     },
+     "armed_phases": {
+      "source": "artifacts/ardupilot/ap_benign_final_noml_002/decisions.jsonl",
+      "alert_events": 0,
+      "decisions": 592,
+      "exposure_h": 0.032889,
+      "false_alerts_per_h": 0.0,
+      "false_alerts_per_h_upper95": 91.086454,
+      "threat_decisions": 9,
+      "decision_fpr": 0.015203,
+      "note": "excludes boot / await_gps (pre-arm GPS convergence)"
+     }
+    },
+    "ap_benign_groups_001": {
+     "all_phases": {
+      "source": "artifacts/ardupilot/ap_benign_groups_001/decisions.jsonl",
+      "alert_events": 38,
+      "decisions": 702,
+      "exposure_h": 0.039,
+      "false_alerts_per_h": 974.358974,
+      "false_alerts_per_h_upper95": 1277.140094,
+      "threat_decisions": 699,
+      "decision_fpr": 0.995726
+     },
+     "armed_phases": {
+      "source": "artifacts/ardupilot/ap_benign_groups_001/decisions.jsonl",
+      "alert_events": 32,
+      "decisions": 650,
+      "exposure_h": 0.036111,
+      "false_alerts_per_h": 886.153846,
+      "false_alerts_per_h_upper95": 1190.283334,
+      "threat_decisions": 650,
+      "decision_fpr": 1.0,
+      "note": "excludes boot / await_gps (pre-arm GPS convergence)"
+     }
+    },
+    "ap_benign_six_001": {
+     "all_phases": {
+      "source": "artifacts/ardupilot/ap_benign_six_001/decisions.jsonl",
+      "alert_events": 41,
+      "decisions": 697,
+      "exposure_h": 0.038722,
+      "false_alerts_per_h": 1058.823529,
+      "false_alerts_per_h_upper95": 1373.821467,
+      "threat_decisions": 569,
+      "decision_fpr": 0.816356
+     },
+     "armed_phases": {
+      "source": "artifacts/ardupilot/ap_benign_six_001/decisions.jsonl",
+      "alert_events": 35,
+      "decisions": 643,
+      "exposure_h": 0.035722,
+      "false_alerts_per_h": 979.782271,
+      "false_alerts_per_h_upper95": 1299.027113,
+      "threat_decisions": 518,
+      "decision_fpr": 0.805599,
+      "note": "excludes boot / await_gps (pre-arm GPS convergence)"
+     }
+    },
+    "ap_benign_six_002": {
+     "all_phases": {
+      "source": "artifacts/ardupilot/ap_benign_six_002/decisions.jsonl",
+      "alert_events": 41,
+      "decisions": 702,
+      "exposure_h": 0.039,
+      "false_alerts_per_h": 1051.282051,
+      "false_alerts_per_h_upper95": 1364.036413,
+      "threat_decisions": 611,
+      "decision_fpr": 0.87037
+     },
+     "armed_phases": {
+      "source": "artifacts/ardupilot/ap_benign_six_002/decisions.jsonl",
+      "alert_events": 35,
+      "decisions": 645,
+      "exposure_h": 0.035833,
+      "false_alerts_per_h": 976.744186,
+      "false_alerts_per_h_upper95": 1294.999122,
+      "threat_decisions": 557,
+      "decision_fpr": 0.863566,
+      "note": "excludes boot / await_gps (pre-arm GPS convergence)"
+     }
+    },
+    "ap_benign_six_003": {
+     "all_phases": {
+      "source": "artifacts/ardupilot/ap_benign_six_003/decisions.jsonl",
+      "alert_events": 41,
+      "decisions": 702,
+      "exposure_h": 0.039,
+      "false_alerts_per_h": 1051.282051,
+      "false_alerts_per_h_upper95": 1364.036413,
+      "threat_decisions": 622,
+      "decision_fpr": 0.88604
+     },
+     "armed_phases": {
+      "source": "artifacts/ardupilot/ap_benign_six_003/decisions.jsonl",
+      "alert_events": 35,
+      "decisions": 646,
+      "exposure_h": 0.035889,
+      "false_alerts_per_h": 975.232198,
+      "false_alerts_per_h_upper95": 1292.994479,
+      "threat_decisions": 569,
+      "decision_fpr": 0.880805,
+      "note": "excludes boot / await_gps (pre-arm GPS convergence)"
+     }
+    },
+    "ap_benign_six_004": {
+     "all_phases": {
+      "source": "artifacts/ardupilot/ap_benign_six_004/decisions.jsonl",
+      "alert_events": 40,
+      "decisions": 702,
+      "exposure_h": 0.039,
+      "false_alerts_per_h": 1025.641026,
+      "false_alerts_per_h_upper95": 1335.112029,
+      "threat_decisions": 621,
+      "decision_fpr": 0.884615
+     },
+     "armed_phases": {
+      "source": "artifacts/ardupilot/ap_benign_six_004/decisions.jsonl",
+      "alert_events": 34,
+      "decisions": 648,
+      "exposure_h": 0.036,
+      "false_alerts_per_h": 944.444444,
+      "false_alerts_per_h_upper95": 1257.378131,
+      "threat_decisions": 570,
+      "decision_fpr": 0.87963,
+      "note": "excludes boot / await_gps (pre-arm GPS convergence)"
+     }
+    }
+   },
+   "pooled": {
+    "all_phases": {
+     "source": "artifacts/ardupilot/{ap_benign_final_noml_001,ap_benign_final_noml_002,ap_benign_groups_001,ap_benign_six_001,ap_benign_six_002,ap_benign_six_003,ap_benign_six_004}/decisions.jsonl",
+     "alert_events": 211,
+     "decisions": 4793,
+     "exposure_h": 0.266278,
+     "false_alerts_per_h": 792.405591,
+     "false_alerts_per_h_upper95": 888.186502,
+     "threat_decisions": 3236,
+     "decision_fpr": 0.675151
+    },
+    "armed_phases": {
+     "source": "artifacts/ardupilot/{ap_benign_final_noml_001,ap_benign_final_noml_002,ap_benign_groups_001,ap_benign_six_001,ap_benign_six_002,ap_benign_six_003,ap_benign_six_004}/decisions.jsonl",
+     "alert_events": 171,
+     "decisions": 4416,
+     "exposure_h": 0.245333,
+     "false_alerts_per_h": 697.01087,
+     "false_alerts_per_h_upper95": 791.272147,
+     "threat_decisions": 2882,
+     "decision_fpr": 0.652627
+    }
+   }
+  },
+  "REPLAY": {
+   "benign_tlog_replay": [
+    {
+     "source": "artifacts/sitl/benign_replay_stage1_default.json",
+     "flight": "benign_001.tlog",
+     "decisions": 519,
+     "threat_decisions": 519,
+     "decision_fpr": 1.0
+    },
+    {
+     "source": "artifacts/sitl/benign_replay_stage1_default.json",
+     "flight": "benign_002.tlog",
+     "decisions": 537,
+     "threat_decisions": 537,
+     "decision_fpr": 1.0
+    },
+    {
+     "source": "artifacts/sitl/benign_replay_stage1_default.json",
+     "flight": "benign_003.tlog",
+     "decisions": 662,
+     "threat_decisions": 662,
+     "decision_fpr": 1.0
+    },
+    {
+     "source": "artifacts/sitl/benign_replay_stage1_default.json",
+     "flight": "benign_004.tlog",
+     "decisions": 449,
+     "threat_decisions": 449,
+     "decision_fpr": 1.0
+    },
+    {
+     "source": "artifacts/sitl/benign_replay_stage1_default.json",
+     "flight": "benign_005.tlog",
+     "decisions": 593,
+     "threat_decisions": 593,
+     "decision_fpr": 1.0
+    }
+   ],
+   "alfa": {
+    "source": "artifacts/external/alfa/results.json",
+    "decision_hours": 7.662555555555556,
+    "note": "decision-level only; see file"
+   }
+  },
+  "BENCH": {
+   "serial_ids_com7_001": {
+    "source": "artifacts/hardware/serial_ids_com7_001/summary.json",
+    "alert_events": 16,
+    "exposure_h": 0.016667,
+    "false_alerts_per_h": 960.0,
+    "false_alerts_per_h_upper95": 1458.071021,
+    "decisions": 301,
+    "threat_decisions": 297,
+    "decision_fpr": 0.986711,
+    "note": "props-off, disarmed bench FC on serial; exposure is wall time, not flight time"
+   },
+   "serial_ids_com7_002": {
+    "source": "artifacts/hardware/serial_ids_com7_002/summary.json",
+    "alert_events": 0,
+    "exposure_h": 0.016667,
+    "false_alerts_per_h": 0.0,
+    "false_alerts_per_h_upper95": 179.743936,
+    "decisions": 301,
+    "threat_decisions": 0,
+    "decision_fpr": 0.0,
+    "note": "props-off, disarmed bench FC on serial; exposure is wall time, not flight time"
+   }
+  }
+ },
+ "sessions": {
+  "detection": {
+   "combo:dos+telemetry_manipulation": {
+    "source": "artifacts/benchmarks_extended/sessions.csv",
+    "detected": 3,
+    "sessions": 3,
+    "rate": 1.0,
+    "wilson95": [
+     0.438503,
+     1.0
+    ],
+    "latency_from_onset_s": {
+     "n": 3,
+     "median": 0.0,
+     "p95": 0.0
+    }
+   },
+   "combo:gps_spoofing+command_injection": {
+    "source": "artifacts/benchmarks_extended/sessions.csv",
+    "detected": 3,
+    "sessions": 3,
+    "rate": 1.0,
+    "wilson95": [
+     0.438503,
+     1.0
+    ],
+    "latency_from_onset_s": {
+     "n": 3,
+     "median": 1.0,
+     "p95": 1.4
+    }
+   },
+   "combo:gps_spoofing+mavlink_anomaly": {
+    "source": "artifacts/benchmarks_extended/sessions.csv",
+    "detected": 3,
+    "sessions": 3,
+    "rate": 1.0,
+    "wilson95": [
+     0.438503,
+     1.0
+    ],
+    "latency_from_onset_s": {
+     "n": 3,
+     "median": 0.0,
+     "p95": 0.0
+    }
+   },
+   "combo:telemetry_manipulation+firmware_integrity": {
+    "source": "artifacts/benchmarks_extended/sessions.csv",
+    "detected": 3,
+    "sessions": 3,
+    "rate": 1.0,
+    "wilson95": [
+     0.438503,
+     1.0
+    ],
+    "latency_from_onset_s": {
+     "n": 3,
+     "median": 0.0,
+     "p95": 0.0
+    }
+   },
+   "command_injection": {
+    "source": "artifacts/benchmarks_extended/sessions.csv",
+    "detected": 12,
+    "sessions": 16,
+    "rate": 0.75,
+    "wilson95": [
+     0.505017,
+     0.898179
+    ],
+    "latency_from_onset_s": {
+     "n": 12,
+     "median": 0.2,
+     "p95": 0.4
+    }
+   },
+   "dos": {
+    "source": "artifacts/benchmarks_extended/sessions.csv",
+    "detected": 16,
+    "sessions": 16,
+    "rate": 1.0,
+    "wilson95": [
+     0.806392,
+     1.0
+    ],
+    "latency_from_onset_s": {
+     "n": 16,
+     "median": 0.0,
+     "p95": 0.8
+    }
+   },
+   "firmware_integrity": {
+    "source": "artifacts/benchmarks_extended/sessions.csv",
+    "detected": 4,
+    "sessions": 4,
+    "rate": 1.0,
+    "wilson95": [
+     0.510109,
+     1.0
+    ],
+    "latency_from_onset_s": {
+     "n": 4,
+     "median": 0.4,
+     "p95": 0.8
+    }
+   },
+   "gps_spoofing": {
+    "source": "artifacts/benchmarks_extended/sessions.csv",
+    "detected": 12,
+    "sessions": 12,
+    "rate": 1.0,
+    "wilson95": [
+     0.757506,
+     1.0
+    ],
+    "latency_from_onset_s": {
+     "n": 12,
+     "median": 0.4,
+     "p95": 1.2
+    }
+   },
+   "mavlink_anomaly": {
+    "source": "artifacts/benchmarks_extended/sessions.csv",
+    "detected": 16,
+    "sessions": 16,
+    "rate": 1.0,
+    "wilson95": [
+     0.806392,
+     1.0
+    ],
+    "latency_from_onset_s": {
+     "n": 16,
+     "median": 0.0,
+     "p95": 0.4
+    }
+   },
+   "telemetry_manipulation": {
+    "source": "artifacts/benchmarks_extended/sessions.csv",
+    "detected": 16,
+    "sessions": 16,
+    "rate": 1.0,
+    "wilson95": [
+     0.806392,
+     1.0
+    ],
+    "latency_from_onset_s": {
+     "n": 16,
+     "median": 0.0,
+     "p95": 18.8
+    }
+   }
+  },
+  "benign_session_fpr": {
+   "benign/any_threat_decision": {
+    "source": "artifacts/benchmarks_extended/sessions.csv",
+    "sessions_flagged": 4,
+    "sessions": 12,
+    "rate": 0.333333,
+    "wilson95": [
+     0.13812,
+     0.609378
+    ]
+   },
+   "benign/any_alert_event": {
+    "source": "artifacts/benchmarks_extended/decisions.csv.gz",
+    "sessions_flagged": 4,
+    "sessions": 12,
+    "rate": 0.333333,
+    "wilson95": [
+     0.13812,
+     0.609378
+    ]
+   },
+   "link_fifo_benign/any_threat_decision": {
+    "source": "artifacts/benchmarks_extended/sessions.csv",
+    "sessions_flagged": 6,
+    "sessions": 6,
+    "rate": 1.0,
+    "wilson95": [
+     0.609666,
+     1.0
+    ]
+   },
+   "link_fifo_benign/any_alert_event": {
+    "source": "artifacts/benchmarks_extended/decisions.csv.gz",
+    "sessions_flagged": 6,
+    "sessions": 6,
+    "rate": 1.0,
+    "wilson95": [
+     0.609666,
+     1.0
+    ]
+   },
+   "link_reorder_benign/any_threat_decision": {
+    "source": "artifacts/benchmarks_extended/sessions.csv",
+    "sessions_flagged": 6,
+    "sessions": 6,
+    "rate": 1.0,
+    "wilson95": [
+     0.609666,
+     1.0
+    ]
+   },
+   "link_reorder_benign/any_alert_event": {
+    "source": "artifacts/benchmarks_extended/decisions.csv.gz",
+    "sessions_flagged": 6,
+    "sessions": 6,
+    "rate": 1.0,
+    "wilson95": [
+     0.609666,
+     1.0
+    ]
+   }
+  }
+ },
+ "confusion_crosscheck_vs_results_json": {
+  "grace5": {
+   "recomputed": [
+    40852,
+    39
+   ],
+   "results_json": [
+    40852,
+    39
+   ],
+   "match": true
+  },
+  "grace0": {
+   "recomputed": [
+    42679,
+    470
+   ],
+   "results_json": [
+    42679,
+    470
+   ],
+   "match": true
+  }
+ },
+ "latency_crosscheck_vs_sessions_csv": {
+  "sessions_compared": 76,
+  "max_abs_diff_s": 0.0
+ },
+ "drift_latency": {
+  "sitl_ardupilot": {
+   "trials": [
+    {
+     "source": "artifacts/ardupilot/ap_attack_final_drift_001/evaluation.json",
+     "from_onset_s": 2.691,
+     "from_release_s": -22.309
+    },
+    {
+     "source": "artifacts/ardupilot/ap_attack_final_drift_002/evaluation.json",
+     "from_onset_s": 2.692,
+     "from_release_s": -22.308
+    },
+    {
+     "source": "artifacts/ardupilot/ap_attack_final_drift_003/evaluation.json",
+     "from_onset_s": 2.694,
+     "from_release_s": -22.306
+    }
+   ],
+   "from_onset": {
+    "n": 3,
+    "of": 3,
+    "median": 2.692,
+    "p95": 2.694
+   },
+   "from_release": {
+    "n": 3,
+    "of": 3,
+    "median": -22.308,
+    "p95": -22.306
+   }
+  },
+  "sitl_px4": {
+   "trials": [
+    {
+     "source": "artifacts/sitl/p2_final_trial_001.manifest.json",
+     "from_onset_s": 16.3,
+     "from_release_s": 0.9,
+     "note": "detection counted only after the attack window ends (preregistered P2 rule)"
+    },
+    {
+     "source": "artifacts/sitl/p2_final_trial_002.manifest.json",
+     "from_onset_s": 24.97,
+     "from_release_s": 1.04,
+     "note": "detection counted only after the attack window ends (preregistered P2 rule)"
+    },
+    {
+     "source": "artifacts/sitl/p2_final_trial_003.manifest.json",
+     "from_onset_s": 22.49,
+     "from_release_s": 1.07,
+     "note": "detection counted only after the attack window ends (preregistered P2 rule)"
+    }
+   ],
+   "from_onset": {
+    "n": 3,
+    "of": 3,
+    "median": 22.49,
+    "p95": 24.97
+   },
+   "from_release": {
+    "n": 3,
+    "of": 3,
+    "median": 1.04,
+    "p95": 1.07
+   }
+  }
+ },
+ "classification": {
+  "grace5": {
+   "source": "artifacts/benchmarks_extended/results.json#confusion_grace5",
+   "confusion": {
+    "BENIGN": {
+     "BENIGN": 40813,
+     "GPS_SPOOFING": 0,
+     "MAVLINK_ANOMALY": 0,
+     "COMMAND_INJECTION": 0,
+     "TELEMETRY_MANIPULATION": 39,
+     "DOS": 0,
+     "FIRMWARE_INTEGRITY": 0
+    },
+    "GPS_SPOOFING": {
+     "BENIGN": 449,
+     "GPS_SPOOFING": 871,
+     "MAVLINK_ANOMALY": 0,
+     "COMMAND_INJECTION": 0,
+     "TELEMETRY_MANIPULATION": 0,
+     "DOS": 0,
+     "FIRMWARE_INTEGRITY": 0
+    },
+    "MAVLINK_ANOMALY": {
+     "BENIGN": 5,
+     "GPS_SPOOFING": 30,
+     "MAVLINK_ANOMALY": 865,
+     "COMMAND_INJECTION": 0,
+     "TELEMETRY_MANIPULATION": 17,
+     "DOS": 835,
+     "FIRMWARE_INTEGRITY": 0
+    },
+    "COMMAND_INJECTION": {
+     "BENIGN": 503,
+     "GPS_SPOOFING": 0,
+     "MAVLINK_ANOMALY": 0,
+     "COMMAND_INJECTION": 1329,
+     "TELEMETRY_MANIPULATION": 0,
+     "DOS": 0,
+     "FIRMWARE_INTEGRITY": 0
+    },
+    "TELEMETRY_MANIPULATION": {
+     "BENIGN": 147,
+     "GPS_SPOOFING": 0,
+     "MAVLINK_ANOMALY": 0,
+     "COMMAND_INJECTION": 0,
+     "TELEMETRY_MANIPULATION": 1613,
+     "DOS": 0,
+     "FIRMWARE_INTEGRITY": 0
+    },
+    "DOS": {
+     "BENIGN": 19,
+     "GPS_SPOOFING": 96,
+     "MAVLINK_ANOMALY": 424,
+     "COMMAND_INJECTION": 0,
+     "TELEMETRY_MANIPULATION": 1,
+     "DOS": 1318,
+     "FIRMWARE_INTEGRITY": 0
+    },
+    "FIRMWARE_INTEGRITY": {
+     "BENIGN": 10,
+     "GPS_SPOOFING": 0,
+     "MAVLINK_ANOMALY": 0,
+     "COMMAND_INJECTION": 0,
+     "TELEMETRY_MANIPULATION": 0,
+     "DOS": 0,
+     "FIRMWARE_INTEGRITY": 1689
+    }
+   },
+   "per_class": {
+    "BENIGN": {
+     "precision": 0.972989,
+     "recall": 0.999045,
+     "f1": 0.985845,
+     "support": 40852,
+     "predicted": 41946,
+     "tp": 40813
+    },
+    "COMMAND_INJECTION": {
+     "precision": 1.0,
+     "recall": 0.725437,
+     "f1": 0.840873,
+     "support": 1832,
+     "predicted": 1329,
+     "tp": 1329
+    },
+    "DOS": {
+     "precision": 0.612169,
+     "recall": 0.709365,
+     "f1": 0.657193,
+     "support": 1858,
+     "predicted": 2153,
+     "tp": 1318
+    },
+    "FIRMWARE_INTEGRITY": {
+     "precision": 1.0,
+     "recall": 0.994114,
+     "f1": 0.997048,
+     "support": 1699,
+     "predicted": 1689,
+     "tp": 1689
+    },
+    "GPS_SPOOFING": {
+     "precision": 0.873621,
+     "recall": 0.659848,
+     "f1": 0.751834,
+     "support": 1320,
+     "predicted": 997,
+     "tp": 871
+    },
+    "MAVLINK_ANOMALY": {
+     "precision": 0.671063,
+     "recall": 0.493721,
+     "f1": 0.568892,
+     "support": 1752,
+     "predicted": 1289,
+     "tp": 865
+    },
+    "TELEMETRY_MANIPULATION": {
+     "precision": 0.965868,
+     "recall": 0.916477,
+     "f1": 0.940525,
+     "support": 1760,
+     "predicted": 1670,
+     "tp": 1613
+    }
+   },
+   "macro_f1": 0.820316,
+   "binary": {
+    "n": 51073,
+    "tp": 9088,
+    "fp": 39,
+    "tn": 40813,
+    "fn": 1133,
+    "accuracy": 0.977052,
+    "precision": 0.995727,
+    "recall": 0.88915,
+    "fpr": 0.000955,
+    "f1": 0.939425
+   },
+   "accuracy": 0.949582
+  },
+  "grace0": {
+   "source": "artifacts/benchmarks_extended/results.json#confusion_grace0",
+   "confusion": {
+    "BENIGN": {
+     "BENIGN": 42209,
+     "GPS_SPOOFING": 210,
+     "MAVLINK_ANOMALY": 7,
+     "COMMAND_INJECTION": 102,
+     "TELEMETRY_MANIPULATION": 55,
+     "DOS": 96,
+     "FIRMWARE_INTEGRITY": 0
+    },
+    "GPS_SPOOFING": {
+     "BENIGN": 449,
+     "GPS_SPOOFING": 871,
+     "MAVLINK_ANOMALY": 0,
+     "COMMAND_INJECTION": 0,
+     "TELEMETRY_MANIPULATION": 0,
+     "DOS": 0,
+     "FIRMWARE_INTEGRITY": 0
+    },
+    "MAVLINK_ANOMALY": {
+     "BENIGN": 5,
+     "GPS_SPOOFING": 30,
+     "MAVLINK_ANOMALY": 865,
+     "COMMAND_INJECTION": 0,
+     "TELEMETRY_MANIPULATION": 17,
+     "DOS": 835,
+     "FIRMWARE_INTEGRITY": 0
+    },
+    "COMMAND_INJECTION": {
+     "BENIGN": 503,
+     "GPS_SPOOFING": 0,
+     "MAVLINK_ANOMALY": 0,
+     "COMMAND_INJECTION": 1329,
+     "TELEMETRY_MANIPULATION": 0,
+     "DOS": 0,
+     "FIRMWARE_INTEGRITY": 0
+    },
+    "TELEMETRY_MANIPULATION": {
+     "BENIGN": 147,
+     "GPS_SPOOFING": 0,
+     "MAVLINK_ANOMALY": 0,
+     "COMMAND_INJECTION": 0,
+     "TELEMETRY_MANIPULATION": 1613,
+     "DOS": 0,
+     "FIRMWARE_INTEGRITY": 0
+    },
+    "DOS": {
+     "BENIGN": 19,
+     "GPS_SPOOFING": 96,
+     "MAVLINK_ANOMALY": 424,
+     "COMMAND_INJECTION": 0,
+     "TELEMETRY_MANIPULATION": 1,
+     "DOS": 1318,
+     "FIRMWARE_INTEGRITY": 0
+    },
+    "FIRMWARE_INTEGRITY": {
+     "BENIGN": 10,
+     "GPS_SPOOFING": 0,
+     "MAVLINK_ANOMALY": 0,
+     "COMMAND_INJECTION": 0,
+     "TELEMETRY_MANIPULATION": 0,
+     "DOS": 0,
+     "FIRMWARE_INTEGRITY": 1689
+    }
+   },
+   "per_class": {
+    "BENIGN": {
+     "precision": 0.973859,
+     "recall": 0.988988,
+     "f1": 0.981365,
+     "support": 42679,
+     "predicted": 43342,
+     "tp": 42209
+    },
+    "COMMAND_INJECTION": {
+     "precision": 0.928721,
+     "recall": 0.725437,
+     "f1": 0.814588,
+     "support": 1832,
+     "predicted": 1431,
+     "tp": 1329
+    },
+    "DOS": {
+     "precision": 0.586038,
+     "recall": 0.709365,
+     "f1": 0.641831,
+     "support": 1858,
+     "predicted": 2249,
+     "tp": 1318
+    },
+    "FIRMWARE_INTEGRITY": {
+     "precision": 1.0,
+     "recall": 0.994114,
+     "f1": 0.997048,
+     "support": 1699,
+     "predicted": 1689,
+     "tp": 1689
+    },
+    "GPS_SPOOFING": {
+     "precision": 0.721624,
+     "recall": 0.659848,
+     "f1": 0.689355,
+     "support": 1320,
+     "predicted": 1207,
+     "tp": 871
+    },
+    "MAVLINK_ANOMALY": {
+     "precision": 0.667438,
+     "recall": 0.493721,
+     "f1": 0.567585,
+     "support": 1752,
+     "predicted": 1296,
+     "tp": 865
+    },
+    "TELEMETRY_MANIPULATION": {
+     "precision": 0.956702,
+     "recall": 0.916477,
+     "f1": 0.936158,
+     "support": 1760,
+     "predicted": 1686,
+     "tp": 1613
+    }
+   },
+   "macro_f1": 0.80399,
+   "binary": {
+    "n": 52900,
+    "tp": 9088,
+    "fp": 470,
+    "tn": 42209,
+    "fn": 1133,
+    "accuracy": 0.969698,
+    "precision": 0.950827,
+    "recall": 0.88915,
+    "fpr": 0.011012,
+    "f1": 0.918954
+   },
+   "accuracy": 0.943176
+  }
+ },
+ "missing_inputs": [
+  {
+   "source": "SITL PX4 live_run_00*.summary.json",
+   "missing": "per-decision alert flags",
+   "effect": "no PX4 false alerts per hour"
+  },
+  {
+   "source": "REPLAY artifacts/sitl/benign_replay_stage1_default.json",
+   "missing": "per-decision alert flags",
+   "effect": "decision-level FPR only"
+  },
+  {
+   "source": "REPLAY artifacts/external/alfa/results.json",
+   "missing": "per-decision alert flags",
+   "effect": "decision-level only"
+  },
+  {
+   "source": "BENCH",
+   "missing": "any airborne exposure",
+   "effect": "bench rate is per wall hour on a disarmed FC"
+  },
+  {
+   "source": "REAL flight",
+   "missing": "everything",
+   "effect": "no real-flight figure exists; none is claimed"
+  }
+ ]
+}

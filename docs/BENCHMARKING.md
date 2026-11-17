@@ -105,6 +105,30 @@ Nothing is tuned against v2: production thresholds and the committed model are u
 After adding v2 the baseline grid was re-run and reproduced **bit-identically**
 (same TP/FP/TN/FN, confusion matrix, per-attack metrics and latencies).
 
+## Stage 2 metrics
+
+`python scripts/make_stage2_metrics.py --tag <date>` reads committed artifacts only and writes
+`artifacts/validation/stage2_metrics_<tag>/metrics.{json,md}`. Every figure names its source file,
+and sources that lack an input are listed under *Missing inputs* instead of being estimated.
+Definitions (code: `src/aegisflight/metrics/stage2.py`):
+
+- **Alert event**: a decision the fusion engine marks `is_alert` (a threat at SUSPICIOUS or
+  above, de-duplicated by the per-type cooldown `fusion.cooldown_s` while an alert is active).
+  Where an artifact logs only decisions, it is re-derived with the engine's rule; a unit test
+  checks the re-derivation against the engine.
+- **False alerts per flight hour**: alert events on benign ground truth / exposure, where exposure
+  is the scored decisions x 0.2 s (warm-up excluded from both). The bound is the exact one-sided
+  95% Poisson (Garwood) upper limit; 0 events in T h gives 2.996 / T. Decision-level FPR is
+  reported next to it.
+- **Grace**: shown with (5 s) and without. The 5 s after an attack stops is the recovery tail,
+  where detector state still reflects the attack; no-grace is the conservative figure.
+- **Session detection / session FPR**: proportions over sessions with Wilson 95% intervals.
+- **Latency**: from onset (first labelled attack decision) to first in-window threat, median and
+  nearest-rank p95 with n. For drift, it is also given from release (the attacker stops).
+- **Per-class precision / recall / F1, macro-F1** from the confusion matrix. A class that is
+  never predicted scores precision 0, not NaN. Accuracy is reported last, because the benign
+  majority dominates it.
+
 ## Interpreting the numbers
 - **GPS recall 0.954** is the detection-latency cost: the sliding-window residual
   takes ~1.4 s to cross threshold at onset; the missed decisions are those first
