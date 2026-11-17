@@ -228,6 +228,11 @@ class MavlinkFrameParser:
     reaching the detectors. If that source sends no valid signed frame for ``SIGNING_LAPSE_S`` (signing turned off on
     the flight controller, a reboot into an unsigned configuration) the exemption returns, so the detectors are not
     blinded; ``signing_lapses`` counts it.
+
+    Only a frame whose MAC truly verified counts as ``sig_valid`` and as evidence that its source signs, and only such a
+    frame may advance the per-stream anti-replay timestamp: a claimed signature with a bad MAC (accepted or not) changes
+    neither, so an attacker without the key can neither make genuine signed frames look old nor make an unsigned source
+    look like a signing one.
     """
 
     SIGNED_SOURCE_MIN = 20
@@ -362,14 +367,23 @@ class MavlinkFrameParser:
                     continue
                 name, fields = f"MSG_{msgid}", {}
             else:
+                # pymavlink's check_signature() stores the stream timestamp BEFORE it compares the MAC, so a frame whose
+                # MAC fails still advances it: one unauthenticated far-future frame would make every later genuine signed
+                # frame "old". Snapshot it and undo it below unless the MAC really verified (goodsig_count moved).
+                sig = self._mav.signing
+                skey = (frame[-13], sysid, compid) if self._verify and signed else None
+                prev_ts = sig.stream_timestamps.get(skey) if skey is not None else None
+                good0 = sig.goodsig_count
                 try:
                     self._cur_sysid, self._cur_compid, self._cur_signed, self._cur_t = sysid, compid, signed, recv_time
                     msg = self._mav.decode(bytearray(frame))
                     fields = msg.to_dict()
                     fields.pop("mavpackettype", None)
                     name = getattr(cls, "msgname", None) or msg.get_type()
-                    if self._verify and signed:
-                        st.sig_valid += 1  # decode() above already raised if the HMAC did not match
+                    if skey is not None and sig.goodsig_count > good0:
+                        # the MAC verified. A claimed signature that failed but was let through by the unsigned
+                        # allowlist (e.g. a garbage-MAC HEARTBEAT) is NOT a valid signature and never marks its source
+                        st.sig_valid += 1
                         self._note_signed(sysid, compid, recv_time)
                 except self._mav_error as exc:
                     if self._verify and str(exc) == "Invalid signature":
@@ -379,6 +393,12 @@ class MavlinkFrameParser:
                 except Exception:  # noqa: BLE001 - any other decode failure on a known id
                     st.bad_frames += 1
                     continue
+                finally:
+                    if skey is not None and sig.goodsig_count == good0:
+                        if prev_ts is None:
+                            sig.stream_timestamps.pop(skey, None)
+                        else:
+                            sig.stream_timestamps[skey] = prev_ts
             st.frames_received += 1
             out.append(MessageEnvelope(recv_time=recv_time, sysid=sysid, compid=compid,
                                        msgid=msgid, msgname=name, seq=seq, signed=signed,

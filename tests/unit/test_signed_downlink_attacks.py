@@ -1,0 +1,157 @@
+"""Unauthenticated frames must not change the analyser's signing state, and the unsigned-vehicle exemption is downlink-only.
+
+Regression tests for the security review of PR #39 (signed downlink). In-process only: no network, serial or hardware.
+Keys are generated per test and never printed.
+
+* F1: pymavlink's ``check_signature`` stores the stream timestamp BEFORE it compares the MAC. One bad-MAC frame with the
+  vehicle's (link_id, sysid, compid) and a far-future timestamp made every later genuine signed frame "old"; 10 s later the
+  unsigned-vehicle exemption returned and an unsigned forgery was ingested.
+* F2: a garbage-MAC HEARTBEAT (msgid 0, allowlisted unsigned) was counted as a valid signature and marked the vehicle as a
+  signer, so an unsigned vehicle's genuine telemetry was dropped from the detectors.
+* F3: one analyser tap serves both directions; an unsigned frame claiming the vehicle sysid that arrives from the GCS side was
+  ingested as vehicle telemetry under the exemption and reported nowhere.
+"""
+
+from __future__ import annotations
+
+import os
+import struct
+
+os.environ.setdefault("MAVLINK20", "1")
+
+from pymavlink.dialects.v20 import common as mv  # noqa: E402
+
+from aegisflight.mavlink.signing import x25_crc  # noqa: E402
+from aegisflight.sources.mavlink_live import MavlinkFrameParser  # noqa: E402
+
+VEHICLE = frozenset({1})
+
+
+class _Sink:
+    def __init__(self) -> None:
+        self.buf = b""
+
+    def write(self, data: bytes) -> None:
+        self.buf += bytes(data)
+
+
+def _enc(sysid: int, key: bytes | None = None, ts: int = 1, link: int = 0) -> tuple[mv.MAVLink, _Sink]:
+    sink = _Sink()
+    m = mv.MAVLink(sink, srcSystem=sysid, srcComponent=1)
+    if key is not None:
+        m.signing.secret_key = key
+        m.signing.sign_outgoing = True
+        m.signing.link_id = link
+        m.signing.timestamp = ts
+    return m, sink
+
+
+def _unsigned_gpi(sysid: int = 1, alt_mm: int = 50000) -> bytes:
+    m, s = _enc(sysid)
+    m.global_position_int_send(1000, 0, 0, alt_mm, alt_mm - 5000, 0, 0, 0, 0)
+    return s.buf
+
+
+def _unsigned_heartbeat(sysid: int = 1) -> bytes:
+    m, s = _enc(sysid)
+    m.heartbeat_send(2, 3, 0, 0, 0)
+    return s.buf
+
+
+def _unsigned_attitude(sysid: int = 1) -> bytes:
+    m, s = _enc(sysid)
+    m.attitude_send(1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    return s.buf
+
+
+def _signed_attitude_stream(n: int, key: bytes, ts0: int = 1_000_000) -> list[bytes]:
+    m, s = _enc(1, key=key, ts=ts0)
+    out = []
+    for k in range(n):
+        s.buf = b""
+        m.attitude_send(1000 + k, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        out.append(s.buf)
+    return out
+
+
+def _garbage_signed(frame_unsigned: bytes, link_id: int, ts: int) -> bytes:
+    """Signed flag set, CRC recomputed, then link_id + timestamp + a 6-byte GARBAGE MAC: what anyone without the key can send."""
+    buf = bytearray(frame_unsigned)
+    buf[2] |= 0x01
+    plen = buf[1]
+    msgid = buf[7] | buf[8] << 8 | buf[9] << 16
+    crc = x25_crc(bytes(buf[1 : 10 + plen]) + bytes([mv.mavlink_map[msgid].crc_extra]))
+    struct.pack_into("<H", buf, 10 + plen, crc)
+    return bytes(buf) + bytes([link_id]) + (ts & 0xFFFFFFFFFFFF).to_bytes(6, "little") + b"\x00" * 6
+
+
+def _names(p: MavlinkFrameParser, data: bytes, t: float) -> list[str]:
+    return [e.msgname for e in p.parse(data, t)]
+
+
+# --------------------------------------------------------------------------- F1
+
+
+def test_one_bad_mac_far_future_frame_neither_blinds_signed_telemetry_nor_reopens_the_exemption() -> None:
+    key = os.urandom(32)
+    p = MavlinkFrameParser(secret_key=key, unsigned_allowed_sysids=VEHICLE)
+    stream = _signed_attitude_stream(60, key)
+    t = 0.0
+    for f in stream[:25]:
+        t += 0.1
+        assert _names(p, f, t) == ["ATTITUDE"]
+    # vehicle sysid / compid / link_id (visible on air), timestamp 2^48-1, garbage MAC: no key needed
+    t += 0.1
+    _names(p, _garbage_signed(_unsigned_attitude(1), link_id=0, ts=(1 << 48) - 1), t)
+    after = 0
+    for f in stream[25:]:
+        t += 0.1
+        after += len(_names(p, f, t))
+    assert after == 35, "the bad-MAC frame advanced the stream timestamp: genuine signed frames now look old"
+    assert p.stats.sig_valid == 60
+    # 10.5 s after the poison the vehicle is still signing, so an unsigned frame claiming its sysid is a forgery
+    assert _names(p, _unsigned_gpi(1, 90000), 2.6 + 10.5) == []
+    assert p.signing_lapses == 0
+
+
+def test_a_bad_mac_frame_cannot_open_a_stream_ahead_of_the_genuine_one() -> None:
+    key = os.urandom(32)
+    p = MavlinkFrameParser(secret_key=key, unsigned_allowed_sysids=VEHICLE)
+    _names(p, _garbage_signed(_unsigned_attitude(1), link_id=0, ts=(1 << 48) - 1), 0.0)  # before any genuine frame
+    accepted = sum(len(_names(p, f, 0.1 * (i + 1))) for i, f in enumerate(_signed_attitude_stream(10, key)))
+    assert accepted == 10
+    assert p.stats.sig_valid == 10
+
+
+# --------------------------------------------------------------------------- F2
+
+
+def test_garbage_mac_heartbeats_never_count_as_valid_signatures_or_mark_the_vehicle_as_signing() -> None:
+    key = os.urandom(32)
+    p = MavlinkFrameParser(secret_key=key, unsigned_allowed_sysids=VEHICLE)
+    t = 0.0
+    assert _names(p, _unsigned_gpi(1, 10000), t) == ["GLOBAL_POSITION_INT"]  # an unsigned vehicle (ArduPilot over USB)
+    for k in range(20):
+        t += 0.1
+        _names(p, _garbage_signed(_unsigned_heartbeat(1), link_id=7, ts=10 + k), t)
+    t += 0.1
+    assert _names(p, _unsigned_gpi(1, 10000), t) == ["GLOBAL_POSITION_INT"]
+    kept = []
+    for k in range(5):  # one fake heartbeat every 9 s must not keep the vehicle's telemetry out either
+        t += 9.0
+        _names(p, _garbage_signed(_unsigned_heartbeat(1), link_id=7, ts=1000 + k), t)
+        kept += _names(p, _unsigned_gpi(1, 10000), t + 0.05)
+    assert kept == ["GLOBAL_POSITION_INT"] * 5
+    assert p.stats.sig_valid == 0
+
+
+def test_a_replayed_signed_heartbeat_is_not_a_valid_signature_either() -> None:
+    """A genuinely signed but replayed (old timestamp) allowlisted frame passes as unsigned; it is not a valid signature."""
+    key = os.urandom(32)
+    p = MavlinkFrameParser(secret_key=key)
+    m, s = _enc(1, key=key, ts=5_000_000)
+    m.heartbeat_send(2, 3, 0, 0, 0)
+    hb = s.buf
+    assert _names(p, hb, 0.0) == ["HEARTBEAT"] and p.stats.sig_valid == 1
+    assert _names(p, hb, 0.1) == ["HEARTBEAT"]  # PX4 allowlist: still parseable ...
+    assert p.stats.sig_valid == 1  # ... but not counted as a second valid signature
