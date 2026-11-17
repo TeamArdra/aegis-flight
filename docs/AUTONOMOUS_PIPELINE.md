@@ -231,8 +231,14 @@ Two entry points, one gate (`claude-remediate.yml`):
    the current head.
 
 Bounds and loop analysis:
-- Never for: escalated PRs, drafts, forks, P3, Plausible-only findings, a head that already
-  got an automatic request, or when a remediation run is active.
+- Never for: escalated PRs, drafts, forks, P3, Plausible-only findings, or when a remediation
+  run is active. Per head SHA the App posts at most `max_auto_requests_per_head` (2)
+  requests, and a second one only after a **newer** review of that head (so a remediation run
+  that failed for infrastructure reasons does not stall the head; duplicate events for one
+  review never re-post). Requests written by anyone else neither count nor block.
+- The remediation job provisions bubblewrap and verifies a sandbox before Claude starts:
+  Claude Code refuses to run with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` without it (remediation
+  run 44033857812). It fails closed instead of disabling isolation.
 - Cycle limit `CLAUDE_MAX_REMEDIATION_CYCLES` (default 2), counted from markers that only the
   remediation workflow token posts; user-written markers do not count.
 - Remediation verifies each finding before changing code (AGENTS.md §9), adds regression
@@ -240,8 +246,8 @@ Bounds and loop analysis:
   `scripts/aegis_automation/**`, `tests/automation/**`, `AGENTS.md`, `CLAUDE.md`, `models/`,
   `artifacts/`; cannot merge, approve, force-push or call `gh api`.
 - Its push triggers CI and a fresh, independent review; that review's completion triggers the
-  orchestrator again. Each step is bounded: ≤ `max_cycles` remediations, ≤ 1 automatic request
-  per head SHA, ≤ `max_review_attempts` (2) runs per review.
+  orchestrator again. Each step is bounded: ≤ `max_cycles` remediations, ≤ 2 automatic
+  requests per head SHA, ≤ `max_review_attempts` (2) runs per review.
 - Recursion guards: the orchestrator ignores runs triggered by `push` (the post-merge CI on
   `main`), runs of workflows at other paths, bot comments (`issue_comment` requires a `User`),
   and its own approval/merge events (it does not listen to `pull_request_review`/`push`).

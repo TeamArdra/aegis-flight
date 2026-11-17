@@ -194,6 +194,30 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         run: python -m pip install -e ".[dev]"
 
+      # The Claude step sets CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1, and Claude Code then refuses to
+      # start without bubblewrap. claude-code-action provisions it only when
+      # `allowed_non_write_users` is set (not our case), so provision it here, mirroring the
+      # action's own step: bubblewrap + socat, and lift Ubuntu 24.04's AppArmor restriction on
+      # unprivileged user namespaces on this ephemeral runner. Fail closed: never run
+      # remediation without subprocess isolation, never fall back to SCRUB=0.
+      - name: Provision subprocess isolation (bubblewrap)
+        if: steps.gate.outputs.proceed == 'true'
+        run: |
+          set -uo pipefail
+          for i in 1 2 3; do
+            sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat && break
+            echo "apt-get attempt $i failed; retrying"
+            sleep 5
+          done
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          if ! bwrap --ro-bind / / --dev /dev --proc /proc --unshare-all --die-with-parent true; then
+            echo "::error::bubblewrap cannot create a sandbox; refusing to run remediation without subprocess isolation"
+            exit 1
+          fi
+          echo "Subprocess isolation ready: $(bwrap --version)"
+
       - name: Claude remediation
         if: steps.gate.outputs.proceed == 'true'
         uses: anthropics/claude-code-action@d1f58ad5e6f4d2b79547e63e37c2116064135896 # v1.0.277

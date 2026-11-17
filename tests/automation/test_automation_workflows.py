@@ -128,6 +128,30 @@ def test_remediation_cannot_touch_automation_and_verifies_bot_requests():
     assert action["with"]["allowed_bots"] == "${{ vars.AEGIS_MERGE_APP_SLUG }}"
 
 
+@pytest.mark.parametrize("path", WORKFLOWS, ids=lambda p: p.name)
+def test_subprocess_scrubbing_is_provisioned_and_never_disabled(path):
+    """Claude Code with CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 refuses to start without bubblewrap
+    (remediation run 44033857812). claude-code-action only installs it when
+    allowed_non_write_users is set, so the job must provision and verify it itself."""
+    text = path.read_text(encoding="utf-8")
+    assert not re.search(r"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB:\s*[\"']?0", text), "isolation disabled"
+    for name, job in load(path)["jobs"].items():
+        job_steps = job.get("steps", [])
+        for i, step in enumerate(job_steps):
+            if str((step.get("env") or {}).get("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB")) != "1":
+                continue
+            before = " ".join(s.get("run", "") for s in job_steps[:i])
+            assert "apt-get install" in before and "bubblewrap" in before, f"{path.name}:{name}"
+            assert "bwrap --ro-bind / /" in before and "--unshare-all" in before, f"{path.name}:{name}"
+            assert "exit 1" in before, f"{path.name}:{name}: must fail closed"
+
+
+def test_remediation_provisions_isolation_only_after_the_gate():
+    job = load(WF_DIR / "claude-remediate.yml")["jobs"]["remediate"]
+    step = next(s for s in job["steps"] if s.get("name") == "Provision subprocess isolation (bubblewrap)")
+    assert step["if"] == "steps.gate.outputs.proceed == 'true'"
+
+
 def test_remediation_marker_and_cycle_marker_are_consistent_with_policy():
     text = (WF_DIR / "claude-remediate.yml").read_text(encoding="utf-8")
     assert policy().cycle_marker in text

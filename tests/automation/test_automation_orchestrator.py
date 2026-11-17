@@ -164,6 +164,42 @@ def test_auto_remediation_is_bounded(change, why):
     assert ids == [] and why in reason
 
 
+def _auto_request(cid, created_at, login=APP_LOGIN):
+    return comment(cid, login, f"@claude fix R1\n<!-- aegis-auto-remediation sha={HEAD} findings=R1 -->",
+                   user_type="Bot" if login.endswith("[bot]") else "User", created_at=created_at)
+
+
+def test_newer_review_after_a_failed_attempt_allows_one_more_request():
+    """A remediation run that failed (e.g. infrastructure) must not stall the head forever."""
+    sc = blocking_scenario()
+    sc.comments.append(_auto_request(9, "2026-11-17T01:00:00Z"))   # before the record (01:10)
+    sc.comments.append(comment(10, "github-actions[bot]", "<!-- aegis-remediation-cycle -->",
+                               user_type="Bot", created_at="2026-11-17T01:00:05Z"))
+    ids, reason = orch.decide_auto_remediation(evaluated(sc), policy(), settings())
+    assert ids == ["R1"] and "cycle 2 of 2" in reason
+
+
+def test_same_review_never_triggers_a_second_request():
+    sc = blocking_scenario()
+    sc.comments.append(_auto_request(9, "2026-11-17T01:20:00Z"))   # after the record (01:10)
+    ids, reason = orch.decide_auto_remediation(evaluated(sc), policy(), settings(max_cycles=5))
+    assert ids == [] and "this review" in reason
+
+
+def test_requests_per_head_are_bounded():
+    sc = blocking_scenario()
+    sc.comments += [_auto_request(9, "2026-11-17T00:10:00Z"), _auto_request(10, "2026-11-17T00:20:00Z")]
+    ids, reason = orch.decide_auto_remediation(evaluated(sc), policy(), settings(max_cycles=5))
+    assert ids == [] and "limit 2" in reason
+
+
+def test_user_written_markers_neither_count_nor_block():
+    sc = blocking_scenario()
+    sc.comments += [_auto_request(i, "2026-11-17T01:20:00Z", login="alice") for i in range(3)]
+    ids, _ = orch.decide_auto_remediation(evaluated(sc), policy(), settings())
+    assert ids == ["R1"]
+
+
 def test_remediation_request_body_matches_the_remediate_trigger():
     body = orch.remediation_request_body(["R1", "R2"], HEAD, "cycle 1 of 2", policy())
     assert body.startswith("@claude fix ")

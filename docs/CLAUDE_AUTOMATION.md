@@ -109,8 +109,14 @@ do nothing (general GitHub chat is disabled for cost).
 
 **Automatic requests** (`AEGIS_AUTOREMEDIATE=on` only): the merge orchestrator posts, as the
 merge App, `@claude fix the verified findings R1, R2 …` with a marker naming the head SHA, for
-Confirmed P0–P2 findings of a verified review of a non-escalated PR, at most once per head
+Confirmed P0–P2 findings of a verified review of a non-escalated PR, at most twice per head
+and the second time only after a newer review of it
 ([`AUTONOMOUS_PIPELINE.md`](AUTONOMOUS_PIPELINE.md) §7).
+
+**Subprocess isolation**: the Claude step runs with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which
+makes Claude Code require bubblewrap. The job installs `bubblewrap`/`socat`, allows
+unprivileged user namespaces on the ephemeral runner and checks that `bwrap` can create a
+sandbox before Claude starts; if not, the run fails (isolation is never switched off).
 
 **Gate** (shell, before any model call; each refusal is posted on the PR):
 1. Commenter is a human with `write`/`maintain`/`admin` (checked via the API, not just
