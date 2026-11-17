@@ -16,6 +16,7 @@ import argparse
 import csv
 import gzip
 import json
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -43,6 +44,22 @@ BENCH_MANIFEST = {"artifacts/hardware/gps_hw_verify_20261029/live_capture": "art
 PX4_P2 = ["artifacts/sitl/p2_final_trial_001", "artifacts/sitl/p2_final_trial_002", "artifacts/sitl/p2_final_trial_003"]
 REPLAY_TLOG = "artifacts/sitl/benign_replay_stage1_default.json"
 ALFA = "artifacts/external/alfa/results.json"
+NR = "not recorded"
+# BENCH runs whose summary.json records no commit: what the bench write-up / runner docstring say about them
+BENCH_NOTES = {
+    "artifacts/hardware/serial_ids_com7_001": (
+        "different code and policy from serial_ids_com7_002, not run-to-run variation: run 2026-10-14, before the "
+        "2026-10-15 no-GPS policy (a link without GLOBAL_POSITION_INT was reported as a threat; "
+        "scripts/hardware/run_serial_ids.py docstring), on 6b21d1f plus uncommitted detectors/protocol.py and "
+        "features/extractor.py changes (docs/HARDWARE_BENCH_PIXHAWK6X.md section 6.8)"),
+    "artifacts/hardware/serial_ids_com7_002": ("run 2026-10-25 (started_utc), after the 2026-10-15 no-GPS policy date; "
+                                               "its code commit is not recorded"),
+}
+SNAPSHOT = ("Every figure describes the code that produced its source artifact (per-source commit, config, ML state and "
+            "date under provenance), not the tree this file was generated on. Those runs predate later changes to the "
+            "live source and detectors (e.g. PR #39): this is a dated snapshot of committed evidence.")
+MIXED = ("WARNING: pools ML-on and ML-off runs recorded at different commits; it describes no single detector "
+         "configuration. Use the per-group pools")
 
 
 class MissingInputError(FileNotFoundError):
@@ -54,10 +71,15 @@ def required_inputs() -> list[str]:
     return ([f"{EXT}/{f}" for f in ("decisions.csv.gz", "sessions.csv", "results.json")]
             + [f"artifacts/ardupilot/{d}/decisions.jsonl" for d in AP_BENIGN]
             + [f"artifacts/ardupilot/{d}/evaluation.json" for d in AP_DRIFT]
-            + PX4_LIVE
+            + [f"artifacts/ardupilot/{d}/{f}" for d in AP_BENIGN + AP_DRIFT for f in ("manifest.json", "summary.json")]
+            + PX4_LIVE + [px4_summary(p) for p in PX4_LIVE]
             + [f"{d}{ext}" for d in PX4_P2 for ext in (".manifest.json", ".ids_decisions.jsonl")]
             + [f"{d}/summary.json" for d in BENCH] + list(BENCH_MANIFEST.values())
             + [REPLAY_TLOG, ALFA])
+
+
+def px4_summary(p: str) -> str:
+    return p.removesuffix(".jsonl") + ".summary.json"
 
 
 def check_inputs(root: Path) -> None:
@@ -68,6 +90,64 @@ def check_inputs(root: Path) -> None:
 
 def r6(x):
     return None if x is None else round(float(x), 6)
+
+
+def _prov(commit=NR, dirty=NR, config=NR, ml=NR, utc=NR, utc_field=NR, note=None, **extra) -> dict:
+    out = {"commit": commit, "working_tree_dirty": dirty, "config": config, "ml": ml, "utc": utc, "utc_field": utc_field}
+    out.update(extra)
+    if note:
+        out["note"] = note
+    return out
+
+
+def provenance(root: Path) -> dict:
+    """What each source's own committed metadata records about the code, config and ML state that produced it.
+    An absent value is "not recorded"; nothing is inferred."""
+    def rd(p: str) -> dict:
+        return json.loads((root / p).read_text())
+
+    j = rd(f"{EXT}/results.json")["config"]
+    out = {EXT: _prov(ml=j["model_used"], note=f"results.json records python {j.get('python', NR)} and the grid only")}
+    for d in AP_BENIGN + AP_DRIFT:
+        pv, sm = rd(f"artifacts/ardupilot/{d}/manifest.json")["provenance"], rd(f"artifacts/ardupilot/{d}/summary.json")
+        out[f"artifacts/ardupilot/{d}"] = _prov(pv["aegisflight_commit"], pv["working_tree_dirty"],
+                                                f"{sm['config_dir']}; configs_sha256 {pv['configs_sha256']}",
+                                                sm["ml_enabled"], pv["collected_utc"], "provenance.collected_utc",
+                                                stream_config=sm["stream_config"])
+    for p in PX4_LIVE:
+        sm = rd(px4_summary(p))
+        pv = sm["provenance"]
+        out[p] = _prov(pv["aegisflight_commit"], pv["working_tree_dirty"], f"configs_sha256 {pv['configs_sha256']}",
+                       sm["ml_enabled"], sm["started_utc"], "started_utc", note=pv.get("note"))
+    for d in PX4_P2:
+        man = rd(f"{d}.manifest.json")
+        pv, par = man["full_provenance"], man["parameters"]
+        out[f"{d}.manifest.json"] = _prov(pv["aegisflight_commit"], pv["working_tree_dirty"],
+                                          f"{par['detector_profile']}; configs_sha256 {pv['configs_sha256']}",
+                                          f"model_choice {par['model_choice']}", pv["collected_utc"],
+                                          "full_provenance.collected_utc")
+    for d in BENCH:
+        sm = rd(f"{d}/summary.json")
+        if d in BENCH_MANIFEST:
+            pv = rd(BENCH_MANIFEST[d])["provenance"]
+            out[d] = _prov(pv["git_head"], pv["working_tree_at_capture"],
+                           f"{sm['config_dir']}; configs/detector.yaml sha256 {pv['config_detector_yaml_sha256']}",
+                           sm["ml_enabled"], sm["started_utc"], "started_utc")
+        else:
+            out[d] = _prov(config=sm["config_dir"], ml=sm["ml_enabled"], utc=sm["started_utc"], utc_field="started_utc",
+                           note="commit not in summary.json; see the BENCH row note" if d in BENCH_NOTES else None)
+    r = rd(REPLAY_TLOG)
+    out[REPLAY_TLOG] = _prov(ml=r["ml_enabled"], note=f"model {r['model']}")
+    a = rd(ALFA)
+    out[ALFA] = _prov(note=f"experiment: {a['experiment']}; python {a.get('python', NR)}")
+    return out
+
+
+def snapshot(prov: dict) -> dict:
+    dates = sorted(v["utc"][:10] for v in prov.values() if v["utc"] != NR)
+    return {"note": SNAPSHOT, "recorded_dates": [dates[0], dates[-1]] if dates else None,
+            "sources_without_commit": [k for k, v in prov.items() if v["commit"] == NR],
+            "sources_without_date": [k for k, v in prov.items() if v["utc"] == NR]}
 
 
 def rate_block(events: int, decisions: int, threats: int, src: str, note: str = "") -> dict:
@@ -188,7 +268,7 @@ def drift_latency(root: Path) -> dict:
             "sitl_px4": {"trials": px, "from_onset": summ(px, "from_onset_s"), "from_release": summ(px, "from_release_s")}}
 
 
-def sitl_benign(root: Path) -> dict:
+def sitl_benign(root: Path, prov: dict) -> dict:
     out = {}
     for d in AP_BENIGN:
         p = f"artifacts/ardupilot/{d}/decisions.jsonl"
@@ -198,12 +278,24 @@ def sitl_benign(root: Path) -> dict:
         out[d] = {"all_phases": rate_block(sum(r["alert"] for r in rs), len(rs), sum(r["threat"] for r in rs), p),
                   "armed_phases": rate_block(sum(r["alert"] for r in fl), len(fl), sum(r["threat"] for r in fl), p,
                                              "excludes boot / await_gps (pre-arm GPS convergence)")}
-    tot = {}
-    for part in ("all_phases", "armed_phases"):
-        ev = sum(v[part]["alert_events"] for v in out.values())
-        n = sum(v[part]["decisions"] for v in out.values())
-        th = sum(v[part]["threat_decisions"] for v in out.values())
-        tot[part] = rate_block(ev, n, th, "artifacts/ardupilot/{" + ",".join(AP_BENIGN) + "}/decisions.jsonl")
+    def pool(runs: list[str], note: str = "") -> dict:
+        res: dict = {"runs": runs,
+                     "stream_configs": sorted({prov[f"artifacts/ardupilot/{d}"]["stream_config"] for d in runs})}
+        for part in ("all_phases", "armed_phases"):
+            ev = sum(out[d][part]["alert_events"] for d in runs)
+            n = sum(out[d][part]["decisions"] for d in runs)
+            th = sum(out[d][part]["threat_decisions"] for d in runs)
+            res[part] = rate_block(ev, n, th, "artifacts/ardupilot/{" + ",".join(runs) + "}/decisions.jsonl", note)
+        return res
+
+    groups: dict = defaultdict(list)             # pool only like with like: same ML state and same recorded commit
+    for d in AP_BENIGN:
+        pv = prov[f"artifacts/ardupilot/{d}"]
+        groups[(pv["ml"], pv["commit"])].append(d)
+    label = {True: "on", False: "off"}
+    tot = {f"ml_{label.get(ml, 'unknown')}@{str(c)[:7]}": pool(runs) for (ml, c), runs in sorted(groups.items(), key=str)}
+    if len(groups) > 1:
+        tot["all_runs_mixed"] = pool(AP_BENIGN, MIXED)
     return {"runs": out, "pooled": tot}
 
 
@@ -240,6 +332,8 @@ def bench(root: Path) -> dict:
             "decision_fpr": r6(s["threat_decisions"] / s["decisions"]),
             "environment": env, "claim_class": claim, "claim_class_source": cs,
             "alert_events_from": "summary.json alert_decisions (engine is_alert count, not re-derived); exposure = wall_s"}
+        if d in BENCH_NOTES:
+            out[d.removeprefix("artifacts/hardware/")]["note"] = BENCH_NOTES[d]
     return out
 
 
@@ -292,12 +386,15 @@ def build(root: Path) -> dict:
     check_inputs(root)
     rows, sess = load_sim(root)
     sim = sim_false_alerts(rows, sess)
+    prov = provenance(root)
     return {
         "schema": "aegisflight.stage2_metrics/1",
         "definitions": "src/aegisflight/metrics/stage2.py; docs/BENCHMARKING.md#stage-2-metrics",
         "decision_period_s": PERIOD_S,
         "claim_class": CLAIM, "claim_class_bench": CLAIM_BENCH,
-        "false_alerts_per_hour": {"SIM": sim, "SITL_ardupilot": sitl_benign(root), "SITL_px4_live": px4_live(root),
+        "snapshot": snapshot(prov),
+        "provenance": prov,
+        "false_alerts_per_hour": {"SIM": sim, "SITL_ardupilot": sitl_benign(root, prov), "SITL_px4_live": px4_live(root),
                                   "REPLAY": replay(root), "BENCH": bench(root)},
         "sessions": sim_sessions(rows, sess),
         "confusion_crosscheck_vs_results_json": confusion_crosscheck(sim, root),
@@ -312,11 +409,24 @@ def fmt(x):
     return "-" if x is None else (f"{x:.4g}" if isinstance(x, float) else str(x))
 
 
+def short(x) -> str:
+    """Shorten hex digests in a markdown cell (the JSON keeps them whole)."""
+    return re.sub(r"\b([0-9a-f]{12})[0-9a-f]{28,52}\b", r"\1...", str(x))
+
+
 def to_md(r: dict) -> str:
+    sn = r["snapshot"]
     L = ["# Stage 2 metrics", "", f"Definitions: `{r['definitions']}`. Decision period {r['decision_period_s']} s.", "",
          f"**Claim class (every SIM / SITL / REPLAY figure): {r['claim_class']}.** "
          "BENCH: claim class and environment per run, listed under the table. No figure here is real-flight evidence.", "",
-         "## 1. False alerts per hour (alert events after cooldown, benign ground truth)", "",
+         f"**Dated snapshot.** {sn['note']} Recorded source dates: {sn['recorded_dates'][0]} to {sn['recorded_dates'][1]}. "
+         "No recorded commit: " + ", ".join(f"`{k}`" for k in sn["sources_without_commit"]) + ". "
+         "No recorded date: " + ", ".join(f"`{k}`" for k in sn["sources_without_date"]) + ".", "",
+         "## 0. Provenance per source (as each source's own metadata records it; \"not recorded\" = absent)", "",
+         "| source | commit | dirty tree | config | ML | UTC (field) | note |", "|---|---|---|---|---|---|---|"]
+    L += [f"| `{k}` | {short(v['commit'])} | {v['working_tree_dirty']} | {short(v['config'])} | {v['ml']} | "
+          f"{v['utc']} ({v['utc_field']}) | {v.get('note', '')} |" for k, v in r["provenance"].items()]
+    L += ["", "## 1. False alerts per hour (alert events after cooldown, benign ground truth)", "",
          "| source | set | events | exposure h | per h | 95% upper | decision FPR | artifact |", "|---|---|---|---|---|---|---|---|"]
 
     def row(src, name, b):
@@ -328,15 +438,20 @@ def to_md(r: dict) -> str:
     for k, b in fa["SITL_ardupilot"]["runs"].items():
         row("SITL", f"{k} all", b["all_phases"])
         row("SITL", f"{k} armed", b["armed_phases"])
-    for k, b in fa["SITL_ardupilot"]["pooled"].items():
-        row("SITL", f"pooled {k}", b)
+    for k, g in fa["SITL_ardupilot"]["pooled"].items():
+        for part in ("all_phases", "armed_phases"):
+            row("SITL", f"pooled {k} ({len(g['runs'])} runs) {part}", g[part])
     for k, b in fa["SITL_px4_live"].items():
         row("SITL-PX4", k, b)
     for k, b in fa["BENCH"].items():
         row("BENCH", k, b)
+    L += ["", "SITL ArduPilot pools (runs grouped by recorded ML state and commit, see section 0):", ""]
+    L += [f"- {k}: {', '.join(g['runs'])}; stream configs {', '.join(g['stream_configs'])}"
+          + (f". {g['all_phases']['note']}" if g["all_phases"].get("note") else "") + "."
+          for k, g in fa["SITL_ardupilot"]["pooled"].items()]
     L += ["", "BENCH runs (environment; claim class; source of that statement):", ""]
     L += [f"- {k}: {b['environment']}; {b['claim_class']} (`{b['claim_class_source']}`). Events: {b['alert_events_from']}."
-          for k, b in fa["BENCH"].items()]
+          + (f" Note: {b['note']}." if b.get("note") else "") for k, b in fa["BENCH"].items()]
     L += ["", "REPLAY (decision level only, no alert flags logged):", ""]
     L += [f"- {x['flight']}: decision FPR {fmt(x['decision_fpr'])} ({x['threat_decisions']}/{x['decisions']}), `{x['source']}`"
           for x in fa["REPLAY"]["benign_tlog_replay"]]

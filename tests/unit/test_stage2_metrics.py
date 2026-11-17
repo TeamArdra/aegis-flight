@@ -297,3 +297,52 @@ def test_reported_macro_f1_and_accuracy_match_the_repo_definitions(g):
     j = json.loads((root / "artifacts" / "benchmarks_extended" / "results.json").read_text())
     assert c["accuracy_binary_matches_results_json"] and c["accuracy_binary"] == round(j[f"binary_{g}"]["accuracy"], 6)
     assert c["accuracy_multiclass"] < c["accuracy_binary"]
+
+
+def test_provenance_is_copied_from_each_sources_own_metadata():
+    """F12 / F7 (#48 audit): per-source commit, config, ML state and date are what the source recorded; an absent value
+    is "not recorded", never inferred."""
+    import json
+
+    root, g = _generator()
+    prov = g.provenance(root)
+    assert set(prov) >= {f"artifacts/ardupilot/{d}" for d in g.AP_BENIGN + g.AP_DRIFT} | set(g.PX4_LIVE) | set(g.BENCH)
+    for d in g.AP_BENIGN + g.AP_DRIFT:
+        man = json.loads((root / "artifacts" / "ardupilot" / d / "manifest.json").read_text())["provenance"]
+        sm = json.loads((root / "artifacts" / "ardupilot" / d / "summary.json").read_text())
+        v = prov[f"artifacts/ardupilot/{d}"]
+        assert (v["commit"], v["working_tree_dirty"], v["ml"], v["utc"]) == (
+            man["aegisflight_commit"], man["working_tree_dirty"], sm["ml_enabled"], man["collected_utc"])
+    for p in g.PX4_LIVE:
+        pv = json.loads((root / g.px4_summary(p)).read_text())["provenance"]
+        assert prov[p]["commit"] == pv["aegisflight_commit"] and prov[p].get("note") == pv.get("note")
+    for d in ("artifacts/hardware/serial_ids_com7_001", "artifacts/hardware/serial_ids_com7_002"):
+        assert prov[d]["commit"] == g.NR                              # summary.json records none: not invented
+    assert all(x is not None for v in prov.values() for x in v.values())
+    snap = g.snapshot(prov)
+    assert "dated snapshot" in snap["note"] and g.EXT in snap["sources_without_commit"]
+
+
+def test_ardupilot_pools_only_like_with_like():
+    """F4 (#48 audit): ML-on and ML-off runs from different commits are pooled per group; the all-runs pool, kept for
+    comparison, carries an explicit warning."""
+    root, g = _generator()
+    prov = g.provenance(root)
+    pools = g.sitl_benign(root, prov)["pooled"]
+    for name, pool in pools.items():
+        keys = {(prov[f"artifacts/ardupilot/{d}"]["ml"], prov[f"artifacts/ardupilot/{d}"]["commit"]) for d in pool["runs"]}
+        if name == "all_runs_mixed":
+            assert len(keys) > 1 and pool["all_phases"]["note"].startswith("WARNING")
+        else:
+            assert len(keys) == 1 and "note" not in pool["all_phases"]
+    groups = [p for n, p in pools.items() if n != "all_runs_mixed"]
+    assert sorted(d for p in groups for d in p["runs"]) == sorted(g.AP_BENIGN)
+    for part in ("all_phases", "armed_phases"):
+        assert sum(p[part]["alert_events"] for p in groups) == pools["all_runs_mixed"][part]["alert_events"]
+
+
+def test_bench_runs_of_different_code_and_policy_are_annotated():
+    """F6 (#48 audit): run 001 (pre-2026-10-15 no-GPS policy, uncommitted changes) is not comparable with run 002."""
+    root, g = _generator()
+    b = g.bench(root)
+    assert "not run-to-run variation" in b["serial_ids_com7_001"]["note"] and "2026-10-15" in b["serial_ids_com7_002"]["note"]

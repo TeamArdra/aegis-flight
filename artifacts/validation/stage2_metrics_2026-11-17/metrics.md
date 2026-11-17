@@ -4,6 +4,34 @@ Definitions: `src/aegisflight/metrics/stage2.py; docs/BENCHMARKING.md#stage-2-me
 
 **Claim class (every SIM / SITL / REPLAY figure): link-level detection (false-alarm reference); not flight-hour or real-world validation.** BENCH: claim class and environment per run, listed under the table. No figure here is real-flight evidence.
 
+**Dated snapshot.** Every figure describes the code that produced its source artifact (per-source commit, config, ML state and date under provenance), not the tree this file was generated on. Those runs predate later changes to the live source and detectors (e.g. PR #39): this is a dated snapshot of committed evidence. Recorded source dates: 2026-10-06 to 2026-10-28. No recorded commit: `artifacts/benchmarks_extended`, `artifacts/hardware/serial_ids_com7_001`, `artifacts/hardware/serial_ids_com7_002`, `artifacts/sitl/benign_replay_stage1_default.json`, `artifacts/external/alfa/results.json`. No recorded date: `artifacts/benchmarks_extended`, `artifacts/sitl/benign_replay_stage1_default.json`, `artifacts/external/alfa/results.json`.
+
+## 0. Provenance per source (as each source's own metadata records it; "not recorded" = absent)
+
+| source | commit | dirty tree | config | ML | UTC (field) | note |
+|---|---|---|---|---|---|---|
+| `artifacts/benchmarks_extended` | not recorded | not recorded | not recorded | True | not recorded (not recorded) | results.json records python 3.13.11 and the grid only |
+| `artifacts/ardupilot/ap_benign_final_noml_001` | eae85e6ecae4... | False | configs (Stage-1 default); configs_sha256 f9f7de15a412... | False | 2026-10-10T09:52:31.487224+00:00 (provenance.collected_utc) |  |
+| `artifacts/ardupilot/ap_benign_final_noml_002` | eae85e6ecae4... | False | configs (Stage-1 default); configs_sha256 f9f7de15a412... | False | 2026-10-10T09:54:43.297286+00:00 (provenance.collected_utc) |  |
+| `artifacts/ardupilot/ap_benign_groups_001` | 9a6cd0274cd0... | True | configs (Stage-1 default); configs_sha256 f9f7de15a412... | True | 2026-10-10T06:05:00.124760+00:00 (provenance.collected_utc) |  |
+| `artifacts/ardupilot/ap_benign_six_001` | 9a6cd0274cd0... | True | configs (Stage-1 default); configs_sha256 f9f7de15a412... | True | 2026-10-10T05:54:21.356098+00:00 (provenance.collected_utc) |  |
+| `artifacts/ardupilot/ap_benign_six_002` | 9a6cd0274cd0... | True | configs (Stage-1 default); configs_sha256 f9f7de15a412... | True | 2026-10-10T05:57:45.393017+00:00 (provenance.collected_utc) |  |
+| `artifacts/ardupilot/ap_benign_six_003` | 9a6cd0274cd0... | True | configs (Stage-1 default); configs_sha256 f9f7de15a412... | True | 2026-10-10T06:00:10.178075+00:00 (provenance.collected_utc) |  |
+| `artifacts/ardupilot/ap_benign_six_004` | 9a6cd0274cd0... | True | configs (Stage-1 default); configs_sha256 f9f7de15a412... | True | 2026-10-10T06:02:35.102014+00:00 (provenance.collected_utc) |  |
+| `artifacts/ardupilot/ap_attack_final_drift_001` | eae85e6ecae4... | False | configs (Stage-1 default); configs_sha256 f9f7de15a412... | False | 2026-10-10T09:45:52.136443+00:00 (provenance.collected_utc) |  |
+| `artifacts/ardupilot/ap_attack_final_drift_002` | eae85e6ecae4... | False | configs (Stage-1 default); configs_sha256 f9f7de15a412... | False | 2026-10-10T09:48:05.369186+00:00 (provenance.collected_utc) |  |
+| `artifacts/ardupilot/ap_attack_final_drift_003` | eae85e6ecae4... | False | configs (Stage-1 default); configs_sha256 f9f7de15a412... | False | 2026-10-10T09:50:18.488602+00:00 (provenance.collected_utc) |  |
+| `artifacts/sitl/live_run_001.jsonl` | 5c009484abc5... | True | configs_sha256 f9f7de15a412... | True | 2026-10-06T07:19:33.396303+00:00 (started_utc) | backfilled after the fact: commit/dirty/versions describe the repo at backfill time, not capture time |
+| `artifacts/sitl/live_run_002.jsonl` | 5c009484abc5... | True | configs_sha256 f9f7de15a412... | True | 2026-10-06T07:41:05.838925+00:00 (started_utc) |  |
+| `artifacts/sitl/p2_final_trial_001.manifest.json` | eae85e6ecae4... | False | configs/px4_sitl; configs_sha256 f9f7de15a412... | model_choice px4 | 2026-10-10T09:57:24.101365+00:00 (full_provenance.collected_utc) |  |
+| `artifacts/sitl/p2_final_trial_002.manifest.json` | eae85e6ecae4... | False | configs/px4_sitl; configs_sha256 f9f7de15a412... | model_choice px4 | 2026-10-10T09:59:20.106927+00:00 (full_provenance.collected_utc) |  |
+| `artifacts/sitl/p2_final_trial_003.manifest.json` | eae85e6ecae4... | False | configs/px4_sitl; configs_sha256 f9f7de15a412... | model_choice px4 | 2026-10-10T10:01:16.081521+00:00 (full_provenance.collected_utc) |  |
+| `artifacts/hardware/serial_ids_com7_001` | not recorded | not recorded | configs (Stage-1 default) | False | 2026-10-14T18:29:45.025829+00:00 (started_utc) | commit not in summary.json; see the BENCH row note |
+| `artifacts/hardware/serial_ids_com7_002` | not recorded | not recorded | configs (Stage-1 default) | False | 2026-10-25T17:10:12.043821+00:00 (started_utc) | commit not in summary.json; see the BENCH row note |
+| `artifacts/hardware/gps_hw_verify_20261029/live_capture` | a44dd9c2b2e2... | run_serial_ids.py --tlog change and 2 tests uncommitted; src/ and configs/ identical to HEAD | configs (Stage-1 default); configs/detector.yaml sha256 be7876745a26... | False | 2026-10-28T20:04:26.241991+00:00 (started_utc) |  |
+| `artifacts/sitl/benign_replay_stage1_default.json` | not recorded | not recorded | not recorded | True | not recorded (not recorded) | model models/isoforest.joblib |
+| `artifacts/external/alfa/results.json` | not recorded | not recorded | not recorded | not recorded | not recorded (not recorded) | experiment: E2 ALFA real MAVLink telemetry -> full AegisFlight pipeline (production config, ML on); python 3.13.11 |
+
 ## 1. False alerts per hour (alert events after cooldown, benign ground truth)
 
 | source | set | events | exposure h | per h | 95% upper | decision FPR | artifact |
@@ -29,18 +57,28 @@ Definitions: `src/aegisflight/metrics/stage2.py; docs/BENCHMARKING.md#stage-2-me
 | SITL | ap_benign_six_003 armed | 35 | 0.03589 | 975.2 | 1293 | 0.8808 | `artifacts/ardupilot/ap_benign_six_003/decisions.jsonl` |
 | SITL | ap_benign_six_004 all | 40 | 0.039 | 1026 | 1335 | 0.8846 | `artifacts/ardupilot/ap_benign_six_004/decisions.jsonl` |
 | SITL | ap_benign_six_004 armed | 34 | 0.036 | 944.4 | 1257 | 0.8796 | `artifacts/ardupilot/ap_benign_six_004/decisions.jsonl` |
-| SITL | pooled all_phases | 211 | 0.2663 | 792.4 | 888.2 | 0.6752 | `artifacts/ardupilot/{ap_benign_final_noml_001,ap_benign_final_noml_002,ap_benign_groups_001,ap_benign_six_001,ap_benign_six_002,ap_benign_six_003,ap_benign_six_004}/decisions.jsonl` |
-| SITL | pooled armed_phases | 171 | 0.2453 | 697 | 791.3 | 0.6526 | `artifacts/ardupilot/{ap_benign_final_noml_001,ap_benign_final_noml_002,ap_benign_groups_001,ap_benign_six_001,ap_benign_six_002,ap_benign_six_003,ap_benign_six_004}/decisions.jsonl` |
+| SITL | pooled ml_off@eae85e6 (2 runs) all_phases | 10 | 0.07156 | 139.8 | 237 | 0.08851 | `artifacts/ardupilot/{ap_benign_final_noml_001,ap_benign_final_noml_002}/decisions.jsonl` |
+| SITL | pooled ml_off@eae85e6 (2 runs) armed_phases | 0 | 0.06578 | 0 | 45.54 | 0.0152 | `artifacts/ardupilot/{ap_benign_final_noml_001,ap_benign_final_noml_002}/decisions.jsonl` |
+| SITL | pooled ml_on@9a6cd02 (5 runs) all_phases | 201 | 0.1947 | 1032 | 1160 | 0.8907 | `artifacts/ardupilot/{ap_benign_groups_001,ap_benign_six_001,ap_benign_six_002,ap_benign_six_003,ap_benign_six_004}/decisions.jsonl` |
+| SITL | pooled ml_on@9a6cd02 (5 runs) armed_phases | 171 | 0.1796 | 952.4 | 1081 | 0.8861 | `artifacts/ardupilot/{ap_benign_groups_001,ap_benign_six_001,ap_benign_six_002,ap_benign_six_003,ap_benign_six_004}/decisions.jsonl` |
+| SITL | pooled all_runs_mixed (7 runs) all_phases | 211 | 0.2663 | 792.4 | 888.2 | 0.6752 | `artifacts/ardupilot/{ap_benign_final_noml_001,ap_benign_final_noml_002,ap_benign_groups_001,ap_benign_six_001,ap_benign_six_002,ap_benign_six_003,ap_benign_six_004}/decisions.jsonl` |
+| SITL | pooled all_runs_mixed (7 runs) armed_phases | 171 | 0.2453 | 697 | 791.3 | 0.6526 | `artifacts/ardupilot/{ap_benign_final_noml_001,ap_benign_final_noml_002,ap_benign_groups_001,ap_benign_six_001,ap_benign_six_002,ap_benign_six_003,ap_benign_six_004}/decisions.jsonl` |
 | SITL-PX4 | live_run_001 | 35 | 0.0375 | 933.3 | 1237 | 1 | `artifacts/sitl/live_run_001.jsonl` |
 | SITL-PX4 | live_run_002 | 39 | 0.03889 | 1003 | 1310 | 1 | `artifacts/sitl/live_run_002.jsonl` |
 | BENCH | serial_ids_com7_001 | 16 | 0.01667 | 960 | 1458 | 0.9867 | `artifacts/hardware/serial_ids_com7_001/summary.json` |
 | BENCH | serial_ids_com7_002 | 0 | 0.01667 | 0 | 179.7 | 0 | `artifacts/hardware/serial_ids_com7_002/summary.json` |
 | BENCH | gps_hw_verify_20261029/live_capture | 0 | 0.025 | 0 | 119.8 | 0 | `artifacts/hardware/gps_hw_verify_20261029/live_capture/summary.json` |
 
+SITL ArduPilot pools (runs grouped by recorded ML state and commit, see section 0):
+
+- ml_off@eae85e6: ap_benign_final_noml_001, ap_benign_final_noml_002; stream configs six.
+- ml_on@9a6cd02: ap_benign_groups_001, ap_benign_six_001, ap_benign_six_002, ap_benign_six_003, ap_benign_six_004; stream configs groups, six.
+- all_runs_mixed: ap_benign_final_noml_001, ap_benign_final_noml_002, ap_benign_groups_001, ap_benign_six_001, ap_benign_six_002, ap_benign_six_003, ap_benign_six_004; stream configs groups, six. WARNING: pools ML-on and ML-off runs recorded at different commits; it describes no single detector configuration. Use the per-group pools.
+
 BENCH runs (environment; claim class; source of that statement):
 
-- serial_ids_com7_001: BENCH; link-level detection on a disarmed, props-off bench FC; exposure is wall time, not flight time (`docs/HARDWARE_BENCH_PIXHAWK6X.md`). Events: summary.json alert_decisions (engine is_alert count, not re-derived); exposure = wall_s.
-- serial_ids_com7_002: BENCH; link-level detection on a disarmed, props-off bench FC; exposure is wall time, not flight time (`docs/HARDWARE_BENCH_PIXHAWK6X.md`). Events: summary.json alert_decisions (engine is_alert count, not re-derived); exposure = wall_s.
+- serial_ids_com7_001: BENCH; link-level detection on a disarmed, props-off bench FC; exposure is wall time, not flight time (`docs/HARDWARE_BENCH_PIXHAWK6X.md`). Events: summary.json alert_decisions (engine is_alert count, not re-derived); exposure = wall_s. Note: different code and policy from serial_ids_com7_002, not run-to-run variation: run 2026-10-14, before the 2026-10-15 no-GPS policy (a link without GLOBAL_POSITION_INT was reported as a threat; scripts/hardware/run_serial_ids.py docstring), on 6b21d1f plus uncommitted detectors/protocol.py and features/extractor.py changes (docs/HARDWARE_BENCH_PIXHAWK6X.md section 6.8).
+- serial_ids_com7_002: BENCH; link-level detection on a disarmed, props-off bench FC; exposure is wall time, not flight time (`docs/HARDWARE_BENCH_PIXHAWK6X.md`). Events: summary.json alert_decisions (engine is_alert count, not re-derived); exposure = wall_s. Note: run 2026-10-25 (started_utc), after the 2026-10-15 no-GPS policy date; its code commit is not recorded.
 - gps_hw_verify_20261029/live_capture: BENCH-class (physical ArduPilot-family quadrotor, disarmed and stationary per telemetry; props/airframe state not confirmed); none (receiver/estimator reports + false-alarm behaviour on one benign stream; not detection evidence) (`artifacts/hardware/gps_hw_verify_20261029/manifest.json`). Events: summary.json alert_decisions (engine is_alert count, not re-derived); exposure = wall_s.
 
 REPLAY (decision level only, no alert flags logged):
