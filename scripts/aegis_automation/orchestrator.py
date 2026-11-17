@@ -152,9 +152,12 @@ def remediation_cycles_used(comments: list[dict[str, Any]], policy: Policy) -> i
                and policy.cycle_marker in (c.get("body") or ""))
 
 
-def auto_request_exists(comments: list[dict[str, Any]], head: str, policy: Policy) -> bool:
+def auto_requests_for_head(comments: list[dict[str, Any]], head: str, policy: Policy,
+                           identity_login: str) -> list[dict[str, Any]]:
+    """Automatic remediation requests the orchestrator App itself posted for `head`."""
     tag = f"{policy.auto_request_marker} sha={head}"
-    return any(tag in (c.get("body") or "") for c in comments)
+    return [c for c in comments
+            if (c.get("user") or {}).get("login") == identity_login and tag in (c.get("body") or "")]
 
 
 def remediation_candidates(record: dict[str, Any], policy: Policy) -> list[str]:
@@ -185,8 +188,18 @@ def decide_auto_remediation(result: GateResult, policy: Policy, settings: Settin
     used = remediation_cycles_used(facts.issue_comments, policy)
     if used >= settings.max_cycles:
         return [], f"remediation budget exhausted ({used}/{settings.max_cycles}); needs a human"
-    if auto_request_exists(facts.issue_comments, facts.head_sha, policy):
-        return [], "already requested for this head"
+    # A re-request for the same head is allowed only after a NEWER review (e.g. the previous
+    # remediation run failed for infrastructure reasons and the review was re-run), and at
+    # most max_auto_requests_per_head times. Duplicate events for one review never re-post.
+    previous = auto_requests_for_head(facts.issue_comments, facts.head_sha, policy,
+                                      settings.identity.login)
+    if previous:
+        if len(previous) >= policy.max_auto_requests_per_head:
+            return [], (f"already requested {len(previous)}x for this head "
+                        f"(limit {policy.max_auto_requests_per_head}); needs a human")
+        last = max(str(c.get("created_at", "")) for c in previous)
+        if str(record.get("created_at", "")) <= last:
+            return [], "already requested for this review of this head"
     if facts.remediation_running:
         return [], "a remediation run is already active"
     return ids, f"cycle {used + 1} of {settings.max_cycles}"

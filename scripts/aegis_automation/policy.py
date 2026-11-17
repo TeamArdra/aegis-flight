@@ -141,6 +141,10 @@ class Policy:
     def auto_request_marker(self) -> str:
         return str(self.raw["remediation"]["auto_request_marker"])
 
+    @property
+    def max_auto_requests_per_head(self) -> int:
+        return max(1, int(self.raw["remediation"].get("max_auto_requests_per_head", 1)))
+
     # --- merge / limits ---------------------------------------------------------------
     @property
     def merge_method(self) -> str:

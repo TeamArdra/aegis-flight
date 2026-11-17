@@ -83,6 +83,10 @@ max_cycles = 2
 auto_severities = ["P0", "P1", "P2"]
 cycle_marker = "<!-- aegis-remediation-cycle -->"
 auto_request_marker = "aegis-auto-remediation"
+# Automatic requests per head SHA. A second one is only posted after a newer review of the
+# same head (e.g. when the first remediation run failed for infrastructure reasons). The
+# cycle limit above still bounds the total.
+max_auto_requests_per_head = 2
 
 [merge]
 method = "squash"
