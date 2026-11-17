@@ -250,6 +250,24 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         print(f"aegis ips-bridge: refusing --status-host {status_host}: a non-loopback status API requires "
               "--control-token-file", file=sys.stderr)
         return 2
+    archive = run_prov = None
+    if args.run_dir:
+        # evidence run (issue #25): clean tree or --allow-dirty (stamped NOT-REPRODUCIBLE); raw frames, decisions,
+        # actions and a full manifest land in the run directory
+        from ..hal.run_archive import BridgeRunArchive
+        from ..run_provenance import DirtyTreeError, begin_run
+
+        try:
+            run_prov = begin_run(allow_dirty=args.allow_dirty, profile_dir=args.config_dir)  # ML is simulation-only: none
+            archive = BridgeRunArchive(args.run_dir)
+        except DirtyTreeError as exc:
+            print(f"aegis ips-bridge: {exc}", file=sys.stderr)
+            return 2
+        except FileExistsError as exc:
+            print(f"aegis ips-bridge: {exc}", file=sys.stderr)
+            return 2
+        if args.db is None:
+            args.db = str(Path(args.run_dir) / "events.sqlite")
     store = None
     if args.db:
         from ..logging import EventStore
@@ -266,7 +284,7 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                              signing_max_age_s=args.signing_max_age_s, signing_state_path=args.signing_state,
                              ekf_secondary=args.ekf_secondary, crossend_interval_s=args.crossend_interval,
                              contested_policy=args.contested_policy, replay_memory=args.replay_memory,
-                             on_alarm=lambda m: print(f"aegis ips-bridge: ALARM {m}", flush=True))
+                             on_alarm=lambda m: print(f"aegis ips-bridge: ALARM {m}", flush=True), archive=archive)
     fc.start()
     gcs.start()
     bridge.start()
@@ -299,6 +317,14 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         bridge.close()
         if store is not None:
             store.close()
+        if archive is not None and run_prov is not None:
+            from ..run_provenance import finish_run, write_manifest
+
+            run_prov["bridge"] = {"fc_port": args.fc_port, "gcs_port": args.gcs_port, "defense_mode": args.defense_mode,
+                                  "signing": key is not None, "final_status": bridge.status(),
+                                  "archive": archive.close()}
+            write_manifest(args.run_dir, finish_run(run_prov))
+            print(f"aegis ips-bridge: run archived in {args.run_dir} ({run_prov['status']})", flush=True)
     return 0
 
 
@@ -403,6 +429,10 @@ def build_parser() -> argparse.ArgumentParser:
                          "sensitive/control frames from that source in flight (can block the real pilot; forced disarm passes)")
     ib.add_argument("--replay-memory", type=int, default=4096,
                     help="unsigned link: number of forwarded sensitive frames remembered for the byte-identical replay filter")
+    ib.add_argument("--run-dir", default=None,
+                    help="evidence run: archive both directions' raw frames, decisions, actions and run_manifest.json "
+                         "here (refuses a dirty tree unless --allow-dirty; the run is then stamped NOT-REPRODUCIBLE)")
+    ib.add_argument("--allow-dirty", action="store_true", help="with --run-dir: run on a dirty tree, stamped NOT-REPRODUCIBLE")
     ib.add_argument("--config-dir", default=None)
     ib.add_argument("--db", default=None, help="log alerts to this SQLite hash-chain store")
     ib.add_argument("--seconds", type=float, default=None, help="run time (default: until Ctrl-C)")

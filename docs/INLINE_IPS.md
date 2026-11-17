@@ -352,3 +352,21 @@ explicit choice:
 - `--status-host HOST` (default `127.0.0.1`); a non-loopback host needs `--control-token-file` and prints a warning that the
   status API is reachable from the network.
 - `GET /status` also returns `signing: {configured, unsigned_acknowledged}` and `control: {enabled}`.
+
+## Evidence runs: `--run-dir` (raw-log archive)
+
+`aegis ips-bridge --run-dir <dir>` makes the run auditable and replayable. It refuses a dirty tree (or, with
+`--allow-dirty`, stamps the directory `NOT-REPRODUCIBLE`), refuses a directory that already holds a run, and writes:
+
+| File | Content |
+|---|---|
+| `frames_down.jsonl`, `frames_up.jsonl` | FC to GCS and GCS to FC: every **original** received frame (hex) with `verdict` `forwarded` / `dropped` / `rewritten` (and `out` for a rewrite) |
+| `decisions.jsonl` | one row per analyser decision: threat flag, type, score, evidence, controller mode/state |
+| `actions.jsonl` | counter-frames to the FC, STATUSTEXT alarms and cross-end summaries to the GCS, each change of the controller action summary |
+| `events.sqlite` | the hash-chained alert log (unless `--db` points elsewhere) |
+| `run_manifest.json` | `aegisflight.run_manifest/1` (see `docs/VALIDATION_EVIDENCE.md` §6) plus a `bridge` block: ports, posture, signing on/off, final `status()`, archive row counts |
+
+The forwarding path only appends rows to an in-memory queue and a writer thread does the file I/O, so archiving does not
+delay a frame; if the queue overflows the rows are dropped and counted (`bridge.archive.dropped_rows`,
+`complete: false`), never silently. Environment tag and claim class are those of the run's wire (SITL loopback);
+the archive adds no claim.

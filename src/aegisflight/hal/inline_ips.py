@@ -129,6 +129,7 @@ class InlineIpsBridge:
         contested_policy: str = "alert",
         replay_memory: int = 4096,
         on_alarm: Callable[[str], None] | None = None,
+        archive: Any | None = None,
     ) -> None:
         self.fc, self.gcs = fc, gcs
         self._refuse_active_on_device(mode)
@@ -149,6 +150,7 @@ class InlineIpsBridge:
             contested_policy=contested_policy, replay_memory=replay_memory,
         )
         self.on_alarm = on_alarm
+        self.archive = archive  # hal.run_archive.BridgeRunArchive: raw frames/decisions/actions (issue #25)
         self._alarm_enc = MavlinkActuator(sysid=1, compid=192, secret_key=secret_key)
         self.alarms_sent = 0
         self.policy.set_enforce(self.controller.mode == DefenseMode.ACTIVE_IPS)
@@ -204,6 +206,8 @@ class InlineIpsBridge:
             if th is not threading.current_thread():
                 th.join(timeout=2.0)
         self.policy.flush()
+        if self.archive is not None:
+            self.archive.close()
         for tr in (self.fc, self.gcs):
             with contextlib.suppress(Exception):
                 tr.close()
@@ -243,7 +247,10 @@ class InlineIpsBridge:
         """Contested-source alarm: STATUSTEXT (warning) to the GCS side only, signed when a key is configured."""
         for sysid in self.policy.take_alarms():
             text = f"AEGIS: two senders using sysid {sysid} on the uplink"
-            if self.gcs.send(self._alarm_enc.encode_statustext(text, severity=4)):
+            alarm = self._alarm_enc.encode_statustext(text, severity=4)
+            if self.archive is not None:
+                self.archive.action(self._clock_ns(), "alarm", "gcs", alarm, text=text)
+            if self.gcs.send(alarm):
                 self.alarms_sent += 1
             else:
                 self.send_failures += 1
@@ -271,6 +278,8 @@ class InlineIpsBridge:
                 self.frames_down += 1
             else:
                 self.frames_up += 1
+            if self.archive is not None:
+                self.archive.frame(direction, stamp, fr.raw, list(out))
             if not out:
                 if direction == "down":
                     self.dropped_down += 1
@@ -311,6 +320,10 @@ class InlineIpsBridge:
         self.decisions += 1
         act = self.controller.step(self.pipeline.last_frame, assessment)
         self.last_summary = act.summary
+        if self.archive is not None:
+            now = self._clock_ns()
+            self.archive.decision(now, assessment, self.controller.mode.value, self.controller.state.value, act.summary)
+            self.archive.summary_changed(now, act.summary, self.controller.mode.value, self.controller.state.value)
         self.policy.touch()
         if assessment.is_alert:
             self.alerts += 1
@@ -322,6 +335,8 @@ class InlineIpsBridge:
                 # corrective commands go to the flight controller; a STATUSTEXT warning is for the pilot's GCS
                 # (the FC does not relay a STATUSTEXT it receives), so it goes to the GCS side only
                 link = self.gcs if _is_statustext(frame) else self.fc
+                if self.archive is not None:
+                    self.archive.action(self._clock_ns(), "counter_frame", "gcs" if link is self.gcs else "fc", frame)
                 if link.send(frame):
                     self.counter_frames_sent += 1
                 else:
@@ -347,6 +362,8 @@ class InlineIpsBridge:
         frame = bytes(msg.pack(self._crossend_enc))
         if self._crossend_signer is not None:
             frame = self._crossend_signer.sign_frame(frame)
+        if self.archive is not None:
+            self.archive.action(now, "crossend", "gcs", frame)
         if self.gcs.send(frame):
             self.crossend_sent += 1
             return True
