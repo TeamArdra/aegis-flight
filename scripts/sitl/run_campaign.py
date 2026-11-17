@@ -246,8 +246,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ERROR: campaign was started at commit {state.get('commit')} but HEAD is {prov['commit']}; refusing "
                   "to mix evidence from two commits. Use a fresh --out-root.", file=sys.stderr)
             return 2
+        if state.get("reproducible", True) != prov["reproducible"]:
+            print("ERROR: campaign was started on a "
+                  f"{'clean' if state.get('reproducible', True) else 'dirty'} tree but the tree is now "
+                  f"{'clean' if prov['reproducible'] else 'dirty'}; refusing to mix reproducible and NOT-REPRODUCIBLE "
+                  "evidence. Use a fresh --out-root.", file=sys.stderr)
+            return 2
     else:
-        state = {"schema": STATE_SCHEMA, "commit": prov["commit"], "trials": {}}
+        state = {"schema": STATE_SCHEMA, "commit": prov["commit"], "reproducible": prov["reproducible"], "trials": {}}
     root.mkdir(parents=True, exist_ok=True)
     write_manifest(root, prov, MANIFEST_NAME)
     for sc in scenarios:

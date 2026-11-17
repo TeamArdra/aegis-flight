@@ -108,3 +108,22 @@ def test_builtin_scenarios_use_existing_drivers_and_fixed_seeds(capsys):
     for sc in rc.BUILTIN:
         assert (rc.REPO / sc.script).is_file(), sc.script
     assert len({s.name for s in rc.BUILTIN}) == len(rc.BUILTIN)
+
+
+def test_resume_cannot_launder_a_dirty_campaign_into_reproducible(tmp_path, stub, monkeypatch, capsys):
+    """R2: same HEAD, dirty at start, clean at resume -> refused; the NOT-REPRODUCIBLE stamp stays."""
+    root = tmp_path / "c"
+    dirty = {"commit": "a" * 40, "dirty": True, "dirty_paths": ["src/x.py"]}
+    monkeypatch.setattr(run_provenance, "tree_state", lambda repo=None: dirty)
+    assert rc.main(_only(stub(), root, "--n", "1", "--allow-dirty")) == 0
+    assert json.loads((root / "campaign_state.json").read_text())["reproducible"] is False
+    monkeypatch.setattr(run_provenance, "tree_state",
+                        lambda repo=None: {"commit": "a" * 40, "dirty": False, "dirty_paths": []})
+    assert rc.main(_only(stub(), root, "--n", "2", "--resume")) == 2
+    assert "NOT-REPRODUCIBLE" in capsys.readouterr().err
+    assert (root / "NOT-REPRODUCIBLE").is_file()
+    assert json.loads((root / "campaign_manifest.json").read_text())["status"] == "NOT-REPRODUCIBLE"
+    assert not (root / "s_one" / "trial_002.manifest.json").exists()  # nothing was run
+    monkeypatch.setattr(run_provenance, "tree_state", lambda repo=None: dirty)
+    assert rc.main(_only(stub(), root, "--n", "2", "--resume", "--allow-dirty")) == 0  # dirty resume stays stamped
+    assert (root / "NOT-REPRODUCIBLE").is_file()
