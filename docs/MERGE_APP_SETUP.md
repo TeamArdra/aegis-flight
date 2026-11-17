@@ -68,15 +68,26 @@ branch policy allows only `main`; keep it that way and do not add required revie
   Do not create it as a repository or organisation secret: those are readable by workflows on
   any branch.
 
-Repository → Settings → Secrets and variables → Actions → **Variables**:
+Variables (all are public identifiers, not secrets):
 
-| Variable | Value |
-|---|---|
-| `AEGIS_MERGE_APP_CLIENT_ID` | the App's Client ID |
-| `AEGIS_MERGE_APP_SLUG` | the App's slug, e.g. `aegis-merge-gate` |
-| `AEGIS_MERGE_APP_ID` | the numeric App ID (used to verify automatic remediation requests) |
-| `AEGIS_AUTOMERGE` | leave **unset** (= `dry-run`) until step 7 |
-| `AEGIS_AUTOREMEDIATE` | leave unset (= `off`) |
+| Variable | Where | Value |
+|---|---|---|
+| `AEGIS_MERGE_APP_CLIENT_ID` | environment `automerge` (or repository) | the App's Client ID |
+| `AEGIS_MERGE_APP_SLUG` | **repository** (and optionally the environment, same value) | the App's slug |
+| `AEGIS_MERGE_APP_ID` | **repository** (and optionally the environment, same value) | the numeric App ID |
+| `AEGIS_AUTOMERGE` | repository | leave **unset** (= `dry-run`) until the live tests pass |
+| `AEGIS_AUTOREMEDIATE` | repository | leave unset (= `off`) |
+
+`claude-remediate.yml` does not run in the `automerge` environment, so it can only see
+**repository** variables: `AEGIS_MERGE_APP_SLUG` and `AEGIS_MERGE_APP_ID` must exist at
+repository level for automatic remediation requests to be accepted. The job-level `if:` of
+both workflows also reads only repository variables (`AEGIS_AUTOMERGE`, `AEGIS_AUTOREMEDIATE`).
+An environment variable with the same name overrides the repository value inside the
+orchestrator job; keep them identical.
+
+Current configuration (2026-11-17): App `aegisflight-merge-bot`, id 5795459, owned by the
+`RajTib` account and installed on this repository only; private key and client id in the
+environment; slug and id also set as repository variables.
 
 ## 5. Repository settings to keep (verified 2026-11-17)
 
@@ -87,7 +98,7 @@ change**:
 |---|---|---|
 | Restrict deletions, block force pushes, require linear history | yes | squash merges are linear |
 | Pull request: 1 approval, dismiss stale approvals, require approval of the most recent push, require conversation resolution, squash only | yes | the App approves the exact head; it never pushes; the gate resolves only the reviewer's fixed threads and requires all others resolved |
-| Required status checks `ci-python`, `ci-frontend` | yes | the gate also requires them (and every other required check) |
+| Required status checks `ci-python`, `ci-frontend`, **source: GitHub Actions (integration id 15368)** | yes | the gate also requires them (and every other required check). Corrected 2026-11-17: the source had been set to the Claude App (1236702), which made every merge fail with "not set by the expected GitHub apps" |
 | Bypass: Organization admin, Repository admin role (always) | yes | your emergency override; the App gets **no** bypass |
 
 Also keep: Actions setting "Allow GitHub Actions to create and approve pull requests" = **off**;
@@ -99,6 +110,12 @@ installation `168602003` dismiss reviews. If that installation is the Claude App
 removing it so no bot can dismiss a human or merge-App review.
 
 ## 6. Post-installation verification (do these in order)
+
+**Status 2026-11-17 (before PR #38 merged):** the App-level checks were run live with a
+temporary harness (token minting, repository scoping, comment provenance, approval counted by
+the ruleset, SHA guard, squash merge of marker PR #41 by the App, workflow re-run); see
+`AUTONOMOUS_PIPELINE.md` §14. Steps 3–8 below need the orchestrator and the new reviewer on
+`main`, so they run after PR #38 is merged.
 
 Use a throwaway issue with acceptance criteria (template "Engineering task") and a tiny,
 non-escalated change (for example one line in `docs/DEVELOPMENT.md`; not `.github/**`).

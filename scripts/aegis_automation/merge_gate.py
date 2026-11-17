@@ -613,9 +613,11 @@ def execute(writer: GitHubLike, result: GateResult, policy: Policy, identity: Id
                                           f"(state={check.get('state')})", review_id)
 
     issue_no = (facts.linked_issues[0]["number"] if facts.linked_issues else None)
+    run_id = (record.get("reviewer") or {}).get("run_id")
+    provenance = (f"review record for `{head[:12]}` (review run {run_id}, verdict "
+                  f"{record.get('verdict')})" if run_id else f"verification of `{head[:12]}`")
     message = (f"Closes #{issue_no}\n\n" if issue_no else "") + (
-        f"Merged by the AegisFlight merge gate after review record `{head[:12]}` "
-        f"(review run {record.get('reviewer', {}).get('run_id')}, verdict {record.get('verdict')}).")
+        f"Merged by the AegisFlight merge gate after {provenance}.")
     try:
         merged = writer.put(f"repos/{repo}/pulls/{n}/merge", {
             "sha": head, "merge_method": policy.merge_method,

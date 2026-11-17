@@ -76,6 +76,14 @@ def test_mode_on_approves_merges_and_verifies_squash():
     assert outcome.merge_sha == "c" * 40
 
 
+def test_squash_message_names_the_review_run_and_never_prints_none():
+    sc = Scenario()
+    api = sc.install()
+    run_gate(api, REPO, PR, policy(), mode="on", identity=IDENT, writer=api, max_cycles=2)
+    message = [w for w in api.writes() if w[0] == "PUT"][0][2]["commit_message"]
+    assert "review run 200, verdict READY" in message and "None" not in message
+
+
 def test_skip_ci_markers_are_stripped_from_the_squash_title():
     sc = Scenario()
     sc.pr["title"] = "fix: thing [skip ci]"
