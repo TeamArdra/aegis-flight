@@ -201,3 +201,37 @@ def test_make_stage2_metrics_reconciles_with_committed_results(tmp_path):
     assert r["claim_class"].startswith("link-level") and "claim class" in (tmp_path / "metrics.md").read_text().lower()
     assert set(r["false_alerts_per_hour"]["SITL_px4_live"]) == {"live_run_001", "live_run_002"}
     assert r["missing_inputs"] and (tmp_path / "metrics.md").read_text().rstrip().endswith("none is claimed")
+
+
+def _generator():
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    spec = importlib.util.spec_from_file_location("make_stage2_metrics", root / "scripts" / "make_stage2_metrics.py")
+    g = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(g)
+    return root, g
+
+
+def test_make_stage2_metrics_fails_loudly_on_a_missing_named_input(tmp_path, capsys):
+    """F11 regression (#48 audit): with the P2 trial manifests removed the first version exited 0 and printed an
+    empty PX4 drift row (n = 0). Now every input is named; an absent one stops the run and nothing is written."""
+    import json
+    import shutil
+
+    root, g = _generator()
+    src = tmp_path / "root"
+    for p in g.required_inputs():                                       # exactly the named inputs, nothing else
+        (src / p).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(root / p, src / p)
+    assert g.main(["--tag", "t", "--root", str(src), "--out-dir", str(tmp_path / "full")]) == 0
+    committed = root / "artifacts" / "validation" / "stage2_metrics_2026-11-17" / "metrics.json"
+    assert json.loads((tmp_path / "full" / "metrics.json").read_text()) == json.loads(committed.read_text())
+    gone = [p for p in g.required_inputs() if "p2_final_trial_" in p and p.endswith(".manifest.json")]
+    assert len(gone) == 3
+    for p in gone:
+        (src / p).unlink()
+    assert g.main(["--tag", "t", "--root", str(src), "--out-dir", str(tmp_path / "partial")]) == 2
+    err = capsys.readouterr().err
+    assert all(p in err for p in gone) and not (tmp_path / "partial").exists()

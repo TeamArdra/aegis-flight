@@ -1,7 +1,10 @@
 """Stage 2 metrics (issue #28) from committed artifacts only; nothing is re-run.
 
 Writes ``artifacts/validation/stage2_metrics_<tag>/metrics.json`` and ``metrics.md``. Every number carries the path of
-the artifact it was computed from; a source that lacks an input is listed under ``missing_inputs`` instead of being
+the artifact it was computed from. Every input is named in this file (``required_inputs``): if any named input is
+absent the script lists every absent path, exits with status 2 and writes nothing, so no figure is silently dropped or
+shown with n = 0. ``missing_inputs`` in the output lists what the repository does not contain by design (uncommitted
+tlogs, external raw data, per-decision alert flags), which is why those sources stay decision level instead of being
 estimated. Metric definitions: ``src/aegisflight/metrics/stage2.py`` (module docstring) and ``docs/BENCHMARKING.md``.
 
     python scripts/make_stage2_metrics.py --tag 2026-11-17
@@ -34,6 +37,30 @@ CLAIM = "link-level detection (false-alarm reference); not flight-hour or real-w
 CLAIM_BENCH = "link-level detection on a disarmed, props-off bench FC; exposure is wall time, not flight time"
 PX4_LIVE = ["artifacts/sitl/live_run_001.jsonl", "artifacts/sitl/live_run_002.jsonl"]
 BENCH = ["artifacts/hardware/serial_ids_com7_001", "artifacts/hardware/serial_ids_com7_002"]
+PX4_P2 = ["artifacts/sitl/p2_final_trial_001", "artifacts/sitl/p2_final_trial_002", "artifacts/sitl/p2_final_trial_003"]
+REPLAY_TLOG = "artifacts/sitl/benign_replay_stage1_default.json"
+ALFA = "artifacts/external/alfa/results.json"
+
+
+class MissingInputError(FileNotFoundError):
+    """A named input is absent: the run stops instead of reporting a source with fewer (or zero) inputs."""
+
+
+def required_inputs() -> list[str]:
+    """Every file the generator reads, relative to the repository root."""
+    return ([f"{EXT}/{f}" for f in ("decisions.csv.gz", "sessions.csv", "results.json")]
+            + [f"artifacts/ardupilot/{d}/decisions.jsonl" for d in AP_BENIGN]
+            + [f"artifacts/ardupilot/{d}/evaluation.json" for d in AP_DRIFT]
+            + PX4_LIVE
+            + [f"{d}{ext}" for d in PX4_P2 for ext in (".manifest.json", ".ids_decisions.jsonl")]
+            + [f"{d}/summary.json" for d in BENCH]
+            + [REPLAY_TLOG, ALFA])
+
+
+def check_inputs(root: Path) -> None:
+    absent = [p for p in required_inputs() if not (root / p).is_file()]
+    if absent:
+        raise MissingInputError(f"{len(absent)} named input(s) absent under {root}: " + ", ".join(absent))
 
 
 def r6(x):
@@ -145,9 +172,9 @@ def drift_latency(root: Path) -> dict:
         ap.append({"source": p, "from_onset_s": r6(fa["t"] - w["onset_t_s"]) if fa else None,
                    "from_release_s": r6(fa["t"] - w["end_t_s"]) if fa else None})
     px = []
-    for p in sorted((root / "artifacts/sitl").glob("p2_final_trial_*.manifest.json")):
-        t = load_trial(p)
-        px.append({"source": p.relative_to(root).as_posix(), "from_onset_s": t["time_to_detection_from_onset_s"],
+    for d in PX4_P2:
+        t = load_trial(root / f"{d}.manifest.json")
+        px.append({"source": f"{d}.manifest.json", "from_onset_s": t["time_to_detection_from_onset_s"],
                    "from_release_s": t["time_to_detection_from_end_s"],
                    "note": "detection counted only after the attack window ends (preregistered P2 rule)"})
 
@@ -205,11 +232,11 @@ def bench(root: Path) -> dict:
 
 
 def replay(root: Path) -> dict:
-    p = "artifacts/sitl/benign_replay_stage1_default.json"
+    p = REPLAY_TLOG
     j = json.loads((root / p).read_text())
     runs = [{"source": p, "flight": r["flight"], "decisions": r["decisions"], "threat_decisions": r["false_alarm_decisions"],
              "decision_fpr": r6(r["false_alarm_rate"])} for r in j["runs"]]
-    pa = "artifacts/external/alfa/results.json"
+    pa = ALFA
     a = json.loads((root / pa).read_text())
     return {"benign_tlog_replay": runs,
             "alfa": {"source": pa, "decision_hours": a["total_decision_hours"], "note": "decision-level only; see file"}}
@@ -245,6 +272,7 @@ MISSING = [
 
 
 def build(root: Path) -> dict:
+    check_inputs(root)
     rows, sess = load_sim(root)
     sim = sim_false_alerts(rows, sess)
     return {
@@ -340,7 +368,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out-dir", default=None)
     a = ap.parse_args(argv)
     root = Path(a.root)
-    res = build(root)
+    try:
+        res = build(root)
+    except MissingInputError as e:
+        print(f"error: {e}; nothing written", file=sys.stderr)
+        return 2
     out = Path(a.out_dir) if a.out_dir else root / "artifacts" / "validation" / f"stage2_metrics_{a.tag}"
     out.mkdir(parents=True, exist_ok=True)
     # newline="\n": LF on every OS, so a regeneration on Windows is byte-identical to the committed (eol=lf) evidence
