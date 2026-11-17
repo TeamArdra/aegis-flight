@@ -108,26 +108,41 @@ After adding v2 the baseline grid was re-run and reproduced **bit-identically**
 ## Stage 2 metrics
 
 `python scripts/make_stage2_metrics.py --tag <date>` reads committed artifacts only and writes
-`artifacts/validation/stage2_metrics_<tag>/metrics.{json,md}`. Every figure names its source file,
-and sources that lack an input are listed under *Missing inputs* instead of being estimated.
-Definitions (code: `src/aegisflight/metrics/stage2.py`):
+`artifacts/validation/stage2_metrics_<tag>/metrics.{json,md}` (LF, byte-reproducible; a unit test checks that the
+committed files equal a fresh run). Every figure names its source file. Every input is named in the script: if one is
+absent the script lists every absent path, exits with status 2 and writes nothing. *Missing inputs* in the output lists
+what the repository lacks by design (uncommitted tlogs, external raw data, per-decision alert flags), which is why
+those sources stay decision level instead of being estimated. Definitions (code: `src/aegisflight/metrics/stage2.py`):
 
 - **Alert event**: a decision the fusion engine marks `is_alert` (a threat at SUSPICIOUS or
   above, de-duplicated by the per-type cooldown `fusion.cooldown_s` while an alert is active).
-  Where an artifact logs only decisions, it is re-derived with the engine's rule; a unit test
-  checks the re-derivation against the engine.
+  Where an artifact logs only decisions, it is re-derived with the engine's rule on the engine's raw
+  tick time (`k * 0.1 s`), not the rounded logged `t`: at an exact 4.0 s gap the two differ by one ulp.
+  Unit tests check the re-derivation against the real engine at that boundary and row by row against
+  the ArduPilot logs, which record the engine's own alert flag.
 - **False alerts per flight hour**: alert events on benign ground truth / exposure, where exposure
-  is the scored decisions x 0.2 s (warm-up excluded from both). The bound is the exact one-sided
-  95% Poisson (Garwood) upper limit; 0 events in T h gives 2.996 / T. Decision-level FPR is
+  is the scored decisions x 0.2 s (warm-up excluded from both; BENCH uses wall time). The bound is the exact
+  **one-sided** 95% Poisson (Garwood) upper limit; 0 events in T h gives 2.996 / T. Decision-level FPR is
   reported next to it.
 - **Grace**: shown with (5 s) and without. The 5 s after an attack stops is the recovery tail,
   where detector state still reflects the attack; no-grace is the conservative figure.
-- **Session detection / session FPR**: proportions over sessions with Wilson 95% intervals.
-- **Latency**: from onset (first labelled attack decision) to first in-window threat, median and
-  nearest-rank p95 with n. For drift, it is also given from release (the attacker stops).
+- **Session detection / session FPR**: proportions over sessions with **two-sided** Wilson 95% intervals.
+- **Latency**: from onset to detection, median and p95 by nearest rank with n. The median is the
+  lower middle value for even n; with n < 20 the nearest-rank p95 is the maximum and is printed as
+  `max X (n=N)`. For drift it is also given from release (the attacker stops). The SIM, SITL ArduPilot and
+  SITL PX4 rows use different detection rules; each row states its rule.
 - **Per-class precision / recall / F1, macro-F1** from the confusion matrix. A class that is
-  never predicted scores precision 0, not NaN. Accuracy is reported last, because the benign
-  majority dominates it.
+  never predicted scores precision 0, not NaN. Macro-F1 is reported **two ways, labelled**: attack classes
+  only (the class set of `metrics/scoring.py` `Evaluation.macro()`) and including BENIGN. Which one is the
+  headline is a definition sign-off item (#28).
+- **Accuracy** is reported last, because the benign majority dominates it, and **two ways, labelled**:
+  binary (attack = positive, the definition under "Metrics (definitions)" above; equal to `results.json`
+  `binary_*.accuracy`) and multiclass (attribution).
+- **Provenance and pooling**: each source's commit, dirty-tree flag, config, ML state and date are
+  copied from its own metadata ("not recorded" where absent). The figures therefore describe the code
+  that produced each source, not the current tree: the output is a dated snapshot. ArduPilot SITL runs
+  are pooled only within the same recorded ML state and commit. The all-runs pool is kept for comparison
+  and carries a warning.
 
 ## Interpreting the numbers
 - **GPS recall 0.954** is the detection-latency cost: the sliding-window residual
