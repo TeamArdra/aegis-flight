@@ -90,6 +90,11 @@ Downlink (vehicle -> GCS) on a signed link, in every posture:
   and the lapse is announced (`AEGIS: signing-lapsed ...`, `policy.signing_lapsed`). The cost: a man in the middle who
   suppresses all of the vehicle's signed frames for 10 s can then inject unsigned telemetry. The lapse is visible to the
   pilot when it happens. Tests: `tests/unit/test_signed_downlink_telemetry.py`.
+- **Availability trade-off (maintainer decision, fail-closed kept; review X1).** Suspicious downlink traffic can cause
+  the vehicle's legitimate telemetry to be dropped: an unsigned frame claiming a source that signs, or a replayed genuine
+  signed recording that makes an unsigned vehicle look like a signing one (see `docs/THREAT_MODEL.md`), leads the
+  analyser to drop that source's unsigned telemetry, and `active-ips` drops it before the GCS, until the 10 s lapse.
+  The security boundary is deliberately not relaxed to avoid this.
 
 Boot quiet: for the first 20 s after the bridge starts, and only while the vehicle is not armed, GPS_SPOOFING and DOS alerts
 (any severity) and their RATE_LIMIT / SANITIZE_GPS / ANTI_JAM_DR / GPS_RECOVERED actions are detected, logged and acted on
@@ -98,6 +103,9 @@ burst of parameter traffic looks like a flood. Every other alert class is always
 once. The cost: real GPS spoofing or a flood that starts within 20 s of bridge start while disarmed is announced late (it
 is still logged and acted on). After an in-flight bridge restart the window also applies until the first heartbeat shows
 the vehicle armed (at most 20 s).
+**Maintainer decision (review X4): the 20 s boot-quiet window is retained.** During it the pilot is not warned of GPS
+spoofing or a flood, and full detection coverage is not guaranteed for the first 20 s after the bridge starts (while
+disarmed). Do not rely on AegisFlight warnings in that window.
 
 Not covered: signing must be enabled on the GCS and the flight controller (`SETUP_SIGNING`; PX4 and ArduPilot accept the
 first key from whoever sends it first, so provision on a trusted link). Signed downlink telemetry cannot be rewritten
