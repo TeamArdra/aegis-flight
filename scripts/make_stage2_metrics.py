@@ -56,16 +56,22 @@ PX4_P2 = ["artifacts/sitl/p2_final_trial_001", "artifacts/sitl/p2_final_trial_00
 REPLAY_TLOG = "artifacts/sitl/benign_replay_stage1_default.json"
 ALFA = "artifacts/external/alfa/results.json"
 NR = "not recorded"
-# BENCH runs whose summary.json records no commit: what the bench write-up / runner docstring say about them
+# BENCH runs whose summary.json records no commit: only what the bench write-up (BENCH_DOC) states about them. The
+# 001 alert counts are filled in from its alerts.jsonl evidence text (bench_notes).
 BENCH_NOTES = {
     "artifacts/hardware/serial_ids_com7_001": (
-        "different code and policy from serial_ids_com7_002, not run-to-run variation: run 2026-10-14, before the "
-        "2026-10-15 no-GPS policy (a link without GLOBAL_POSITION_INT was reported as a threat; "
-        "scripts/hardware/run_serial_ids.py docstring), on 6b21d1f plus uncommitted detectors/protocol.py and "
-        "features/extractor.py changes (docs/HARDWARE_BENCH_PIXHAWK6X.md section 6.8)"),
-    "artifacts/hardware/serial_ids_com7_002": ("run 2026-10-25 (started_utc), after the 2026-10-15 no-GPS policy date; "
-                                               "its code commit is not recorded"),
+        "not comparable with serial_ids_com7_002: run 2026-10-14 on 6b21d1f plus uncommitted src/aegisflight/"
+        "{{detectors/protocol.py, features/extractor.py, sources/mavlink_serial.py}} changes, on an indoor desk with no GPS "
+        "fix (docs/HARDWARE_BENCH_PIXHAWK6X.md section 6.8). Of its {total} alerts, {never} (never-received streams at "
+        "t = 0) would not be raised after the 2026-10-15 policy P1 (section 6.8 alert #1, section 6.5); the other {nofix} "
+        "are the no-fix rule (\"GNSS fix lost\"), whose score, DOS vote and timing that policy left unchanged (section 6.5, "
+        "P3.4). The GNSS state during serial_ids_com7_002 is not recorded (section 6.10), so the difference between the "
+        "two runs is not attributable to the policy"),
+    "artifacts/hardware/serial_ids_com7_002": (
+        "run 2026-10-25 (started_utc), after the 2026-10-15 policy date; its code commit and its GNSS state are not "
+        "recorded (docs/HARDWARE_BENCH_PIXHAWK6X.md section 6.10)"),
 }
+BENCH_001_ALERTS = "artifacts/hardware/serial_ids_com7_001/alerts.jsonl"
 SNAPSHOT = ("Every figure describes the code that produced its source artifact (per-source commit, config, ML state and "
             "date under provenance), not the tree this file was generated on. Those runs predate later changes to the "
             "live source and detectors (e.g. PR #39): this is a dated snapshot of committed evidence.")
@@ -85,7 +91,7 @@ def required_inputs() -> list[str]:
             + [f"artifacts/ardupilot/{d}/{f}" for d in AP_BENIGN + AP_DRIFT for f in ("manifest.json", "summary.json")]
             + PX4_LIVE + [px4_summary(p) for p in PX4_LIVE]
             + [f"{d}{ext}" for d in PX4_P2 for ext in (".manifest.json", ".ids_decisions.jsonl")]
-            + [f"{d}/summary.json" for d in BENCH] + list(BENCH_MANIFEST.values()) + [BENCH_DOC]
+            + [f"{d}/summary.json" for d in BENCH] + list(BENCH_MANIFEST.values()) + [BENCH_DOC, BENCH_001_ALERTS]
             + [REPLAY_TLOG, ALFA])
 
 
@@ -358,6 +364,14 @@ def px4_live(root: Path, prov: dict) -> dict:
     return out
 
 
+def bench_notes(root: Path) -> dict:
+    """BENCH_NOTES with the serial_ids_com7_001 alert split counted from its alerts.jsonl evidence."""
+    al = [json.loads(ln) for ln in (root / BENCH_001_ALERTS).read_text().splitlines() if ln.strip()]
+    never = sum(any("never received" in e for e in a["evidence"]) for a in al)
+    nofix = sum(any(e.startswith("GNSS fix") for e in a["evidence"]) for a in al)
+    return {d: n.format(total=len(al), never=never, nofix=nofix) for d, n in BENCH_NOTES.items()}
+
+
 def bench(root: Path, prov: dict | None = None) -> dict:
     """Serial-monitor runs: ``alert_decisions`` in summary.json is the engine's own ``is_alert`` count
     (``scripts/hardware/run_serial_ids.py``), i.e. alert events; exposure is the run's wall time."""
@@ -378,7 +392,7 @@ def bench(root: Path, prov: dict | None = None) -> dict:
             "environment": env, "claim_class": claim, "claim_class_source": cs,
             "alert_events_from": "summary.json alert_decisions (engine is_alert count, not re-derived); exposure = wall_s"}
         if d in BENCH_NOTES:
-            out[d.removeprefix("artifacts/hardware/")]["note"] = BENCH_NOTES[d]
+            out[d.removeprefix("artifacts/hardware/")]["note"] = bench_notes(root)[d]
     return out
 
 

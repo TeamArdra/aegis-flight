@@ -341,11 +341,25 @@ def test_ardupilot_pools_only_like_with_like():
         assert sum(p[part]["alert_events"] for p in groups) == pools["all_runs_mixed"][part]["alert_events"]
 
 
-def test_bench_runs_of_different_code_and_policy_are_annotated():
-    """F6 (#48 audit): run 001 (pre-2026-10-15 no-GPS policy, uncommitted changes) is not comparable with run 002."""
+def test_bench_001_note_states_only_what_the_bench_doc_and_alerts_support():
+    """F6 / re-verification item 2: 001 is not comparable with 002, but the cited write-up does not let the 16 -> 0
+    difference be blamed on the 2026-10-15 policy. The policy removes only the t = 0 never-received alert; the other 15 are
+    the unchanged no-fix rule, and 002's GNSS state was not recorded. The note's counts come from 001's alerts.jsonl."""
+    import json
+
     root, g = _generator()
     b = g.bench(root)
-    assert "not run-to-run variation" in b["serial_ids_com7_001"]["note"] and "2026-10-15" in b["serial_ids_com7_002"]["note"]
+    al = [json.loads(ln) for ln in (root / g.BENCH_001_ALERTS).read_text().splitlines() if ln.strip()]
+    never = [a for a in al if any("never received" in e for e in a["evidence"])]
+    nofix = [a for a in al if any(e.startswith("GNSS fix") for e in a["evidence"])]
+    assert (len(al), len(never), len(nofix)) == (16, 1, 15) and never[0]["t"] == 0.0     # 1 + 15 = 16, as section 6.8
+    note = b["serial_ids_com7_001"]["note"]
+    assert f"Of its {len(al)} alerts, {len(never)} " in note and f"the other {len(nofix)} " in note
+    assert "not attributable to the policy" in note and "not run-to-run variation" not in note
+    doc = (root / g.BENCH_DOC).read_text(encoding="utf-8")
+    assert "the GNSS state during this run is **not recorded**" in doc                   # section 6.10, about 002
+    assert "The score, the `DOS` vote and the timing are unchanged" in doc                 # section 6.5, P3.4
+    assert "section 6.10" in b["serial_ids_com7_002"]["note"]
 
 
 def test_nearest_rank_labels_lower_median_and_p95_max_below_20():
