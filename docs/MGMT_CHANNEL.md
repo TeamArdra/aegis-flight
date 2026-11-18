@@ -7,7 +7,11 @@ that same radio using only standard MAVLink 2 messages (no dialect change). Code
 (synthetic frames and in-memory links; the later runs over the real LR900 radio pair and on a Pi are in `docs/RADIO_TEST_RESULTS.md`).
 
 All bridge frames are sent from **sysid 1 / compid 191** to the **GCS side only**: never to the flight controller,
-never to the bridge's tap/detectors, in every posture (passive / advisory / active-ips). The ground IDS already treats
+never to the bridge's tap/detectors, in every posture (passive / advisory / active-ips). The channel is **on by default**
+(`--gcs-alerts on`, status every 2 s), so even in `passive` the bridge transmits on the GCS side and is not a byte-transparent
+link there; and every uplink COMMAND_LONG `MAV_CMD_USER_1` addressed to component 191 is consumed by the bridge (never
+forwarded to the flight controller), signed or not, with or without a management key. Component 191 is the standard
+`MAV_COMP_ID_ONBOARD_COMPUTER`, so such a command meant for a real companion computer behind the bridge would not reach it. The ground IDS already treats
 sysid 1 as the vehicle (the cross-end summary uses the same sender); a test runs the ground pipeline over a stream with
 these frames and expects no alert and no sequence gap (the cross-end summary and this channel share ONE sequence
 counter and signer for the 1/191 stream).
@@ -120,9 +124,14 @@ Bugs found and fixed here: an announced drop of a forged mode change said only `
 `blocked LAND`, which only a real MAV_CMD_NAV_LAND produces); the label now names the requested mode (`hal/mgmt_channel.py`,
 regression test `test_dropped_mode_change_label_names_the_requested_mode`).
 
-Design limits seen: two operator commands within 1 s: the second is DENIED (rate limited), the dashboard does not queue them; a
-replayed or wrong-key frame counts toward the 5-frame lockout, so whoever can transmit on the radio can lock the ground out of
-control for 60 s (the alerts and status keep flowing); with `--gcs-alerts off` one `posture` notice is still sent; the active-ips
+Design limits seen: two operator commands within 1 s: the second is DENIED (rate limited), the dashboard does not queue them; in
+these runs a replayed or wrong-key frame counted toward a 5-frame lock-out, so whoever could transmit on the radio could lock the
+ground out of control for 60 s. That lock-out has since been removed (review finding M7, see the control rules above):
+unauthenticated frames now raise at most one `AEGIS: mgmt bad signatures` alarm per 60 s and never block a validly signed command,
+and the 1-per-second rate limit is applied only after the signature check (unit tests
+`test_five_bad_signatures_raise_an_alarm_but_never_lock_out_a_valid_command`,
+`test_an_unsigned_flood_does_not_stop_the_pilots_signed_command`; not re-run in SITL); with `--gcs-alerts off` one `posture`
+notice is still sent; the active-ips
 counter-frames to the FC (COMMAND_LONG from 1/191) are the IPS's own mitigation, not management traffic, and their number differs
 between runs.
 

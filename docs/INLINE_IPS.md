@@ -34,7 +34,7 @@ transports, and one run over real transports on loopback sockets).
 ## Postures
 | Posture | Behaviour |
 |---|---|
-| `passive` (default) / `advisory` | every frame is forwarded byte-identically in both directions; nothing is dropped and NOTHING is ever sent to the flight controller. The bridge does send, to the GCS side only, the cross-end summary and the in-band management traffic (STATUSTEXT alerts/actions, status MEMORY_VECT, COMMAND_ACKs, see below); the only uplink frames it withholds are the signed management commands addressed to it. `advisory` differs from `passive` only in posture label: there is no separate advisory STATUSTEXT path |
+| `passive` (default) / `advisory` | every other frame is forwarded byte-identically in both directions and NOTHING of the bridge's own is ever sent to the flight controller. The link is not transparent on the GCS side: by default (`--gcs-alerts on`, `--mgmt-status-interval 2`, `--crossend-interval 1`) the bridge sends the cross-end summary and the in-band management traffic (STATUSTEXT alerts/actions, status MEMORY_VECT, COMMAND_ACKs, see `docs/MGMT_CHANNEL.md`) to the GCS side, and it withholds every uplink COMMAND_LONG `MAV_CMD_USER_1` (31010) addressed to component 191, signed or not and whether or not a management key is configured. `advisory` differs from `passive` only in posture label: there is no separate advisory STATUSTEXT path |
 | `active-ips` | static uplink rules + controller-driven downlink rules + counter-frames to the FC |
 
 The operator chooses the posture (`--defense-mode`, or `InlineIpsBridge.set_mode`); leaving `active-ips` clears all enforcement.

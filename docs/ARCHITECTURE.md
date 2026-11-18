@@ -22,7 +22,7 @@ Unlike conventional network IDSs that treat telemetry frames as opaque strings o
                        │               OPERATING POSTURES                 │
                        ├─────────────────┬───────────────┬────────────────┤
                        │  PASSIVE (IDS)  │   ADVISORY    │   ACTIVE IPS   │
-                       │ 0 B Transmitted │ STATUSTEXT to │ Autonomous     │
+                       │ 0 B to vehicle  │ STATUSTEXT to │ Autonomous     │
                        │ Zero Actuation  │ Pilot GCS HUD │ Counter-Action │
                        └─────────────────┴───────────────┴────────────────┘
                                                   │
