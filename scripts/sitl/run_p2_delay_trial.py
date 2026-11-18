@@ -129,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
                         "hypothesised jitter mechanism -- see attacks_live_dos_replay.py module docstring"},
         actual_effect=actual, frames_skipped_signed=attack.frames_skipped_signed,
     )
-    write_manifest(out, manifest, prov["full_provenance"],
+    write_manifest(out, manifest, prov["full_provenance"], run_provenance=prov["run_provenance"], ids_summary=
                    {"decisions": n_decisions, "threat_decisions": n_threats, "source_stats": ids_stats,
                     "relay_stats": relay.stats, "frames_delayed": attack.frames_delayed})
     print(json.dumps({"frames_seen": attack.frames_seen, "frames_delayed": attack.frames_delayed,

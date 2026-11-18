@@ -48,7 +48,15 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 sys.path.insert(0, str(REPO / "scripts" / "sitl"))  # provenance helper
 
-from provenance import collect, sha256_file  # noqa: E402
+from provenance import (  # noqa: E402
+    add_provenance_args,
+    begin_run,
+    collect,
+    finish_run,
+    require_clean_tree,
+    sha256_file,
+    write_manifest,
+)
 
 from aegisflight.config import load_config  # noqa: E402
 from aegisflight.logging import EventStore  # noqa: E402
@@ -136,6 +144,20 @@ class ResourceSampler(threading.Thread):
             self.threads.append(self.proc.num_threads())
 
 
+def ardupilot_describe(px4_dir: str = "/home/astryx/ardupilot") -> str | None:
+    """``git describe`` of the ArduPilot tree inside WSL (``None`` if unavailable; never hard-fails a run).
+
+    Matches ``Copter-*`` tags only, ``--long`` (``Copter-4.7.1-0-g<sha>``): an ArduPilot release commit carries a tag
+    per vehicle and plain ``--tags`` picked ``APMrover2-stable`` for the ArduCopter 4.7.1 SITL (#25 n=1 dry run). The
+    pattern is quoted because ``wsl --`` passes its arguments through a shell (it expands ``$HOME`` and globs)."""
+    try:
+        r = subprocess.run(["wsl", "-d", DISTRO, "--cd", px4_dir, "--", "git", "describe", "--tags", "--long",
+                            "--always", "--match", "'Copter-*'"], capture_output=True, text=True, timeout=30)
+    except Exception:  # noqa: BLE001
+        return None
+    return r.stdout.strip() or None
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--name", required=True)
@@ -153,12 +175,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out-dir", default="artifacts/ardupilot")
     ap.add_argument("--raw-dir", default="data/ardupilot/raw")
     ap.add_argument("--attack", default=None, help="attack hook spec from ap_attack.py (P2); default: none")
+    add_provenance_args(ap)
     a = ap.parse_args(argv)
     if not NAME_RE.fullmatch(a.name) or ".." in a.name:
         ap.error("--name must match [A-Za-z0-9][A-Za-z0-9_.-]{0,63} and not contain '..'")
     if a.monitor_heartbeat and a.harness != "passive":
         ap.error("--monitor-heartbeat needs --harness passive")
 
+    require_clean_tree(a.allow_dirty)  # before any output is created (#25)
     out = REPO / a.out_dir / a.name
     raw = REPO / a.raw_dir
     out.mkdir(parents=True, exist_ok=True)
@@ -177,6 +201,8 @@ def main(argv: list[str] | None = None) -> int:
 
     cfg = load_config(a.config_dir)
     model = None if a.no_ml else (a.model if a.model and Path(a.model).exists() else None)
+    run_prov = begin_run(allow_dirty=a.allow_dirty, profile_dir=a.config_dir, model_path=model,
+                         ml_enabled=model is not None, ardupilot_version=ardupilot_describe())
     pipe = IDSPipeline(cfg, model_path=model, firmware_dir=None)
     db = out / "events.sqlite"
     if db.exists():
@@ -387,6 +413,9 @@ def main(argv: list[str] | None = None) -> int:
         p = out / fn
         manifest[fn.split(".")[0]] = p.read_text(encoding="utf-8", errors="replace") if p.exists() else None
     (out / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    run_prov = finish_run(run_prov)
+    manifest["run_provenance"] = run_prov
+    write_manifest(out, run_prov)
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
     (out / "decisions.jsonl").write_text("\n".join(json.dumps(d) for d in decisions) + "\n", encoding="utf-8")
     (out / "alerts.jsonl").write_text("\n".join(json.dumps(x, default=str) for x in alerts) + ("\n" if alerts else ""),

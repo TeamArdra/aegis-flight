@@ -277,3 +277,46 @@ its own telemetry**. Not flight, not an attack, not detection evidence.
 | "(bias-corrected)" GPS/baro | `configs/detector.yaml` | **fixed** — no correction is implemented |
 | "benign residual ~4 m RMS" | `features/extractor.py` | **fixed** — replaced with a pointer to measured distributions |
 | real-world deployment claims | `README.md`, `technical_proposal.md` | already scoped as future work; keep it that way |
+
+## 6. Run manifest and reproducibility stamp (`aegisflight.run_manifest/1`)
+
+Every evidence-producing script (`scripts/sitl/run_*`, `record_flight.py`, `live_ids.py`, `scripts/ardupilot/*`,
+`scripts/hardware/run_serial_ids.py`, `aegis ips-bridge --run-dir`) either runs on a **clean, committed tree** or
+refuses. `--allow-dirty` overrides the refusal; the run is then labelled **`NOT-REPRODUCIBLE`**: a
+`NOT-REPRODUCIBLE` marker file next to the output (`<run_dir>/NOT-REPRODUCIBLE`, or `<stem>.NOT-REPRODUCIBLE` for
+stem-style outputs) and `status: "NOT-REPRODUCIBLE"` in the manifest. Never cite a `NOT-REPRODUCIBLE` run as evidence.
+"Dirty" means any modified tracked file, or an untracked file under `src/ scripts/ configs/ backend/ models/`
+(a fresh output directory is not dirt). The tree is judged twice: at the **start** of the run and again at the end.
+A run that started dirty, or whose commit or dirty state changed while it ran, is `NOT-REPRODUCIBLE` with the reason
+in `not_reproducible_reason`, and `commit` is the commit the run started on. The repository is the checkout the
+running `aegisflight` package was loaded from, never the current directory; not running from a checkout counts as dirty.
+
+Helper API (`scripts/sitl/provenance.py`, implemented in `src/aegisflight/run_provenance.py`):
+
+| Call | Purpose |
+|---|---|
+| `add_provenance_args(ap)` | adds `--allow-dirty` |
+| `require_clean_tree(allow_dirty)` | raises `DirtyTreeError` (exit 2, reason on stderr) on a dirty tree unless allowed; returns the start tree state |
+| `collect_run_provenance(allow_dirty=, profile_dir=, model_path=, ml_enabled=, px4_git_describe=, ardupilot_version=, ...)` (alias `begin_run`) | returns the manifest dict; call at start, or at the end with `start_state=` (the `require_clean_tree` result) |
+| `finish_run(m)` | sets `ended_utc` and re-checks the tree against the manifest |
+| `write_manifest(run_dir, m)` | writes `<run_dir>/run_manifest.json` and stamps the directory |
+| `stamp_run_dir(dir, reproducible)` / `stamp_stem(stem, m)` | the marker files |
+
+| Field | Meaning |
+|---|---|
+| `schema` | `aegisflight.run_manifest/1` |
+| `status`, `reproducible` | `REPRODUCIBLE` / `NOT-REPRODUCIBLE`, and the boolean |
+| `commit` | `git rev-parse HEAD` at the start of the run |
+| `working_tree_dirty`, `dirty_paths` | dirty flag and the paths (empty on a clean run) |
+| `detector_profile_dir`, `detector_profile_sha256` | profile directory (`configs` = default) and SHA-256 of its `*.yaml` (name + bytes, sorted) |
+| `model_path`, `model_sha256`, `ml_enabled` | model file and its SHA-256, or `"none"` / `null`; whether ML ran |
+| `px4_git_describe`, `ardupilot_version` | the firmware under test (`null` where not applicable) |
+| `python`, `packages` | interpreter and key package versions |
+| `command_line` | full command line |
+| `started_utc`, `ended_utc` | UTC ISO-8601 |
+| `not_reproducible_reason` | why the run is `NOT-REPRODUCIBLE` (dirty at start, commit changed, dirty state changed); `null` when reproducible |
+
+Bridge runs (`aegis ips-bridge --run-dir <dir>`) additionally archive `frames_down.jsonl` / `frames_up.jsonl`
+(both directions' raw frames, hex), `decisions.jsonl`, `actions.jsonl` and `run_manifest.json` in that directory.
+The campaign runner is `scripts/sitl/run_campaign.py` (fixed seeds, `--n` per scenario, `--resume`). A trial counts as
+done only when its own `run_provenance` names the campaign's commit and reproducibility; otherwise it is failed, with the reason.

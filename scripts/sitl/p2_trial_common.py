@@ -17,8 +17,12 @@ import importlib.metadata as md
 import json
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import provenance as _prov  # noqa: E402 -- sibling script module, path set above
 
 MODEL_STAGE1 = "models/isoforest.joblib"
 MODEL_PX4 = "models/isoforest_px4.joblib"
@@ -40,10 +44,27 @@ def px4_describe(distro: str = "Ubuntu-24.04", px4_dir: str = "/home/astryx/PX4-
     return out.stdout.strip()
 
 
+#: Set by :class:`_TrialParser` at parse time: the run's arguments and UTC start (issue #25).
+_RUN: dict[str, Any] = {}
+
+
+class _TrialParser(argparse.ArgumentParser):
+    """Refuses a dirty tree (unless ``--allow-dirty``) as soon as the arguments are parsed -- before any
+    output file is created -- and remembers the arguments and start time for :func:`provenance_block`."""
+
+    def parse_args(self, args=None, namespace=None):  # type: ignore[override]
+        ns = super().parse_args(args, namespace)
+        start = _prov.require_clean_tree(ns.allow_dirty)
+        _RUN.clear()
+        _RUN.update(args=ns, started_utc=datetime.now(UTC).isoformat(), start_state=start)
+        return ns
+
+
 def build_argparser(description: str, *, default_seconds: float) -> argparse.ArgumentParser:
     """The flag set every P2 trial driver shares. ``--seed``/``--out`` stay required;
     everything else has the same defaults as ``run_p2_trial.py``/``run_p2_injection_trial.py``."""
-    ap = argparse.ArgumentParser(description=description)
+    ap = _TrialParser(description=description)
+    _prov.add_provenance_args(ap)
     ap.add_argument("--px4-host", default=None, help="default: discovered WSL IP")
     ap.add_argument("--px4-port", type=int, default=18572)
     ap.add_argument("--relay-listen-port", type=int, default=18672)
@@ -90,27 +111,37 @@ def provenance_block(distro: str, px4_dir: str, extra: dict[str, Any]) -> dict[s
     ``aegisflight_git_commit``/``python_version`` keys) plus the PX4 side (``px4_git_describe``,
     discovered via WSL, never hard-coded) and ``pymavlink_version``. ``extra`` is passed
     through to ``collect()`` (e.g. ``python_version=...``)."""
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from provenance import collect  # noqa: E402 -- sibling script module, path set above
+    from provenance import collect  # noqa: E402 -- sibling script module
 
     prov_raw = collect(**extra)
+    a = _RUN.get("args")
+    px4 = px4_describe(distro, px4_dir)
+    run = _prov.collect_run_provenance(
+        allow_dirty=bool(a and a.allow_dirty), px4_git_describe=px4, started_utc=_RUN.get("started_utc"),
+        start_state=_RUN.get("start_state"),
+        profile_dir=getattr(a, "profile", None) or None,
+        model_path=resolve_model(a.profile, a.model)[0] if a else None)
     return {
         "provenance": {
-            "px4_git_describe": px4_describe(distro, px4_dir),
+            "px4_git_describe": px4,
             "aegisflight_git_commit": prov_raw["aegisflight_commit"],
             "python_version": prov_raw["python"],
             "pymavlink_version": md.version("pymavlink"),
         },
         "full_provenance": prov_raw,
+        "run_provenance": _prov.finish_run(run),
     }
 
 
-def write_manifest(out: Path, manifest: Any, full_provenance: dict[str, Any], ids_summary: dict[str, Any]) -> None:
+def write_manifest(out: Path, manifest: Any, full_provenance: dict[str, Any], ids_summary: dict[str, Any],
+                   run_provenance: dict[str, Any] | None = None) -> None:
     """Serialise a :class:`aegisflight.proxy.groundtruth.Manifest` the same way both
     earlier drivers do: ``manifest.__dict__`` plus the ``init=False`` fields and an
     ``ids_summary`` block, written to ``out.with_suffix(".manifest.json")``."""
     out.with_suffix(".manifest.json").write_text(json.dumps(
         {**manifest.__dict__, "schema_id": manifest.schema_id, "schema_version": manifest.schema_version,
          "detector_decision": manifest.detector_decision, "time_to_detection_s": manifest.time_to_detection_s,
-         "full_provenance": full_provenance, "ids_summary": ids_summary},
+         "full_provenance": full_provenance, "run_provenance": run_provenance, "ids_summary": ids_summary},
         indent=2, default=str))
+    if run_provenance:
+        _prov.stamp_stem(out, run_provenance)

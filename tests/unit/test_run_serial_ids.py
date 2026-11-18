@@ -17,6 +17,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "hardwa
 
 import run_serial_ids  # noqa: E402
 
+from aegisflight import run_provenance  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _tolerate_dev_tree(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The runner refuses a dirty tree (#25); these tests exercise the runner, not the tree, so a developer's
+    uncommitted edits must not fail them. The refusal itself is covered in test_run_provenance.py."""
+    monkeypatch.setattr(run_provenance, "tree_state", lambda repo=None: {"commit": "t", "dirty": False, "dirty_paths": []})
+
 
 def _frames(n: int) -> list[bytes]:
     m = mav.MAVLink(None, srcSystem=1, srcComponent=1)
@@ -90,6 +99,24 @@ def test_runs_receive_only_writes_outputs_and_exits_zero(tmp_path, restore_signa
     assert s["decisions"] > 0 and s["hash_chain"]["ok"] is True
     assert (tmp_path / "alerts.jsonl").exists() and (tmp_path / "events.sqlite").exists()
     assert len((tmp_path / "health.jsonl").read_text().splitlines()) >= 2
+    m = json.loads((tmp_path / "run_manifest.json").read_text())  # #25: full provenance in the run dir
+    assert set(m) == set(run_provenance.MANIFEST_FIELDS) and m["ended_utc"] and m["ml_enabled"] is False
+    assert s["run_provenance"] == m and not (tmp_path / "NOT-REPRODUCIBLE").exists()
+
+
+def test_refuses_a_dirty_tree_and_stamps_under_allow_dirty(tmp_path, restore_signals, monkeypatch):
+    monkeypatch.setattr(run_provenance, "tree_state",
+                        lambda repo=None: {"commit": "t", "dirty": True, "dirty_paths": ["src/x.py"]})
+    with pytest.raises(run_provenance.DirtyTreeError):
+        run_serial_ids.main(["--port", "socket://127.0.0.1:1", "--allow-url", "--out-dir", str(tmp_path / "a"),
+                             "--seconds", "1"])
+    assert not (tmp_path / "a").exists()  # refused before anything was created
+    dev = Device(_frames(5))
+    rc = run_serial_ids.main(["--port", f"socket://127.0.0.1:{dev.port}", "--allow-url", "--allow-dirty",
+                              "--out-dir", str(tmp_path / "b"), "--seconds", "2"])
+    dev.close()
+    assert rc == 0 and (tmp_path / "b" / "NOT-REPRODUCIBLE").is_file()
+    assert json.loads((tmp_path / "b" / "run_manifest.json").read_text())["status"] == "NOT-REPRODUCIBLE"
 
 
 def _tlog_frames(path: Path) -> list[bytes]:

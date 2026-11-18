@@ -31,7 +31,15 @@ import psutil
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parents[1] / "scripts" / "sitl"))  # provenance helper
 
+from provenance import (  # noqa: E402
+    add_provenance_args,
+    begin_run,
+    finish_run,
+    require_clean_tree,
+    stamp_stem,
+)
 from replay_ap_tlog import replay  # noqa: E402
 
 from aegisflight.config import load_config  # noqa: E402
@@ -43,7 +51,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repeat", type=int, default=3)
     ap.add_argument("--model", default="models/isoforest.joblib")
     ap.add_argument("--json")
+    add_provenance_args(ap)
     a = ap.parse_args(argv)
+    require_clean_tree(a.allow_dirty)  # (#25)
+    run_prov = begin_run(allow_dirty=a.allow_dirty, profile_dir=None, model_path=a.model if Path(a.model).exists() else None)
 
     cfg = load_config(None)
     rate = float(cfg.simulation.get("sample_rate_hz", 10.0))
@@ -74,7 +85,9 @@ def main(argv: list[str] | None = None) -> int:
         per = [r["cpu_s_per_telemetry_s"] for r in runs]
         out["variants"][name] = {"runs": runs, "median_cpu_s_per_telemetry_s": round(statistics.median(per), 5),
                                  "max_rss_mb": max(r["rss_mb"] for r in runs)}
+    out["run_provenance"] = finish_run(run_prov)
     if a.json:
+        stamp_stem(Path(a.json).with_suffix(""), run_prov)
         Path(a.json).parent.mkdir(parents=True, exist_ok=True)
         Path(a.json).write_text(json.dumps(out, indent=2), encoding="utf-8")
     print(json.dumps(out, indent=2))

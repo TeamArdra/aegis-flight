@@ -21,6 +21,13 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1] / "scripts" / "sitl"))
 
+from provenance import (  # noqa: E402
+    add_provenance_args,
+    begin_run,
+    finish_run,
+    require_clean_tree,
+    stamp_stem,
+)
 from tlog_stats import iter_raw_frames  # noqa: E402
 
 
@@ -40,12 +47,17 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("tlogs", nargs="+")
     ap.add_argument("--json")
+    add_provenance_args(ap)
     a = ap.parse_args()
+    require_clean_tree(a.allow_dirty)  # (#25)
+    run_prov = begin_run(allow_dirty=a.allow_dirty, profile_dir=None, model_path=None)
     rows = [rtf(Path(t)) for t in a.tlogs]
     vals = [r["rtf_least_squares_slope"] for r in rows if "rtf_least_squares_slope" in r]
     out = {"schema": "aegisflight.sitl_rtf/1", "environment": "REPLAY analysis of SITL captures", "runs": rows,
            "min": min(vals) if vals else None, "max": max(vals) if vals else None}
+    out["run_provenance"] = finish_run(run_prov)
     if a.json:
+        stamp_stem(Path(a.json).with_suffix(""), run_prov)
         Path(a.json).write_text(json.dumps(out, indent=2), encoding="utf-8")
     print(json.dumps(out, indent=2))
     return 0

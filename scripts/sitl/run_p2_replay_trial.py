@@ -214,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
                         "and the replay ack"},
         actual_effect=effect, frames_skipped_signed=attack.frames_skipped_signed,
     )
-    write_manifest(out, manifest, prov["full_provenance"],
+    write_manifest(out, manifest, prov["full_provenance"], run_provenance=prov["run_provenance"], ids_summary=
                    {"decisions": n_decisions, "threat_decisions": n_threats, "source_stats": ids_stats,
                     "relay_stats": relay.stats})
     print(json.dumps({"frames_seen": attack.frames_seen, "frames_replayed": attack.frames_replayed,

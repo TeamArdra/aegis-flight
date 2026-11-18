@@ -238,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
                          "accepted by PX4 and produce no sig_invalid signal."},
         actual_effect=effect, frames_skipped_signed=attack.frames_skipped_signed,
     )
-    write_manifest(out, manifest, prov["full_provenance"],
+    write_manifest(out, manifest, prov["full_provenance"], run_provenance=prov["run_provenance"], ids_summary=
                    {"decisions": n_decisions, "threat_decisions": n_threats, "source_stats": ids_stats,
                     "relay_stats": relay.stats, "event_log": log, "legit_signed_command_ack": legit_ack,
                     "ids_sig_invalid_before": sig_invalid_before, "ids_sig_invalid_after": sig_invalid_after})

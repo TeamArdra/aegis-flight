@@ -136,6 +136,7 @@ class InlineIpsBridge:
         contested_policy: str = "alert",
         replay_memory: int = 4096,
         on_alarm: Callable[[str], None] | None = None,
+        archive: Any | None = None,
         gcs_alerts: bool = True,
         alert_min_interval_s: float = 2.0,
         mgmt_status_interval_s: float = 2.0,
@@ -191,6 +192,7 @@ class InlineIpsBridge:
         # its wall clock: a companion computer without RTC / internet has an arbitrary clock and the FC rejects stale timestamps
         self.controller.actuator.set_timestamp_source(self.policy.next_signing_timestamp)
         self.on_alarm = on_alarm
+        self.archive = archive  # hal.run_archive.BridgeRunArchive: raw frames/decisions/actions (issue #25)
         self._alarm_enc = MavlinkActuator(sysid=1, compid=192, secret_key=secret_key)
         self.alarms_sent = 0
         self._apply_enforcement()
@@ -215,8 +217,15 @@ class InlineIpsBridge:
         self._last_analyse_wall: float | None = None
         self._seen_action: dict[str, Any] | None = None
         vsys = vehicle_sysids if vehicle_sysids is not None else tuple(proto.get("expected_sysids", (1,)))
+        mgmt_send = self.gcs.send
+        if archive is not None:  # evidence run: the management stream to the GCS is archived like every other output
+            def mgmt_send(frame: bytes) -> bool:
+                t = self._clock_ns()
+                ok = self.gcs.send(frame)
+                archive.action(t, "mgmt", "gcs", frame, sent=bool(ok))  # the row records whether it left the bridge
+                return ok
         self.mgmt = MgmtChannel(
-            self.gcs.send, self._sender, self, alerts_enabled=gcs_alerts, alert_min_interval_s=alert_min_interval_s,
+            mgmt_send, self._sender, self, alerts_enabled=gcs_alerts, alert_min_interval_s=alert_min_interval_s,
             status_interval_s=mgmt_status_interval_s, max_bytes_per_s=mgmt_max_bytes_per_s, mgmt_key=mgmt_key,
             flight_signing=secret_key is not None, vehicle_sysid=vsys[0],
             state_path=mgmt_state_path, audit_path=audit_log_path, lock_posture_file=lock_posture_file,
@@ -259,6 +268,9 @@ class InlineIpsBridge:
             if th is not threading.current_thread():
                 th.join(timeout=2.0)
         self.policy.flush()
+        if self.archive is not None:
+            with contextlib.suppress(Exception):  # an archive error must never keep the links open
+                self.archive.close()
         for tr in (self.fc, self.gcs):
             with contextlib.suppress(Exception):
                 tr.close()
@@ -364,7 +376,12 @@ class InlineIpsBridge:
         """Contested-source alarm: STATUSTEXT (warning) to the GCS side only, signed when a key is configured."""
         for sysid in self.policy.take_alarms():
             text = f"AEGIS: two senders using sysid {sysid} on the uplink"
-            if self.gcs.send(self._alarm_enc.encode_statustext(text, severity=4)):
+            alarm = self._alarm_enc.encode_statustext(text, severity=4)
+            t = self._clock_ns()
+            ok = self.gcs.send(alarm)
+            if self.archive is not None:
+                self.archive.action(t, "alarm", "gcs", alarm, text=text, sent=bool(ok))
+            if ok:
                 self.alarms_sent += 1
             else:
                 self.send_failures += 1
@@ -386,6 +403,8 @@ class InlineIpsBridge:
         for fr in frames:
             if not down and fr.msgid == 76 and (req := is_mgmt_command(fr.raw)) is not None:
                 self.mgmt.handle_command(fr.raw, req)  # consumed: never forwarded to the FC, never tapped
+                if self.archive is not None:  # every received frame is archived, a consumed command too (#25)
+                    self.archive.consumed(direction, stamp, fr.raw)
                 n += 1
                 continue
             t0 = perf_ns()
@@ -422,6 +441,7 @@ class InlineIpsBridge:
                 with contextlib.suppress(Exception):
                     for verdict, oraw, osys, omsg in policy.take_observed():
                         self.mgmt.note_observed(drop_label(oraw, osys, omsg, direction), verdict)
+            failed = 0
             for raw in out:
                 if send(raw):
                     if down:
@@ -432,6 +452,9 @@ class InlineIpsBridge:
                         self.forwarded_up += 1
                 else:
                     self.send_failures += 1
+                    failed += 1
+            if self.archive is not None:  # after the send: the row says whether the verdict actually reached the wire
+                self.archive.frame(direction, stamp, fr.raw, list(out), send_failed=failed)
             lat_append((perf_ns() - t0) / 1000.0)
             n += 1
         return n
@@ -479,6 +502,10 @@ class InlineIpsBridge:
         self.decisions += 1
         act = self.controller.step(self.pipeline.last_frame, assessment)
         self.last_summary = act.summary
+        if self.archive is not None:
+            now = self._clock_ns()
+            self.archive.decision(now, assessment, self.controller.mode.value, self.controller.state.value, act.summary)
+            self.archive.summary_changed(now, act.summary, self.controller.mode.value, self.controller.state.value)
         self.policy.touch()
         self._announce_actions()
         if assessment.is_alert:
@@ -497,7 +524,11 @@ class InlineIpsBridge:
                 # corrective commands go to the flight controller; a STATUSTEXT warning is for the pilot's GCS
                 # (the FC does not relay a STATUSTEXT it receives), so it goes to the GCS side only
                 link = self.gcs if _is_statustext(frame) else self.fc
-                if link.send(frame):
+                t = self._clock_ns()
+                ok = link.send(frame)
+                if self.archive is not None:
+                    self.archive.action(t, "counter_frame", "gcs" if link is self.gcs else "fc", frame, sent=bool(ok))
+                if ok:
                     self.counter_frames_sent += 1
                 else:
                     self.send_failures += 1
@@ -538,7 +569,10 @@ class InlineIpsBridge:
         with self._sender.lock:
             frame = self._sender.build(lambda e: e.memory_vect_encode(
                 MARKER_ADDRESS, MARKER_VER, MARKER_TYPE, pack_summary(vals, self._secret_key)))
-            if self.gcs.send(frame):
+            ok = self.gcs.send(frame)
+            if self.archive is not None:
+                self.archive.action(now, "crossend", "gcs", frame, sent=bool(ok))
+            if ok:
                 self._sender.commit()
                 self.crossend_sent += 1
                 return True

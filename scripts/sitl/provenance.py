@@ -8,6 +8,11 @@ src/, scripts/, configs/), python and key package versions, SHA-256 of the model
 the concatenated configs, command line, UTC time. Backfilled blocks carry
 ``"backfilled": true`` -- they describe the repo at backfill time, NOT at capture time, and
 must be read that way.
+
+Run-level provenance (issue #25, schema ``aegisflight.run_manifest/1``) lives in
+``aegisflight.run_provenance`` and is re-exported here, so every script uses one import::
+
+    from provenance import add_provenance_args, begin_run, finish_run, write_manifest, stamp_stem
 """
 
 from __future__ import annotations
@@ -20,6 +25,24 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+
+from aegisflight.run_provenance import (  # noqa: F401 - re-exported API
+    MANIFEST_FIELDS,
+    MANIFEST_NAME,
+    NOT_REPRODUCIBLE,
+    SCHEMA_ID,
+    DirtyTreeError,
+    add_provenance_args,
+    begin_run,
+    collect_run_provenance,
+    finish_run,
+    require_clean_tree,
+    sha256_dir,
+    stamp_run_dir,
+    stamp_stem,
+    tree_state,
+    write_manifest,
+)
 
 
 def sha256_file(path: str | Path) -> str:

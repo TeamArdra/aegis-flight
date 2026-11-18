@@ -480,4 +480,22 @@ its autonomous GPS response. The disarmed vehicle was held in ALT_HOLD for the r
 false-alarm issue is fixed, active-ips should not be treated as safe on a flying vehicle. Details: `docs/RADIO_TEST_RESULTS.md`, section
 "Real Pixhawk 6X on a Pi 5, 2026-10-31".
 
+## Evidence runs: `--run-dir` (raw-log archive)
 
+`aegis ips-bridge --run-dir <dir>` makes the run auditable and replayable. It refuses a dirty tree (or, with
+`--allow-dirty`, stamps the directory `NOT-REPRODUCIBLE`), refuses a directory that already holds a run, and writes:
+
+| File | Content |
+|---|---|
+| `frames_down.jsonl`, `frames_up.jsonl` | FC to GCS and GCS to FC: every **original** received frame (hex) with `verdict` `forwarded` / `dropped` / `rewritten` (and `out` for a rewrite) / `consumed` (a management command the bridge handled itself and never forwarded); the verdict is the policy decision, and `send_failed: N` is added when N output frames were refused by the far link (e.g. its port is down) |
+| `decisions.jsonl` | one row per analyser decision: threat flag, type, score, evidence, controller mode/state |
+| `actions.jsonl` | counter-frames to the FC; STATUSTEXT alarms, cross-end summaries and the management stream (alerts, status, ACKs, `kind: mgmt`) to the GCS; each change of the controller action summary; every sent-frame row carries `sent: true/false` |
+| `events.sqlite` | the hash-chained alert log (unless `--db` points elsewhere) |
+| `run_manifest.json` | `aegisflight.run_manifest/1` (see `docs/VALIDATION_EVIDENCE.md` §6) plus a `bridge` block: ports, posture, signing on/off, final `status()`, archive row counts |
+
+The forwarding path only appends rows to an in-memory queue and a writer thread does the file I/O, so archiving does not
+delay a frame; if the queue overflows the rows are dropped and counted (`bridge.archive.dropped_rows`,
+`complete: false`), never silently. A row the writer cannot write (a disk error) is counted too
+(`bridge.archive.write_errors`, the first error in `writer_error`, `complete: false`); the writer keeps going, and an
+archive error on close never stops the bridge closing its links or writing `run_manifest.json`. Environment tag and claim class are those of the run's wire (SITL loopback);
+the archive adds no claim.

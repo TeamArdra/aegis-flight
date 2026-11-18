@@ -169,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
                               "continuity (the forgery continues the real counter) -> the authentication gap"}[a.seq_policy]},
         actual_effect=effect, frames_skipped_signed=attack.frames_skipped_signed,
     )
-    write_manifest(out, manifest, prov["full_provenance"],
+    write_manifest(out, manifest, prov["full_provenance"], run_provenance=prov["run_provenance"], ids_summary=
                    {"decisions": n_decisions, "threat_decisions": n_threats, "source_stats": ids_stats,
                     "relay_stats": relay.stats, "injection_carriers": hook.injections,
                     "frames_skipped_no_identity_seq": attack.frames_skipped_no_identity_seq})

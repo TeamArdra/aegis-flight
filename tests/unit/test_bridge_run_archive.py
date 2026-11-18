@@ -1,0 +1,279 @@
+"""Issue #25: an inline-bridge run archives both directions' raw frames, decisions, actions and a manifest."""
+
+from __future__ import annotations
+
+import importlib
+import json
+from pathlib import Path
+
+import pytest
+from test_inline_ips import (  # noqa: E402 - sibling test module
+    FakeLink,
+    command_long,
+    gpi,
+    heartbeat,
+)
+
+from aegisflight import run_provenance
+from aegisflight.hal.inline_ips import InlineIpsBridge
+from aegisflight.hal.run_archive import BridgeRunArchive
+from aegisflight.mitigation.inline_policy import MAV_CMD_DO_SET_MODE
+
+
+def _rows(p: Path) -> list[dict]:
+    return [json.loads(x) for x in p.read_text().splitlines() if x]
+
+
+def test_archive_records_both_directions_raw_with_verdicts(tmp_path):
+    fc, gcs = FakeLink(), FakeLink()
+    arch = BridgeRunArchive(tmp_path / "run")
+    b = InlineIpsBridge(fc, gcs, mode="active-ips", crossend_interval_s=0, archive=arch)
+    down = [heartbeat(), gpi()]
+    pilot = command_long(255, MAV_CMD_DO_SET_MODE, 1, 4)
+    hostile = command_long(66, MAV_CMD_DO_SET_MODE, 1, 9)
+    fc.feed(*down)
+    gcs.feed(pilot, hostile)
+    b.pump_once()
+    b.close()
+    d = tmp_path / "run"
+    fd, fu = _rows(d / "frames_down.jsonl"), _rows(d / "frames_up.jsonl")
+    assert [bytes.fromhex(r["raw"]) for r in fd] == down and {r["verdict"] for r in fd} == {"forwarded"}
+    assert [bytes.fromhex(r["raw"]) for r in fu] == [pilot, hostile]  # ORIGINAL bytes, even the one that was dropped
+    assert [r["verdict"] for r in fu] == ["forwarded", "dropped"] and fu[1]["raw"] == hostile.hex()
+    assert all(isinstance(r["t_ns"], int) for r in fd + fu)
+    for n in ("decisions.jsonl", "actions.jsonl"):
+        assert (d / n).exists()
+    assert arch.stats()["rows"]["frames_down.jsonl"] == 2 and arch.stats()["complete"] is True
+
+
+def test_archive_records_decisions_and_actions(tmp_path):
+    arch = BridgeRunArchive(tmp_path / "run")
+    fc, gcs = FakeLink(), FakeLink()
+    b = InlineIpsBridge(fc, gcs, mode="passive", crossend_interval_s=0, archive=arch)
+
+    class A:  # minimal assessment
+        t = 1.5
+        threat = True
+        is_alert = True
+        threat_score = 0.91234
+        evidence = ["e1"]
+
+        class attack_type:  # noqa: N801
+            value = "GPS_SPOOFING"
+
+    arch.decision(5, A, "passive", "NORMAL", "none")
+    arch.summary_changed(5, "none", "passive", "NORMAL")
+    arch.summary_changed(6, "none", "passive", "NORMAL")  # unchanged -> not repeated
+    arch.action(7, "counter_frame", "fc", b"\xfd\x01")
+    b.close()
+    dec = _rows(tmp_path / "run" / "decisions.jsonl")
+    assert dec == [{"t_ns": 5, "t": 1.5, "threat": True, "alert": True, "type": "GPS_SPOOFING", "score": 0.9123,
+                    "evidence": ["e1"], "mode": "passive", "state": "NORMAL", "summary": "none"}]
+    act = _rows(tmp_path / "run" / "actions.jsonl")
+    assert [a["kind"] for a in act] == ["summary", "counter_frame"] and act[1]["raw"] == "fd01" and act[1]["to"] == "fc"
+
+
+def test_archive_overflow_is_counted_not_silent(tmp_path):
+    arch = BridgeRunArchive(tmp_path / "r", max_queue=2, flush_interval_s=60)
+    for i in range(5):
+        arch.frame("down", i, b"\xfd", [b"\xfd"])
+    st = arch.close()
+    assert st["dropped_rows"] == 3 and st["rows"]["frames_down.jsonl"] == 2 and st["complete"] is False
+
+
+def test_archive_refuses_a_previous_run_dir(tmp_path):
+    BridgeRunArchive(tmp_path / "r").close()
+    with pytest.raises(FileExistsError):
+        BridgeRunArchive(tmp_path / "r")
+
+
+cli = importlib.import_module("aegisflight.cli.main")
+_BASE = ["ips-bridge", "--fc-port", "socket://127.0.0.1:1", "--gcs-port", "socket://127.0.0.1:2", "--allow-url",
+         "--seconds", "0.3", "--status-interval", "0.1"]
+
+
+def test_cli_run_dir_writes_manifest_and_logs(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_provenance, "tree_state", lambda repo=None: {"commit": "c" * 40, "dirty": False, "dirty_paths": []})
+    rd = tmp_path / "run"
+    assert cli.main([*_BASE, "--run-dir", str(rd)]) == 0
+    m = json.loads((rd / "run_manifest.json").read_text())
+    assert m["schema"] == "aegisflight.run_manifest/1" and m["status"] == "REPRODUCIBLE" and m["ended_utc"]
+    assert m["ml_enabled"] is False and m["model_path"] == "none"
+    assert m["bridge"]["archive"]["complete"] is True and m["bridge"]["defense_mode"] == "passive"
+    for n in ("frames_down.jsonl", "frames_up.jsonl", "decisions.jsonl", "actions.jsonl", "events.sqlite"):
+        assert (rd / n).exists()
+    assert not (rd / "NOT-REPRODUCIBLE").exists()
+
+
+def test_cli_run_dir_refuses_dirty_then_stamps(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(run_provenance, "tree_state",
+                        lambda repo=None: {"commit": "c" * 40, "dirty": True, "dirty_paths": ["src/x.py"]})
+    assert cli.main([*_BASE, "--run-dir", str(tmp_path / "a")]) == 2
+    assert "--allow-dirty" in capsys.readouterr().err and not (tmp_path / "a" / "run_manifest.json").exists()
+    assert cli.main([*_BASE, "--run-dir", str(tmp_path / "b"), "--allow-dirty"]) == 0
+    assert (tmp_path / "b" / "NOT-REPRODUCIBLE").is_file()
+    assert json.loads((tmp_path / "b" / "run_manifest.json").read_text())["status"] == "NOT-REPRODUCIBLE"
+
+
+def test_archive_records_the_management_stream_sent_to_the_gcs(tmp_path):
+    """Management alerts / status / ACKs (PR #39) leave the bridge for the GCS too: an evidence run must archive every
+    one of them, byte-identical to what was sent, or the run's record of bridge output is silently incomplete."""
+    fc, gcs = FakeLink(), FakeLink()
+    arch = BridgeRunArchive(tmp_path / "run")
+    b = InlineIpsBridge(fc, gcs, mode="passive", crossend_interval_s=0, archive=arch)
+    b.mgmt.action("FILTER_TEST", "")
+    b.close()
+    mgmt = [a for a in _rows(tmp_path / "run" / "actions.jsonl") if a["kind"] == "mgmt"]
+    assert mgmt and all(a["to"] == "gcs" for a in mgmt)
+    assert [bytes.fromhex(a["raw"]) for a in mgmt] == gcs.sent
+    assert all(a["sent"] is True for a in mgmt)
+
+
+def test_without_an_archive_the_management_stream_goes_straight_to_the_gcs():
+    fc, gcs = FakeLink(), FakeLink()
+    b = InlineIpsBridge(fc, gcs, mode="passive", crossend_interval_s=0)
+    b.mgmt.action("FILTER_TEST", "")
+    b.close()
+    assert gcs.sent  # unchanged behaviour when no evidence run is configured
+
+
+class _DeadLink(FakeLink):
+    """A link whose peer is gone: every send is refused (the #25 SITL bridge run had the FC port down)."""
+
+    def send(self, data: bytes) -> bool:
+        return False
+
+
+def test_a_forwarded_frame_that_never_reached_the_wire_is_marked_send_failed(tmp_path):
+    """#25 dry run: with the FC link down the archive said ``forwarded`` for 27 uplink frames while the bridge counted
+    27 send failures and 0 forwarded. The verdict stays the policy decision; ``send_failed`` records the delivery."""
+    fc, gcs = _DeadLink(), FakeLink()
+    arch = BridgeRunArchive(tmp_path / "run")
+    b = InlineIpsBridge(fc, gcs, mode="passive", crossend_interval_s=0, archive=arch)
+    gcs.feed(command_long(255, MAV_CMD_DO_SET_MODE, 1, 4))
+    fc.feed(heartbeat())
+    b.pump_once()
+    st = b.status()["frames"]
+    b.close()
+    up = _rows(tmp_path / "run" / "frames_up.jsonl")
+    down = _rows(tmp_path / "run" / "frames_down.jsonl")
+    assert st["forwarded_up"] == 0 and st["send_failures"] >= 1
+    assert up[0]["verdict"] == "forwarded" and up[0]["send_failed"] == 1
+    assert "send_failed" not in down[0]  # the GCS link accepted it: the row is unchanged
+
+
+def test_action_rows_record_whether_the_frame_was_sent(tmp_path):
+    fc, gcs = FakeLink(), _DeadLink()
+    arch = BridgeRunArchive(tmp_path / "run")
+    b = InlineIpsBridge(fc, gcs, mode="passive", crossend_interval_s=0, archive=arch)
+    b.mgmt.action("FILTER_TEST", "")
+    b.close()
+    mgmt = [a for a in _rows(tmp_path / "run" / "actions.jsonl") if a["kind"] == "mgmt"]
+    assert mgmt and all(a["sent"] is False for a in mgmt)
+
+
+def test_consumed_management_commands_are_archived_and_still_never_forwarded(tmp_path):
+    """PR #50 review P2: a management command (e.g. a posture change) is consumed before the forwarding path, so it
+    never reached ``frames_up.jsonl``. Every received frame is archived; a consumed one has verdict ``consumed``."""
+    from test_mgmt_channel import KEY_M, OP_SET_POSTURE, Ground, make_bridge
+
+    from aegisflight.proxy.transport import split_frames
+
+    arch = BridgeRunArchive(tmp_path / "run")
+    b, fc, gcs, clock = make_bridge(tmp_path, mode="active-ips", mgmt_key=KEY_M, archive=arch)
+    clock.t += 2
+    cmd = Ground().frame(OP_SET_POSTURE, 0, True)  # active-ips -> passive
+    pilot = command_long(255, MAV_CMD_DO_SET_MODE, 1, 4)
+    gcs.feed(cmd, pilot)
+    b.pump_once()
+    b.close()
+    up = _rows(tmp_path / "run" / "frames_up.jsonl")
+    assert [bytes.fromhex(r["raw"]) for r in up] == [cmd, pilot]
+    assert [r["verdict"] for r in up] == ["consumed", "forwarded"] and "out" not in up[0]
+    fcframes = [fr.raw for f in fc.sent for fr in split_frames(f)[0]]
+    assert cmd not in fcframes and pilot in fcframes  # forwarding unchanged: the command never reaches the FC
+
+
+class _FailingFile:
+    """Wraps an archive file: the ``fail_on``-th write (1-based) and every later one raise ``OSError`` (disk full)."""
+
+    def __init__(self, f, fail_on: int) -> None:
+        self.f, self.fail_on, self.n = f, fail_on, 0
+
+    def write(self, s: str) -> int:
+        self.n += 1
+        if self.n >= self.fail_on:
+            raise OSError(28, "No space left on device")
+        return self.f.write(s)
+
+    def flush(self) -> None:
+        self.f.flush()
+
+    def close(self) -> None:
+        self.f.close()
+
+
+def test_a_disk_write_error_is_counted_and_marks_the_archive_incomplete(tmp_path):
+    """PR #50 review P2: an OSError mid-batch killed the writer thread silently and the archive still said complete."""
+    arch = BridgeRunArchive(tmp_path / "r", flush_interval_s=60)
+    arch._files["frames_down.jsonl"] = _FailingFile(arch._files["frames_down.jsonl"], fail_on=2)
+    for i in range(5):
+        arch.frame("down", i, b"\xfd", [b"\xfd"])
+    st = arch.close()
+    assert st["rows"]["frames_down.jsonl"] == 1 and st["write_errors"] == 4
+    assert st["complete"] is False and "No space left" in st["writer_error"]
+
+
+def test_the_writer_thread_survives_a_write_error(tmp_path):
+    import time
+
+    arch = BridgeRunArchive(tmp_path / "r", flush_interval_s=0.01)
+    arch._files["frames_down.jsonl"] = _FailingFile(arch._files["frames_down.jsonl"], fail_on=1)
+    arch.frame("down", 1, b"\xfd", [b"\xfd"])
+    time.sleep(0.2)
+    assert arch._thread.is_alive()
+    arch.frame("up", 2, b"\xfd", [b"\xfd"])  # another file still works
+    time.sleep(0.2)
+    st = arch.close()
+    assert st["rows"]["frames_up.jsonl"] == 1 and st["write_errors"] == 1 and st["complete"] is False
+
+
+def test_an_archive_close_error_still_lets_the_bridge_close_its_links(tmp_path):
+    class _BadArchive(BridgeRunArchive):
+        def close(self):
+            raise OSError(5, "I/O error")
+
+    class _Link(FakeLink):
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    fc, gcs = _Link(), _Link()
+    b = InlineIpsBridge(fc, gcs, mode="passive", crossend_interval_s=0, archive=_BadArchive(tmp_path / "r"))
+    b.close()  # must not raise
+    assert fc.closed and gcs.closed
+
+
+def test_cli_still_writes_the_manifest_when_the_archive_close_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_provenance, "tree_state", lambda repo=None: {"commit": "c" * 40, "dirty": False, "dirty_paths": []})
+
+    def bad_close(self):
+        raise OSError(5, "I/O error")
+
+    monkeypatch.setattr(BridgeRunArchive, "close", bad_close)
+    rd = tmp_path / "run"
+    assert cli.main([*_BASE, "--run-dir", str(rd)]) == 0
+    m = json.loads((rd / "run_manifest.json").read_text())
+    assert m["bridge"]["archive"]["complete"] is False and "I/O error" in m["bridge"]["archive"]["writer_error"]
+
+
+def test_rows_after_close_are_counted_as_dropped_not_lost(tmp_path):
+    """Re-review F2 (PR #50): a row added after close() was queued, never written, and the archive said complete."""
+    arch = BridgeRunArchive(tmp_path / "run")
+    arch.action(1, "counter_frame", "fc", b"\x01")
+    first = arch.close()
+    assert first["complete"] is True and first["rows"]["actions.jsonl"] == 1
+    arch.frame("down", 2, b"\x02", [b"\x02"])
+    second = arch.close()
+    assert second["dropped_rows"] == 1 and second["complete"] is False

@@ -36,6 +36,7 @@ Python ≥ 3.11. Deps are pinned as floors in `pyproject.toml`.
 | New route | `simulator/flight.py:_route_waypoints` | — |
 | New threshold | `configs/detector.yaml` | `docs/CONFIGURATION.md` |
 | New API route | `backend/app.py` | `docs/API.md` |
+| New evidence-producing script | call `add_provenance_args` / `begin_run` / `finish_run` from `scripts/sitl/provenance.py` (clean-tree guard, `NOT-REPRODUCIBLE` stamp); add it to `ENTRY_POINTS` in `tests/unit/test_evidence_entrypoints.py` and, for a SITL scenario, to `scripts/sitl/run_campaign.py` | `docs/VALIDATION_EVIDENCE.md` §6 |
 
 ## Testing expectations
 Add/extend tests for any behaviour change; keep `pytest` green and `ruff` clean.
