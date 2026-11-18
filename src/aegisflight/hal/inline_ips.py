@@ -391,11 +391,11 @@ class InlineIpsBridge:
             t0 = perf_ns()
             if not down and not fr.signed and fr.sysid in policy.vehicle_sysids and self._secret_key is not None:
                 # the vehicle's own telemetry never arrives from the GCS / radio side: the detectors still see the original
-                # (and count it as a signing violation) but never under the unsigned-vehicle exemption; reported, not blocked
+                # (and count it as a signing violation) but never under the unsigned-vehicle exemption; reported (aggregated)
                 tap_push(stamp, GcsSideDatagram(fr.raw))
                 self.forged_vehicle_up += 1
                 with contextlib.suppress(Exception):
-                    self.mgmt.note_observed(drop_label(fr.raw, fr.sysid, fr.msgid, direction), "forged_vehicle_up")
+                    self.mgmt.note_forged_vehicle_up(fr.sysid)
             else:
                 tap_push(stamp, fr.raw)  # the detectors always see the original
             ctx = FrameContext(direction, fr.raw, stamp, fr.sysid, fr.compid, fr.seq, fr.msgid, fr.signed)  # type: ignore[arg-type]

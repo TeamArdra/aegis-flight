@@ -200,6 +200,10 @@ def _statustexts(frames: list[bytes]) -> list[str]:
     return out
 
 
+def _forged_up_texts(frames: list[bytes]) -> list[str]:
+    return [t for t in _statustexts(frames) if "forged-vehicle-up" in t]
+
+
 @pytest.mark.parametrize("mode", ["passive", "advisory", "active-ips"])
 def test_an_unsigned_vehicle_sysid_frame_from_the_gcs_side_is_reported_and_not_ingested(mode: str) -> None:
     key = os.urandom(32)
@@ -213,7 +217,7 @@ def test_an_unsigned_vehicle_sysid_frame_from_the_gcs_side_is_reported_and_not_i
     while fc.inbox or gcs.inbox:
         b.pump_once()
     tap = b.tap.poll()
-    assert [bytes(d) for _s, d in tap] == [genuine, forged]  # the detectors still see both originals
+    assert [bytes(d) for _s, d in tap] == [genuine, forged]  # the analyser still gets both originals
     p = MavlinkFrameParser(secret_key=key, unsigned_allowed_sysids=frozenset(b.policy.vehicle_sysids))
     ingested = [(e.msgname, e.fields["alt"]) for s, d in tap for e in p.parse(d, s / 1e9)]
     assert ingested == [("GLOBAL_POSITION_INT", 10000)]
@@ -225,7 +229,7 @@ def test_an_unsigned_vehicle_sysid_frame_from_the_gcs_side_is_reported_and_not_i
     clock[0] += 2.0  # next 1 s report window: the pilot's GCS is told
     b.pump_once()
     assert fc.sent == [forged]
-    assert any("forged-vehicle-up GLOBAL_POSITION_INT sys1" in t for t in _statustexts(gcs.sent[1:]))
+    assert _forged_up_texts(gcs.sent[1:]) == ["AEGIS: forged-vehicle-up sys1 x1"]
 
 
 def test_without_a_key_the_gcs_side_vehicle_sysid_frame_is_untouched() -> None:
@@ -252,3 +256,47 @@ def test_the_parser_never_applies_the_exemption_to_gcs_side_datagrams() -> None:
     assert p.stats.sig_invalid == 1
     assert _names(p, gpi, 0.1) == ["GLOBAL_POSITION_INT"]  # the same bytes from the FC side keep the exemption
     assert _names(p, GcsSideDatagram(_unsigned_heartbeat(1)), 0.2) == ["HEARTBEAT"]  # PX4 id allowlist unchanged
+
+
+# --------------------------------------------------------------------------- N2: the announcement cannot starve status
+
+
+def _scalar_messages(n: int) -> list[bytes]:
+    """``n`` frames of distinct NON-control message ids (all-scalar payloads), each claiming sysid 1 / compid 1. Control ids
+    are left out so that the only announcements are the forged-vehicle ones (the policy reports control frames separately)."""
+    from aegisflight.mitigation.inline_policy import _COMMAND_MSGIDS, CONTROL_MSGIDS
+
+    enc = mv.MAVLink(None, srcSystem=1, srcComponent=1)
+    out = []
+    for msgid in sorted(mv.mavlink_map):
+        cls = mv.mavlink_map[msgid]
+        if msgid == 0 or msgid in CONTROL_MSGIDS or msgid in _COMMAND_MSGIDS or any(cls.array_lengths) or "char" in cls.fieldtypes:
+            continue
+        out.append(bytes(cls(*([0] * len(cls.fieldnames))).pack(enc)))
+        if len(out) == n:
+            return out
+    raise AssertionError("not enough all-scalar message types")
+
+
+def test_a_30_msgid_flood_claiming_the_vehicle_sysid_does_not_starve_the_status_vector() -> None:
+    from aegisflight.hal.mgmt_channel import decode_mgmt_frame
+    from aegisflight.proxy.transport import split_frames
+
+    clock = [1000.0]
+    fc, gcs = _Link(), _Link()
+    b = InlineIpsBridge(fc, gcs, mode="passive", secret_key=os.urandom(32), crossend_interval_s=0,  # type: ignore[arg-type]
+                        mgmt_status_interval_s=2.0, mgmt_clock=lambda: clock[0], clock_ns=lambda: int(clock[0] * 1e9))
+    flood = _scalar_messages(30)
+    for _step in range(200):  # 20 s, 30 message types every 0.1 s (300 frames/s)
+        clock[0] += 0.1
+        for f in flood:
+            gcs.inbox.append((int(clock[0] * 1e9), f))
+        b.pump_once()
+    decoded = [d for f in gcs.sent for fr in split_frames(f)[0] if (d := decode_mgmt_frame(fr.raw))]
+    status = [d for d in decoded if d["kind"] == "status"]
+    announce = [d["text"] for d in decoded if d["kind"] == "text" and "forged-vehicle-up" in d["text"]]
+    assert b.forged_vehicle_up == 6000
+    assert len(status) >= 9  # one every 2 s
+    assert 1 <= len(announce) <= 10  # at most one per alert interval (2 s), aggregated over all 30 message types
+    assert all(t.startswith("AEGIS: forged-vehicle-up sys1 x") for t in announce)
+    assert len(fc.sent) == 6000  # forwarding unchanged

@@ -509,6 +509,7 @@ class MgmtChannel:
         self._queue: deque[tuple[int, str, Callable[[], bytes], float]] = deque(maxlen=8)
         self._drops: dict[str, int] = {}
         self._observed: dict[str, int] = {}
+        self._forged_up: dict[int, int] = {}  # vehicle sysid -> frames claiming it from the GCS side, not yet announced
         self._drop_window_t = clock()
         self._status_next = clock() + self.status_interval_s
         self._status_now = False
@@ -658,6 +659,12 @@ class MgmtChannel:
         key = f"{verdict.replace('_', '-')} {label}"
         self._observed[key] = self._observed.get(key, 0) + 1
 
+    def note_forged_vehicle_up(self, sysid: int) -> None:
+        """A frame claiming a vehicle sysid arrived from the GCS side (never legitimate). Counted over every message type and
+        announced as ONE text with the count, through the alert gate (not forced: the alert cadence and its back-off apply),
+        so a flood of many message types cannot crowd the status vector out of the byte budget."""
+        self._forged_up[sysid] = self._forged_up.get(sysid, 0) + 1
+
     def _flush_drops(self, now: float) -> None:
         if now - self._drop_window_t < 1.0:
             return
@@ -674,6 +681,13 @@ class MgmtChannel:
             if not self.alerts_enabled or not self.gate.allow(f"obs:{key}", force=True):
                 continue
             self._text(f"AEGIS: {key} x{n}", 4, P_EVENT, "action")
+        for sysid, n in sorted(self._forged_up.items()):
+            self._last_action_t = now
+            if not self.alerts_enabled:
+                del self._forged_up[sysid]
+            elif self.gate.allow(f"obs:forged-vehicle-up:{sysid}"):  # denied: the count carries over to the next one
+                del self._forged_up[sysid]
+                self._text(f"AEGIS: forged-vehicle-up sys{sysid} x{n}", 4, P_EVENT, "action")
 
     # -- status --------------------------------------------------------------------- #
 
