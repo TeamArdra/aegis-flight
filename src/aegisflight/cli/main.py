@@ -562,7 +562,33 @@ def build_parser() -> argparse.ArgumentParser:
     ver = sub.add_parser("version", help="print version")
     ver.set_defaults(func=lambda a: (print(f"aegisflight {__version__}"), 0)[1])
 
+    ob = sub.add_parser("onboard", help="run unified onboard companion runtime from a YAML config")
+    ob.add_argument("--config", default=None, help="YAML config path (default: safe passive serial config)")
+    ob.add_argument("--seconds", type=float, default=None, help="optional timed exit (default: until SIGTERM/SIGINT)")
+    ob.add_argument("--defense-mode", choices=["passive", "advisory", "active-ips"], default=None,
+                    help="override configured defense posture")
+    ob.add_argument("--run-dir", default=None, help="override run_root for SQLite/archive output")
+    ob.add_argument("--allow-url", action="store_true", help="override allow_url=true for socket:// tests")
+    ob.set_defaults(func=_cmd_onboard)
+
     return p
+
+
+def _cmd_onboard(args: argparse.Namespace) -> int:
+    from ..onboard import load_onboard_config, run_onboard
+
+    try:
+        cfg = load_onboard_config(args.config)
+    except (OSError, ValueError) as exc:
+        print(f"aegis onboard: bad --config: {exc}", file=sys.stderr)
+        return 2
+    if args.defense_mode is not None:
+        cfg.defense_mode = args.defense_mode
+    if args.run_dir is not None:
+        cfg.run_root = args.run_dir
+    if args.allow_url:
+        cfg.allow_url = True
+    return run_onboard(cfg, seconds=args.seconds)
 
 
 def main(argv: list[str] | None = None) -> int:

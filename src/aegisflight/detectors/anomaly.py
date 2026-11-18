@@ -25,7 +25,6 @@ import math
 from operator import attrgetter
 from pathlib import Path
 
-import joblib
 import numpy as np
 
 from ..core.enums import AttackType, DetectorName
@@ -197,6 +196,8 @@ class AnomalyDetector(Detector):
         self._get_features = attrgetter(*ML_FEATURES)
         if path is not None and path.exists():
             try:
+                import joblib  # noqa: PLC0415 - lazy so slim ML-off onboard installs work without joblib
+
                 self.bundle = joblib.load(path)
             except Exception:  # noqa: BLE001 - corrupt/incompatible model => degrade
                 self.bundle = None

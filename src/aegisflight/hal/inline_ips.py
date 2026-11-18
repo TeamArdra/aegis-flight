@@ -200,6 +200,7 @@ class InlineIpsBridge:
         self.tap = TapTransport()
         self.rate_hz = sample_rate_hz
         self.store = store
+        self._store_lock = threading.RLock()
         self.run_id = run_id
         self._clock_ns = clock_ns
         self._idle = idle_sleep_s
@@ -274,6 +275,28 @@ class InlineIpsBridge:
         for tr in (self.fc, self.gcs):
             with contextlib.suppress(Exception):
                 tr.close()
+
+    def rotate_store(self, *, max_bytes: int, max_rotations: int = 5, run_id_prefix: str = "ips") -> bool:
+        """Safely rotate the attached EventStore when its active file reaches ``max_bytes``."""
+        if self.store is None or max_bytes <= 0:
+            return False
+        from ..logging.rotation import rotate_sqlite_store  # noqa: PLC0415
+
+        with self._store_lock:
+            if self.store is None:
+                return False
+            new_run_id = time.strftime(f"{run_id_prefix}-%Y%m%d-%H%M%S")
+            fresh, rotated = rotate_sqlite_store(
+                self.store,
+                max_bytes=max_bytes,
+                max_rotations=max_rotations,
+                run_id=new_run_id,
+                label="ips-bridge",
+            )
+            if rotated:
+                self.store = fresh
+                self.run_id = new_run_id
+            return rotated
 
     def __enter__(self) -> InlineIpsBridge:
         return self.start()
@@ -517,7 +540,7 @@ class InlineIpsBridge:
                 with contextlib.suppress(Exception):
                     self.mgmt.alert(assessment.attack_type.value, assessment.severity.value, rogue[0] if rogue else None)
             if self.store is not None:
-                with contextlib.suppress(Exception):
+                with self._store_lock, contextlib.suppress(Exception):
                     self.store.log_event(assessment, self.run_id)
         if self.controller.mode == DefenseMode.ACTIVE_IPS:
             for frame in act.counter_frames:

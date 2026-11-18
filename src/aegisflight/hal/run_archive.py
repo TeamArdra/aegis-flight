@@ -27,17 +27,31 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+from ..logging.rotation import prune_rotated_files, rotate_file_series
+
 FILES = ("frames_down.jsonl", "frames_up.jsonl", "decisions.jsonl", "actions.jsonl")
 
 
 class BridgeRunArchive:
-    def __init__(self, run_dir: str | Path, *, max_queue: int = 500_000, flush_interval_s: float = 0.25) -> None:
+    def __init__(
+        self,
+        run_dir: str | Path,
+        *,
+        max_queue: int = 500_000,
+        flush_interval_s: float = 0.25,
+        max_file_bytes: int = 0,
+        max_rotations: int = 5,
+        max_total_bytes: int = 0,
+    ) -> None:
         self.dir = Path(run_dir)
         self.dir.mkdir(parents=True, exist_ok=True)
         stale = [n for n in FILES if (self.dir / n).exists()]
         if stale:  # evidence is never appended to or overwritten silently
             raise FileExistsError(f"{self.dir} already holds a previous run ({', '.join(stale)}); use a fresh run dir")
         self._files = {n: open(self.dir / n, "w", encoding="utf-8") for n in FILES}  # noqa: SIM115 - closed in close()
+        self._max_file_bytes = max(0, int(max_file_bytes))
+        self._max_rotations = max(0, int(max_rotations))
+        self._max_total_bytes = max(0, int(max_total_bytes))
         self._q: deque[tuple[str, dict[str, Any]]] = deque()
         self._max = max_queue
         self._lock = threading.Lock()
@@ -45,6 +59,7 @@ class BridgeRunArchive:
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._writer, name="ips-archive", daemon=True)
         self.rows = dict.fromkeys(FILES, 0)
+        self.rotations = dict.fromkeys(FILES, 0)
         self.dropped_rows = 0
         self.write_errors = 0
         self.writer_error: str | None = None
@@ -119,10 +134,28 @@ class BridgeRunArchive:
                 self._error(exc)
                 continue
             self.rows[name] += 1
-        for f in self._files.values():
+        for name, f in list(self._files.items()):
             try:
                 f.flush()
+                if self._max_file_bytes > 0 and f.tell() >= self._max_file_bytes:
+                    f.close()
+                    if rotate_file_series(
+                        self.dir / name,
+                        max_bytes=self._max_file_bytes,
+                        max_rotations=self._max_rotations,
+                    ):
+                        self.rotations[name] += 1
+                    self._files[name] = open(self.dir / name, "w", encoding="utf-8")  # noqa: SIM115
             except Exception as exc:  # noqa: BLE001 - buffered rows may be lost: the archive is incomplete
+                self._error(exc)
+        if self._max_total_bytes > 0:
+            try:
+                prune_rotated_files(
+                    self.dir,
+                    max_total_bytes=self._max_total_bytes,
+                    active_names=set(FILES) | {"run_manifest.json", "events.sqlite"},
+                )
+            except Exception as exc:  # noqa: BLE001
                 self._error(exc)
 
     def _writer(self) -> None:
@@ -130,8 +163,9 @@ class BridgeRunArchive:
             self._drain()
 
     def stats(self) -> dict[str, Any]:
-        return {"dir": str(self.dir), "rows": dict(self.rows), "dropped_rows": self.dropped_rows,
-                "write_errors": self.write_errors, "writer_error": self.writer_error,
+        return {"dir": str(self.dir), "rows": dict(self.rows), "rotations": dict(self.rotations),
+                "dropped_rows": self.dropped_rows, "write_errors": self.write_errors,
+                "writer_error": self.writer_error,
                 "complete": self.dropped_rows == 0 and self.write_errors == 0}
 
     def close(self) -> dict[str, Any]:
