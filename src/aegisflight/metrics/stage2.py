@@ -8,8 +8,9 @@ Definitions (stated here once; ``scripts/make_stage2_metrics.py`` and ``docs/BEN
   not one event per 0.2 s decision. ``alert_events`` re-derives ``is_alert`` from ``(t, threat, attack_type)`` with the
   engine's own rule, for artifacts that logged only those columns. Logged ``t`` is rounded; the re-derivation maps it
   back to the engine's raw tick time (``engine_tick_time``) so the exact-cooldown boundary is decided as the engine did.
-* **False alerts per flight hour**: alert events on benign ground truth / exposure hours, where exposure is the
-  scored decision time of the same decisions (count x decision period). The interval is the exact one-sided 95%
+* **False alerts per hour of exposure**: alert events on benign ground truth / exposure hours, where exposure is the
+  scored decision time of the same decisions (count x decision period): simulated or SITL time including any scored
+  ground phases, or bench wall time, never flight time. Issue #28's "per flight hour" is not measured by any source. The interval is the exact one-sided 95%
   Poisson (Garwood) upper bound on the event count, divided by the exposure: with 0 events in T hours the bound is
   2.996 / T.
 * **Session-level rates** (detection, session FPR): proportions over sessions with two-sided 95% Wilson intervals,
