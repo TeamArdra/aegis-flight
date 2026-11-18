@@ -266,3 +266,14 @@ def test_cli_still_writes_the_manifest_when_the_archive_close_fails(tmp_path, mo
     assert cli.main([*_BASE, "--run-dir", str(rd)]) == 0
     m = json.loads((rd / "run_manifest.json").read_text())
     assert m["bridge"]["archive"]["complete"] is False and "I/O error" in m["bridge"]["archive"]["writer_error"]
+
+
+def test_rows_after_close_are_counted_as_dropped_not_lost(tmp_path):
+    """Re-review F2 (PR #50): a row added after close() was queued, never written, and the archive said complete."""
+    arch = BridgeRunArchive(tmp_path / "run")
+    arch.action(1, "counter_frame", "fc", b"\x01")
+    first = arch.close()
+    assert first["complete"] is True and first["rows"]["actions.jsonl"] == 1
+    arch.frame("down", 2, b"\x02", [b"\x02"])
+    second = arch.close()
+    assert second["dropped_rows"] == 1 and second["complete"] is False

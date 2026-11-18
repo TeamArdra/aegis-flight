@@ -56,7 +56,8 @@ class BridgeRunArchive:
 
     def _put(self, name: str, row: dict[str, Any]) -> None:
         with self._lock:
-            if len(self._q) >= self._max:
+            # after close() nothing is written any more: count it (complete -> false) instead of queueing it silently
+            if self._closed or len(self._q) >= self._max:
                 self.dropped_rows += 1
                 return
             self._q.append((name, row))
@@ -135,8 +136,9 @@ class BridgeRunArchive:
 
     def close(self) -> dict[str, Any]:
         """Stop the writer, write what is queued and close the files. Never raises: errors are counted in ``stats()``."""
-        if not self._closed:
-            self._closed = True
+        with self._lock:
+            first, self._closed = not self._closed, True
+        if first:
             self._stop.set()
             self._thread.join(timeout=5.0)
             self._drain()
