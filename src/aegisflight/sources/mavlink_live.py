@@ -202,11 +202,14 @@ PX4_SITL_EXTRA_CRC: dict[int, int] = {
 
 
 class GcsSideDatagram(bytes):
-    """Bytes that reached an inline bridge from its ground-station / radio side (``hal/inline_ips.py`` tags its tap with it).
+    """A frame that CLAIMS a vehicle sysid but reached an inline bridge from its ground-station / radio side.
 
-    Equal to, and hashed like, the plain bytes. The only difference: :class:`MavlinkFrameParser` never applies its
-    ``unsigned_allowed_sysids`` exemption to frames in such a datagram. The vehicle's own telemetry cannot legitimately
-    arrive from that side, so an unsigned frame there claiming a vehicle sysid is judged like any other unsigned frame.
+    ``hal/inline_ips.py`` tags its analyser tap with this type for every such uplink frame, signed or not, with or without a
+    key. Equal to, and hashed like, the plain bytes. The vehicle never transmits from that side, so
+    :class:`MavlinkFrameParser` never ingests a frame in such a datagram as telemetry (it is counted in
+    ``gcs_side_vehicle_frames``), never applies the ``unsigned_allowed_sysids`` exemption to it, and never lets it change the
+    signing state, even when its MAC verifies (a replayed recording of the vehicle's own signed frames). It is still
+    verified, so a frame that fails verification is counted ``sig_invalid`` as before.
     """
 
     __slots__ = ()
@@ -238,7 +241,8 @@ class MavlinkFrameParser:
     unsigned telemetry, so an unsigned frame claiming its id is a forgery and is dropped (``sig_invalid``) instead of
     reaching the detectors. If that source sends no valid signed frame for ``SIGNING_LAPSE_S`` (signing turned off on
     the flight controller, a reboot into an unsigned configuration) the exemption returns, so the detectors are not
-    blinded; ``signing_lapses`` counts it. The exemption never applies to a :class:`GcsSideDatagram`.
+    blinded; ``signing_lapses`` counts it. A frame in a :class:`GcsSideDatagram` never gets the exemption, never changes
+    the signing state and is never ingested.
 
     Only a frame whose MAC truly verified counts as ``sig_valid`` and as evidence that its source signs, and only such a
     frame may advance the per-stream anti-replay timestamp: a claimed signature with a bad MAC (accepted or not) changes
@@ -280,6 +284,7 @@ class MavlinkFrameParser:
         self._unsigned_sysids = unsigned_allowed_sysids
         self._signed_src: dict[tuple[int, int], tuple[int, float]] = {}  # (sysid, compid) -> (valid signed, last t)
         self.signing_lapses = 0
+        self.gcs_side_vehicle_frames = 0  # parsed but not ingested (GcsSideDatagram); kept out of LiveStats on purpose
         if self._verify:
             self._mav.signing.secret_key = secret_key
             self._mav.signing.allow_unsigned_callback = (
@@ -382,10 +387,12 @@ class MavlinkFrameParser:
             else:
                 # pymavlink's check_signature() stores the stream timestamp BEFORE it compares the MAC, so a frame whose
                 # MAC fails still advances it: one unauthenticated far-future frame would make every later genuine signed
-                # frame "old". Snapshot it and undo it below unless the MAC really verified (goodsig_count moved).
+                # frame "old". Snapshot it and undo it below unless the MAC really verified (goodsig_count moved). A
+                # GcsSideDatagram frame never changes the signing state, not even with a valid MAC (a replayed recording).
                 sig = self._mav.signing
                 skey = (frame[-13], sysid, compid) if self._verify and signed else None
                 prev_ts = sig.stream_timestamps.get(skey) if skey is not None else None
+                prev_sig_ts = sig.timestamp  # pymavlink raises it after a good MAC; the new-stream check reads it
                 good0 = sig.goodsig_count
                 try:
                     self._cur_sysid, self._cur_compid, self._cur_signed, self._cur_t = sysid, compid, signed, recv_time
@@ -393,7 +400,7 @@ class MavlinkFrameParser:
                     fields = msg.to_dict()
                     fields.pop("mavpackettype", None)
                     name = getattr(cls, "msgname", None) or msg.get_type()
-                    if skey is not None and sig.goodsig_count > good0:
+                    if skey is not None and sig.goodsig_count > good0 and not self._cur_gcs_side:
                         # the MAC verified. A claimed signature that failed but was let through by the unsigned
                         # allowlist (e.g. a garbage-MAC HEARTBEAT) is NOT a valid signature and never marks its source
                         st.sig_valid += 1
@@ -407,11 +414,15 @@ class MavlinkFrameParser:
                     st.bad_frames += 1
                     continue
                 finally:
-                    if skey is not None and sig.goodsig_count == good0:
+                    if skey is not None and (sig.goodsig_count == good0 or self._cur_gcs_side):
                         if prev_ts is None:
                             sig.stream_timestamps.pop(skey, None)
                         else:
                             sig.stream_timestamps[skey] = prev_ts
+                        sig.timestamp = prev_sig_ts
+            if self._cur_gcs_side:
+                self.gcs_side_vehicle_frames += 1  # a vehicle sysid from the GCS side is never the vehicle's telemetry
+                continue
             st.frames_received += 1
             out.append(MessageEnvelope(recv_time=recv_time, sysid=sysid, compid=compid,
                                        msgid=msgid, msgname=name, seq=seq, signed=signed,
