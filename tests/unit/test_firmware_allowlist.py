@@ -99,6 +99,18 @@ def test_signed_allowlist_valid_and_fail_closed(tmp_path: Path, monkeypatch: pyt
     with pytest.raises(AllowlistError, match="HMAC-SHA256 verification failed"):
         load_firmware_allowlist(p)
 
+    # Stripping hmac_sha256 when AEGIS_ALLOWLIST_KEY is set -> fails closed (R3)
+    data.pop("hmac_sha256", None)
+    _write_allowlist(p, data)
+    with pytest.raises(AllowlistError, match="Unsigned firmware allowlist"):
+        load_firmware_allowlist(p)
+
+    # Non-JSON YAML scalar (e.g. unquoted YAML date) raises AllowlistError, not TypeError (R3)
+    bad_yaml = tmp_path / "date_allow.yaml"
+    bad_yaml.write_text("schema: aegisflight.firmware_allowlist/1\ndate_field: 2026-11-18\nhmac_sha256: deadbeef\n", encoding="utf-8")
+    with pytest.raises(AllowlistError, match="non-JSON-serializable"):
+        load_firmware_allowlist(bad_yaml)
+
 
 def test_allowlist_match_returns_no_vote(tmp_path: Path) -> None:
     p = _write_allowlist(tmp_path / "allow.yaml", _sample_data())

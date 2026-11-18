@@ -41,7 +41,10 @@ class AllowlistError(ValueError):
 def canonical_allowlist_bytes(data: dict[str, Any]) -> bytes:
     """Return canonical UTF-8 JSON bytes of the allowlist excluding ``hmac_sha256``."""
     payload = {k: v for k, v in data.items() if k != "hmac_sha256"}
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    try:
+        return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    except TypeError as exc:
+        raise AllowlistError(f"Firmware allowlist contains non-JSON-serializable YAML types: {exc}") from exc
 
 
 def _coerce_key(key: bytes | str) -> bytes:
@@ -296,12 +299,12 @@ def load_firmware_allowlist(
         raise AllowlistError(f"Firmware allowlist {p} must be a YAML mapping at top level")
 
     sig = data.get("hmac_sha256")
+    resolved_key: bytes | str | None = key if key is not None else os.environ.get(env_var)
     signed = False
     unsigned_warning: str | None = None
     if sig is not None:
         if not isinstance(sig, str) or not sig.strip():
             raise AllowlistError(f"Firmware allowlist {p} has empty/non-string hmac_sha256")
-        resolved_key: bytes | str | None = key if key is not None else os.environ.get(env_var)
         if not resolved_key:
             raise AllowlistError(
                 f"Signed firmware allowlist {p} cannot be verified: set {env_var}"
@@ -313,6 +316,10 @@ def load_firmware_allowlist(
             )
         signed = True
     else:
+        if resolved_key:
+            raise AllowlistError(
+                f"Unsigned firmware allowlist {p} rejected when {env_var} is set (fail-closed)"
+            )
         unsigned_warning = (
             f"Firmware allowlist {p} is unsigned (missing hmac_sha256); loading without HMAC verification"
         )

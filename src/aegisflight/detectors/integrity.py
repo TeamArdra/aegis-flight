@@ -33,6 +33,7 @@ class IntegrityDetector(Detector):
         self._n = 0
         self._cached: IntegrityReport | None = None
         self._observed_versions: dict[tuple[int, int], tuple[int, dict[str, Any]]] = {}
+        self._coverage_emitted = False
 
     def observe_message(
         self,
@@ -132,8 +133,10 @@ class IntegrityDetector(Detector):
         # expose coverage notes when allowlist checking is active.
         if triggered:
             ev = report.evidence
-        elif self.allowlist is not None and self.allowlist.entries:
+        elif self.allowlist is not None and self.allowlist.entries and not self._coverage_emitted:
             ev = [e for e in report.evidence if e.startswith("coverage:")]
+            if ev:
+                self._coverage_emitted = True
         else:
             ev = []
         return DetectorResult(
