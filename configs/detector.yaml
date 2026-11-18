@@ -49,6 +49,10 @@ protocol:
   min_gnss_fix_type: 3              # GPS_RAW_INT fix_type below this = no 3D fix
   min_gnss_satellites: 5            # fewer satellites than this = degraded fix
   gnss_loss_ticks: 5                # consecutive decisions (1 s @5 Hz) before firing
+  # D4 policy (issue #15): 'coverage' = score-0 coverage note before the first valid 3D fix;
+  # 'dos' = vote DOS 0.7 even before any valid fix was ever acquired. Once valid, loss always votes DOS.
+  # Security consequence (documented): jamming from power-on before any fix reports coverage, not attack.
+  gnss_never_acquired_policy: coverage
 
 # ------------------------------------------------------------------ #
 # Detector B: physics / cyber-physical consistency

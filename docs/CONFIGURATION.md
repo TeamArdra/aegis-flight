@@ -27,8 +27,9 @@ feature distribution → **retrain the ML model** (`aegis train`) and re-benchma
 - `protocol.*` — expected sysids/compids, `max_msg_rate_hz` (400),
   `nominal_msg_rate_hz` (28), `msg_rate_spike_factor` (3), `max_seq_gap` (30),
   `heartbeat_timeout_s` (3), `gps_dropout_s` (2), sensitive commands, burst
-  limits, `require_signing`, `startup_grace_s` (0; optional - ignore the
-  "no heartbeat/GPS seen yet" sentinel for the first N seconds).
+  limits, `require_signing`, `gnss_never_acquired_policy` (`coverage` | `dos`;
+  default `coverage` for D4 never-acquired GNSS policy), `startup_grace_s`
+  (0; optional - ignore the "no heartbeat/GPS seen yet" sentinel for the first N seconds).
 - `physics.*` — `gps_pos_residual_m` (12) + hard (30), `gps_speed_consistency_ms`
   (5), `alt_consistency_m` (8), `alt_jump_ms` (25), `max_accel_ms2` (20),
   `battery_rise_v` (0.4), `battery_drop_rate_v_s` (2), `hysteresis_ticks` (2),

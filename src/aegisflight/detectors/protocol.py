@@ -49,9 +49,14 @@ class ProtocolDetector(Detector):
         self.min_sats = int(p.get("min_gnss_satellites", 5))
         self.gnss_loss_ticks = int(p.get("gnss_loss_ticks", 5))
         self._gnss_bad = 0
-        # Has a valid fix (the rule's own healthy condition) ever been observed? Wording only:
-        # a fix that was never acquired is not reported as "lost". Score/vote are identical.
+        # Has a valid fix (the rule's own healthy condition) ever been observed?
         self._gnss_ever_valid = False
+        gnss_policy = str(p.get("gnss_never_acquired_policy", "coverage")).lower()
+        if gnss_policy not in ("coverage", "dos"):
+            raise ValueError(
+                f"gnss_never_acquired_policy must be 'coverage' or 'dos', got {gnss_policy!r}"
+            )
+        self.gnss_never_acquired_policy = gnss_policy
         # Start-of-stream grace (default 0): for this many seconds after the first
         # decision a NEVER-received heartbeat / position stream is not a liveness fault. It
         # combines with the elapsed-time gate below as a maximum, not a sum: the later of the two
@@ -303,6 +308,7 @@ class ProtocolDetector(Detector):
                 evidence.append(f"GPS dropout {frame.gps_age_s:.1f}s > {self.gps_dropout:.1f}s")
 
         # ---- GNSS fix loss (navigation-channel denial / jamming) ----
+        gnss_coverage: str | None = None
         snap = frame.snapshot
         fix, sats = snap.gps_fix_type, snap.satellites
         # sats None with a fix report = satellite count unknown (MAVLink 255): judge the fix type alone
@@ -313,13 +319,20 @@ class ProtocolDetector(Detector):
             if fix is not None:
                 self._gnss_ever_valid = True
         if self._gnss_bad >= self.gnss_loss_ticks:
-            bump(AttackType.DOS, 0.7)
             if self._gnss_ever_valid:  # exact text parsed by scripts/sitl/make_p2n_summary.py
+                bump(AttackType.DOS, 0.7)
                 evidence.append(f"GNSS fix lost: fix_type={fix}, satellites={sats} "
                                 f"for {self._gnss_bad} decisions")
-            else:
+            elif self.gnss_never_acquired_policy == "dos":
+                bump(AttackType.DOS, 0.7)
                 evidence.append(f"GNSS fix never acquired: fix_type={fix}, satellites={sats} "
                                 f"for {self._gnss_bad} decisions (no valid fix since monitoring began)")
+            else:
+                gnss_coverage = (
+                    f"coverage: GNSS fix never acquired (fix_type={fix}, satellites={sats} "
+                    f"for {self._gnss_bad} decisions; no valid fix since monitoring began); "
+                    "not attack evidence under this profile"
+                )
         signals["gnss_bad_ticks"] = float(self._gnss_bad)
 
         # ---- command provenance (injection) ----
@@ -393,6 +406,8 @@ class ProtocolDetector(Detector):
             evidence.append(f"coverage: {self._learn_note}")
         if coverage is not None:  # score-0 coverage note: always the last protocol evidence item
             evidence.append(coverage)
+        if gnss_coverage is not None:
+            evidence.append(gnss_coverage)
 
         return DetectorResult(
             detector=self.name,
