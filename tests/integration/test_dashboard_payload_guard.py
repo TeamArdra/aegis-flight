@@ -20,8 +20,11 @@ import dashboard_payload_driver as drv  # noqa: E402
 
 _MODEL = Path(__file__).resolve().parents[2] / "models" / "isoforest.joblib"
 GOLDEN = {
-    # Note: non-ML SIM digest updated for #60 (SAFE_HOLD no longer repeats ALT_HOLD when GPS ladder already sent one).
-    "sim": ((441, "51264c85ed34b4c04b0bd7aa1e68bffda5629e32093a366aa0b2d9730fc273f2") if _MODEL.exists()
+    # Both ML-on (with models/isoforest.joblib from `python scripts/train_models.py --out models/isoforest.joblib`)
+    # and non-ML SIM digests regenerated via:
+    #   PYTHONPATH=src:tests/integration python -c "import dashboard_payload_driver as d; g=d.collect(); print(len(g['sim']), d.digest(g['sim']))"
+    # after #60 (SAFE_HOLD no longer repeats ALT_HOLD when GPS ladder already sent one).
+    "sim": ((441, "77216119d25aba355c39e8135bf9e6f7ce3dbde4763c0f773b26277f3d4dc0b9") if _MODEL.exists()
             else (446, "67ecf6d747e015ee1b27182251e65250f23dddb0b9cff73b3cad0e7de8e7e784")),
     "replay": (400, "2c64a0985900e3257524cec63c10acdd7cb2cc2d16f5a4b860c9329e61381b3f"),
 }
