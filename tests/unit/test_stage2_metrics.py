@@ -404,16 +404,26 @@ def test_single_attack_grace0_is_53_because_session_51_alerts_on_its_attack_deci
                if r["warmup"] == "0" and r["true"] == "BENIGN") == 54                    # what the first version reported
 
 
+# models/isoforest.joblib that the committed extended benchmark (and its session 51) was produced with
+MODEL_SHA256 = "3fe74cddf3689e169610ffd783b109b6539cc6c03629bd1e4bb8b1d3842939c4"
+
+
 def test_session_51_real_engine_alert_matches_the_re_derivation(monkeypatch):
     """The ground truth behind the 53: re-run extended-benchmark session 51 with the real pipeline and the committed
     model. The decision sequence must equal decisions.csv.gz, and the engine's own is_alert must equal alert_events on
-    the logged (rounded) t. Needs models/isoforest.joblib (gitignored), so it is skipped where the model is absent."""
+    the logged (rounded) t. Needs the model the committed artifact was produced with (sha256 MODEL_SHA256): it is
+    gitignored, so the test skips where it is absent (e.g. CI) or different (a fresh `aegis train` need not match)."""
+    import hashlib
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[2]
     model = root / "models" / "isoforest.joblib"
     if not model.is_file():
-        pytest.skip("models/isoforest.joblib not present (gitignored; run `aegis train`)")
+        pytest.skip(f"models/isoforest.joblib absent (gitignored); needs the committed-artifact model sha256 {MODEL_SHA256}")
+    got = hashlib.sha256(model.read_bytes()).hexdigest()
+    if got != MODEL_SHA256:
+        pytest.skip(f"models/isoforest.joblib sha256 {got} is not the committed-artifact model {MODEL_SHA256}; "
+                    "the session-51 decisions would not be comparable")
     from aegisflight.benchmark.extended import build_grid, session_config
     from aegisflight.benchmark.runner import run_session
     from aegisflight.config import load_config
