@@ -44,7 +44,8 @@ class IDSPipeline:
         self.crossend = crossend
         det = cfg.detector
         self.extractor = FeatureExtractor(
-            cmd_window_s=det["protocol"].get("command_burst_window_s", 2.0)
+            cmd_window_s=det["protocol"].get("command_burst_window_s", 2.0),
+            reorder_window=int(det.get("features", {}).get("reorder_window", 16)),
         )
         self.protocol = ProtocolDetector(det["protocol"])
         self.physics = PhysicsDetector(det["physics"])

@@ -107,6 +107,9 @@ class FeatureFrame:
     interarrival_mean_ms: float = 0.0
     interarrival_jitter_ms: float = 0.0
     max_seq_gap: int = 0
+    # ADDITIVE (issue #14): out-of-order frames received within ``features.reorder_window`` behind
+    # the per-source sequence high-water mark during this decision window. NOT in ML_FEATURES.
+    reorder_count: int = 0
     n_sources: int = 0
     heartbeat_age_s: float = 0.0
     gps_age_s: float = 0.0
@@ -222,9 +225,17 @@ class FeatureFrame:
 class FeatureExtractor:
     """Stateful, online telemetry reconstruction + feature computation."""
 
-    def __init__(self, rate_window_s: float = 1.0, cmd_window_s: float = 2.0) -> None:
+    def __init__(
+        self,
+        rate_window_s: float = 1.0,
+        cmd_window_s: float = 2.0,
+        reorder_window: int = 16,
+    ) -> None:
+        if not 0 <= reorder_window <= 127:
+            raise ValueError(f"reorder_window must be in [0, 127], got {reorder_window}")
         self.rate_window_s = rate_window_s
         self.cmd_window_s = cmd_window_s
+        self.reorder_window = int(reorder_window)
         self.reset()
 
     def reset(self) -> None:
@@ -245,6 +256,7 @@ class FeatureExtractor:
         self._recv_dec_n = -(2**62)
         self._seq_state: dict[tuple[int, int], int] = {}
         self._seq_gap: dict[tuple[int, int], int] = {}
+        self._reorder_count = 0
         self._sources: dict[tuple[int, int], int] = {}
         self._signed = 0
         self._unsigned = 0
@@ -323,14 +335,22 @@ class FeatureExtractor:
         else:
             self._unsigned += 1
 
-        # per-source sequence gap tracking (single link => +1 expected)
+        # per-source sequence gap tracking against high-water mark with reorder tolerance
         prev = self._seq_state.get(src)
-        if prev is not None:
-            gap = (msg.seq - prev) % 256
-            # gap of 1 is normal; larger => loss/scramble; 0 => duplicate
-            if gap > 1:
-                self._seq_gap[src] = max(self._seq_gap.get(src, 0), gap - 1)
-        self._seq_state[src] = msg.seq
+        if prev is None:
+            self._seq_state[src] = msg.seq
+        else:
+            d = (msg.seq - prev) % 256
+            if d == 1:
+                self._seq_state[src] = msg.seq
+            elif d == 0:
+                pass  # duplicate; keep high-water mark
+            elif self.reorder_window > 0 and (256 - self.reorder_window) <= d <= 255:
+                # Late (out-of-order) packet inside reorder_window: count it, keep HWM, no gap
+                self._reorder_count += 1
+            else:
+                self._seq_gap[src] = max(self._seq_gap.get(src, 0), d - 1)
+                self._seq_state[src] = msg.seq
 
         name = msg.msgname
         f = msg.fields
@@ -667,6 +687,7 @@ class FeatureExtractor:
             interarrival_mean_ms=ia_mean,
             interarrival_jitter_ms=ia_jit,
             max_seq_gap=max_gap,
+            reorder_count=self._reorder_count,
             n_sources=len(self._sources),
             heartbeat_age_s=hb_age,
             gps_age_s=snap.gps_age,
@@ -743,4 +764,5 @@ class FeatureExtractor:
         """Reset per-window source counts (called by the pipeline each decision)."""
         self._sources = {}
         self._seq_gap = {}
+        self._reorder_count = 0
         self._sig_invalid_window = 0
