@@ -240,3 +240,45 @@ def test_on_a_serial_flight_controller_port_the_bridge_writes_only_what_the_pilo
     assert fc.sent == uplink                                          # nothing of the bridge's own, nothing missing, nothing reordered
     assert all(f.compid not in (191, 192) for d in fc.sent for f in split_frames(d)[0])
     assert b.counter_frames_sent == 0 and b.dropped_up == 0 and b.dropped_down == 0
+
+
+def _hostile(i: int = 0) -> bytes:
+    m = mav2.MAVLink(None, srcSystem=66, srcComponent=190)
+    return bytes(m.command_long_encode(1, 1, 176, 0, 1.0, 9.0, 0, 0, 0, 0, 0).pack(m))  # forged DO_SET_MODE(LAND)
+
+
+@pytest.mark.parametrize("mode", ["passive", "advisory"])
+def test_on_a_serial_fc_port_an_attack_is_announced_to_the_gcs_only_and_nothing_extra_reaches_the_fc(mode):
+    """Same real-flight setup with the management channel at its defaults (alerts on, 2 s status) and a forged sysid-66
+    mode change in the uplink. Receive-only: the bridge may not drop or add anything on the FC port, so the FC gets exactly
+    the uplink (the forgery included: that is what passive / advisory mean); the alert goes to the pilot's GCS only."""
+    fc, gcs, clk = SerialLink(), Link(), Clock()
+    b = InlineIpsBridge(fc, gcs, mode=mode, clock_ns=clk)
+    b.mgmt._clock = lambda: clk.ns / 1e9
+    uplink: list[bytes] = []
+    timeline = []
+    for sec in range(30):
+        for k in range(10):
+            t = sec + k / 10
+            timeline.append((t, gpi(int(t * 1000))))
+        pilot_frames = [_pilot("heartbeat")]
+        if sec in (22, 23, 24):
+            h = _hostile(sec)
+            pilot_frames.append(h)
+            timeline.append((sec + 0.55, h))
+        gcs.inbox += [(1, f) for f in pilot_frames]
+        uplink += pilot_frames
+        fc.inbox += [(1, gpi(int(sec * 1000)))]
+        b.pump_once()
+        for tick in frame_ticks(sorted(timeline[-13:], key=lambda x: x[0]), sample_rate_hz=10.0):
+            b.analyse_tick(tick)
+        clk.ns += 1_000_000_000
+        b.pump_once()
+    assert fc.sent == uplink
+    assert all(f.compid not in (191, 192) for d in fc.sent for f in split_frames(d)[0])
+    assert b.counter_frames_sent == 0 and b.dropped_up == 0
+    rd = mav2.MAVLink(None)
+    rd.robust_parsing = True
+    texts = [rd.decode(bytearray(f.raw)).text for d in gcs.sent for f in split_frames(d)[0]
+             if f.compid in (191, 192) and f.msgid == 253]
+    assert b.alerts >= 1 and any("COMMAND_INJECTION" in t and "sys66" in t for t in texts), texts

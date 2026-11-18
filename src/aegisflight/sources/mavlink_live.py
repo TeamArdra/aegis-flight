@@ -201,6 +201,22 @@ PX4_SITL_EXTRA_CRC: dict[int, int] = {
 }
 
 
+class GcsSideDatagram(bytes):
+    """A frame that CLAIMS a vehicle sysid but reached an inline bridge from its ground-station / radio side.
+
+    ``hal/inline_ips.py`` tags its analyser tap with this type for every such uplink frame, signed or not, with or without a
+    key. Equal to, and hashed like, the plain bytes. The vehicle never transmits from that side, so for a frame in such a
+    datagram :class:`MavlinkFrameParser` never applies the ``unsigned_allowed_sysids`` exemption and never lets it change the
+    vehicle's signing state (no "this source signs" evidence, no change to the vehicle's anti-replay timestamps), even when
+    its MAC verifies (a replayed recording). Ingestion otherwise follows normal verification, as without the exemption: no
+    key -> ingested; key -> ingested only if its signature verifies (or its id is in the unsigned allowlist), else dropped
+    and counted ``sig_invalid``. A verified GCS-side frame is judged against the vehicle's stream and earlier GCS-side frames
+    (a repeat or an older recording is rejected as old), but recorded only in a separate GCS-side anti-replay namespace.
+    """
+
+    __slots__ = ()
+
+
 class MavlinkFrameParser:
     """Raw bytes -> ``MessageEnvelope`` list, header-first (see module docstring).
 
@@ -217,13 +233,34 @@ class MavlinkFrameParser:
     claimed signature that fails verification is counted (``sig_invalid``) and the frame is
     dropped (``bad_frames``), the same fail-closed treatment as a CRC failure; this parser
     never raises either way.
+
+    ``unsigned_allowed_sysids`` (default empty = unchanged): an UNSIGNED frame from one of these system ids is
+    accepted for every message id, like an allowlisted id. For a vehicle whose own downlink is not signed (ArduPilot
+    on its USB port, or with FC-side signing off), the PX4 id allowlist above would otherwise drop all of its
+    telemetry once a key is set. A frame that CLAIMS a signature is still verified, and unsigned frames from any
+    other system id (a forged ground-station command) are still dropped. The exemption ends for a (sysid, compid) once
+    it has sent ``SIGNED_SOURCE_MIN`` validly signed frames: a vehicle that signs its own downlink does not send
+    unsigned telemetry, so an unsigned frame claiming its id is a forgery and is dropped (``sig_invalid``) instead of
+    reaching the detectors. If that source sends no valid signed frame for ``SIGNING_LAPSE_S`` (signing turned off on
+    the flight controller, a reboot into an unsigned configuration) the exemption returns, so the detectors are not
+    blinded; ``signing_lapses`` counts it. A frame in a :class:`GcsSideDatagram` never gets the exemption and never changes
+    the vehicle's signing state; it is otherwise verified and ingested normally.
+
+    Only a frame whose MAC truly verified counts as ``sig_valid`` and as evidence that its source signs, and only such a
+    frame may advance the per-stream anti-replay timestamp: a claimed signature with a bad MAC (accepted or not) changes
+    neither, so an attacker without the key can neither make genuine signed frames look old nor make an unsigned source
+    look like a signing one.
     """
+
+    SIGNED_SOURCE_MIN = 20
+    SIGNING_LAPSE_S = 10.0
 
     def __init__(self, stats: LiveStats | None = None, *,
                  extra_crc: dict[int, int] | None = None,
                  max_frames_per_datagram: int = 64,
                  secret_key: bytes | None = None,
-                 unsigned_allowed_msgids: frozenset[int] = PX4_UNSIGNED_ALLOWED_MSGIDS) -> None:
+                 unsigned_allowed_msgids: frozenset[int] = PX4_UNSIGNED_ALLOWED_MSGIDS,
+                 unsigned_allowed_sysids: frozenset[int] = frozenset()) -> None:
         if max_frames_per_datagram < 1:
             raise ValueError("max_frames_per_datagram must be >= 1")
         if secret_key is not None and len(secret_key) != 32:
@@ -239,11 +276,45 @@ class MavlinkFrameParser:
         self._mav.robust_parsing = True
         self._mav_error = dialect.MAVError
         self._verify = secret_key is not None
+        # sysid / signed bit of the frame being decoded: the pymavlink callback only receives the msgid, and it is also
+        # consulted for a frame whose signature FAILED, so the sysid exemption must check the frame is truly unsigned
+        self._cur_sysid = -1
+        self._cur_compid = -1
+        self._cur_signed = False
+        self._cur_t = 0.0
+        self._cur_gcs_side = False  # the datagram being parsed is a GcsSideDatagram: no sysid exemption
+        self._unsigned_sysids = unsigned_allowed_sysids
+        self._signed_src: dict[tuple[int, int], tuple[int, float]] = {}  # (sysid, compid) -> (valid signed, last t)
+        self.signing_lapses = 0
+        self.gcs_side_vehicle_frames = 0  # GcsSideDatagram frames ingested; kept out of LiveStats on purpose (golden digests)
+        # anti-replay state of verified GcsSideDatagram frames, kept apart from the vehicle's own (pymavlink's) state
+        self._gcs_streams: dict[tuple[int, int, int], int] = {}
+        self._gcs_sig_ts = 0
         if self._verify:
             self._mav.signing.secret_key = secret_key
             self._mav.signing.allow_unsigned_callback = (
-                lambda _mav, msgid: msgid in unsigned_allowed_msgids
+                lambda _mav, msgid: msgid in unsigned_allowed_msgids or self._sysid_exempt()
             )
+
+    def _sysid_exempt(self) -> bool:
+        if self._cur_signed or self._cur_gcs_side or self._cur_sysid not in self._unsigned_sysids:
+            return False
+        src = (self._cur_sysid, self._cur_compid)
+        n, last = self._signed_src.get(src, (0, 0.0))
+        if n < self.SIGNED_SOURCE_MIN:
+            return True
+        if self._cur_t - last > self.SIGNING_LAPSE_S:
+            del self._signed_src[src]
+            self.signing_lapses += 1
+            return True
+        return False
+
+    def _note_signed(self, sysid: int, compid: int, t: float) -> None:
+        src = (sysid, compid)
+        n = self._signed_src.get(src, (0, 0.0))[0]
+        if src not in self._signed_src and len(self._signed_src) >= 256:
+            self._signed_src.pop(next(iter(self._signed_src)))
+        self._signed_src[src] = (min(n + 1, self.SIGNED_SOURCE_MIN), t)
 
     def parse(self, data: bytes, recv_time: float) -> list[MessageEnvelope]:
         """Parse the frames in ``data`` (one datagram may hold several). Never raises.
@@ -253,6 +324,7 @@ class MavlinkFrameParser:
         """
         st = self.stats
         st.datagrams_received += 1
+        self._cur_gcs_side = isinstance(data, GcsSideDatagram)
         out: list[MessageEnvelope] = []
         n = len(data)
         i = 0
@@ -318,13 +390,36 @@ class MavlinkFrameParser:
                     continue
                 name, fields = f"MSG_{msgid}", {}
             else:
+                # pymavlink's check_signature() stores the stream timestamp BEFORE it compares the MAC, so a frame whose
+                # MAC fails still advances it: one unauthenticated far-future frame would make every later genuine signed
+                # frame "old". Snapshot it and undo it below unless the MAC really verified (goodsig_count moved). A
+                # GcsSideDatagram frame never changes the vehicle's signing state, not even with a valid MAC (a replayed
+                # recording): it is judged against the vehicle's stream AND earlier GCS-side frames, then the vehicle's
+                # state is restored and a verified frame is recorded only in the GCS-side namespace.
+                sig = self._mav.signing
+                skey = (frame[-13], sysid, compid) if self._verify and signed else None
+                gcs = skey is not None and self._cur_gcs_side
+                prev_ts = sig.stream_timestamps.get(skey) if skey is not None else None
+                prev_sig_ts = sig.timestamp  # pymavlink raises it after a good MAC; the new-stream check reads it
+                if gcs:
+                    g = self._gcs_streams.get(skey)
+                    if g is not None and (prev_ts is None or g > prev_ts):
+                        sig.stream_timestamps[skey] = g
+                    sig.timestamp = max(prev_sig_ts, self._gcs_sig_ts)
+                good0 = sig.goodsig_count
                 try:
+                    self._cur_sysid, self._cur_compid, self._cur_signed, self._cur_t = sysid, compid, signed, recv_time
                     msg = self._mav.decode(bytearray(frame))
                     fields = msg.to_dict()
                     fields.pop("mavpackettype", None)
                     name = getattr(cls, "msgname", None) or msg.get_type()
-                    if self._verify and signed:
-                        st.sig_valid += 1  # decode() above already raised if the HMAC did not match
+                    if skey is not None and sig.goodsig_count > good0:
+                        # the MAC verified. A claimed signature that failed but was let through by the unsigned
+                        # allowlist (e.g. a garbage-MAC HEARTBEAT) is NOT a valid signature and never marks its source;
+                        # a GCS-side frame never marks the vehicle as signing either
+                        st.sig_valid += 1
+                        if not gcs:
+                            self._note_signed(sysid, compid, recv_time)
                 except self._mav_error as exc:
                     if self._verify and str(exc) == "Invalid signature":
                         st.sig_invalid += 1
@@ -333,6 +428,21 @@ class MavlinkFrameParser:
                 except Exception:  # noqa: BLE001 - any other decode failure on a known id
                     st.bad_frames += 1
                     continue
+                finally:
+                    verified = sig.goodsig_count > good0
+                    if gcs and verified:
+                        if skey not in self._gcs_streams and len(self._gcs_streams) >= 256:
+                            self._gcs_streams.pop(next(iter(self._gcs_streams)))
+                        self._gcs_streams[skey] = sig.stream_timestamps[skey]
+                        self._gcs_sig_ts = max(self._gcs_sig_ts, sig.timestamp)
+                    if skey is not None and (gcs or not verified):
+                        if prev_ts is None:
+                            sig.stream_timestamps.pop(skey, None)
+                        else:
+                            sig.stream_timestamps[skey] = prev_ts
+                        sig.timestamp = prev_sig_ts
+            if self._cur_gcs_side:
+                self.gcs_side_vehicle_frames += 1
             st.frames_received += 1
             out.append(MessageEnvelope(recv_time=recv_time, sysid=sysid, compid=compid,
                                        msgid=msgid, msgname=name, seq=seq, signed=signed,
@@ -350,6 +460,7 @@ class _TickAssembler:
                  stats: LiveStats, origin_us: int | None = None, *,
                  secret_key: bytes | None = None,
                  unsigned_allowed_msgids: frozenset[int] = PX4_UNSIGNED_ALLOWED_MSGIDS,
+                 unsigned_allowed_sysids: frozenset[int] = frozenset(),
                  extra_crc: dict[int, int] | None = None) -> None:
         if sample_rate_hz <= 0:
             raise ValueError("sample_rate_hz must be > 0")
@@ -359,6 +470,7 @@ class _TickAssembler:
         self.stats = stats
         self.parser = MavlinkFrameParser(stats, secret_key=secret_key,
                                          unsigned_allowed_msgids=unsigned_allowed_msgids,
+                                         unsigned_allowed_sysids=unsigned_allowed_sysids,
                                          extra_crc=extra_crc)
         self.origin_us = origin_us
         self.next_k = 0
@@ -827,6 +939,7 @@ class LiveMavlinkSource:
         max_sleep_s: float = 0.05,
         secret_key: bytes | None = None,
         unsigned_allowed_msgids: frozenset[int] = PX4_UNSIGNED_ALLOWED_MSGIDS,
+        unsigned_allowed_sysids: frozenset[int] = frozenset(),
         extra_crc: dict[int, int] | None = None,
     ) -> None:
         if origin not in ("first_frame", "start"):
@@ -835,7 +948,7 @@ class LiveMavlinkSource:
         self._stats = LiveStats()
         self._asm = _TickAssembler(sample_rate_hz, label_fn, self._stats,
                                    secret_key=secret_key, unsigned_allowed_msgids=unsigned_allowed_msgids,
-                                   extra_crc=extra_crc)
+                                   unsigned_allowed_sysids=unsigned_allowed_sysids, extra_crc=extra_crc)
         self._origin_mode = origin
         self._settle_us = round(settle_s * 1e6)
         self._max_ticks = max_ticks

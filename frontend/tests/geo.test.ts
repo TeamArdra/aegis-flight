@@ -62,3 +62,36 @@ test("fit is equal-aspect, north-up and auto-scaled", () => {
   assert.equal(niceScale(130), 100);
   assert.equal(niceScale(0), 0);
 });
+
+import { projectTrackInc, type LatLon, type ProjCache } from "../src/lib/geo.ts";
+
+function rng(seed) { let s = seed >>> 0; return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 2 ** 32); }
+
+test("incremental projection equals full recomputation exactly for random sliding tracks", () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    const r = rng(seed);
+    const lat0 = (r() - 0.5) * 170, lon0 = (r() - 0.5) * 358;
+    const origin: LatLon = [lat0, lon0];
+    let track: LatLon[] = [];
+    let cache: ProjCache | null = null;
+    for (let step = 0; step < 900; step++) {
+      // mimic the reducer: copy, trim to the last 399 when full, push a new (possibly antimeridian-crossing) fix
+      track = track.length >= 400 ? track.slice(-399) : track.slice();
+      if (r() < 0.9) track.push([lat0 + (r() - 0.5) * 0.01, lon0 + (r() - 0.5) * 0.01 + (seed % 5 === 0 ? 180 : 0)]);
+      if (step % 137 === 100) track = []; // a new run
+      if (step % 211 === 50) track = track.map((p) => [p[0], p[1]] as LatLon); // identity lost -> fallback
+      if (track.length === 0) { cache = null; continue; }
+      cache = projectTrackInc(track, origin, cache);
+      assert.deepStrictEqual(cache.pts, projectTrack(track, origin));
+    }
+  }
+});
+
+test("incremental projection with a different origin recomputes", () => {
+  const t: LatLon[] = [[10, 20], [10.001, 20.001]];
+  const c1 = projectTrackInc(t, [10, 20], null);
+  const c2 = projectTrackInc(t, [10.5, 20.5], c1);
+  assert.deepStrictEqual(c2.pts, projectTrack(t, [10.5, 20.5]));
+  const c3 = projectTrackInc([t[1]], [10.5, 20.5], c2);
+  assert.deepStrictEqual(c3.pts, projectTrack([t[1]], [10.5, 20.5]));
+});

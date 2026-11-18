@@ -1,15 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import { getBridgeToken, getBridgeUrl, setBridgePosture } from "../services/api";
 import { controlHint, signingText } from "../lib/posture";
 import { ActiveIpsDialog } from "./ActiveIpsDialog";
-import type { BridgeStatus, Checks, DefenseMode } from "../types";
+import { selectBridgeSource } from "../lib/bridgeRemote";
+import { InbandBridgePanel } from "./BridgeInband";
+import type { BridgeRemote, BridgeStatus, Checks, DefenseMode } from "../types";
 
 const POSTURES: DefenseMode[] = ["passive", "advisory", "active-ips"];
 
 const f = (v: number | null | undefined, d = 2) => (typeof v === "number" && Number.isFinite(v) ? v.toFixed(d) : "—");
 
 // Backend-computed checks for non-SIM sources (mission path, cross-end, receiver health).
-export function ChecksPanel({ checks }: { checks: Checks | null }) {
+function ChecksPanelImpl({ checks }: { checks: Checks | null }) {
   if (!checks) {
     return (
       <div className="panel" data-testid="checks-panel">
@@ -64,7 +66,20 @@ export function useBridge() {
   return { url, st, bad, setSt };
 }
 
-export function BridgePanel({ url, st, bad, setSt }: { url: string | null; st: BridgeStatus | null; bad: boolean; setSt?: (s: BridgeStatus) => void }) {
+// Prefers the in-band report (telemetry radio); falls back to the optional HTTP bridge URL.
+function BridgePanelImpl({ remote, url, st, bad, setSt }: { remote?: BridgeRemote | null; url: string | null; st: BridgeStatus | null; bad: boolean; setSt?: (s: BridgeStatus) => void }) {
+  const src = selectBridgeSource(remote, url);
+  if (src === "inband" && remote) return <InbandBridgePanel remote={remote} />;
+  if (src === "http") return <HttpBridgePanel url={url} st={st} bad={bad} setSt={setSt} />;
+  return (
+    <div className="panel" data-testid="bridge-panel">
+      <header><span className="panel-title">Inline IPS bridge</span><span className="panel-note">in-band over the radio</span></header>
+      <div className="source-bar"><span data-testid="bridge-not-reporting">Bridge not reporting</span></div>
+    </div>
+  );
+}
+
+function HttpBridgePanel({ url, st, bad, setSt }: { url: string | null; st: BridgeStatus | null; bad: boolean; setSt?: (s: BridgeStatus) => void }) {
   const [dialog, setDialog] = useState(false);
   const [dialogErr, setDialogErr] = useState<string | null>(null);
   const [ctlErr, setCtlErr] = useState<string | null>(null);
@@ -131,3 +146,7 @@ export function BridgePanel({ url, st, bad, setSt }: { url: string | null; st: B
     </div>
   );
 }
+
+// memoised: the dashboard state changes at 10 Hz, these panels re-render only when their own props change
+export const ChecksPanel = memo(ChecksPanelImpl);
+export const BridgePanel = memo(BridgePanelImpl);

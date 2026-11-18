@@ -52,7 +52,10 @@ def load_signing_key(path: str) -> bytes:
     """32-byte key file, raw or 64 hex chars (same format as ``aegis ips-bridge --signing-key-file``)."""
     with open(path, "rb") as fh:
         raw = fh.read()
-    key = raw if len(raw) == 32 else bytes.fromhex(raw.decode("ascii").strip())
+    try:
+        key = raw if len(raw) == 32 else bytes.fromhex(raw.decode("ascii").strip())
+    except ValueError:  # UnicodeDecodeError included: its text quotes a byte of the file, i.e. of the key
+        raise ValueError("key file must hold 32 raw bytes or 64 hex characters") from None
     if len(key) != 32:
         raise ValueError("key must be 32 bytes")
     return key

@@ -32,6 +32,11 @@ AEGIS = "C:/afvenv/Scripts/aegis.exe"
 PY = "C:/afvenv/Scripts/python.exe"
 HERE = os.path.dirname(os.path.abspath(__file__)).replace("\\", "/")
 procs = []
+# PI_SSH=user@host (+ PI_KEY=ssh key): run the bridge on a Raspberry Pi instead of locally. The SITL and the hub stay on this
+# machine and reach the Pi through ssh -R tunnels (FC 5762, GCS 5800) with the bridge status port forwarded back (-L 8090);
+# ~/aegis_test/pi_bridge.sh (scripts/radio_test) starts the bridge there.
+PI = os.environ.get("PI_SSH")
+SSH = ["ssh", "-i", os.environ.get("PI_KEY", ""), "-o", "BatchMode=yes"]
 
 
 def start(args, log):
@@ -58,6 +63,10 @@ def cf(st):
 def events_since(label, wall):
     import sqlite3
     try:
+        if PI:
+            subprocess.run(["scp", "-i", os.environ.get("PI_KEY", ""), "-o", "BatchMode=yes",
+                            f"{PI}:~/aegis_runs/gps_{label}/bridge.sqlite", f"{D}/gpsbridge_{label}.sqlite"],
+                           check=False, capture_output=True, timeout=30)
         c = sqlite3.connect(f"{D}/gpsbridge_{label}.sqlite")
         rows = c.execute("select wall_time,attack_type,severity,threat_score,evidence from events where wall_time>=? "
                          "order by id", (wall,)).fetchall()
@@ -77,10 +86,17 @@ def main():
     time.sleep(3)
     console = mavutil.mavlink_connection("tcp:127.0.0.1:5760", source_system=254, source_component=190)
     console.wait_heartbeat(timeout=30)
-    start([AEGIS, "ips-bridge", "--fc-port", "socket://127.0.0.1:5762", "--fc-baud", "115200",
-           "--gcs-port", "socket://127.0.0.1:5800", "--gcs-baud", "115200", "--allow-url", "--defense-mode", MODE,
-           "--config-dir", CFG, "--status-port", "8090", "--db", f"{D}/gpsbridge_{LABEL}.sqlite",
-           "--seconds", "400"], "bridge")
+    if PI:
+        start(SSH + ["-o", "ExitOnForwardFailure=yes", "-o", "ServerAliveInterval=5", "-N", "-R", "5762:127.0.0.1:5762",
+                     "-R", "5800:127.0.0.1:5800", "-L", "8090:127.0.0.1:8090", PI], "tunnel")
+        time.sleep(3)
+        subprocess.run(SSH + [PI, f"(setsid nohup ~/aegis_test/pi_bridge.sh gps_{LABEL} {MODE} --allow-unsigned "
+                                  "> /dev/null 2>&1 < /dev/null &)"], check=False, timeout=30)
+    else:
+        start([AEGIS, "ips-bridge", "--fc-port", "socket://127.0.0.1:5762", "--fc-baud", "115200",
+               "--gcs-port", "socket://127.0.0.1:5800", "--gcs-baud", "115200", "--allow-url", "--allow-unsigned",
+               "--defense-mode", MODE, "--config-dir", CFG, "--status-port", "8090",
+               "--db", f"{D}/gpsbridge_{LABEL}.sqlite", "--seconds", "400"], "bridge")
     time.sleep(4)
     pilot = mavutil.mavlink_connection("tcp:127.0.0.1:5801", source_system=255, source_component=190)
     pilot.wait_heartbeat(timeout=30)
@@ -174,3 +190,5 @@ try:
 finally:
     for p in procs:
         p.kill()
+    if PI:
+        subprocess.run(SSH + [PI, "~/aegis_test/wifi_stop.sh"], check=False, timeout=30)

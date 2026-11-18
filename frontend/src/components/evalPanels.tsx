@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { Metrics } from "../types";
 
 /* Formatting helpers ------------------------------------------------------ */
@@ -13,7 +14,7 @@ function num(x: number | null | undefined, d = 1): string {
 /* ------------------------------------------------------- runtime performance
    LIVE / RUNTIME metrics only — the current session's computational-efficiency
    story (worth 10% of the evaluation). Benchmark figures live in Validation. */
-export function RuntimePanel({
+function RuntimePanelImpl({
   metrics,
   distance,
   distanceNote,
@@ -93,7 +94,7 @@ const DOMAINS: Array<{ domain: string; scenarios: string[]; attackIds: string[] 
   { domain: "Firmware", scenarios: ["Integrity (SHA-256 manifest)"], attackIds: ["firmware_integrity"] },
 ];
 
-export function CoveragePanel({ activeAttack }: { activeAttack: string | null }) {
+function CoveragePanelImpl({ activeAttack }: { activeAttack: string | null }) {
   return (
     <div className="panel">
       <header>
@@ -156,7 +157,7 @@ const PLANNED = [
   "Multi-vehicle support",
 ];
 
-export function IntegrationPanel() {
+function IntegrationPanelImpl() {
   return (
     <div className="panel">
       <header>
@@ -209,7 +210,7 @@ const VAL_ROWS: Array<{ tier: ValTier; metric: string; value: string }> = [
   { tier: "sim", metric: "Decision compute (Rust fastpath)", value: "<0.08 ms Rust  ·  17.7 ms full Python ML" },
 ];
 
-export function ValidationPanel() {
+function ValidationPanelImpl() {
   return (
     <div className="panel">
       <header>
@@ -237,3 +238,9 @@ export function ValidationPanel() {
     </div>
   );
 }
+
+// memoised: the dashboard state changes at 10 Hz, these panels re-render only when their own props change
+export const RuntimePanel = memo(RuntimePanelImpl);
+export const CoveragePanel = memo(CoveragePanelImpl);
+export const IntegrationPanel = memo(IntegrationPanelImpl);
+export const ValidationPanel = memo(ValidationPanelImpl);

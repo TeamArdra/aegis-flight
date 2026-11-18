@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import contextlib
 import hmac
+import json
 import math
 import os
 import re
@@ -282,6 +283,36 @@ def set_defense_mode(payload: dict, request: Request) -> JSONResponse:
     return JSONResponse(content={"ok": True, **res})
 
 
+@app.post("/api/bridge/posture")
+def bridge_posture(payload: dict, request: Request) -> JSONResponse:
+    """Ask the remote ips-bridge (over the telemetry radio, in-band) to change its posture. Signed with the
+    management key; the answer arrives as a COMMAND_ACK and shows in ``bridge_remote.last_command``."""
+    if (auth_err := _require_control_auth(request)) is not None:
+        return auth_err
+    body = payload if isinstance(payload, dict) else {}
+    mode = body.get("mode")
+    if mode not in ("passive", "advisory", "active-ips"):
+        return JSONResponse(status_code=400, content={"ok": False, "error": f"unknown mode '{mode}'",
+                                                      "choices": ["passive", "advisory", "active-ips"]})
+    for k in ("allow_unsigned", "confirm"):
+        if body.get(k) is not None and not isinstance(body.get(k), bool):
+            return JSONResponse(status_code=400, content={"ok": False, "error": f"{k} must be a boolean"})
+    eng = get_engine()
+    if not eng.control_writable() or eng.bridge_remote.mgmt_key is None:
+        return JSONResponse(status_code=403, content={
+            "ok": False, "error": "control_unavailable",
+            "message": "needs a live UDP / socket:// source and --mgmt-key-file; replay, simulation and serial devices "
+                       "(receive-only) never send"})
+    allow_unsigned = body.get("allow_unsigned") is True
+    if mode == "active-ips" and not allow_unsigned and eng.bridge_remote.bridge_signing() is False:
+        return JSONResponse(status_code=409, content={
+            "ok": False, "error": "signing_required",
+            "message": "Unsigned links cannot stop a counter-tracking forger; provision a key and start with "
+                       "--signing-key-file, or acknowledge the risk to proceed unsigned."})
+    res = eng.send_bridge_posture(mode, allow_unsigned=allow_unsigned, confirm=body.get("confirm") is True)
+    return JSONResponse(status_code=200 if res.get("ok") else 502, content=res)
+
+
 @app.post("/api/defense/override")
 def defense_override(payload: dict, request: Request) -> JSONResponse:
     if (auth_err := _require_control_auth(request)) is not None:
@@ -308,6 +339,23 @@ def get_topology() -> dict:
 # --------------------------------------------------------------------------- #
 # WebSocket — live telemetry + threat stream
 # --------------------------------------------------------------------------- #
+_WS_TEXT_CACHE: list = [None, None]  # [last message object, its JSON text]: N clients share one serialisation
+
+
+def _ws_text(msg: object) -> str:
+    """Exactly what ``WebSocket.send_json`` would send, computed once per broadcast message object.
+
+    ``_broadcast`` puts the same dict into every subscriber queue and the engine never mutates it afterwards,
+    so the text is identical for every client (the cache holds the object itself, so its id cannot be reused).
+    """
+    c = _WS_TEXT_CACHE
+    if c[0] is msg:
+        return c[1]
+    text = json.dumps(msg, separators=(",", ":"), ensure_ascii=False)
+    c[0], c[1] = msg, text
+    return text
+
+
 @app.websocket("/ws/telemetry")
 async def ws_telemetry(ws: WebSocket) -> None:
     # CORS does not apply to WebSockets: refuse a browser Origin that is not this machine. No Origin
@@ -322,7 +370,7 @@ async def ws_telemetry(ws: WebSocket) -> None:
     try:
         while True:
             msg = await q.get()
-            await ws.send_json(msg)
+            await ws.send_text(_ws_text(msg))
     except WebSocketDisconnect:
         pass
     except Exception:  # noqa: BLE001 - client vanished mid-send

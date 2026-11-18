@@ -2,8 +2,8 @@
 
 > **Status note (integration review):** this page is a design description. What is implemented, measured or only modelled is
 > recorded in `docs/VALIDATION_EVIDENCE.md` and the README. In particular: the defense layer is report-only on every live or
-> recorded source; Topology B is implemented as `aegis ips-bridge` (`docs/INLINE_IPS.md`) and tested on synthetic frames and loopback serial only; the older `InlineBridge` class, its 150 ms watchdog and `rust/aegis_fastpath` are
-> not on that path, and nothing has a measured figure on hardware; nothing has been measured on a companion computer; the measured decision
+> recorded source; Topology B is implemented as `aegis ips-bridge` (`docs/INLINE_IPS.md`) and tested on synthetic frames, loopback serial and ArduCopter SITL, and on the bench with a real Pixhawk 6X over a real LR900 radio pair (not flown); the older `InlineBridge` class, its 150 ms watchdog and `rust/aegis_fastpath` are
+> not on that path, and have no measured figure; the bridge's own figures on a Raspberry Pi 3B+ and on a Raspberry Pi 5 bench (real Pixhawk over USB, disarmed) are in `docs/PERFORMANCE.md` and `docs/RADIO_TEST_RESULTS.md`; the measured decision
 > compute is 17.7 ms mean / 23.6 ms p95 with ML on (`artifacts/benchmarks/summary.md`, SIM).
 
 > **Pushpak Grand Challenge 2026–27 (IIT Bombay Techfest) — Security of Drones, Objective 2**  
@@ -22,7 +22,7 @@ Unlike conventional network IDSs that treat telemetry frames as opaque strings o
                        │               OPERATING POSTURES                 │
                        ├─────────────────┬───────────────┬────────────────┤
                        │  PASSIVE (IDS)  │   ADVISORY    │   ACTIVE IPS   │
-                       │ 0 B Transmitted │ STATUSTEXT to │ Autonomous     │
+                       │ 0 B to vehicle* │ STATUSTEXT to │ Autonomous     │
                        │ Zero Actuation  │ Pilot GCS HUD │ Counter-Action │
                        └─────────────────┴───────────────┴────────────────┘
                                                   │
@@ -34,6 +34,10 @@ Unlike conventional network IDSs that treat telemetry frames as opaque strings o
                          │ (Counter-Commands)                                + Fail-Open Watchdog)
                  [Companion Pi]
 ```
+\* By default. On a UDP or `socket://` vehicle link, `aegis serve` also puts bytes on the vehicle link, in any
+posture, when `--gcs-notify` is set (alert STATUSTEXTs) or when `--mgmt-key-file` is set and a posture change is
+requested through `POST /api/bridge/posture` (one signed `COMMAND_LONG`; with no inline bridge in the path it reaches
+the flight controller). A serial-device vehicle link is receive-only in every posture and entry point.
 
 ### Core Architectural Guarantees
 1. **Deterministic Latency**: Measured decision compute is 17.7 ms mean / 23.6 ms p95 with ML on (SIM, host CPU; `artifacts/benchmarks/summary.md`). The $\le 45\text{ ms}$ figure is a design target, not measured on a companion computer.
@@ -246,7 +250,7 @@ AegisFlight has been validated across 9 comprehensive verification suites:
 | **Ablation Study** (`benchmarks_ablation_no_ml`) | Physics + Protocol Only (No ML) | Accuracy: `98.6%`, proves multi-layered resilience |
 | **Real Flights — ALFA Dataset** | 41 Real Fixed-Wing Flight Logs | Zero false alarms under real crosswinds and turbulence |
 | **Real Flights — PX4 Review** | 40 Real Multirotor Telemetry Logs | Validated under real-world sensor noise and dropouts |
-| **Hardware-in-the-Loop Bench** | Pixhawk 6X over 115,200 Baud UART | Zero frame loss, DMA buffer verified |
+| **Hardware bench** (`docs/HARDWARE_BENCH_PIXHAWK6X.md`, `docs/REAL_PIXHAWK_TEST.md`) | Pixhawk 6X over USB, disarmed, propellers removed (no UART run) | Read-only captures and bench runs; no DMA measurement in the repository |
 | **Stage 2 Verification Suite** (`verify_stage2.py`) | 8 Comprehensive Audit Suites | **8/8 Suites Passed in 40.5 ms** (100% compliant) |
 | **Unit Test Suite** (`pytest`) | Core, Detectors, Mitigation, HAL | `python -m pytest` prints the current count |
 | **Frontend Production Build** | TypeScript + Vite + Tauri Rust | **Built in 259 ms, 0 errors** |

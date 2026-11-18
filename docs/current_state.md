@@ -3,17 +3,17 @@
 > **Status note (integration review):** this page is a design description. What is implemented, measured or only modelled is
 > recorded in `docs/VALIDATION_EVIDENCE.md` and the README. In particular: the defense layer is report-only on every live or
 > recorded source; Topology B (`InlineBridge`, `FrameSanitizer`, `rust/aegis_fastpath`) and the 150 ms fail-open watchdog are
-> not wired into any relay and have no measured figure; nothing has been measured on a companion computer; the measured decision
+> not wired into any relay and have no measured figure; the `aegis ips-bridge` has been measured on a Raspberry Pi 3B+ and on a Raspberry Pi 5 bench (real Pixhawk over USB, disarmed; not flown); the measured decision
 > compute is 17.7 ms mean / 23.6 ms p95 with ML on (`artifacts/benchmarks/summary.md`, SIM).
 > Authoritative system status snapshot for PUSHPAK Stage 2 (IIT Bombay Techfest). Strict Token Budget: < 1500 tokens.
 
 ## 1. System Identity & Physical Constraints
-- **Target Hardware Profile (design target, not tested)**: companion computer (e.g. Raspberry Pi Zero 2W) with a Pixhawk 6X autopilot.
-- **Physical Link (bench, as tested)**: Pixhawk 6X telemetry over USB/radio on COM7, receive-only (`docs/HARDWARE_BENCH_PIXHAWK6X.md`). A companion UART link is a design target, not tested.
+- **Target Hardware Profile (design target, partly tested)**: companion computer (e.g. Raspberry Pi Zero 2W) with a Pixhawk 6X autopilot. Tested so far: a Raspberry Pi 5 with a Pixhawk 6X on USB, on the bench, disarmed (2026-10-31). The Zero 2W has not been tested. Later the same day: a 1,500 s active-ips soak completed and moved the disarmed vehicle's mode through false GPS alerts; one signed run over USB had the bridge as the enforcement point.
+- **Physical Link (bench, as tested)**: Pixhawk 6X telemetry over USB/radio on COM7, receive-only (`docs/HARDWARE_BENCH_PIXHAWK6X.md`). A companion UART link is a design target, not tested. Later (2026-10-31): the bridge also ran with this Pixhawk on USB to a Raspberry Pi 5 and an LR900 radio pair (disarmed; not flown).
 - **Strict Bench Budgets (targets unless stated)**:
   - Detection compute (host, SIM, ML on): 17.7 ms mean / 23.6 ms p95 (`artifacts/benchmarks/summary.md`); not measured on a companion computer.
   - Telemetry bandwidth overhead: 0 in PASSIVE/ADVISORY (nothing is transmitted; `bytes_sent` 0 on every physical capture). The SIM defense model's packet sizes (44 B unsigned / 57 B signed) are design figures, not measurements.
-  - Resident memory (RSS): **measured 60.7 MB peak** for the live runner on the host (ML off, `artifacts/hardware/gps_hw_verify_20261029/live_capture/summary.json`; 154.7 MB mean in the ML-on benchmark). The earlier "≤ 45 MB" budget is not met on the host and was never measured on a companion computer.
+  - Resident memory (RSS): **measured 60.7 MB peak** for the live runner on the host (ML off, `artifacts/hardware/gps_hw_verify_20261029/live_capture/summary.json`; 154.7 MB mean in the ML-on benchmark). The earlier "≤ 45 MB" budget is not met on the host and was never measured on a companion computer; the bridge's own RSS was measured on a Raspberry Pi 3B+ (about 65 MiB, flat, in a soak; `docs/PERFORMANCE.md`, `docs/RADIO_TEST_RESULTS.md`).
 
 ## 2. Runtime Daemons & Active Ports
 - **Backend Service (Task: task-3140)**:

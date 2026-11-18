@@ -348,8 +348,10 @@ def test_bridge_over_real_serial_transports_filters_hostile_uplink_and_passes_th
     gcs = SerialMavlinkTransport(f"socket://127.0.0.1:{gcs_srv.getsockname()[1]}", allow_url=True,
                                  accept_unverified_ids=True)
     # the 1 Hz cross-end summary (tests/unit/test_crossend.py covers it) is not under test here: it is sent to the GCS side and
-    # can land inside the read window below, between the forwarded telemetry frames
-    bridge = InlineIpsBridge(fc, gcs, mode="active-ips", crossend_interval_s=0)
+    # can land inside the read window below, between the forwarded telemetry frames; the same holds for the management
+    # channel's status MEMORY_VECT and its "AEGIS: blocked ..." STATUSTEXT (this test drops one hostile frame by design)
+    bridge = InlineIpsBridge(fc, gcs, mode="active-ips", crossend_interval_s=0, gcs_alerts=False,
+                             mgmt_status_interval_s=0)
     fc.start()
     gcs.start()
     bridge.start()

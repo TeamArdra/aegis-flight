@@ -2,8 +2,9 @@ import type { SigningInfo } from "../lib/posture";
 import { useEffect, useReducer, useRef } from "react";
 import { api, wsUrl } from "../services/api";
 import { acceptFix, nextOrigin, type LatLon } from "../lib/geo";
+import { grow, keepIfEqual } from "../lib/stable";
 import type {
-  AlertRow, DefenseMode, Checks, Environment, LinkStatus, Metrics, MitigationInfo, SourceInfo, Telemetry, Threat, TopologyInfo, Update,
+  AlertRow, BridgeRemote, DefenseMode, Checks, Environment, LinkStatus, Metrics, MitigationInfo, SourceInfo, Telemetry, Threat, TopologyInfo, Update,
 } from "../types";
 
 export interface LiveState {
@@ -16,6 +17,7 @@ export interface LiveState {
   link: LinkStatus | null;
   runId: string | null;
   checks: Checks | null; // null for SIM
+  bridgeRemote: BridgeRemote | null; // in-band bridge report over the radio
   origin: LatLon | null; // first valid fix of the current run (local-frame origin)
   eventsCount: number | null; // persisted alerts of the current run
   updateAgeS: number | null; // seconds since the last WebSocket update (backend freshness)
@@ -49,6 +51,7 @@ interface ReducerState {
   link: LinkStatus | null;
   runId: string | null;
   checks: Checks | null;
+  bridgeRemote: BridgeRemote | null;
   origin: LatLon | null;
   eventsCount: number | null;
   lastUpdate: number | null;
@@ -79,6 +82,7 @@ const initialState: ReducerState = {
   link: null,
   runId: null,
   checks: null,
+  bridgeRemote: null,
   origin: null,
   eventsCount: null,
   lastUpdate: null,
@@ -122,12 +126,13 @@ function liveReducer(state: ReducerState, action: Action): ReducerState {
         eventsCount: action.count,
         metrics: action.metrics,
         environment: st?.environment ?? state.environment,
-        source: st?.source ?? state.source,
+        source: keepIfEqual(state.source, st?.source ?? state.source),
         defenseMode: st?.defense_mode ?? (st?.source?.defense_mode || state.defenseMode),
-        signing: st?.signing ?? state.signing,
-        topologyInfo: st?.topology_info ?? state.topologyInfo,
-        mitigation: st?.mitigation ?? state.mitigation,
-        link: st?.link && (last == null || Date.now() - last > 1000) ? st.link : state.link,
+        signing: keepIfEqual(state.signing, st?.signing ?? state.signing),
+        topologyInfo: keepIfEqual(state.topologyInfo, st?.topology_info ?? state.topologyInfo),
+        mitigation: keepIfEqual(state.mitigation, st?.mitigation ?? state.mitigation),
+        bridgeRemote: keepIfEqual(state.bridgeRemote, st?.bridge_remote ?? state.bridgeRemote),
+        link: keepIfEqual(state.link, st?.link && (last == null || Date.now() - last > 1000) ? st.link : state.link),
       };
     }
     case "UPDATE": {
@@ -141,17 +146,14 @@ function liveReducer(state: ReducerState, action: Action): ReducerState {
       const isIps = isSim && currentMode === "active-ips";
       const effTele = isIps && msg.sanitized_telemetry ? msg.sanitized_telemetry : msg.telemetry;
       const gpsValid = msg.link?.gps?.valid_fix ?? null;
-      const trimmed = state.track.length >= MAX_TRACK;
-      const newTrack = isNewRun ? [] : trimmed ? state.track.slice(-(MAX_TRACK - 1)) : state.track.slice();
+      // Only valid fixes enter the track (null/NaN/out of range/(0,0)/receiver says no fix).
       // Per-point "flown under threat" flag, kept index-aligned with `track` so the
       // map highlights only the segment flown during an attack, not the whole history.
-      const newTrackThreat = isNewRun ? [] : trimmed ? state.trackThreat.slice(-(MAX_TRACK - 1)) : state.trackThreat.slice();
-      // Only valid fixes enter the track (null/NaN/out of range/(0,0)/receiver says no fix).
-      if (acceptFix(effTele?.lat, effTele?.lon, isSim ? null : gpsValid)) {
-        newTrack.push([effTele!.lat as number, effTele!.lon as number]);
-        const underThreat = !!(msg.threat?.threat ?? state.threat?.threat) || !!msg.attack_active;
-        newTrackThreat.push(underThreat);
-      }
+      const accepted = acceptFix(effTele?.lat, effTele?.lon, isSim ? null : gpsValid);
+      const fix: [number, number] | null = accepted ? [effTele!.lat as number, effTele!.lon as number] : null;
+      const underThreat = !!(msg.threat?.threat ?? state.threat?.threat) || !!msg.attack_active;
+      const newTrack = grow(state.track, !!isNewRun, MAX_TRACK, fix);
+      const newTrackThreat = grow(state.trackThreat, !!isNewRun, MAX_TRACK, accepted ? underThreat : null);
       const org = nextOrigin(
         { origin: state.origin, runId: state.runId }, msg.run_id ?? null,
         effTele?.lat, effTele?.lon, isSim ? null : gpsValid,
@@ -161,44 +163,42 @@ function liveReducer(state: ReducerState, action: Action): ReducerState {
       // is scoped to the CURRENT attack episode: switching or clearing the attack starts a
       // fresh ghost.
       const attackChanged = (msg.attack_active ?? null) !== state.attackActive;
-      const newRawTrack = isNewRun || attackChanged ? [] : state.rawTrack.length >= MAX_TRACK ? state.rawTrack.slice(-(MAX_TRACK - 1)) : state.rawTrack.slice();
-      if (isSim && acceptFix(msg.telemetry?.lat, msg.telemetry?.lon)) {
-        newRawTrack.push([msg.telemetry.lat as number, msg.telemetry.lon as number]);
-      }
+      const newRawTrack = grow(
+        state.rawTrack, !!isNewRun || attackChanged, MAX_TRACK,
+        isSim && acceptFix(msg.telemetry?.lat, msg.telemetry?.lon) ? ([msg.telemetry.lat as number, msg.telemetry.lon as number] as [number, number]) : null,
+      );
 
-      const newHistory = isNewRun ? [] : state.scoreHistory.length >= MAX_HISTORY ? state.scoreHistory.slice(-(MAX_HISTORY - 1)) : state.scoreHistory.slice();
-      if (msg.threat) {
-        newHistory.push({ t: msg.t, score: msg.threat.threat_score });
-      }
+      const newHistory = grow(state.scoreHistory, !!isNewRun, MAX_HISTORY, msg.threat ? { t: msg.t, score: msg.threat.threat_score } : null);
 
       // rel_alt is metres above home; the 60 m fallback is a simulator-only baseline.
       const fb = isSim ? 60.0 : null;
       const rawAltV = msg.telemetry?.rel_alt ?? (isSim ? msg.telemetry?.alt_msl : null) ?? fb;
       const effAltV = effTele?.rel_alt ?? (isSim ? effTele?.alt_msl : null) ?? fb;
-      const newAltHistory = isNewRun ? [] : state.altHistory.length >= MAX_HISTORY ? state.altHistory.slice(-(MAX_HISTORY - 1)) : state.altHistory.slice();
-      if (typeof rawAltV === "number" && Number.isFinite(rawAltV) && typeof effAltV === "number" && Number.isFinite(effAltV)) {
-        newAltHistory.push({ t: msg.t, rawAlt: rawAltV, effAlt: effAltV, diverging: isIps && Math.abs(rawAltV - effAltV) > 1.5 });
-      }
+      const altPoint = typeof rawAltV === "number" && Number.isFinite(rawAltV) && typeof effAltV === "number" && Number.isFinite(effAltV)
+        ? { t: msg.t, rawAlt: rawAltV, effAlt: effAltV, diverging: isIps && Math.abs(rawAltV - effAltV) > 1.5 }
+        : null;
+      const newAltHistory = grow(state.altHistory, !!isNewRun, MAX_HISTORY, altPoint);
 
       return {
         ...state,
         lastUpdate: action.now,
         environment: msg.environment ?? state.environment,
-        source: msg.source ?? state.source,
+        source: keepIfEqual(state.source, msg.source ?? state.source),
         defenseMode: msg.defense_mode ?? (msg.source?.defense_mode || state.defenseMode),
-        signing: msg.signing ?? state.signing,
-        topologyInfo: msg.topology_info ?? state.topologyInfo,
-        mitigation: msg.mitigation ?? state.mitigation,
-        link: msg.link ?? state.link,
+        signing: keepIfEqual(state.signing, msg.signing ?? state.signing),
+        topologyInfo: keepIfEqual(state.topologyInfo, msg.topology_info ?? state.topologyInfo),
+        mitigation: keepIfEqual(state.mitigation, msg.mitigation ?? state.mitigation),
+        link: keepIfEqual(state.link, msg.link ?? state.link),
         runId: msg.run_id ?? state.runId,
-        checks: msg.checks ?? null,
+        checks: keepIfEqual(state.checks, msg.checks ?? null),
+        bridgeRemote: keepIfEqual(state.bridgeRemote, msg.bridge_remote ?? state.bridgeRemote),
         origin: org.origin,
         t: msg.t,
-        telemetry: msg.telemetry,
-        sanitizedTelemetry: msg.sanitized_telemetry ?? msg.telemetry,
+        telemetry: keepIfEqual(state.telemetry, msg.telemetry),
+        sanitizedTelemetry: keepIfEqual(state.sanitizedTelemetry, msg.sanitized_telemetry ?? msg.telemetry),
         attackActive: msg.attack_active,
         distance: typeof msg.distance_m === "number" ? msg.distance_m : state.distance,
-        threat: msg.threat ?? state.threat,
+        threat: keepIfEqual(state.threat, msg.threat ?? state.threat),
         track: newTrack,
         trackThreat: newTrackThreat,
         rawTrack: newRawTrack,
@@ -301,6 +301,7 @@ export function useLiveData(): LiveState {
     link: state.link,
     runId: state.runId,
     checks: state.checks,
+    bridgeRemote: state.bridgeRemote,
     origin: state.origin,
     eventsCount: state.eventsCount,
     updateAgeS: last == null ? null : Math.max(0, (state.now - last) / 1000),
