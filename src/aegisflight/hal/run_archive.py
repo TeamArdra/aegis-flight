@@ -56,9 +56,13 @@ class BridgeRunArchive:
                 return
             self._q.append((name, row))
 
-    def frame(self, direction: str, t_ns: int, raw: bytes, out: list[bytes]) -> None:
-        """One received frame and what the bridge did with it (``direction`` is ``down`` or ``up``)."""
+    def frame(self, direction: str, t_ns: int, raw: bytes, out: list[bytes], send_failed: int = 0) -> None:
+        """One received frame and what the bridge did with it (``direction`` is ``down`` or ``up``). ``verdict`` is the
+        policy's decision; ``send_failed`` (only when > 0) counts output frames the far link did not accept, so a
+        ``forwarded`` frame that never reached the wire is not mistaken for a delivered one."""
         row: dict[str, Any] = {"t_ns": t_ns, "raw": raw.hex()}
+        if send_failed:
+            row["send_failed"] = int(send_failed)
         if not out:
             row["verdict"] = "dropped"
         elif len(out) == 1 and out[0] == raw:

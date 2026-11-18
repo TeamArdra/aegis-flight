@@ -126,6 +126,7 @@ def test_archive_records_the_management_stream_sent_to_the_gcs(tmp_path):
     mgmt = [a for a in _rows(tmp_path / "run" / "actions.jsonl") if a["kind"] == "mgmt"]
     assert mgmt and all(a["to"] == "gcs" for a in mgmt)
     assert [bytes.fromhex(a["raw"]) for a in mgmt] == gcs.sent
+    assert all(a["sent"] is True for a in mgmt)
 
 
 def test_without_an_archive_the_management_stream_goes_straight_to_the_gcs():
@@ -134,3 +135,38 @@ def test_without_an_archive_the_management_stream_goes_straight_to_the_gcs():
     b.mgmt.action("FILTER_TEST", "")
     b.close()
     assert gcs.sent  # unchanged behaviour when no evidence run is configured
+
+
+class _DeadLink(FakeLink):
+    """A link whose peer is gone: every send is refused (the #25 SITL bridge run had the FC port down)."""
+
+    def send(self, data: bytes) -> bool:
+        return False
+
+
+def test_a_forwarded_frame_that_never_reached_the_wire_is_marked_send_failed(tmp_path):
+    """#25 dry run: with the FC link down the archive said ``forwarded`` for 27 uplink frames while the bridge counted
+    27 send failures and 0 forwarded. The verdict stays the policy decision; ``send_failed`` records the delivery."""
+    fc, gcs = _DeadLink(), FakeLink()
+    arch = BridgeRunArchive(tmp_path / "run")
+    b = InlineIpsBridge(fc, gcs, mode="passive", crossend_interval_s=0, archive=arch)
+    gcs.feed(command_long(255, MAV_CMD_DO_SET_MODE, 1, 4))
+    fc.feed(heartbeat())
+    b.pump_once()
+    st = b.status()["frames"]
+    b.close()
+    up = _rows(tmp_path / "run" / "frames_up.jsonl")
+    down = _rows(tmp_path / "run" / "frames_down.jsonl")
+    assert st["forwarded_up"] == 0 and st["send_failures"] >= 1
+    assert up[0]["verdict"] == "forwarded" and up[0]["send_failed"] == 1
+    assert "send_failed" not in down[0]  # the GCS link accepted it: the row is unchanged
+
+
+def test_action_rows_record_whether_the_frame_was_sent(tmp_path):
+    fc, gcs = FakeLink(), _DeadLink()
+    arch = BridgeRunArchive(tmp_path / "run")
+    b = InlineIpsBridge(fc, gcs, mode="passive", crossend_interval_s=0, archive=arch)
+    b.mgmt.action("FILTER_TEST", "")
+    b.close()
+    mgmt = [a for a in _rows(tmp_path / "run" / "actions.jsonl") if a["kind"] == "mgmt"]
+    assert mgmt and all(a["sent"] is False for a in mgmt)

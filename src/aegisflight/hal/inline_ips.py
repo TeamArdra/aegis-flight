@@ -220,8 +220,10 @@ class InlineIpsBridge:
         mgmt_send = self.gcs.send
         if archive is not None:  # evidence run: the management stream to the GCS is archived like every other output
             def mgmt_send(frame: bytes) -> bool:
-                archive.action(self._clock_ns(), "mgmt", "gcs", frame)
-                return self.gcs.send(frame)
+                t = self._clock_ns()
+                ok = self.gcs.send(frame)
+                archive.action(t, "mgmt", "gcs", frame, sent=bool(ok))  # the row records whether it left the bridge
+                return ok
         self.mgmt = MgmtChannel(
             mgmt_send, self._sender, self, alerts_enabled=gcs_alerts, alert_min_interval_s=alert_min_interval_s,
             status_interval_s=mgmt_status_interval_s, max_bytes_per_s=mgmt_max_bytes_per_s, mgmt_key=mgmt_key,
@@ -374,9 +376,11 @@ class InlineIpsBridge:
         for sysid in self.policy.take_alarms():
             text = f"AEGIS: two senders using sysid {sysid} on the uplink"
             alarm = self._alarm_enc.encode_statustext(text, severity=4)
+            t = self._clock_ns()
+            ok = self.gcs.send(alarm)
             if self.archive is not None:
-                self.archive.action(self._clock_ns(), "alarm", "gcs", alarm, text=text)
-            if self.gcs.send(alarm):
+                self.archive.action(t, "alarm", "gcs", alarm, text=text, sent=bool(ok))
+            if ok:
                 self.alarms_sent += 1
             else:
                 self.send_failures += 1
@@ -423,8 +427,6 @@ class InlineIpsBridge:
                 self.frames_down += 1
             else:
                 self.frames_up += 1
-            if self.archive is not None:
-                self.archive.frame(direction, stamp, fr.raw, list(out))
             if not out:
                 if down:
                     self.dropped_down += 1
@@ -436,6 +438,7 @@ class InlineIpsBridge:
                 with contextlib.suppress(Exception):
                     for verdict, oraw, osys, omsg in policy.take_observed():
                         self.mgmt.note_observed(drop_label(oraw, osys, omsg, direction), verdict)
+            failed = 0
             for raw in out:
                 if send(raw):
                     if down:
@@ -446,6 +449,9 @@ class InlineIpsBridge:
                         self.forwarded_up += 1
                 else:
                     self.send_failures += 1
+                    failed += 1
+            if self.archive is not None:  # after the send: the row says whether the verdict actually reached the wire
+                self.archive.frame(direction, stamp, fr.raw, list(out), send_failed=failed)
             lat_append((perf_ns() - t0) / 1000.0)
             n += 1
         return n
@@ -515,9 +521,11 @@ class InlineIpsBridge:
                 # corrective commands go to the flight controller; a STATUSTEXT warning is for the pilot's GCS
                 # (the FC does not relay a STATUSTEXT it receives), so it goes to the GCS side only
                 link = self.gcs if _is_statustext(frame) else self.fc
+                t = self._clock_ns()
+                ok = link.send(frame)
                 if self.archive is not None:
-                    self.archive.action(self._clock_ns(), "counter_frame", "gcs" if link is self.gcs else "fc", frame)
-                if link.send(frame):
+                    self.archive.action(t, "counter_frame", "gcs" if link is self.gcs else "fc", frame, sent=bool(ok))
+                if ok:
                     self.counter_frames_sent += 1
                 else:
                     self.send_failures += 1
@@ -558,9 +566,10 @@ class InlineIpsBridge:
         with self._sender.lock:
             frame = self._sender.build(lambda e: e.memory_vect_encode(
                 MARKER_ADDRESS, MARKER_VER, MARKER_TYPE, pack_summary(vals, self._secret_key)))
+            ok = self.gcs.send(frame)
             if self.archive is not None:
-                self.archive.action(now, "crossend", "gcs", frame)
-            if self.gcs.send(frame):
+                self.archive.action(now, "crossend", "gcs", frame, sent=bool(ok))
+            if ok:
                 self._sender.commit()
                 self.crossend_sent += 1
                 return True
