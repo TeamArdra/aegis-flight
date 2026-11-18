@@ -43,3 +43,24 @@ def test_trial_driver_parser_refuses_dirty_tree_before_any_output(monkeypatch: p
         ap.parse_args(["--seed", "1", "--out", str(tmp_path / "o")])
     ns = ap.parse_args(["--seed", "1", "--out", str(tmp_path / "o"), "--allow-dirty"])
     assert ns.allow_dirty is True and p2_trial_common._RUN["args"] is ns
+
+
+def test_ardupilot_version_names_the_copter_release(monkeypatch: pytest.MonkeyPatch) -> None:
+    """#25 n=1 dry run: the ArduPilot 4.7.1 release commit carries one tag per vehicle and ``git describe --tags``
+    recorded ``APMrover2-stable`` in the ArduCopter run's manifest. Only ``Copter-*`` tags, ``--long``, now count."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("run_ap_sitl_ids", ROOT / "scripts/ardupilot/run_ap_sitl_ids.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    seen: list[list[str]] = []
+
+    def fake_run(argv, **kw):
+        seen.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, stdout="Copter-4.7.1-0-gdbe7921\n", stderr="")
+
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    assert mod.ardupilot_describe() == "Copter-4.7.1-0-gdbe7921"
+    argv = seen[0]
+    assert argv[argv.index("--match") + 1] == "'Copter-*'"  # quoted: wsl -- runs it through a shell
+    assert "--long" in argv and "--tags" in argv

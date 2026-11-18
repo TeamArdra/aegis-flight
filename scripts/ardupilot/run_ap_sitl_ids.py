@@ -145,10 +145,14 @@ class ResourceSampler(threading.Thread):
 
 
 def ardupilot_describe(px4_dir: str = "/home/astryx/ardupilot") -> str | None:
-    """``git describe`` of the ArduPilot tree inside WSL (``None`` if unavailable; never hard-fails a run)."""
+    """``git describe`` of the ArduPilot tree inside WSL (``None`` if unavailable; never hard-fails a run).
+
+    Matches ``Copter-*`` tags only, ``--long`` (``Copter-4.7.1-0-g<sha>``): an ArduPilot release commit carries a tag
+    per vehicle and plain ``--tags`` picked ``APMrover2-stable`` for the ArduCopter 4.7.1 SITL (#25 n=1 dry run). The
+    pattern is quoted because ``wsl --`` passes its arguments through a shell (it expands ``$HOME`` and globs)."""
     try:
-        r = subprocess.run(["wsl", "-d", DISTRO, "--cd", px4_dir, "--", "git", "describe", "--tags", "--always"],
-                           capture_output=True, text=True, timeout=30)
+        r = subprocess.run(["wsl", "-d", DISTRO, "--cd", px4_dir, "--", "git", "describe", "--tags", "--long",
+                            "--always", "--match", "'Copter-*'"], capture_output=True, text=True, timeout=30)
     except Exception:  # noqa: BLE001
         return None
     return r.stdout.strip() or None
