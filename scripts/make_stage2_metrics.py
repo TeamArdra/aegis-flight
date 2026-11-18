@@ -74,13 +74,13 @@ BENCH_NOTES = {
         "not comparable with serial_ids_com7_002: run 2026-10-14 on 6b21d1f plus uncommitted src/aegisflight/"
         "{{detectors/protocol.py, features/extractor.py, sources/mavlink_serial.py}} changes, on an indoor desk with no GPS "
         "fix (docs/HARDWARE_BENCH_PIXHAWK6X.md section 6.8). Of its {total} alerts, {never} (never-received streams at "
-        "t = 0) would not be raised after the 2026-10-15 policy P1 (section 6.8 alert #1, section 6.5); the other {nofix} "
-        "are the no-fix rule (\"GNSS fix lost\"), whose score, DOS vote and timing that policy left unchanged (section 6.5, "
-        "P3.4). The GNSS state during serial_ids_com7_002 is not recorded (section 6.10), so the difference between the "
-        "two runs is not attributable to the policy"),
+        "t = 0) would not be raised after the 2026-10-15 decision P1 (section 6.8 alert #1, section 6.5); the other {nofix} "
+        "are the no-fix rule (\"GNSS fix lost\"), which neither 2026-10-15 decision (P1, P3.4) changed in score, DOS vote "
+        "or timing (section 6.5). The GNSS state during serial_ids_com7_002 is not recorded (section 6.10), so the "
+        "difference between the two runs is not attributable to P1"),
     "artifacts/hardware/serial_ids_com7_002": (
-        "run 2026-10-25 (started_utc), after the 2026-10-15 policy date; its code commit and its GNSS state are not "
-        "recorded (docs/HARDWARE_BENCH_PIXHAWK6X.md section 6.10)"),
+        "run 2026-10-25 (started_utc), after the 2026-10-15 decisions P1 and P3.4; its code commit and its GNSS state "
+        "are not recorded (docs/HARDWARE_BENCH_PIXHAWK6X.md section 6.10)"),
 }
 BENCH_001_ALERTS = "artifacts/hardware/serial_ids_com7_001/alerts.jsonl"
 SNAPSHOT = ("Every figure describes the code that produced its source artifact (per-source commit, config, ML state and "

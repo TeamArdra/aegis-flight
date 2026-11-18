@@ -355,7 +355,8 @@ def test_bench_001_note_states_only_what_the_bench_doc_and_alerts_support():
     assert (len(al), len(never), len(nofix)) == (16, 1, 15) and never[0]["t"] == 0.0     # 1 + 15 = 16, as section 6.8
     note = b["serial_ids_com7_001"]["note"]
     assert f"Of its {len(al)} alerts, {len(never)} " in note and f"the other {len(nofix)} " in note
-    assert "not attributable to the policy" in note and "not run-to-run variation" not in note
+    assert "not attributable to P1" in note and "not run-to-run variation" not in note and "that policy" not in note
+    assert "neither 2026-10-15 decision (P1, P3.4) changed" in note
     doc = (root / g.BENCH_DOC).read_text(encoding="utf-8")
     assert "the GNSS state during this run is **not recorded**" in doc                   # section 6.10, about 002
     assert "The score, the `DOS` vote and the timing are unchanged" in doc                 # section 6.5, P3.4
