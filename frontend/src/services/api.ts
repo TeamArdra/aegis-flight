@@ -3,6 +3,7 @@
 import type { DefenseMode, EventsResponse, Metrics, MitigationInfo, Status } from "../types";
 
 import { bridgeAuthHeaders, bridgePostureUrl, parsePostureResponse, postureBody, type PostureResult, type SigningInfo } from "../lib/posture";
+import { parseRadioPostureResponse, radioPostureBody, type RadioPostureResult } from "../lib/bridgeRemote";
 import { isHttpUrl, normalizeUrl, resolveBackend, resolveWsUrl } from "./backend";
 
 export const BACKEND_KEY = "aegis_backend_url";
@@ -106,3 +107,18 @@ export const api = {
   defenseOverride: (action: "safe_hold" | "reset_quarantine" | "ack_takeover") =>
     jpost<{ ok: boolean; action: string; mitigation: MitigationInfo }>("/api/defense/override", { action }),
 };
+
+/** POST /api/bridge/posture: sent over the telemetry radio; the result arrives later in bridge_remote.last_command. Never throws. */
+export async function setBridgePostureViaRadio(mode: DefenseMode, allowUnsigned?: boolean, confirm?: boolean): Promise<RadioPostureResult> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = lsGet("aegis_api_token");
+  if (token) headers["X-Aegis-Token"] = token;
+  try {
+    const r = await fetch(backendBase() + "/api/bridge/posture", { method: "POST", headers, body: radioPostureBody(mode, allowUnsigned, confirm) });
+    let body: unknown = null;
+    try { body = await r.json(); } catch { /* non-JSON body */ }
+    return parseRadioPostureResponse(r.status, body);
+  } catch {
+    return { kind: "error", message: "Backend unreachable (network error)." };
+  }
+}

@@ -3,7 +3,7 @@
 > **Status note (integration review):** this page is a design description. What is implemented, measured or only modelled is
 > recorded in `docs/VALIDATION_EVIDENCE.md` and the README. In particular: the defense layer is report-only on every live or
 > recorded source; Topology B (`InlineBridge`, `FrameSanitizer`, `rust/aegis_fastpath`) and the 150 ms fail-open watchdog are
-> not wired into any relay and have no measured figure; nothing has been measured on a companion computer; the measured decision
+> not wired into any relay and have no measured figure; the `aegis ips-bridge` has been measured on a Raspberry Pi 3B+ and on a Raspberry Pi 5 bench (real Pixhawk over USB, disarmed; not flown); the measured decision
 > compute is 17.7 ms mean / 23.6 ms p95 with ML on (`artifacts/benchmarks/summary.md`, SIM).
 > Forward-looking milestone roadmap, prioritized execution queue, and submission targets. Strict Token Budget: < 1500 tokens.
 
@@ -24,12 +24,13 @@
 - **Objective**: Sync final measured performance benchmarks into the IIT Bombay Techfest Stage 2 report template.
 - **Key Benchmarks to Embed** (corrected 2026-10-29; the earlier list — 1.0 / 3.2 ms, < 45 MB, < 18 % CPU on a Cortex-A53, 1.2 s recovery — had no artifact behind it; the draft `docs/stage2_report_draft.md` already uses the values below):
   - Decision compute: 17.7 ms mean / 23.6 ms p95 (ML on, SIM, host; `artifacts/benchmarks/summary.md`); 0.349 ms mean / 0.748 ms p99 (ML off, live runner on a laptop, BENCH stream; `live_capture/summary.json`). Time to alert: mean 0.361 s / p95 1.40 s (SIM).
-  - Computational footprint: host only, 60.7 MB peak RSS and 2.78 % of one core (live runner, ML off). **Companion computer: not measured.**
+  - Computational footprint: host only, 60.7 MB peak RSS and 2.78 % of one core (live runner, ML off). **Companion computer: the bridge was measured on a Raspberry Pi 3B+ (in-the-loop soak, RSS about 65 MiB, flat) and a 1,500 s Pi 5 bench soak completed (`docs/RADIO_TEST_RESULTS.md`); the live runner was not measured on a companion computer.**
   - Recovery time: **not measured** (the 4-stage state machine is a SIM model).
   - `PASSIVE` mode outputs 0 bytes over the telemetry link: pinned by tests and observed as `bytes_sent` 0 on every physical capture.
   - Cryptographic tamper localization: SHA-256 block invalidation pinpoints exact block index.
 
 ### [P2] Physical Drone Hardware & Companion Deployment Testing
+- **Status (2026-10-31)**: partly done. A Pixhawk 6X on USB to a Raspberry Pi 5, with an LR900 radio pair, was run on the bench, disarmed and not flown (`docs/REAL_PIXHAWK_TEST.md`, `docs/RADIO_TEST_RESULTS.md`). Not done: flight tests; the UART link (needed for flight-controller-side signing enforcement); radio unplug and power-cut tests on the real Pixhawk; the `InlineBridge` fail-open watchdog test. Signing was run once over USB with the bridge as the enforcement point.
 - **Objective**: Connect real drone hardware (Pixhawk / Cube autopilot + Raspberry Pi / Jetson + SiK/ELRS radio) and verify the Hardware Abstraction Layer (`src/aegisflight/hal/`).
 - **Deliverables**:
   - Auto-discover connected serial devices (`HardwareDiscovery.scan_serial_ports()`).

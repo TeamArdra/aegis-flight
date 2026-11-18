@@ -9,6 +9,8 @@ receive-only monitor. It is not detection evidence and says nothing about a vehi
 Date: 2026-10-10. Code: AegisFlight `9a6cd0274cd0a15ed52278cce0bd7df5713bfb68` + the uncommitted
 files of this sprint (`scripts/hardware/pixhawk_passive_probe.py`).
 
+> **Later status (2026-10-31):** this document describes the 2026-10-10 to 2026-10-25 passive bench work. On 2026-10-31 the Pixhawk 6X was used again on the bench, on USB to a Raspberry Pi 5, disarmed with propellers removed, for bridge runs over an LR900 radio pair. Those runs included mode changes, a scratch-parameter write that was restored, a test signing key that was later switched off, and a 1,500 s active-ips soak. Flight and the UART link are still untested. See `docs/REAL_PIXHAWK_TEST.md` and `docs/RADIO_TEST_RESULTS.md`.
+
 ## 1. What was identified (read-only, nothing sent)
 
 | Item | Value | How known |
@@ -95,15 +97,17 @@ would show.
    AegisFlight transmit) or the monitor transmitting a GCS heartbeat and stream requests. The sprint
    forbade sending to the physical controller, so neither was done. See `docs/ONBOARD_DEPLOYMENT.md`.
    *(Later, 2026-10-14: a person changed `SR1_*` in Mission Planner. With that change, all six messages arrive over the TELEM1 radio: §6.7.)*
+   *(Later, 2026-10-31: the 2026-10-31 bench runs did send MAVLink to the Pixhawk (heartbeats, stream requests, mode changes, and a scratch-parameter write restored afterwards, and a test signing key that was later switched off), all disarmed. See `docs/REAL_PIXHAWK_TEST.md`.)*
 4. **Real flight, arming, vibration, GPS lock, RF/radio links, UART (non-USB) behaviour** — all untested.
    *(Later, 2026-10-14: a TELEM1 telemetry-radio link on a laptop-side UART bridge (COM7) was captured and run through the IDS
    on the bench, §6.7 and §6.8. Flight, arming, vibration and GPS lock remain untested.)*
+   *(Later, 2026-10-31: bench runs over USB to a Raspberry Pi 5 and an LR900 pair, with the vehicle disarmed and propellers removed. The vehicle stayed disarmed. Still no flight and no UART run.)*
 5. **One capture, one board, 180 s, one USB host port/cable.** No variance, no long-duration or thermal data.
 
 ## 5. Safety record
 No MAVLink was transmitted (`bytes_sent = 0` in every capture, including the 15 s smoke capture and
 two 180 s captures; only the final 180 s capture -- the second, re-run after fixing a gap-report threshold bug in the
-probe -- has a stored artifact, the others are console output). No arming, motor test, parameter write, calibration or flight. SLCAN/CAN interface untouched.
+probe -- has a stored artifact, the others are console output). No arming, motor test, parameter write, calibration or flight. SLCAN/CAN interface untouched. (This describes the 2026-10-10 sprint. The 2026-10-31 bench runs sent commands and changed modes, wrote a test signing key that was later switched off, all while disarmed; see `docs/REAL_PIXHAWK_TEST.md`, section 2.)
 Only one process opened COM5 at a time (a deliberate second open failed, as designed).
 
 ## 6. COM7 telemetry radio (TELEM1) — investigation checkpoint, 2026-10-14 (P2.3)

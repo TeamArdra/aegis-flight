@@ -85,6 +85,7 @@ import time
 from collections.abc import Callable
 from typing import Any, Protocol
 
+from ..mavlink.signing import x25_crc
 from .mavlink_live import (
     _CRC,
     _INCOMPAT_SIGNED,
@@ -117,25 +118,9 @@ ALLOWED_URL_SCHEMES = frozenset({"socket"})
 MAX_READ_BYTES_LIMIT = 65536
 
 
-def _build_x25_table() -> tuple[int, ...]:
-    # Same arithmetic as mavlink_live._x25, folded into one lookup per input byte.
-    table = []
-    for x in range(256):
-        t = (x ^ (x << 4)) & 0xFF
-        table.append(((t << 8) ^ (t << 3) ^ (t >> 4)) & 0xFFFF)
-    return tuple(table)
-
-
-_X25_TABLE = _build_x25_table()
-
-
-def _crc_x25(data: bytes | bytearray, crc: int = 0xFFFF) -> int:
-    """MAVLink X.25 / MCRF4XX CRC, table-driven. Bit-identical to ``mavlink_live._x25``
-    (a test compares them); roughly 2-3x faster in pure Python, no new dependency."""
-    table = _X25_TABLE
-    for b in data:
-        crc = (crc >> 8) ^ table[(b ^ crc) & 0xFF]
-    return crc
+# MAVLink X.25 / MCRF4XX CRC (``crc_hqx`` over bit-reversed bytes, see ``mavlink.signing.x25_crc``). Bit-identical to
+# ``mavlink_live._x25`` and to the former bytewise table loop (tests compare them); ~15x faster than that loop.
+_crc_x25 = x25_crc
 
 
 class SerialLike(Protocol):
@@ -185,6 +170,10 @@ class MavlinkStreamFramer:
                  accept_unverified_ids: bool = False) -> None:
         self._map = _load_dialect().mavlink_map
         self._extra_crc = {k: v & 0xFF for k, v in (extra_crc or {}).items() if k not in self._map}
+        # msgid -> crc_extra for every verifiable id (dialect first, then ``extra_crc``); a missing id and a dialect
+        # class without ``crc_extra`` both mean "unverifiable", exactly as the per-frame getattr lookup it replaces
+        self._extra_of = {k: getattr(c, "crc_extra", None) for k, c in self._map.items()}
+        self._extra_of.update(self._extra_crc)
         self._accept_unverified = accept_unverified_ids
         self._buf = bytearray()
         self._in_garbage = False
@@ -302,22 +291,21 @@ class MavlinkStreamFramer:
 
     def _accept(self, buf: bytearray, pos: int, total: int) -> bool:
         """Verdict on the complete candidate at ``buf[pos:pos+total]``; updates the counters."""
-        v2 = buf[pos] == _V2_MAGIC
-        if v2:
+        if buf[pos] == _V2_MAGIC:
             hdr = _V2_HEADER
             msgid = buf[pos + 7] | buf[pos + 8] << 8 | buf[pos + 9] << 16
-            sysid, compid, compat = buf[pos + 5], buf[pos + 6], buf[pos + 3]
+            extra = self._extra_of.get(msgid)
+            if extra is None:
+                return self._accept_unverifiable(msgid, True, buf[pos + 5], buf[pos + 6], buf[pos + 3])
         else:
             hdr = _V1_HEADER
-            msgid, sysid, compid, compat = buf[pos + 5], buf[pos + 3], buf[pos + 4], 0
-        cls = self._map.get(msgid)
-        extra = getattr(cls, "crc_extra", None) if cls is not None else self._extra_crc.get(msgid)
-        if extra is None:
-            return self._accept_unverifiable(msgid, v2, sysid, compid, compat)
+            msgid = buf[pos + 5]
+            extra = self._extra_of.get(msgid)
+            if extra is None:
+                return self._accept_unverifiable(msgid, False, buf[pos + 3], buf[pos + 4], 0)
         body_end = pos + hdr + buf[pos + 1]
-        want = buf[body_end] | buf[body_end + 1] << 8
         self.crc_bytes_checked += body_end - pos  # (len + header-1) bytes + the crc_extra byte
-        if _crc_x25(bytes((extra,)), _crc_x25(buf[pos + 1 : body_end])) == want:
+        if _crc_x25(bytes((extra,)), _crc_x25(buf[pos + 1 : body_end])) == buf[body_end] | buf[body_end + 1] << 8:
             return True
         self.crc_rejects += 1
         return False

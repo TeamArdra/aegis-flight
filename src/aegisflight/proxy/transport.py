@@ -73,7 +73,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from typing import Any, Protocol
+from typing import Any, NamedTuple, Protocol
 
 from ..sources.mavlink_live import UdpMavlinkTransport, _family, _loopback_only
 from .hooks import Direction, FrameContext, FrameHook, passthrough
@@ -92,8 +92,9 @@ Address = tuple[Any, ...]  # (host, port) for IPv4; longer for IPv6
 # --------------------------------------------------------------------------- #
 
 
-@dataclass(frozen=True)
-class _Frame:
+class _Frame(NamedTuple):
+    """One framed message (immutable; a tuple subclass because it is built once per forwarded frame)."""
+
     raw: bytes
     sysid: int
     compid: int
@@ -117,9 +118,11 @@ def split_frames(data: bytes, max_frames: int = 64) -> tuple[list[_Frame], int]:
     frames beyond ``max_frames`` count as one bad segment each and end the scan.
     """
     frames: list[_Frame] = []
+    add = frames.append
     bad = 0
     n = len(data)
     i = 0
+    exact = type(data) is bytes  # a datagram that is exactly one frame needs no copy (bytes are immutable)
     while i < n:
         if len(frames) >= max_frames:
             bad += 1
@@ -129,18 +132,17 @@ def split_frames(data: bytes, max_frames: int = 64) -> tuple[list[_Frame], int]:
             if n - i < 10:
                 bad += 1
                 break
-            ln, inc = data[i + 1], data[i + 2]
+            inc = data[i + 2]
             if inc & 0xFE:  # unknown incompat flags: the spec says drop
                 bad += 1
                 i = _resync(data, i + 1)
                 continue
-            total = 12 + ln + (13 if inc & 1 else 0)
+            total = 12 + data[i + 1] + (13 if inc & 1 else 0)
             if i + total > n:
                 bad += 1
                 break
-            frames.append(_Frame(bytes(data[i : i + total]), data[i + 5], data[i + 6], data[i + 4],
-                                 data[i + 7] | data[i + 8] << 8 | data[i + 9] << 16,
-                                 bool(inc & 1)))
+            add(_Frame(data if exact and total == n else bytes(data[i : i + total]), data[i + 5], data[i + 6],
+                       data[i + 4], data[i + 7] | data[i + 8] << 8 | data[i + 9] << 16, bool(inc & 1)))
         elif magic == _V1:
             if n - i < 6:
                 bad += 1
@@ -149,8 +151,8 @@ def split_frames(data: bytes, max_frames: int = 64) -> tuple[list[_Frame], int]:
             if i + total > n:
                 bad += 1
                 break
-            frames.append(_Frame(bytes(data[i : i + total]), data[i + 3], data[i + 4], data[i + 2],
-                                 data[i + 5], False))
+            add(_Frame(data if exact and total == n else bytes(data[i : i + total]), data[i + 3], data[i + 4],
+                       data[i + 2], data[i + 5], False))
         else:
             bad += 1
             i = _resync(data, i + 1)

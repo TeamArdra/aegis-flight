@@ -44,6 +44,9 @@ _RESID_CLAMP_M = 30.0
 # compared against 8+ s of manoeuvre, and a fresh ATTITUDE against a stale GPS velocity, so both
 # are skipped until GPS is fresh again. Gap-free streams are unaffected (benchmark-identical).
 _LINK_GAP_S = 2.0
+# Both messages of a cross-message consistency pair (battery, heading / yaw) must be this fresh to be compared;
+# 3 s covers a 1 Hz stream on a radio-limited link.
+_XMSG_FRESH_S = 3.0
 # Estimator state (ADDITIVE, 2026-10-25; v2 2026-10-26). EKF_STATUS_REPORT (ardupilotmega id 193)
 # says whether the autopilot's estimator has a horizontal position solution. In CONST_POS_MODE, or
 # with neither the absolute nor the relative horizontal-position bit, its velocity output is not a
@@ -184,6 +187,17 @@ class FeatureFrame:
     gps_snr_spread_db: float | None = None
     gps_snr_sats: int = 0
     gps_vel_disagree_ms: float | None = None
+    # ADDITIVE (2026-10-31): cross-message consistency of the one vehicle's own reports; an edit of ONE message
+    # type (a battery step, a replayed attitude, a rewritten heading) leaves the redundant one behind. NOT in
+    # ML_FEATURES; None / 0 until both messages of a pair were received <= _XMSG_FRESH_S ago, so the SIM stream is
+    # unchanged. ``batt_msg_diff_v``: |SYS_STATUS.voltage_battery - BATTERY_STATUS pack voltage| (battery id 0; the
+    # pack voltage is the sum of the cell fields in use, or the single pack field). ``att_repeat``: how many
+    # consecutive ATTITUDE messages were bit-identical to their predecessor (a real IMU never repeats exactly: 802 of
+    # 802 distinct on a still bench). ``heading_yaw_diff_deg``: |VFR_HUD.heading - ATTITUDE.yaw| (ArduPilot fills both
+    # from the same AHRS yaw).
+    batt_msg_diff_v: float | None = None
+    att_repeat: int = 0
+    heading_yaw_diff_deg: float | None = None
     # ADDITIVE (2026-10-28): mission-path check. NOT in ML_FEATURES. ``mission_known``: a COMPLETE
     # mission was observed AND the check is active (MISSION_CURRENT seen <= 3 s ago, flight_mode
     # AUTO, armed, fresh position). ``mission_xtrack_m``: horizontal distance to the current mission
@@ -225,6 +239,10 @@ class FeatureExtractor:
 
         # network bookkeeping
         self._recv_times: deque[float] = deque(maxlen=2000)
+        # appends so far / index of the latest append that was EARLIER than its predecessor: while
+        # that pair is out of the deque the deque is non-decreasing and a window is a plain suffix
+        self._recv_n = 0
+        self._recv_dec_n = -(2**62)
         self._seq_state: dict[tuple[int, int], int] = {}
         self._seq_gap: dict[tuple[int, int], int] = {}
         self._sources: dict[tuple[int, int], int] = {}
@@ -247,11 +265,24 @@ class FeatureExtractor:
         self._raw_vel_t = -1e9
         self._snr: tuple[float, int] | None = None  # (spread dB, n satellites) or None
         self._snr_t = -1e9
+        # cross-message consistency (see FeatureFrame.batt_msg_diff_v / att_repeat / heading_yaw_diff_deg)
+        self._batt_pack_v: float | None = None
+        self._batt_pack_t = -1e9
+        self._sys_batt_t = -1e9
+        self._att_key: tuple[float, ...] | None = None
+        self._att_repeat = 0
+        self._att_t = -1e9
+        self._hdg_t = -1e9
 
         # navigation bookkeeping
-        self._resid_incs: deque[tuple[float, float]] = deque(maxlen=_RESID_WINDOW)
-        self._cusum_incs: deque[tuple[float, float, float]] = deque(maxlen=60)  # (inc_n, inc_e, dt)
-        # per-increment estimator tags, aligned 1:1 with _resid_incs (appended together):
+        # residual increments as parallel deques (sum() over a deque of floats == the old sum over
+        # tuple components: same values, same order, no generator frames)
+        self._resid_n: deque[float] = deque(maxlen=_RESID_WINDOW)
+        self._resid_e: deque[float] = deque(maxlen=_RESID_WINDOW)
+        self._cusum_n: deque[float] = deque(maxlen=60)  # long-horizon (inc_n, inc_e, dt)
+        self._cusum_e: deque[float] = deque(maxlen=60)
+        self._cusum_dt: deque[float] = deque(maxlen=60)
+        # per-increment estimator tags, aligned 1:1 with _resid_n / _resid_e (appended together):
         # (tag, raw unclamped residual magnitude, v_n*dt, v_e*dt, measured d_n, measured d_e);
         # the last four are kept for gated increments only (0.0 otherwise)
         self._resid_tags: deque[tuple[int, float, float, float, float, float]] = deque(maxlen=_RESID_WINDOW)
@@ -281,7 +312,11 @@ class FeatureExtractor:
     def update(self, msg: MessageEnvelope) -> None:
         t = msg.recv_time
         src = (msg.sysid, msg.compid)
-        self._recv_times.append(t)
+        rts = self._recv_times
+        if rts and t < rts[-1]:
+            self._recv_dec_n = self._recv_n
+        self._recv_n += 1
+        rts.append(t)
         self._sources[src] = self._sources.get(src, 0) + 1
         if msg.signed:
             self._signed += 1
@@ -333,7 +368,12 @@ class FeatureExtractor:
             self.snapshot.rollspeed = f["rollspeed"]
             self.snapshot.pitchspeed = f["pitchspeed"]
             self.snapshot.yawspeed = f["yawspeed"]
+            key = (f["roll"], f["pitch"], f["yaw"], f["rollspeed"], f["pitchspeed"], f["yawspeed"])
+            self._att_repeat = self._att_repeat + 1 if key == self._att_key else 0
+            self._att_key = key
+            self._att_t = t
         elif name == "VFR_HUD":
+            self._hdg_t = t
             self.snapshot.groundspeed = f["groundspeed"]
             self.snapshot.heading = float(f["heading"])
             self.snapshot.throttle = float(f["throttle"])
@@ -343,6 +383,13 @@ class FeatureExtractor:
             self.snapshot.battery_voltage = f["voltage_battery"] / 1000.0
             self.snapshot.battery_remaining = float(f["battery_remaining"])
             self._batt_hist.append((t, self.snapshot.battery_voltage))
+            self._sys_batt_t = t
+        elif name == "BATTERY_STATUS":
+            if int(f.get("id", 0)) == 0:  # the primary battery, the one SYS_STATUS reports
+                cells = [int(v) for v in f.get("voltages", ()) if int(v) != 65535]  # 65535 = field not in use
+                if cells and sum(cells) > 0:
+                    self._batt_pack_v = sum(cells) / 1000.0
+                    self._batt_pack_t = t
         elif name == "GPS_RAW_INT":
             self._gps_raw_seen = True
             # MAVLink: 255 = count unknown (None), not 255 satellites. Credit: unmerged 035fb5e.
@@ -428,7 +475,9 @@ class FeatureExtractor:
             t0, lat0, lon0 = self._last_fix
             dt = t - t0
             if dt > _LINK_GAP_S:
-                self._cusum_incs.clear()  # outage: re-anchor long-horizon CUSUM buffer
+                self._cusum_n.clear()  # outage: re-anchor long-horizon CUSUM buffer
+                self._cusum_e.clear()
+                self._cusum_dt.clear()
             elif dt > 1e-6:
                 # measured displacement (local NE metres)
                 dn = math.radians(lat - lat0) * EARTH_RADIUS_M
@@ -441,8 +490,11 @@ class FeatureExtractor:
                     scale = _RESID_CLAMP_M / mag
                     inc_n *= scale
                     inc_e *= scale
-                self._resid_incs.append((inc_n, inc_e))
-                self._cusum_incs.append((inc_n, inc_e, dt))
+                self._resid_n.append(inc_n)
+                self._resid_e.append(inc_e)
+                self._cusum_n.append(inc_n)
+                self._cusum_e.append(inc_e)
+                self._cusum_dt.append(dt)
                 if gated:
                     self._resid_tags.append((_INC_GATED, mag, vx * dt, vy * dt, dn, de))
                 else:
@@ -454,17 +506,15 @@ class FeatureExtractor:
         self._vel_hist.append((t, vx, vy))
 
     def _position_residual(self) -> float:
-        rn = sum(i[0] for i in self._resid_incs)
-        re = sum(i[1] for i in self._resid_incs)
-        return math.hypot(rn, re)
+        return math.hypot(sum(self._resid_n), sum(self._resid_e))
 
     def _cusum_residual(self) -> float:
         """2D telescoping Page-Hinkley / CUSUM residual over the extended horizon."""
-        if not self._cusum_incs:
+        if not self._cusum_n:
             return 0.0
-        rn = sum(i[0] for i in self._cusum_incs)
-        re = sum(i[1] for i in self._cusum_incs)
-        total_dt = sum(i[2] for i in self._cusum_incs)
+        rn = sum(self._cusum_n)
+        re = sum(self._cusum_e)
+        total_dt = sum(self._cusum_dt)
         mag = math.hypot(rn, re)
         # Subtract telescoping GPS position endpoint jitter (~1.6m) + velocity slack (0.04 m/s)
         slack = 1.6 + 0.04 * total_dt
@@ -475,7 +525,8 @@ class FeatureExtractor:
             return pos_residual, 0.0, 0.0  # no EKF_STATUS_REPORT ever: nothing below runs
         if not any(g[0] != _INC_NORMAL for g in self._resid_tags):
             return pos_residual, 0.0, 0.0  # nothing gated or transitional: exactly pos_residual_m
-        keep = [inc for inc, g in zip(self._resid_incs, self._resid_tags, strict=True) if g[0] == _INC_NORMAL]
+        keep = [(n, e) for n, e, g in zip(self._resid_n, self._resid_e, self._resid_tags, strict=True)
+                if g[0] == _INC_NORMAL]
         nav = math.hypot(sum(i[0] for i in keep), sum(i[1] for i in keep))
         step = max((g[1] for g in self._resid_tags if g[0] != _INC_NORMAL), default=0.0)
         gated = [g[2:] for g in self._resid_tags if g[0] == _INC_GATED]
@@ -495,16 +546,30 @@ class FeatureExtractor:
         snap.t = t
 
         # ---- network ----
-        window = [rt for rt in self._recv_times if rt >= t - self.rate_window_s]
+        cutoff = t - self.rate_window_s
+        rts = self._recv_times
+        if self._recv_n - self._recv_dec_n > rts.maxlen:
+            # the deque is non-decreasing: the window is its suffix, already sorted -- walk back from
+            # the newest entry instead of scanning (and twice sorting) up to 2000 timestamps
+            window = []
+            for rt in reversed(rts):
+                if rt < cutoff:
+                    break
+                window.append(rt)
+            window.reverse()
+            ordered = window
+        else:
+            window = [rt for rt in rts if rt >= cutoff]
+            ordered = sorted(window)
         msg_rate = len(window) / self.rate_window_s if self.rate_window_s > 0 else 0.0
         deltas = [
             (b - a) * 1000.0
-            for a, b in zip(sorted(window), sorted(window)[1:], strict=False)
+            for a, b in zip(ordered, ordered[1:], strict=False)
             if b - a >= 0
         ]
         ia_mean = sum(deltas) / len(deltas) if deltas else 0.0
         ia_jit = (
-            (sum((d - ia_mean) ** 2 for d in deltas) / len(deltas)) ** 0.5 if deltas else 0.0
+            (sum([(d - ia_mean) ** 2 for d in deltas]) / len(deltas)) ** 0.5 if deltas else 0.0
         )
         max_gap = max(self._seq_gap.values(), default=0)
         total = self._signed + self._unsigned
@@ -576,8 +641,19 @@ class FeatureExtractor:
             if mev is not None:
                 m_known, m_xt, m_wd, m_seq = True, mev[0], mev[1], mev[2]
 
+        # ---- cross-message consistency (None / 0 until both messages of a pair are fresh) ----
+        batt_msg = None
+        if self._batt_pack_v is not None and t - self._batt_pack_t <= _XMSG_FRESH_S and t - self._sys_batt_t <= _XMSG_FRESH_S:
+            batt_msg = abs(snap.battery_voltage - self._batt_pack_v)
+        hdg_yaw = None
+        if t - self._att_t <= _XMSG_FRESH_S and t - self._hdg_t <= _XMSG_FRESH_S:
+            d = abs((math.degrees(snap.yaw) - snap.heading) % 360.0)
+            hdg_yaw = min(d, 360.0 - d)
+        att_repeat = self._att_repeat if t - self._att_t <= _XMSG_FRESH_S else 0
+
         # ---- command ----
-        recent = [c for c in self._commands if c.recv_time >= t - self.cmd_window_s]
+        cmds_cut = t - self.cmd_window_s
+        recent = [c for c in self._commands if c.recv_time >= cmds_cut] if self._commands else []
         cmd_rate = len(recent) / self.cmd_window_s if self.cmd_window_s > 0 else 0.0
 
         return FeatureFrame(
@@ -623,6 +699,9 @@ class FeatureExtractor:
             gps_snr_spread_db=snr[0] if snr else None,
             gps_snr_sats=snr[1] if snr else 0,
             gps_vel_disagree_ms=vel_disagree,
+            batt_msg_diff_v=batt_msg,
+            att_repeat=att_repeat,
+            heading_yaw_diff_deg=hdg_yaw,
             mission_known=m_known,
             mission_xtrack_m=m_xt,
             mission_wp_dist_m=m_wd,

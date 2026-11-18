@@ -9,11 +9,16 @@ the strongest sub-score.
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from ..core.enums import AttackType, DetectorName
 from ..core.types import DetectorResult
 from ..features.extractor import FeatureFrame
-from ..mavlink.codec import command_name_from_id
+from ..mavlink.codec import command_name_from_id as _command_name_from_id
 from .base import Detector, ramp
+
+# the MAV_CMD id -> name table is static, but the lookup scans ``dir(mavlink)`` (~0.3 ms): memoise it
+command_name_from_id = lru_cache(maxsize=1024)(_command_name_from_id)
 
 _NEVER_SEEN_S = 999.0  # FeatureExtractor sentinel age for "no such message received yet"
 
@@ -80,6 +85,8 @@ class ProtocolDetector(Detector):
         self._cfg_max = self.max_rate
         self._learn_t0: float | None = None
         self._learn_samples: list[float] = []
+        self._learn_times: list[float] = []
+        self._learn_extra = 0.0
         self._learn_done = not self.auto_rate_baseline
         self._learn_note: str | None = None
         # A GCS that connects (and asks for its telemetry streams) AFTER the first heartbeat raises the link's
@@ -108,6 +115,14 @@ class ProtocolDetector(Detector):
         self._learn_note = (f"link message-rate baseline re-learned after a stable plateau: nominal {self.nominal_rate:.0f} msg/s "
                             f"(hard flood limit {self.max_rate:.0f} unchanged)")
 
+    def _stable_tail(self, t_end: float) -> list[float] | None:
+        """Rates of the last few seconds of the learning window when they form a stable plateau, else None."""
+        cut = t_end - min(5.0, 0.25 * self.rate_learn_s)
+        tail = [r for t, r in zip(self._learn_times, self._learn_samples, strict=True) if t >= cut]
+        if len(tail) < 3 or max(tail) > 2.0 * min(tail):
+            return None
+        return tail
+
     def _learn_rate(self, frame: FeatureFrame) -> bool:
         """Advance baseline learning; True while learning (rate alarms suppressed)."""
         if self._learn_done:
@@ -116,9 +131,10 @@ class ProtocolDetector(Detector):
             return True  # learning starts at the first heartbeat
         if self._learn_t0 is None:
             self._learn_t0 = frame.t
-        if frame.t - self._learn_t0 < self.rate_learn_s:
+        if frame.t - self._learn_t0 < self.rate_learn_s + self._learn_extra:
             if frame.msg_rate_hz > 0.0:
                 self._learn_samples.append(float(frame.msg_rate_hz))
+                self._learn_times.append(float(frame.t))
             return True
         self._learn_done = True
         xs = sorted(self._learn_samples)
@@ -127,6 +143,29 @@ class ProtocolDetector(Detector):
             return False
         med = xs[len(xs) // 2] if len(xs) % 2 else 0.5 * (xs[len(xs) // 2 - 1] + xs[len(xs) // 2])
         p95 = xs[min(len(xs) - 1, int(0.95 * len(xs)))]
+        if xs[-1] <= self._cfg_max and p95 > 5.0 * med:
+            # a step, not a flood: a GCS that connected (and asked for its streams) part-way through the window
+            # lifts the rate to a new steady level; adopt that level if the last seconds sit on a stable plateau
+            tail = self._stable_tail(frame.t)
+            if tail is None and self._learn_extra == 0.0:
+                # the rate is still moving at the end of the window (the GCS connected moments ago): give the step
+                # one more window to settle instead of judging a ramp
+                self._learn_extra = self.rate_learn_s
+                self._learn_done = False
+                if frame.msg_rate_hz > 0.0:
+                    self._learn_samples.append(float(frame.msg_rate_hz))
+                    self._learn_times.append(float(frame.t))
+                return True
+            if tail is not None:
+                tail.sort()
+                med_t = tail[len(tail) // 2]
+                self.nominal_rate = max(self._cfg_nominal, med_t)
+                self.max_rate = max(self._cfg_max, 4.0 * med_t)
+                self._learn_note = (
+                    f"link message-rate baseline learned from the final plateau after a step (median {med:.0f} -> "
+                    f"{med_t:.0f} msg/s): nominal {self.nominal_rate:.0f}, flood limit {self.max_rate:.0f} (frozen)"
+                )
+                return False
         if xs[-1] > self._cfg_max or p95 > 5.0 * med:
             self._learn_note = (
                 f"link message-rate baseline learning rejected (peak {xs[-1]:.0f} msg/s, p95 {p95:.0f}, "
@@ -372,6 +411,8 @@ class ProtocolDetector(Detector):
         self.nominal_rate, self.max_rate = self._cfg_nominal, self._cfg_max
         self._learn_t0 = None
         self._learn_samples.clear()
+        self._learn_times.clear()
+        self._learn_extra = 0.0
         self._learn_done = not self.auto_rate_baseline
         self._learn_note = None
         self._plateau.clear()

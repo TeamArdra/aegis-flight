@@ -39,6 +39,9 @@ QUICKSTART  →  HANDOFF  →  ARCHITECTURE  →  END_TO_END_FLOW  →  FILE_REF
 - [CONFIGURATION.md](CONFIGURATION.md) — every config field and tunable.
 - [SERIAL_TRANSPORT.md](SERIAL_TRANSPORT.md) — serial transport, framing, and virtual/hardware ports.
 - [HARDWARE_BENCH_PIXHAWK6X.md](HARDWARE_BENCH_PIXHAWK6X.md) — physical Pixhawk 6X + Raspberry Pi companion bench validation.
+- [REAL_PIXHAWK_TEST.md](REAL_PIXHAWK_TEST.md) — reproducing the 2026-10-31 real Pixhawk 6X runs on a Raspberry Pi 5: hardware, safety, scripts, snapshot and restore, lessons.
+- [RADIO_TEST.md](RADIO_TEST.md) — test plan for the real LR900 radio pair; [RADIO_TEST_RESULTS.md](RADIO_TEST_RESULTS.md) — measured results and the judgement against the plan.
+- [INLINE_IPS.md](INLINE_IPS.md) — inline IPS bridge (Topology B): postures, signing, unsigned-link limits, Pi deployment notes; [MINIMAL_BUILD.md](MINIMAL_BUILD.md) — wiring options and risks.
 - [ONBOARD_DEPLOYMENT.md](ONBOARD_DEPLOYMENT.md) — companion computer deployment guide and operational topology selection.
 
 ## Quality, verification & competition deliverables
@@ -52,6 +55,9 @@ QUICKSTART  →  HANDOFF  →  ARCHITECTURE  →  END_TO_END_FLOW  →  FILE_REF
 - [SKILLS_REGISTRY.md](SKILLS_REGISTRY.md) — catalogue of optional third-party agent skills (human-installed only).
 - [TESTING.md](TESTING.md) — the test suite and the pre-release gate.
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — symptom → diagnostic → fix.
+- [MGMT_CHANNEL.md](MGMT_CHANNEL.md) — the in-band management channel over the telemetry radio (alerts, IPS actions, compact status, signed control); [PERFORMANCE.md](PERFORMANCE.md) — detection-pipeline, forwarding-path and dashboard speed-ups and Raspberry Pi measurements.
+- [VEHICLE_UPLINK_FILTER.md](VEHICLE_UPLINK_FILTER.md) — proposal (not agreed with the team): a receive-only-compatible uplink filter for a real vehicle link, kept apart from the postures.
+- [WORKLOG.md](WORKLOG.md) — running log of documentation changes, with the work items each entry covers.
 
 ## Contributing
 - [DEVELOPMENT.md](DEVELOPMENT.md) — conventions & boundaries.

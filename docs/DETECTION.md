@@ -264,13 +264,27 @@ ungated fix after a gated one is the *transition* fix. Each fix's residual incre
 
 ### Real-link hardening (2026-10-29): rate baseline, multirotor yaw, actuation guards
 
-* `protocol.auto_rate_baseline` (default `false`; Stage-1, SIM and replay unchanged). On: for `rate_learn_s` (20 s)
+* `protocol.auto_rate_baseline` (unset by default = on for every non-SIM source, off for SIM; `true` / `false` force
+  it; Stage-1, SIM and scripted replays that build `IDSPipeline` with the default config are unchanged). On: for `rate_learn_s` (20 s)
   after the first heartbeat the median of `msg_rate_hz` is learned and rate alarms are suppressed (score-0 evidence
   `coverage: learning link message-rate baseline`). Afterwards nominal = max(configured, median) and the flood limit =
   max(configured, 4 x median), frozen. If during learning the rate exceeds the configured `max_msg_rate_hz` or the
   p95 is more than 5x the median, learning is rejected (evidence line says so) and the configured thresholds stay.
   Enabled for every non-SIM live source (`LiveEngine`, `InlineIpsBridge`). A flood that begins inside the 20 s window
   is not alarmed on until learning ends (and is then rejected), an accepted limitation. Engineering default, not calibrated.
+* **Step adoption (2026-10-30, PR #39; scope disclosure).** A p95 above 5x the median while the peak stays at or below
+  `max_msg_rate_hz` is now treated as a step (a GCS that connected and requested its streams part-way through the
+  window), not rejected: if the last `min(5 s, rate_learn_s / 4)` form a stable plateau (at least 3 samples, max <= 2 x
+  min) that plateau becomes the baseline (nominal = max(configured, its median), flood limit = max(configured, 4 x its
+  median)); if the rate is still moving, the window is extended once by `rate_learn_s`. This applies to **every source
+  with the learner on, i.e. every non-SIM source: PX4 SITL and ArduPilot SITL through `LiveEngine`, serial and dashboard
+  REPLAY sources, and `aegis ips-bridge`**, not only the ArduCopter profile. The committed SITL artifacts
+  (`artifacts/sitl/`, `artifacts/ardupilot/`, last changed 2026-10-10) predate both this change and the auto-on default
+  (2026-10-29) and were not regenerated, and the golden fixture's synthetic streams do not exercise a step. Consequence
+  to keep in mind: a flood that starts inside the learning window, stays at or below `max_msg_rate_hz` and holds a
+  stable level at the end of the window is adopted as the link's normal rate (and the flood limit rises to 4x it),
+  where it was rejected before. Motivated by and checked on one Raspberry Pi 3B+ SITL run (false DoS alerts after a
+  late GCS connect); not calibrated.
 * `physics.yaw_course_enabled` (default `true`). `false` disables the heading-vs-course rule, i.e. the
   frozen-attitude telemetry check, for that profile. Used by `configs/ardupilot_copter/` because a multirotor's
   yaw is independent of its track.
@@ -297,6 +311,36 @@ have only been exercised on synthetic frames (`tests/unit/test_gps_receiver_sign
 velocity and satellite-jump fields are reported only once EKF_STATUS_REPORT or GPS_STATUS has been
 received (SIM carries `GPS_RAW_INT` too). The messages are unauthenticated and can be forged. A
 slow drift that stays inside IMU error is physically undetectable by software alone.
+
+### Cross-message consistency (2026-10-31, additive, `physics.xmsg_checks`)
+
+One vehicle reports some quantities twice. Rewriting one message type on an unsigned downlink (a battery step, a replayed
+attitude, a new heading) leaves its twin behind. Three rules read that, all `TELEMETRY_MANIPULATION`, all off by default (the
+SIM stream and the Stage-1 benchmark are untouched) and on in `configs/ardupilot_copter/detector.yaml`:
+
+| Rule | Feature | Default | Fires when |
+|---|---|---|---|
+| Battery | `batt_msg_diff_v` | `batt_msg_tolerance_v` = 1.5 V | `abs(SYS_STATUS.voltage_battery - BATTERY_STATUS pack voltage)` (battery id 0; the pack voltage is the sum of the cell fields in use, `65535` = unused) exceeds the tolerance, both messages <= 3 s old |
+| Attitude freeze | `att_repeat` | `attitude_repeat_n` = 8 | 8 consecutive `ATTITUDE` messages bit-identical to their predecessor (roll, pitch, yaw and the three rates) |
+| Heading | `heading_yaw_diff_deg` | `heading_yaw_tolerance_deg` = 10 deg | `abs(VFR_HUD.heading - ATTITUDE.yaw)` (wrapped at 360) exceeds the tolerance, both <= 3 s old |
+
+Each rule is inert (feature `None` / 0) until both messages of its pair have been received, so a link that carries only one of
+them is unaffected. They replace the frozen-attitude coverage that `yaw_course_enabled: false` removes for multirotors.
+
+* **Evidence from a real flight controller (bench ArduCopter, Pixhawk 6X, 802 attitude samples over 200 s):** no two consecutive
+  `ATTITUDE` messages were bit-identical (802 of 802 distinct), so the attitude-repeat rule has no false alarm in that data. The
+  synthetic flood scenario of the golden fixture sends bit-identical all-zero attitudes and is now (correctly) flagged.
+* **Not yet calibrated:** the battery and heading tolerances are engineering defaults. ArduPilot's `SYS_STATUS` voltage can sit
+  above the raw cell sum when a resting-voltage option is enabled; 1.5 V is meant to cover that. They need real-flight
+  `BATTERY_STATUS` / `VFR_HUD` data, which has not been captured yet.
+* **Limits:** a forger who rewrites both messages consistently, or edits a quantity that is reported once, is not caught by this.
+  On a signed link the signature already covers it. Evidence: `tests/unit/test_xmsg_checks.py`.
+* **Red/blue disclosure (AGENTS.md section 5).** The three checks were written after the `px_fc_proxy.py` telemetry rewrites
+  (`scripts/ardupilot/real_pixhawk/`: battery jump, attitude freeze, heading offset) went undetected in earlier bench runs,
+  and were then scored on those same rewrites (`docs/RADIO_TEST_RESULTS.md`, campaign batches; unverified session records). Their bench
+  detections are therefore not independent of the attack implementation, and the battery and heading tolerances (1.5 V,
+  10 deg) and `attitude_repeat_n` (8) are uncalibrated engineering defaults. No independent attack implementation or
+  held-out data has been used to score them.
 
 ### Mission-path check (2026-10-28, additive)
 

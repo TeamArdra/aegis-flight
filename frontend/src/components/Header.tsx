@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { gpsNote } from "../lib/source";
 import type { EnvView, LinkView } from "../lib/source";
 import type { DefenseMode, LinkStatus, SourceInfo } from "../types";
@@ -12,7 +13,7 @@ interface Props {
   onSettings?: () => void;
 }
 
-export function Header({ connected, clock, mlAvailable, env, link, defenseMode, onSettings }: Props) {
+function HeaderImpl({ connected, clock, mlAvailable, env, link, defenseMode, onSettings }: Props) {
   const mm = Math.floor(clock / 60);
   const ss = Math.floor(clock % 60);
   const def = defenseMode || "passive";
@@ -70,7 +71,7 @@ function fmt(v: unknown): string {
 }
 
 // One line naming exactly what is being displayed: the source, the run, the link and the GPS report.
-export function SourceBar({ source, link, linkView, runId, eventsCount }: {
+function SourceBarImpl({ source, link, linkView, runId, eventsCount }: {
   source: SourceInfo | null;
   link: LinkStatus | null;
   linkView: LinkView;
@@ -102,3 +103,7 @@ export function SourceBar({ source, link, linkView, runId, eventsCount }: {
     </div>
   );
 }
+
+// memoised: the dashboard state changes at 10 Hz, these panels re-render only when their own props change
+export const Header = memo(HeaderImpl);
+export const SourceBar = memo(SourceBarImpl);
