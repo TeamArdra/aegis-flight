@@ -199,8 +199,8 @@ def test_make_stage2_metrics_reconciles_with_committed_results(tmp_path):
     assert r["latency_crosscheck_vs_sessions_csv"]["max_abs_diff_s"] == 0.0
     assert r["false_alerts_per_hour"]["SIM"]["benign"]["decision_fpr"] == pytest.approx(4 / 6900, abs=1e-6)
     assert "each source's own words" in r["claim_class"] and "claim class" in (tmp_path / "metrics.md").read_text().lower()
-    assert set(r["false_alerts_per_hour"]["SITL_px4_live"]) == {"live_run_001", "live_run_002"}
-    assert r["missing_inputs"] and (tmp_path / "metrics.md").read_text().rstrip().endswith("none is claimed")
+    assert set(r["false_alerts_per_hour"]["SITL_px4_live"]) == {"live_run_002"}            # live_run_001 is excluded
+    assert r["missing_inputs"] and "none is claimed" in (tmp_path / "metrics.md").read_text()
 
 
 def _generator():
@@ -479,8 +479,12 @@ def test_every_row_claim_class_is_its_sources_own_wording():
     for src, rows in ((f"{g.EXT}/results.json", list(fa["SIM"].values()) + [r["sessions"], r["classification"]]),
                       (g.ALFA, [fa["REPLAY"]["alfa"]])):
         assert not has_claim(rd(src)) and all(x["claim_class"] == g.NR for x in rows)
+    p1 = (root / g.P1_SUMMARY).read_text(encoding="utf-8")                              # live_run_002: P1 summary header
+    want = re.search(r"Claim class: (.+?)\.\s*$", p1.splitlines()[2]).group(1)
+    assert want == "none (reference / false-alarm measurement)"
     for p in g.PX4_LIVE:
-        assert not has_claim(rd(g.px4_summary(p))) and fa["SITL_px4_live"][p.split("/")[-1].removesuffix(".jsonl")]["claim_class"] == g.NR
+        assert p.removesuffix(".jsonl") + "." in p1
+        assert fa["SITL_px4_live"][p.split("/")[-1].removesuffix(".jsonl")]["claim_class"] == want
     # "link-level" appears only where the source itself says so (the drift latency rows)
     def claims(o):
         if isinstance(o, dict):
@@ -544,3 +548,25 @@ def test_make_stage2_metrics_exits_2_on_an_off_grid_decision_time(tmp_path, caps
     assert not (tmp_path / "out").exists()
     with pytest.raises(m.OffGridTimeError):
         m.engine_tick_time(0.25)
+
+
+def test_superseded_live_run_001_is_in_no_metric_and_listed_as_excluded_with_its_reason():
+    """Re-verification R2-4: live_run_001 is documented as contaminated by an aliased 255/190 driver and superseded by
+    live_run_002, so it is no benign evidence. It must be in no row or pool, and listed as excluded with the docs' words."""
+    import json
+
+    root, g = _generator()
+    r = g.build(root)
+    body = {k: v for k, v in r.items() if k != "excluded_sources"}
+    assert "live_run_001" not in json.dumps(body)
+    md = g.to_md(r)
+    head, _, tail = md.partition("## Excluded sources")
+    assert "live_run_001" not in head and "live_run_001" in tail
+    (x,) = [x for x in r["excluded_sources"] if x["source"] == "artifacts/sitl/live_run_001.jsonl"]
+    assert {q["doc"] for q in x["reasons"]} == {"docs/PX4_SITL_INTEGRATION.md", "docs/STAGE2_PROGRESS.md"}
+    for q in x["reasons"]:
+        lines = (root / q["doc"]).read_text(encoding="utf-8").splitlines()
+        assert "live_run_001" in lines[q["line"] - 1]
+        assert q["quote"] in " ".join(" ".join(lines).split())                      # verbatim, modulo line wrapping
+        assert "superseded" in q["quote"] and "255/190" in q["quote"]
+        assert f"`{q['doc']}:{q['line']}`" in tail

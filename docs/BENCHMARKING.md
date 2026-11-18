@@ -143,6 +143,9 @@ those sources stay decision level instead of being estimated. Definitions (code:
   `binary_*.accuracy`) and multiclass (attribution).
 - **Claim class**: each row carries its own source's claim class, verbatim, and "not recorded" where the
   source states none. No figure is flight-hour, real-flight or real-world validation.
+- **Excluded sources**: a source the docs record as invalid evidence is left out of every row and pool and
+  listed under *Excluded sources* with the reason quoted from those docs (e.g. `live_run_001`, contaminated by an
+  aliased 255/190 driver and superseded by `live_run_002`).
 - **Provenance and pooling**: each source's commit, dirty-tree flag, config, ML state and date are
   copied from its own metadata ("not recorded" where absent). The figures therefore describe the code
   that produced each source, not the current tree: the output is a dated snapshot, and later changes

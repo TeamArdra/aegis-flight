@@ -47,7 +47,18 @@ BEFORE_ARM = {"boot", "await_gps"}
 CLAIM = ("per row, in each source's own words (\"not recorded\" where the source states none); no figure here is "
          "flight-hour, real-flight or real-world validation")
 BENCH_DOC = "docs/HARDWARE_BENCH_PIXHAWK6X.md"      # the bench write-up: states the claim class of runs without a manifest
-PX4_LIVE = ["artifacts/sitl/live_run_001.jsonl", "artifacts/sitl/live_run_002.jsonl"]
+PX4_LIVE = ["artifacts/sitl/live_run_002.jsonl"]
+P1_SUMMARY = "artifacts/sitl/P1_summary.md"           # generated benign-PX4 summary; states live_run_002's claim class
+# Sources deliberately left out of every row and pool, with the reason quoted verbatim from the docs that record it
+# (the generator checks each quote is in its doc and reports its line).
+EXCLUDED = [
+    {"source": "artifacts/sitl/live_run_001.jsonl", "excluded_from": "every row and pool",
+     "quotes": [("docs/PX4_SITL_INTEGRATION.md",
+                 "An earlier run (`live_run_001`) was contaminated by an aliased 255/190 driver and is superseded."),
+                ("docs/STAGE2_PROGRESS.md",
+                 "the contaminated `live_run_001` (255/190 aliasing) is superseded by a clean `live_run_002` with the "
+                 "driver on 254/191.")]},
+]
 BENCH = ["artifacts/hardware/serial_ids_com7_001", "artifacts/hardware/serial_ids_com7_002",
          "artifacts/hardware/gps_hw_verify_20261029/live_capture"]
 # BENCH runs whose own manifest states their environment and claim class; the others take BENCH_DOC's header
@@ -107,7 +118,8 @@ def required_inputs() -> list[str]:
             + [f"artifacts/ardupilot/{d}/decisions.jsonl" for d in AP_BENIGN]
             + [f"artifacts/ardupilot/{d}/evaluation.json" for d in AP_DRIFT]
             + [f"artifacts/ardupilot/{d}/{f}" for d in AP_BENIGN + AP_DRIFT for f in ("manifest.json", "summary.json")]
-            + PX4_LIVE + [px4_summary(p) for p in PX4_LIVE]
+            + PX4_LIVE + [px4_summary(p) for p in PX4_LIVE] + [P1_SUMMARY]
+            + sorted({d for x in EXCLUDED for d, _ in x["quotes"]})
             + [f"{d}{ext}" for d in PX4_P2 for ext in (".manifest.json", ".ids_decisions.jsonl")]
             + [f"{d}/summary.json" for d in BENCH] + list(BENCH_MANIFEST.values()) + [BENCH_DOC, BENCH_001_ALERTS]
             + [f"{RERUN}/sessions.csv", f"{RERUN}/results.json", RERUN_README]
@@ -166,12 +178,16 @@ def provenance(root: Path) -> dict:
                                                 f"{sm['config_dir']}; configs_sha256 {pv['configs_sha256']}",
                                                 sm["ml_enabled"], pv["collected_utc"], "provenance.collected_utc",
                                                 stream_config=sm["stream_config"], **cs)
+    p1 = (root / P1_SUMMARY).read_text(encoding="utf-8")
+    p1_claim = re.search(r"^Environment: .*Claim class: (.+?)\.\s*$", p1, re.M)
     for p in PX4_LIVE:
         sm = rd(px4_summary(p))
         pv = sm["provenance"]
+        stem = p.removesuffix(".jsonl")
+        cs = ({"claim_class": p1_claim.group(1), "claim_class_field": f"{P1_SUMMARY} header (the summary covers {stem}.*)"}
+              if p1_claim and f"{stem}." in p1 else cc(sm, "claim_class", px4_summary(p)))
         out[p] = _prov(pv["aegisflight_commit"], pv["working_tree_dirty"], f"configs_sha256 {pv['configs_sha256']}",
-                       sm["ml_enabled"], sm["started_utc"], "started_utc", note=pv.get("note"),
-                       **cc(sm, "claim_class", px4_summary(p)))
+                       sm["ml_enabled"], sm["started_utc"], "started_utc", note=pv.get("note"), **cs)
     for d in PX4_P2:
         man = rd(f"{d}.manifest.json")
         pv, par = man["full_provenance"], man["parameters"]
@@ -203,6 +219,23 @@ def provenance(root: Path) -> dict:
 def claim_of(prov: dict, keys: list[str]) -> str:
     """The claim class of the sources behind a row (a pool of runs that disagree lists each wording)."""
     return " | ".join(dict.fromkeys(prov[k]["claim_class"] for k in keys))
+
+
+def excluded_sources(root: Path) -> list[dict]:
+    """EXCLUDED with each quoted reason checked against its doc and located by line."""
+    out = []
+    for x in EXCLUDED:
+        reasons = []
+        for doc, quote in x["quotes"]:
+            lines = (root / doc).read_text(encoding="utf-8").splitlines()
+            name = Path(x["source"]).stem
+            at = [i + 1 for i, ln in enumerate(lines) if name in ln
+                  and quote in " ".join(" ".join(lines[max(0, i - 2):i + 3]).split())]
+            if not at:
+                raise BadInputError(f"{doc}: the quoted reason for excluding {x['source']} is not in the document")
+            reasons.append({"doc": doc, "line": at[0], "quote": quote})
+        out.append({"source": x["source"], "excluded_from": x["excluded_from"], "reasons": reasons})
+    return out
 
 
 def snapshot(prov: dict) -> dict:
@@ -500,6 +533,7 @@ def build(root: Path) -> dict:
         "drift_latency": drift_latency(root, prov),
         "classification": classification(root, prov[EXT]["claim_class"]),
         "missing_inputs": MISSING,
+        "excluded_sources": excluded_sources(root),
     }
 
 
@@ -629,6 +663,9 @@ def to_md(r: dict) -> str:
           f"multiclass (attribution) accuracy {fmt(c['accuracy_multiclass'])} (`{c['source']}`)"
           for g, c in r["classification"].items() if g != "claim_class"]
     L += ["", "## Missing inputs", ""] + [f"- {x['source']}: missing {x['missing']} -> {x['effect']}" for x in r["missing_inputs"]]
+    L += ["", "## Excluded sources (in no row or pool above)", ""]
+    L += [f"- `{x['source']}`: excluded from {x['excluded_from']}. Reason, quoted: "
+          + "; ".join(f"\"{q['quote']}\" (`{q['doc']}:{q['line']}`)" for q in x["reasons"]) for x in r["excluded_sources"]]
     return "\n".join(L) + "\n"
 
 
