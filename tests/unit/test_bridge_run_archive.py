@@ -108,3 +108,24 @@ def test_cli_run_dir_refuses_dirty_then_stamps(tmp_path, monkeypatch, capsys):
     assert cli.main([*_BASE, "--run-dir", str(tmp_path / "b"), "--allow-dirty"]) == 0
     assert (tmp_path / "b" / "NOT-REPRODUCIBLE").is_file()
     assert json.loads((tmp_path / "b" / "run_manifest.json").read_text())["status"] == "NOT-REPRODUCIBLE"
+
+
+def test_archive_records_the_management_stream_sent_to_the_gcs(tmp_path):
+    """Management alerts / status / ACKs (PR #39) leave the bridge for the GCS too: an evidence run must archive every
+    one of them, byte-identical to what was sent, or the run's record of bridge output is silently incomplete."""
+    fc, gcs = FakeLink(), FakeLink()
+    arch = BridgeRunArchive(tmp_path / "run")
+    b = InlineIpsBridge(fc, gcs, mode="passive", crossend_interval_s=0, archive=arch)
+    b.mgmt.action("FILTER_TEST", "")
+    b.close()
+    mgmt = [a for a in _rows(tmp_path / "run" / "actions.jsonl") if a["kind"] == "mgmt"]
+    assert mgmt and all(a["to"] == "gcs" for a in mgmt)
+    assert [bytes.fromhex(a["raw"]) for a in mgmt] == gcs.sent
+
+
+def test_without_an_archive_the_management_stream_goes_straight_to_the_gcs():
+    fc, gcs = FakeLink(), FakeLink()
+    b = InlineIpsBridge(fc, gcs, mode="passive", crossend_interval_s=0)
+    b.mgmt.action("FILTER_TEST", "")
+    b.close()
+    assert gcs.sent  # unchanged behaviour when no evidence run is configured

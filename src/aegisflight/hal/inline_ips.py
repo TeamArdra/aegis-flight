@@ -217,8 +217,13 @@ class InlineIpsBridge:
         self._last_analyse_wall: float | None = None
         self._seen_action: dict[str, Any] | None = None
         vsys = vehicle_sysids if vehicle_sysids is not None else tuple(proto.get("expected_sysids", (1,)))
+        mgmt_send = self.gcs.send
+        if archive is not None:  # evidence run: the management stream to the GCS is archived like every other output
+            def mgmt_send(frame: bytes) -> bool:
+                archive.action(self._clock_ns(), "mgmt", "gcs", frame)
+                return self.gcs.send(frame)
         self.mgmt = MgmtChannel(
-            self.gcs.send, self._sender, self, alerts_enabled=gcs_alerts, alert_min_interval_s=alert_min_interval_s,
+            mgmt_send, self._sender, self, alerts_enabled=gcs_alerts, alert_min_interval_s=alert_min_interval_s,
             status_interval_s=mgmt_status_interval_s, max_bytes_per_s=mgmt_max_bytes_per_s, mgmt_key=mgmt_key,
             flight_signing=secret_key is not None, vehicle_sysid=vsys[0],
             state_path=mgmt_state_path, audit_path=audit_log_path, lock_posture_file=lock_posture_file,
