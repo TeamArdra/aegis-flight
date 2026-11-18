@@ -170,3 +170,25 @@ def test_action_rows_record_whether_the_frame_was_sent(tmp_path):
     b.close()
     mgmt = [a for a in _rows(tmp_path / "run" / "actions.jsonl") if a["kind"] == "mgmt"]
     assert mgmt and all(a["sent"] is False for a in mgmt)
+
+
+def test_consumed_management_commands_are_archived_and_still_never_forwarded(tmp_path):
+    """PR #50 review P2: a management command (e.g. a posture change) is consumed before the forwarding path, so it
+    never reached ``frames_up.jsonl``. Every received frame is archived; a consumed one has verdict ``consumed``."""
+    from test_mgmt_channel import KEY_M, OP_SET_POSTURE, Ground, make_bridge
+
+    from aegisflight.proxy.transport import split_frames
+
+    arch = BridgeRunArchive(tmp_path / "run")
+    b, fc, gcs, clock = make_bridge(tmp_path, mode="active-ips", mgmt_key=KEY_M, archive=arch)
+    clock.t += 2
+    cmd = Ground().frame(OP_SET_POSTURE, 0, True)  # active-ips -> passive
+    pilot = command_long(255, MAV_CMD_DO_SET_MODE, 1, 4)
+    gcs.feed(cmd, pilot)
+    b.pump_once()
+    b.close()
+    up = _rows(tmp_path / "run" / "frames_up.jsonl")
+    assert [bytes.fromhex(r["raw"]) for r in up] == [cmd, pilot]
+    assert [r["verdict"] for r in up] == ["consumed", "forwarded"] and "out" not in up[0]
+    fcframes = [fr.raw for f in fc.sent for fr in split_frames(f)[0]]
+    assert cmd not in fcframes and pilot in fcframes  # forwarding unchanged: the command never reaches the FC

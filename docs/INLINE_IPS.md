@@ -487,7 +487,7 @@ false-alarm issue is fixed, active-ips should not be treated as safe on a flying
 
 | File | Content |
 |---|---|
-| `frames_down.jsonl`, `frames_up.jsonl` | FC to GCS and GCS to FC: every **original** received frame (hex) with `verdict` `forwarded` / `dropped` / `rewritten` (and `out` for a rewrite); the verdict is the policy decision, and `send_failed: N` is added when N output frames were refused by the far link (e.g. its port is down) |
+| `frames_down.jsonl`, `frames_up.jsonl` | FC to GCS and GCS to FC: every **original** received frame (hex) with `verdict` `forwarded` / `dropped` / `rewritten` (and `out` for a rewrite) / `consumed` (a management command the bridge handled itself and never forwarded); the verdict is the policy decision, and `send_failed: N` is added when N output frames were refused by the far link (e.g. its port is down) |
 | `decisions.jsonl` | one row per analyser decision: threat flag, type, score, evidence, controller mode/state |
 | `actions.jsonl` | counter-frames to the FC; STATUSTEXT alarms, cross-end summaries and the management stream (alerts, status, ACKs, `kind: mgmt`) to the GCS; each change of the controller action summary; every sent-frame row carries `sent: true/false` |
 | `events.sqlite` | the hash-chained alert log (unless `--db` points elsewhere) |

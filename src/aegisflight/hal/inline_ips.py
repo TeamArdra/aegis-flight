@@ -402,6 +402,8 @@ class InlineIpsBridge:
         for fr in frames:
             if not down and fr.msgid == 76 and (req := is_mgmt_command(fr.raw)) is not None:
                 self.mgmt.handle_command(fr.raw, req)  # consumed: never forwarded to the FC, never tapped
+                if self.archive is not None:  # every received frame is archived, a consumed command too (#25)
+                    self.archive.consumed(direction, stamp, fr.raw)
                 n += 1
                 continue
             t0 = perf_ns()

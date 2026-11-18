@@ -9,7 +9,8 @@ Writes into one run directory, so a bridge run can be audited and replayed after
   cross-end summaries to the GCS) plus each change of the controller's action summary.
 
 A frame row is ``{"t_ns", "raw", "verdict"}`` with ``raw`` hex of the original bytes and ``verdict`` one of
-``forwarded`` (byte-identical), ``dropped`` or ``rewritten`` (then ``out`` lists the hex of what was sent).
+``forwarded`` (byte-identical), ``dropped``, ``rewritten`` (then ``out`` lists the hex of what was sent) or
+``consumed`` (a management command the bridge handled itself; never forwarded).
 
 The forwarding path only appends to an in-memory queue; a writer thread does the file I/O, so archiving can never
 delay a frame. If the queue overflows (``max_queue``) rows are dropped and counted in ``stats()['dropped_rows']``;
@@ -71,6 +72,11 @@ class BridgeRunArchive:
             row["verdict"] = "rewritten"
             row["out"] = [o.hex() for o in out]
         self._put("frames_down.jsonl" if direction == "down" else "frames_up.jsonl", row)
+
+    def consumed(self, direction: str, t_ns: int, raw: bytes) -> None:
+        """A received frame the bridge consumed itself (a management command): archived, never forwarded."""
+        self._put("frames_down.jsonl" if direction == "down" else "frames_up.jsonl",
+                  {"t_ns": t_ns, "raw": raw.hex(), "verdict": "consumed"})
 
     def decision(self, t_ns: int, assessment: Any, mode: str, state: str, summary: str) -> None:
         self._put("decisions.jsonl", {
