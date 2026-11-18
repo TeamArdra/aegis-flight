@@ -49,6 +49,19 @@ CREATE TABLE IF NOT EXISTS runs (
     label TEXT,
     meta TEXT
 );
+
+CREATE TABLE IF NOT EXISTS actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    t REAL NOT NULL,
+    actor TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    prev_hash TEXT NOT NULL,
+    hash TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_actions_run ON actions(run_id);
 """
 
 
@@ -69,12 +82,18 @@ class ChainStatus:
 
 
 class EventStore:
-    def __init__(self, db_path: str | Path = "aegisflight.sqlite") -> None:
+    def __init__(self, db_path: str | Path = "aegisflight.sqlite", *, read_only: bool = False) -> None:
         self.db_path = str(db_path)
-        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.executescript(_SCHEMA)
-        self.conn.commit()
+        self.read_only = bool(read_only)
+        if self.read_only:
+            uri = f"{Path(self.db_path).resolve().as_uri()}?mode=ro"
+            self.conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
+            self.conn.row_factory = sqlite3.Row
+        else:
+            self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            self.conn.row_factory = sqlite3.Row
+            self.conn.executescript(_SCHEMA)
+            self.conn.commit()
 
     # -- runs --------------------------------------------------------------- #
 
@@ -212,6 +231,122 @@ class EventStore:
                 )
             prev = r["hash"]
         return ChainStatus(ok=True, length=len(rows), detail="chain intact")
+
+    # -- actions chain ------------------------------------------------------ #
+
+    def _has_actions_table(self) -> bool:
+        row = self.conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='actions'"
+        ).fetchone()
+        return row is not None
+
+    def _last_action_hash(self, run_id: str) -> str:
+        row = self.conn.execute(
+            "SELECT hash FROM actions WHERE run_id=? ORDER BY id DESC LIMIT 1", (run_id,)
+        ).fetchone()
+        return row["hash"] if row else GENESIS_HASH
+
+    def log_action(
+        self,
+        run_id: str,
+        t: float,
+        actor: str,
+        action: str,
+        target: str,
+        detail: str = "",
+    ) -> dict[str, Any]:
+        """Append one bridge/defense action to the tamper-evident ``actions`` chain."""
+        if self.read_only:
+            raise sqlite3.OperationalError("attempt to write to a read-only EventStore")
+        prev = self._last_action_hash(run_id)
+        payload = {
+            "run_id": run_id,
+            "t": round(float(t), 4),
+            "actor": str(actor),
+            "action": str(action),
+            "target": str(target),
+            "detail": str(detail),
+        }
+        h = _hash(prev, payload)
+        cur = self.conn.execute(
+            """INSERT INTO actions(run_id, t, actor, action, target, detail, prev_hash, hash)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                payload["run_id"],
+                payload["t"],
+                payload["actor"],
+                payload["action"],
+                payload["target"],
+                payload["detail"],
+                prev,
+                h,
+            ),
+        )
+        self.conn.commit()
+        return {"id": cur.lastrowid, "prev_hash": prev, "hash": h, **payload}
+
+    def get_actions(self, run_id: str | None = None, limit: int = 100) -> list[dict]:
+        if not self._has_actions_table():
+            return []
+        if run_id:
+            rows = self.conn.execute(
+                "SELECT * FROM actions WHERE run_id=? ORDER BY id DESC LIMIT ?", (run_id, limit)
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM actions ORDER BY id DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def verify_actions_chain(self, run_id: str | None = None) -> ChainStatus:
+        """Verify per-run SHA-256 hash chains in the ``actions`` table."""
+        if not self._has_actions_table():
+            return ChainStatus(ok=True, length=0, detail="no actions table")
+        if run_id is None:
+            runs = [
+                r["run_id"]
+                for r in self.conn.execute("SELECT DISTINCT run_id FROM actions").fetchall()
+            ]
+            total = 0
+            for rid in runs:
+                cs = self.verify_actions_chain(rid)
+                total += cs.length
+                if not cs.ok:
+                    return ChainStatus(
+                        ok=False,
+                        length=total,
+                        broken_at=cs.broken_at,
+                        detail=f"run {rid}: {cs.detail}",
+                    )
+            return ChainStatus(
+                ok=True,
+                length=total,
+                detail=f"{len(runs)} action chain(s) intact",
+            )
+
+        rows = self.conn.execute(
+            "SELECT * FROM actions WHERE run_id=? ORDER BY id ASC", (run_id,)
+        ).fetchall()
+        prev = GENESIS_HASH
+        for i, r in enumerate(rows):
+            payload = {
+                "run_id": r["run_id"],
+                "t": r["t"],
+                "actor": r["actor"],
+                "action": r["action"],
+                "target": r["target"],
+                "detail": r["detail"],
+            }
+            expect = _hash(prev, payload)
+            if r["prev_hash"] != prev or r["hash"] != expect:
+                return ChainStatus(
+                    ok=False,
+                    length=len(rows),
+                    broken_at=i,
+                    detail=f"action chain broken at action id={r['id']}",
+                )
+            prev = r["hash"]
+        return ChainStatus(ok=True, length=len(rows), detail="action chain intact")
 
     def close(self) -> None:
         self.conn.close()
