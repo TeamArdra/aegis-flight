@@ -30,7 +30,7 @@ In the simulator, the dashboard runs a **cyber-physical flight twin** and shows 
                        │               OPERATING POSTURES                 │
                        ├─────────────────┬───────────────┬────────────────┤
                        │  PASSIVE (IDS)  │   ADVISORY    │   ACTIVE IPS   │
-                       │ 0 B to vehicle  │ STATUSTEXT to │ SIM-only model │
+                       │ 0 B to vehicle* │ STATUSTEXT to │ SIM-only model │
                        │ Zero Actuation  │ loopback GCS  │ (not sent)     │
                        └─────────────────┴───────────────┴────────────────┘
                                                   │
@@ -42,6 +42,10 @@ In the simulator, the dashboard runs a **cyber-physical flight twin** and shows 
                          │ (Counter-Commands)                                + Fail-Open Watchdog)
                  [Companion Pi]
 ```
+\* By default. On a UDP or `socket://` vehicle link, `aegis serve` also puts bytes on the vehicle link, in any
+posture, when `--gcs-notify` is set (alert STATUSTEXTs) or when `--mgmt-key-file` is set and a posture change is
+requested through `POST /api/bridge/posture` (one signed `COMMAND_LONG`; with no inline bridge in the path it reaches
+the flight controller). A serial-device vehicle link is receive-only in every posture and entry point.
 
 ### Key Architectural Highlights
 
@@ -397,12 +401,14 @@ Detailed technical specifications and engineering logs:
 
 No airworthiness-standard compliance (e.g. RTCA DO-326A / EUROCAE ED-202A) is claimed. Enforced in code and tests
 (`tests/unit/test_defense_safety.py`):
-- `PASSIVE` is the default everywhere and sends nothing to the vehicle; `ADVISORY` sends no control frames. The inline
-  bridge (`aegis ips-bridge`) in `passive` is still not byte-transparent on the ground side: by default its management
+- `PASSIVE` is the default everywhere and, by default, sends nothing to the vehicle (the two opt-in exceptions on a
+  UDP / `socket://` link are listed under the posture diagram above; a serial-device link stays receive-only);
+  `ADVISORY` sends no control frames. The inline bridge (`aegis ips-bridge`) in `passive` is still not byte-transparent on the ground side: by default its management
   channel sends AEGIS STATUSTEXT alerts, status MEMORY_VECTs and command ACKs, and the bridge sends cross-end summaries, to
   the GCS side, and it withholds every `MAV_CMD_USER_1` COMMAND_LONG addressed to component 191, signed or not
   (`docs/MGMT_CHANNEL.md`). `--gcs-alerts off --mgmt-status-interval 0 --crossend-interval 0` reduce but do not remove
-  that traffic (posture notices and command answers remain);
+  that traffic (posture notices, command answers, the contested-source alarm and the management bad-signature alarm
+  remain);
 - only `ACTIVE_IPS` transmits counter-commands, and only through the live source's transport (never on replay);
 - `scripts/hardware/run_serial_ids.py` fails (exit 3) if any byte is written to the port in `passive` mode;
 - countermeasures never guess: no force-disarm by default, no unknown or default mode, no override of the pilot's own mode change.

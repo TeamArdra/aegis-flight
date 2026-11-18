@@ -22,7 +22,7 @@ Unlike conventional network IDSs that treat telemetry frames as opaque strings o
                        │               OPERATING POSTURES                 │
                        ├─────────────────┬───────────────┬────────────────┤
                        │  PASSIVE (IDS)  │   ADVISORY    │   ACTIVE IPS   │
-                       │ 0 B to vehicle  │ STATUSTEXT to │ Autonomous     │
+                       │ 0 B to vehicle* │ STATUSTEXT to │ Autonomous     │
                        │ Zero Actuation  │ Pilot GCS HUD │ Counter-Action │
                        └─────────────────┴───────────────┴────────────────┘
                                                   │
@@ -34,6 +34,10 @@ Unlike conventional network IDSs that treat telemetry frames as opaque strings o
                          │ (Counter-Commands)                                + Fail-Open Watchdog)
                  [Companion Pi]
 ```
+\* By default. On a UDP or `socket://` vehicle link, `aegis serve` also puts bytes on the vehicle link, in any
+posture, when `--gcs-notify` is set (alert STATUSTEXTs) or when `--mgmt-key-file` is set and a posture change is
+requested through `POST /api/bridge/posture` (one signed `COMMAND_LONG`; with no inline bridge in the path it reaches
+the flight controller). A serial-device vehicle link is receive-only in every posture and entry point.
 
 ### Core Architectural Guarantees
 1. **Deterministic Latency**: Measured decision compute is 17.7 ms mean / 23.6 ms p95 with ML on (SIM, host CPU; `artifacts/benchmarks/summary.md`). The $\le 45\text{ ms}$ figure is a design target, not measured on a companion computer.
