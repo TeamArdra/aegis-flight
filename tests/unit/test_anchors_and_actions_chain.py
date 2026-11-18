@@ -111,6 +111,17 @@ def test_anchor_detects_edit_row_and_anchor_hmac_tamper(
     assert aegis_main(["verify-log", str(db), "--anchors", str(tampered_path)]) == 2
     capsys.readouterr()
 
+    # Strip hmac_sha256 + set signed=False and lower row_count/last_id/head_hash -> rejected when key set (R1)
+    stripped_rec = json.loads(lines[-1])
+    stripped_rec.pop("hmac_sha256", None)
+    stripped_rec["signed"] = False
+    stripped_rec["row_count"] = 1
+    stripped_rec["last_id"] = 1
+    stripped_path = tmp_path / "stripped.anchors.jsonl"
+    stripped_path.write_text(json.dumps(stripped_rec) + "\n", encoding="utf-8")
+    assert aegis_main(["verify-log", str(db), "--anchors", str(stripped_path)]) == 2
+    capsys.readouterr()
+
     # Missing AEGIS_ANCHOR_KEY for signed anchor -> fails verification
     monkeypatch.delenv(ANCHOR_KEY_ENV, raising=False)
     assert aegis_main(["verify-log", str(db), "--anchors", str(aw.anchor_path)]) == 2

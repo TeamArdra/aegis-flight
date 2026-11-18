@@ -155,6 +155,9 @@ def verify_anchors(
             if raw_key is None:
                 errors.append(f"anchor line {lineno}: signed anchor cannot be verified without {ANCHOR_KEY_ENV}")
                 continue
+            if rec.get("signed") is False:
+                errors.append(f"anchor line {lineno}: anchor carries hmac_sha256 with signed=false")
+                continue
             try:
                 expect = compute_anchor_hmac(rec, raw_key)
             except (KeyError, TypeError, ValueError) as exc:
@@ -165,9 +168,15 @@ def verify_anchors(
                 continue
         else:
             unsigned_n += 1
+            if raw_key is not None or signed_n > 0 or rec.get("signed") is True:
+                errors.append(
+                    f"anchor line {lineno} (run {rec.get('run_id')}): "
+                    "unsigned anchor rejected when HMAC key is configured or after signed anchors"
+                )
+                continue
         records.append(rec)
 
-    if unsigned_n:
+    if unsigned_n and raw_key is None:
         warns.append(f"{unsigned_n} unsigned anchor(s) in {p.name} ({ANCHOR_KEY_ENV} unset)")
 
     latest: dict[str, dict[str, Any]] = {}
