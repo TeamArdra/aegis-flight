@@ -1,0 +1,375 @@
+{
+  "schema": "aegisflight.paced_replay/1",
+  "utc": "2026-11-18T12:39:06.249115+00:00",
+  "evidence": {
+    "environment": "REPLAY",
+    "measured_on": "host",
+    "target_hardware": false,
+    "claim": "HOST measurement: paced REPLAY on the development host. NOT Raspberry Pi / companion-computer evidence.",
+    "input_capture_environment": "SITL",
+    "scope": "IDS pipeline compute only (framing, features, detectors, fusion, optional ML); no serial driver, no event store, no dashboard"
+  },
+  "input": {
+    "tlog_name": "benign_001.tlog",
+    "tlog_sha256": "9686c31dee3b34aac5c885a9b0066e541a564c7b639d020b0eb04cfeeb0a1569",
+    "tlog_bytes": 1771657,
+    "frames_used": 35067,
+    "max_capture_s": null,
+    "capture_span_s": 103.679
+  },
+  "config": {
+    "config_dir": "configs/px4_sitl",
+    "sample_rate_hz": 10.0,
+    "model_name": "isoforest_px4.joblib",
+    "model_sha256": "df540999dc6b43c3981d6ac6ecb91369b56ce1ba8cfdb894b76b195951260c7c",
+    "queue_frames": 2048,
+    "late_ms": "one tick period at each factor",
+    "factors": [
+      1.0,
+      3.0
+    ],
+    "ml_modes": [
+      false,
+      true
+    ]
+  },
+  "provenance": {
+    "aegisflight_commit": "f975f7dd109fc91a5991db1a809b014b7a0c66a0",
+    "working_tree_dirty": false,
+    "dirty_paths_count": 0,
+    "python": "3.13.15",
+    "python_implementation": "CPython",
+    "packages": {
+      "numpy": "2.5.3",
+      "scikit-learn": "1.9.1",
+      "scipy": "1.18.1",
+      "joblib": "1.6.0",
+      "pymavlink": "2.4.50",
+      "psutil": "7.2.2"
+    },
+    "platform": "Windows-11-10.0.26300-SP0",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 141 Stepping 1, GenuineIntel",
+    "logical_cpus": 12,
+    "physical_cpus": 6,
+    "memory_total_gib": 15.73,
+    "hostname_sha256_8": "0701f755",
+    "board_model": "not recorded",
+    "power": "not recorded",
+    "run_provenance_helper": "not recorded (issue #25 helper not used; fields recorded directly)"
+  },
+  "runs": [
+    {
+      "factor": 1.0,
+      "sample_rate_hz": 10.0,
+      "tick_period_wall_ms": 100.0,
+      "capture_span_s": 103.679,
+      "wall_s": 103.73,
+      "pacing": {
+        "achieved_speed": 1.0,
+        "error_pct": -0.0,
+        "release_lateness_ms": {
+          "n": 35067,
+          "p50": 0.319,
+          "p95": 0.794,
+          "p99": 2.465,
+          "max": 127.287,
+          "mean": 0.497
+        },
+        "backwards_timestamps": 0
+      },
+      "frames": {
+        "total": 35067,
+        "released": 35067,
+        "consumed": 35067,
+        "dropped": 0,
+        "late": 5,
+        "late_threshold_ms": 100.0,
+        "queue_capacity": 2048,
+        "max_queue_depth": 47,
+        "offered_rate_per_s": 338.23
+      },
+      "ticks": {
+        "expected": 1038,
+        "emitted": 1038
+      },
+      "decisions": 519,
+      "decision_compute_ms": {
+        "n": 519,
+        "p50": 3.6941,
+        "p95": 9.6321,
+        "p99": 45.2864,
+        "max": 140.7104,
+        "mean": 5.2662
+      },
+      "pipeline_latency_ms": {
+        "n": 519,
+        "p50": 0.2291,
+        "p95": 0.5826,
+        "p99": 1.1754,
+        "max": 18.2164,
+        "mean": 0.3697
+      },
+      "decision_lag_ms": {
+        "n": 519,
+        "p50": 5.448,
+        "p95": 7.811,
+        "p99": 13.583,
+        "max": 119.407,
+        "mean": 5.601
+      },
+      "late_decisions": 1,
+      "cpu": {
+        "cpu_s": 3.297,
+        "pct_of_one_core": 3.18,
+        "logical_cpus": 12
+      },
+      "memory": {
+        "rss_mb_max_sampled": 68.7,
+        "rss_mb_process_lifetime_peak": 68.7
+      },
+      "digest": "e41b1536d2113b3bb6ca67583dae0e719faebe1a10625e67c6d92177aefbf418",
+      "ml_enabled": false,
+      "unpaced_reference": {
+        "ticks": 1038,
+        "decisions": 519,
+        "digest": "e41b1536d2113b3bb6ca67583dae0e719faebe1a10625e67c6d92177aefbf418"
+      },
+      "verdicts_identical_to_unpaced": true
+    },
+    {
+      "factor": 3.0,
+      "sample_rate_hz": 10.0,
+      "tick_period_wall_ms": 33.333,
+      "capture_span_s": 103.679,
+      "wall_s": 34.611,
+      "pacing": {
+        "achieved_speed": 3.0,
+        "error_pct": 0.0,
+        "release_lateness_ms": {
+          "n": 35067,
+          "p50": 0.432,
+          "p95": 14.79,
+          "p99": 57.319,
+          "max": 136.961,
+          "mean": 3.029
+        },
+        "backwards_timestamps": 0
+      },
+      "frames": {
+        "total": 35067,
+        "released": 35067,
+        "consumed": 35067,
+        "dropped": 0,
+        "late": 947,
+        "late_threshold_ms": 33.333,
+        "queue_capacity": 2048,
+        "max_queue_depth": 157,
+        "offered_rate_per_s": 1014.68
+      },
+      "ticks": {
+        "expected": 1038,
+        "emitted": 1038
+      },
+      "decisions": 519,
+      "decision_compute_ms": {
+        "n": 519,
+        "p50": 5.235,
+        "p95": 33.1857,
+        "p99": 70.6419,
+        "max": 148.8084,
+        "mean": 10.449
+      },
+      "pipeline_latency_ms": {
+        "n": 519,
+        "p50": 0.3403,
+        "p95": 3.1624,
+        "p99": 13.7894,
+        "max": 90.9691,
+        "mean": 1.1425
+      },
+      "decision_lag_ms": {
+        "n": 519,
+        "p50": 2.645,
+        "p95": 44.776,
+        "p99": 117.185,
+        "max": 145.641,
+        "mean": 8.699
+      },
+      "late_decisions": 33,
+      "cpu": {
+        "cpu_s": 4.234,
+        "pct_of_one_core": 12.23,
+        "logical_cpus": 12
+      },
+      "memory": {
+        "rss_mb_max_sampled": 28.8,
+        "rss_mb_process_lifetime_peak": 68.7
+      },
+      "digest": "e41b1536d2113b3bb6ca67583dae0e719faebe1a10625e67c6d92177aefbf418",
+      "ml_enabled": false,
+      "unpaced_reference": {
+        "ticks": 1038,
+        "decisions": 519,
+        "digest": "e41b1536d2113b3bb6ca67583dae0e719faebe1a10625e67c6d92177aefbf418"
+      },
+      "verdicts_identical_to_unpaced": true
+    },
+    {
+      "factor": 1.0,
+      "sample_rate_hz": 10.0,
+      "tick_period_wall_ms": 100.0,
+      "capture_span_s": 103.679,
+      "wall_s": 103.73,
+      "pacing": {
+        "achieved_speed": 1.0,
+        "error_pct": 0.0,
+        "release_lateness_ms": {
+          "n": 35067,
+          "p50": 0.324,
+          "p95": 0.847,
+          "p99": 2.463,
+          "max": 44.349,
+          "mean": 0.417
+        },
+        "backwards_timestamps": 0
+      },
+      "frames": {
+        "total": 35067,
+        "released": 35067,
+        "consumed": 35067,
+        "dropped": 0,
+        "late": 0,
+        "late_threshold_ms": 100.0,
+        "queue_capacity": 2048,
+        "max_queue_depth": 24,
+        "offered_rate_per_s": 338.23
+      },
+      "ticks": {
+        "expected": 1038,
+        "emitted": 1038
+      },
+      "decisions": 519,
+      "decision_compute_ms": {
+        "n": 519,
+        "p50": 4.882,
+        "p95": 13.3951,
+        "p99": 27.3248,
+        "max": 63.2341,
+        "mean": 6.1336
+      },
+      "pipeline_latency_ms": {
+        "n": 519,
+        "p50": 0.7226,
+        "p95": 2.8871,
+        "p99": 9.6257,
+        "max": 25.6456,
+        "mean": 1.1623
+      },
+      "decision_lag_ms": {
+        "n": 519,
+        "p50": 5.956,
+        "p95": 9.069,
+        "p99": 16.16,
+        "max": 43.479,
+        "mean": 6.164
+      },
+      "late_decisions": 0,
+      "cpu": {
+        "cpu_s": 4.062,
+        "pct_of_one_core": 3.92,
+        "logical_cpus": 12
+      },
+      "memory": {
+        "rss_mb_max_sampled": 165.2,
+        "rss_mb_process_lifetime_peak": 165.2
+      },
+      "digest": "b5af77ce987a73b31a2f53e672d463b8037996513e71b5f2cd517ff8388d5ee3",
+      "ml_enabled": true,
+      "unpaced_reference": {
+        "ticks": 1038,
+        "decisions": 519,
+        "digest": "b5af77ce987a73b31a2f53e672d463b8037996513e71b5f2cd517ff8388d5ee3"
+      },
+      "verdicts_identical_to_unpaced": true
+    },
+    {
+      "factor": 3.0,
+      "sample_rate_hz": 10.0,
+      "tick_period_wall_ms": 33.333,
+      "capture_span_s": 103.679,
+      "wall_s": 34.611,
+      "pacing": {
+        "achieved_speed": 3.0,
+        "error_pct": -0.001,
+        "release_lateness_ms": {
+          "n": 35067,
+          "p50": 0.359,
+          "p95": 1.12,
+          "p99": 8.835,
+          "max": 80.061,
+          "mean": 0.661
+        },
+        "backwards_timestamps": 0
+      },
+      "frames": {
+        "total": 35067,
+        "released": 35067,
+        "consumed": 35067,
+        "dropped": 0,
+        "late": 140,
+        "late_threshold_ms": 33.333,
+        "queue_capacity": 2048,
+        "max_queue_depth": 81,
+        "offered_rate_per_s": 1014.68
+      },
+      "ticks": {
+        "expected": 1038,
+        "emitted": 1038
+      },
+      "decisions": 519,
+      "decision_compute_ms": {
+        "n": 519,
+        "p50": 5.5455,
+        "p95": 13.8674,
+        "p99": 33.8773,
+        "max": 88.2559,
+        "mean": 6.993
+      },
+      "pipeline_latency_ms": {
+        "n": 519,
+        "p50": 0.9863,
+        "p95": 2.7722,
+        "p99": 11.0946,
+        "max": 24.7835,
+        "mean": 1.401
+      },
+      "decision_lag_ms": {
+        "n": 519,
+        "p50": 3.15,
+        "p95": 6.342,
+        "p99": 36.492,
+        "max": 110.138,
+        "mean": 4.274
+      },
+      "late_decisions": 6,
+      "cpu": {
+        "cpu_s": 4.531,
+        "pct_of_one_core": 13.09,
+        "logical_cpus": 12
+      },
+      "memory": {
+        "rss_mb_max_sampled": 165.9,
+        "rss_mb_process_lifetime_peak": 166.9
+      },
+      "digest": "b5af77ce987a73b31a2f53e672d463b8037996513e71b5f2cd517ff8388d5ee3",
+      "ml_enabled": true,
+      "unpaced_reference": {
+        "ticks": 1038,
+        "decisions": 519,
+        "digest": "b5af77ce987a73b31a2f53e672d463b8037996513e71b5f2cd517ff8388d5ee3"
+      },
+      "verdicts_identical_to_unpaced": true
+    }
+  ]
+}
