@@ -412,11 +412,13 @@ def run_onboard(
             )
             if cfg.retention.max_total_disk_bytes > 0:
                 active = set(ARCHIVE_FILES) | {cfg.db_name, "run_manifest.json"}
-                prune_rotated_files(
+                deleted = prune_rotated_files(
                     db_path.parent,
                     max_total_bytes=cfg.retention.max_total_disk_bytes,
                     active_names=active,
                 )
+                if archive is not None and deleted > 0:
+                    archive.record_pruned(deleted)
     finally:
         if dash_proc is not None and dash_proc.poll() is None:
             dash_proc.terminate()

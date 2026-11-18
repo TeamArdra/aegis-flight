@@ -22,6 +22,7 @@ Missing/incompatible model => the detector degrades to a no-op (score 0).
 from __future__ import annotations
 
 import math
+import warnings
 from operator import attrgetter
 from pathlib import Path
 
@@ -190,6 +191,7 @@ class AnomalyDetector(Detector):
         path = Path(model_path) if model_path else None
         self.model_path = path
         self.bundle: dict | None = None
+        self.load_error: str | None = None
         self._ticks = 0
         self._fast: _FastScorer | None = None
         self._fast_bundle: dict | None = None
@@ -199,8 +201,18 @@ class AnomalyDetector(Detector):
                 import joblib  # noqa: PLC0415 - lazy so slim ML-off onboard installs work without joblib
 
                 self.bundle = joblib.load(path)
-            except Exception:  # noqa: BLE001 - corrupt/incompatible model => degrade
+            except ImportError as exc:
                 self.bundle = None
+                self.load_error = f"ImportError: {exc}"
+                warnings.warn(
+                    f"AnomalyDetector disabled despite model file {path}: {exc} "
+                    "(install scikit-learn/joblib to enable ML)",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            except Exception as exc:  # noqa: BLE001 - corrupt/incompatible model => degrade
+                self.bundle = None
+                self.load_error = f"{type(exc).__name__}: {exc}"
             else:
                 self._fast = _fast_scorer(path, self.bundle)
                 self._fast_bundle = self.bundle

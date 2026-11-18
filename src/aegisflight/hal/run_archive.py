@@ -60,6 +60,9 @@ class BridgeRunArchive:
         self._thread = threading.Thread(target=self._writer, name="ips-archive", daemon=True)
         self.rows = dict.fromkeys(FILES, 0)
         self.rotations = dict.fromkeys(FILES, 0)
+        self.rotated_out_files = 0
+        self.pruned_files = 0
+        self.discarded_bytes = 0
         self.dropped_rows = 0
         self.write_errors = 0
         self.writer_error: str | None = None
@@ -139,22 +142,40 @@ class BridgeRunArchive:
                 f.flush()
                 if self._max_file_bytes > 0 and f.tell() >= self._max_file_bytes:
                     f.close()
+                    active_p = self.dir / name
+                    if self._max_rotations == 0:
+                        oldest_p = active_p
+                    else:
+                        oldest_p = active_p.with_name(f"{active_p.stem}.{self._max_rotations}{active_p.suffix}")
+                    oldest_sz = oldest_p.stat().st_size if oldest_p.exists() else 0
                     if rotate_file_series(
-                        self.dir / name,
+                        active_p,
                         max_bytes=self._max_file_bytes,
                         max_rotations=self._max_rotations,
                     ):
                         self.rotations[name] += 1
-                    self._files[name] = open(self.dir / name, "w", encoding="utf-8")  # noqa: SIM115
+                        if oldest_sz > 0:
+                            self.rotated_out_files += 1
+                            self.discarded_bytes += oldest_sz
+                    self._files[name] = open(active_p, "w", encoding="utf-8")  # noqa: SIM115
             except Exception as exc:  # noqa: BLE001 - buffered rows may be lost: the archive is incomplete
                 self._error(exc)
         if self._max_total_bytes > 0:
             try:
-                prune_rotated_files(
+                before_bytes = sum(
+                    p.stat().st_size for p in self.dir.iterdir() if p.is_file()
+                )
+                deleted = prune_rotated_files(
                     self.dir,
                     max_total_bytes=self._max_total_bytes,
                     active_names=set(FILES) | {"run_manifest.json", "events.sqlite"},
                 )
+                if deleted > 0:
+                    after_bytes = sum(
+                        p.stat().st_size for p in self.dir.iterdir() if p.is_file()
+                    )
+                    self.pruned_files += deleted
+                    self.discarded_bytes += max(0, before_bytes - after_bytes)
             except Exception as exc:  # noqa: BLE001
                 self._error(exc)
 
@@ -162,11 +183,29 @@ class BridgeRunArchive:
         while not self._stop.wait(self._flush):
             self._drain()
 
+    def record_pruned(self, deleted_files: int, deleted_bytes: int = 0) -> None:
+        if deleted_files > 0:
+            self.pruned_files += int(deleted_files)
+            self.discarded_bytes += max(0, int(deleted_bytes))
+
     def stats(self) -> dict[str, Any]:
-        return {"dir": str(self.dir), "rows": dict(self.rows), "rotations": dict(self.rotations),
-                "dropped_rows": self.dropped_rows, "write_errors": self.write_errors,
-                "writer_error": self.writer_error,
-                "complete": self.dropped_rows == 0 and self.write_errors == 0}
+        return {
+            "dir": str(self.dir),
+            "rows": dict(self.rows),
+            "rotations": dict(self.rotations),
+            "rotated_out_files": self.rotated_out_files,
+            "pruned_files": self.pruned_files,
+            "discarded_bytes": self.discarded_bytes,
+            "dropped_rows": self.dropped_rows,
+            "write_errors": self.write_errors,
+            "writer_error": self.writer_error,
+            "complete": (
+                self.dropped_rows == 0
+                and self.write_errors == 0
+                and self.rotated_out_files == 0
+                and self.pruned_files == 0
+            ),
+        }
 
     def close(self) -> dict[str, Any]:
         """Stop the writer, write what is queued and close the files. Never raises: errors are counted in ``stats()``."""

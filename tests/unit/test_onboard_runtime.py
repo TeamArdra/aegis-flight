@@ -138,6 +138,8 @@ def test_archive_rotation_and_disk_cap_enforcement(tmp_path: Path) -> None:
     stats = arch.close()
     assert stats["rotations"]["actions.jsonl"] >= 1
     assert (run_dir / "actions.1.jsonl").exists()
+    if stats["rotated_out_files"] > 0 or stats["pruned_files"] > 0:
+        assert stats["complete"] is False
 
     # Create extra large rotated segments and verify prune_rotated_files caps disk without touching active files
     for idx in (2, 3, 4):
@@ -156,6 +158,37 @@ def test_archive_rotation_and_disk_cap_enforcement(tmp_path: Path) -> None:
     f.write_bytes(b"a" * 500)
     assert rotate_file_series(f, max_bytes=100, max_rotations=2) is True
     assert (tmp_path / "sample.1.jsonl").exists()
+
+
+def test_archive_marks_complete_false_when_segments_rotated_out_and_missing_joblib_warns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from aegisflight.detectors.anomaly import AnomalyDetector
+
+    run_dir = tmp_path / "run_incomplete"
+    arch = BridgeRunArchive(
+        run_dir,
+        flush_interval_s=0.02,
+        max_file_bytes=80,
+        max_rotations=1,
+        max_total_bytes=0,
+    )
+    for i in range(25):
+        arch.action(i * 1000, "alarm", "gcs", b"abcdef0123456789", idx=i)
+        time.sleep(0.01)
+    st = arch.close()
+    assert st["rotated_out_files"] >= 1
+    assert st["discarded_bytes"] > 0
+    assert st["complete"] is False
+
+    # Missing joblib when a model file exists -> explicit RuntimeWarning + load_error recorded
+    fake_model = tmp_path / "fake.joblib"
+    fake_model.write_bytes(b"placeholder")
+    monkeypatch.setitem(sys.modules, "joblib", None)
+    with pytest.warns(RuntimeWarning, match="AnomalyDetector disabled"):
+        det = AnomalyDetector({}, model_path=fake_model)
+    assert det.available is False
+    assert det.load_error is not None and "ImportError" in det.load_error
 
 
 @pytest.mark.skipif(not hasattr(signal, "SIGTERM"), reason="SIGTERM requires POSIX")

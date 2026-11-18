@@ -7,9 +7,12 @@ Wants=multi-user.target
 
 [Service]
 Type=simple
+User=aegisflight
 Group=dialout
+WorkingDirectory=/opt/aegisflight
+Environment="AEGIS_HOME=/opt/aegisflight"
 EnvironmentFile=-/etc/aegisflight/onboard.env
-ExecStart=/usr/bin/env bash -lc 'exec "${AEGIS_HOME:-$PWD}/scripts/radio_test/pi_autostart.sh"'
+ExecStart=/usr/bin/env bash -lc 'exec "${AEGIS_HOME}/scripts/radio_test/pi_autostart.sh"'
 KillSignal=SIGTERM
 TimeoutStopSec=15
 Restart=on-failure
