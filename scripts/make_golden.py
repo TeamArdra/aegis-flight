@@ -1,14 +1,27 @@
 """Bit-exact equivalence guard for the detection pipeline (golden fixture generator).
 
-    python scripts/make_golden.py            # (re)write tests/golden/golden.json from the CURRENT code
+    python scripts/make_golden.py            # write tests/golden/golden.json from the CURRENT code, only if it
+                                             # does not exist yet (exit 2 otherwise, nothing written)
+    python scripts/make_golden.py --rewrite-all  # replace the whole fixture with this host's results (both sections)
     python scripts/make_golden.py --check    # recompute and compare, exit 1 on any difference
-    python scripts/make_golden.py --add-portable   # add the rounded layers to the fixture, ONLY if every bit-exact
-                                                   # digest still matches here (so they come from the same results)
+    python scripts/make_golden.py --ml-only  # rewrite ONLY the ML-on section (needs models/isoforest.joblib);
+                                             # the ML-off section and its metadata are left byte-identical
+    python scripts/make_golden.py --add-portable   # per section: add the rounded layers, ONLY if every bit-exact
+                                                   # digest of that section still matches here (so they come from
+                                                   # the same results)
 
-``env_tag()`` names the platform; the bit-exact layers are compared only in the environments listed in the fixture's
-``strict_envs`` (where they were generated or re-verified). Elsewhere the C maths library can differ in the last bit
-(measured: Linux x86-64 CI changes the ``frame`` / ``detectors`` digests while ``parse`` / ``stats`` / ``assess`` match),
-so the guard compares ``frame_r`` / ``detectors_r``: the same layers with floats rounded to 9 significant digits.
+The bit-exact layers are host-dependent in the last bit, so the test compares them only on request
+(``AEGIS_GOLDEN_STRICT=1``, meant for the host that regenerates the fixture). Measured: Linux x86-64 CI changes the
+``frame`` / ``detectors`` digests while ``parse`` / ``stats`` / ``assess`` match; on a second Windows CPython 3.13 host
+(3.13.15) the ``frame`` digest of 4 ML-off cases differs with numpy 2.5.3, 2.5.4 (the recording version) and 2.5.5
+alike, so no library-version tag can tell the hosts apart. By default the test compares ``frame_r`` / ``detectors_r`` instead: the
+same layers with floats rounded to 9 significant digits. ``env_fingerprint()`` (OS and release, CPU architecture,
+Python implementation and major.minor.patch, numpy / scipy / scikit-learn / joblib / pymavlink / PyYAML versions, the C
+library on Linux) is stored per section as ``recorded_env``, so a strict failure elsewhere can be read as a host
+difference; a matching fingerprint does not guarantee bit-exactness.
+
+The ML-on section needs the canonical team model (``ml_model_sha256``). ``aegis train`` stamps a creation time into
+the bundle, so a retrain never reproduces that file; without it the ML cases skip (as in CI).
 
 Every case drives ``parse -> FeatureExtractor -> 4 detectors -> fusion -> ThreatAssessment``
 (through ``IDSPipeline.process_tick``) and hashes, per decision, THREE canonical serialisations:
@@ -578,18 +591,83 @@ def compute(ml: bool, only: str | None = None) -> dict[str, dict]:
     return res
 
 
+NOTES = {
+    "strict": "Bit-exact layers are compared only with AEGIS_GOLDEN_STRICT=1, meant for the host that recorded the "
+              "section (recorded_env). A matching OS / Python / library set is not enough: on a second Windows CPython "
+              "3.13 host (3.13.15) the frame digest of 4 ML-off cases differs with numpy 2.5.3, 2.5.4 and 2.5.5.",
+    "ml": "The ml section needs the canonical team model models/isoforest.joblib with sha256 ml_model_sha256 "
+          "(git-ignored; aegis train stamps a creation time, so a retrain never reproduces it). Without it the ML "
+          "cases skip, as in CI.",
+}
+
+
 def build_golden() -> dict:
-    g = {"format": 1, "numpy": np.__version__, "ml_model_sha256": None, "no_ml": compute(False)}
+    fp = env_fingerprint()
+    g = {"format": 2, "ml_model_sha256": None, "no_ml": compute(False), "recorded_env": {"no_ml": fp},
+         "notes": NOTES}
     if MODEL_PATH.exists():
-        g["ml_model_sha256"] = hashlib.sha256(MODEL_PATH.read_bytes()).hexdigest()
+        g["ml_model_sha256"] = model_sha256()
         g["ml"] = compute(True)
+        g["recorded_env"]["ml"] = fp
     return g
 
 
+def model_sha256() -> str:
+    return hashlib.sha256(MODEL_PATH.read_bytes()).hexdigest()
+
+
 def env_tag() -> str:
+    """Coarse platform name (OS-arch-pyX.Y), for messages only."""
     import platform
 
     return f"{platform.system()}-{platform.machine().lower()}-py{sys.version_info[0]}.{sys.version_info[1]}"
+
+
+# Third-party distributions whose code runs on the digested path (parse: pymavlink; features / detectors: numpy;
+# ML: scikit-learn, its scipy dependency, joblib for loading; config values: PyYAML).
+FINGERPRINT_LIBS = ("numpy", "scipy", "scikit-learn", "joblib", "pymavlink", "PyYAML")
+
+
+def env_fingerprint() -> dict[str, str]:
+    """The environment properties the bit-exact digests are known or suspected to depend on (not the host itself)."""
+    import platform
+    from importlib import metadata
+
+    fp = {
+        "os": platform.system(),
+        "os_release": platform.release(),
+        "arch": platform.machine().lower(),
+        "python": f"{platform.python_implementation()} {platform.python_version()}",
+    }
+    libc, libc_ver = platform.libc_ver()
+    if libc:
+        fp["libc"] = f"{libc} {libc_ver}"
+    for dist in FINGERPRINT_LIBS:
+        try:
+            fp[dist] = metadata.version(dist)
+        except metadata.PackageNotFoundError:
+            fp[dist] = "absent"
+    return fp
+
+
+def _migrate_format1(gold: dict) -> None:
+    """Format 1 kept one top-level ``numpy`` version and coarse OS-arch-pyX.Y ``strict_envs`` tags that switched the
+    bit-exact comparison on by themselves. Keep them as the (partial) ``recorded_env`` of the ML-off section."""
+    gold.setdefault("recorded_env", {})
+    if "strict_envs" in gold or "numpy" in gold:
+        gold["recorded_env"].setdefault("no_ml", {
+            "numpy": gold.pop("numpy", None),
+            "format1_strict_tags": gold.pop("strict_envs", []),
+            "note": "format-1 fixture: the Python patch and other library versions were not recorded",
+        })
+    gold.pop("numpy", None)
+    gold.pop("strict_envs", None)
+    gold["notes"] = NOTES
+    gold["format"] = 2
+
+
+def _write(gold: dict) -> None:
+    GOLDEN_PATH.write_text(json.dumps(gold, indent=1, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
 
 
 PORTABLE = ("frame_r", "detectors_r")
@@ -598,11 +676,17 @@ PORTABLE = ("frame_r", "detectors_r")
 def main(argv: list[str]) -> int:
     if "--add-portable" in argv:
         gold = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
-        bad = 0
+        _migrate_format1(gold)
+        verified, failed = [], []
         for key, ml in (("no_ml", False), ("ml", True)):
             if key not in gold or (ml and not MODEL_PATH.exists()):
                 continue
+            if ml and model_sha256() != gold.get("ml_model_sha256"):
+                print("ml: not updated, models/isoforest.joblib is not the model the fixture was built with")
+                failed.append(key)
+                continue
             now = compute(ml)
+            bad = 0
             for name, want in gold[key].items():
                 got = now[name]
                 exact = {k: v for k, v in got["digests"].items() if k not in PORTABLE}
@@ -612,15 +696,28 @@ def main(argv: list[str]) -> int:
                 if not same:
                     bad += 1
                     print("MISMATCH", key, name)
-                    continue
-                want["digests"].update({k: got["digests"][k] for k in PORTABLE})
-        if bad:
-            print("not written: the bit-exact digests do not match in this environment")
+            if bad:
+                print(f"{key}: not updated, {bad} case(s) differ bit-exactly in this environment")
+                failed.append(key)
+                continue
+            for name, want in gold[key].items():
+                want["digests"].update({k: now[name]["digests"][k] for k in PORTABLE})
+            verified.append(key)
+        if verified:
+            _write(gold)
+            print(f"added {PORTABLE} to {GOLDEN_PATH} for {verified}")
+        return 1 if failed else 0
+    if "--ml-only" in argv:
+        if not MODEL_PATH.exists():
+            print(f"{MODEL_PATH} is missing; train it first (aegis train)")
             return 1
-        envs = set(gold.get("strict_envs", [])) | {env_tag()}
-        gold["strict_envs"] = sorted(envs)
-        GOLDEN_PATH.write_text(json.dumps(gold, indent=1, sort_keys=True) + "\n", encoding="utf-8")
-        print(f"added {PORTABLE} to {GOLDEN_PATH}; strict_envs = {gold['strict_envs']}")
+        gold = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
+        _migrate_format1(gold)
+        gold["ml"] = compute(True)
+        gold["ml_model_sha256"] = model_sha256()
+        gold["recorded_env"]["ml"] = env_fingerprint()
+        _write(gold)
+        print(f"rewrote the ml section of {GOLDEN_PATH} ({len(gold['ml'])} cases, model {gold['ml_model_sha256']})")
         return 0
     if "--check" in argv:
         gold = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
@@ -635,9 +732,15 @@ def main(argv: list[str]) -> int:
                     print("MISMATCH", key, name)
         print("golden check:", "FAILED" if bad else "ok")
         return 1 if bad else 0
+    if GOLDEN_PATH.exists() and "--rewrite-all" not in argv:
+        # A full rewrite replaces every bit-exact digest (and recorded_env) with this host's values. The ML-off ones
+        # were recorded on another host and are not reproducible bit for bit here, so never do that by accident.
+        print(f"{GOLDEN_PATH} exists; not rewritten. Use --check, --ml-only or --add-portable, or --rewrite-all to "
+              "replace BOTH sections (all bit-exact digests and recorded_env) with this host's results.")
+        return 2
     g = build_golden()
     GOLDEN_PATH.parent.mkdir(parents=True, exist_ok=True)
-    GOLDEN_PATH.write_text(json.dumps(g, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    _write(g)
     n = sum(len(g[k]) for k in ("no_ml", "ml") if k in g)
     print(f"wrote {GOLDEN_PATH} ({n} cases)")
     return 0

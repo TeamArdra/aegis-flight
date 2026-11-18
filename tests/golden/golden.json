@@ -1,5 +1,5 @@
 {
- "format": 1,
+ "format": 2,
  "ml": {
   "live/benign/default": {
    "alerts": 0,
@@ -519,7 +519,7 @@
     "assess": "7325ba70d51e8fe9994ed2cca147957badff1f8f08ea89421d4fcad930f28c6b",
     "detectors": "aaadba318086ea060076174b18f0ed53f19377c696c4f631455b4f8bab8741ab",
     "detectors_r": "3d47ac1e46d8c7e631f9796f9c5fe6179344607723da1db22a2315e87e3deb1d",
-    "frame": "eda619097070d7add74827b5bd66a08382ca48f9c32363479b905be82d48a795",
+    "frame": "fd6f5d44442f075c71946df84ff02f433b172dc2285a9a605e7dea325de61232",
     "frame_r": "e6697eafb06e91a15ed973f676d8efa51a41f92c39f980ced62193a37c634ef9",
     "parse": "9edf5ca69118ba5cf0cf12d53be980a9964f8004077399fcc6386e865f6a8011",
     "stats": "dc84e9b73f58a4047b49be188679093531cde7ec9953ed0a723ee419f109f32b"
@@ -544,7 +544,7 @@
     "assess": "42c33e0b33a166aff4a6e339b7855f960a30a4b723b5029fb8c50805dd7cf5b7",
     "detectors": "1cb0b8768cd3730ea8fa534a8b8fbd67df11158ab1adabe6cade472b3c6d47fa",
     "detectors_r": "19647dfdea22782c5524000c55c93c48e65ea6c3c4b6b231361aad88a790554f",
-    "frame": "eda619097070d7add74827b5bd66a08382ca48f9c32363479b905be82d48a795",
+    "frame": "fd6f5d44442f075c71946df84ff02f433b172dc2285a9a605e7dea325de61232",
     "frame_r": "e6697eafb06e91a15ed973f676d8efa51a41f92c39f980ced62193a37c634ef9",
     "parse": "9edf5ca69118ba5cf0cf12d53be980a9964f8004077399fcc6386e865f6a8011",
     "stats": "dc84e9b73f58a4047b49be188679093531cde7ec9953ed0a723ee419f109f32b"
@@ -1132,7 +1132,7 @@
     "assess": "99dd3d748982e5b56c130b337dc09eac3f0e58bb73f13d54de8444847dba239c",
     "detectors": "5a0d818ea8a4c81db4653e78f26860413f19ab751cf3a98bfae5bf3a77e7636b",
     "detectors_r": "0d235585ff6698ab7701387a7ab3388c174a39772e49707c6a2f2120ea7b87a8",
-    "frame": "6f24c20757db87fcb04c37169b1fcdf9e8d5cf832a24e710c7b268a520c1d200",
+    "frame": "fe01f8a857128bf4c8f3a1289fd171d1e9b629a5896fd024f3bf4055254c16d8",
     "frame_r": "76266dd5442ac2368b46930d98c0bdbc9192f571f22ee54b7b57d835d7db2344",
     "parse": "e4d569d40f8b9b46df2926442e67711b62f4b9f776cd03cddebe225cd0e4acf2"
    },
@@ -1366,7 +1366,7 @@
    "threat_decisions": 70
   }
  },
- "ml_model_sha256": "e0c465af3da46c1aaeea26fa994819abb4ca704bec07296df35300bdf54098d0",
+ "ml_model_sha256": "3fe74cddf3689e169610ffd783b109b6539cc6c03629bd1e4bb8b1d3842939c4",
  "no_ml": {
   "live/benign/default": {
    "alerts": 0,
@@ -3209,9 +3209,30 @@
    "threat_decisions": 69
   }
  },
- "numpy": "2.5.4",
- "strict_envs": [
-  "Windows-amd64-py3.12",
-  "Windows-amd64-py3.13"
- ]
+ "notes": {
+  "ml": "The ml section needs the canonical team model models/isoforest.joblib with sha256 ml_model_sha256 (git-ignored; aegis train stamps a creation time, so a retrain never reproduces it). Without it the ML cases skip, as in CI.",
+  "strict": "Bit-exact layers are compared only with AEGIS_GOLDEN_STRICT=1, meant for the host that recorded the section (recorded_env). A matching OS / Python / library set is not enough: on a second Windows CPython 3.13 host (3.13.15) the frame digest of 4 ML-off cases differs with numpy 2.5.3, 2.5.4 and 2.5.5."
+ },
+ "recorded_env": {
+  "ml": {
+   "PyYAML": "6.0.3",
+   "arch": "amd64",
+   "joblib": "1.6.0",
+   "numpy": "2.5.3",
+   "os": "Windows",
+   "os_release": "11",
+   "pymavlink": "2.4.50",
+   "python": "CPython 3.13.15",
+   "scikit-learn": "1.9.1",
+   "scipy": "1.18.1"
+  },
+  "no_ml": {
+   "format1_strict_tags": [
+    "Windows-amd64-py3.12",
+    "Windows-amd64-py3.13"
+   ],
+   "note": "format-1 fixture: the Python patch and other library versions were not recorded",
+   "numpy": "2.5.4"
+  }
+ }
 }
