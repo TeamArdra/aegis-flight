@@ -80,3 +80,31 @@ export function niceScale(x: number): number {
   const f = x / pow;
   return (f >= 5 ? 5 : f >= 2 ? 2 : 1) * pow;
 }
+
+/** Memo of the last projection: the track it was computed from, the origin and the projected points. */
+export interface ProjCache { track: LatLon[]; origin: LatLon; pts: XY[] }
+
+/**
+ * Incremental `projectTrack`: the track is a sliding window (shifted by k, new fixes appended) whose elements keep
+ * their identity, so the points already projected for the same origin are reused and only the new tail is
+ * projected with the very same `toLocal`. The result is element-for-element identical to `projectTrack(track,
+ * origin)`; any mismatch (different origin, a new run, a replaced element) falls back to the full recomputation.
+ */
+export function projectTrackInc(track: LatLon[], origin: LatLon, prev: ProjCache | null): ProjCache {
+  let pts: XY[] | null = null;
+  if (prev && track.length > 0 && prev.track.length > 0 && prev.origin[0] === origin[0] && prev.origin[1] === origin[1]) {
+    let k = prev.track.indexOf(track[0]);
+    if (k >= 0) {
+      const overlap = Math.min(track.length, prev.track.length - k);
+      let same = true;
+      for (let i = 1; i < overlap; i++) {
+        if (track[i] !== prev.track[i + k]) { same = false; break; }
+      }
+      if (same) {
+        pts = prev.pts.slice(k, k + overlap);
+        for (let i = overlap; i < track.length; i++) pts.push(toLocal(origin, track[i][0], track[i][1]));
+      }
+    }
+  }
+  return { track, origin, pts: pts ?? projectTrack(track, origin) };
+}

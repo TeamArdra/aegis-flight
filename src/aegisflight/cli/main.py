@@ -156,14 +156,16 @@ def _cmd_serve(args: argparse.Namespace) -> int:
                           defense_mode=args.defense_mode,
                           gcs_notify=args.gcs_notify, gcs_notify_host=args.gcs_notify_host,
                           gcs_notify_port=args.gcs_notify_port,
-                          signing_key_file=getattr(args, "signing_key_file", None))
-        if spec.signing_key_file:
-            from ..detectors.crossend import load_signing_key
+                          signing_key_file=getattr(args, "signing_key_file", None),
+                          mgmt_key_file=getattr(args, "mgmt_key_file", None))
+        for flag, path in (("--signing-key-file", spec.signing_key_file), ("--mgmt-key-file", spec.mgmt_key_file)):
+            if path:
+                from ..detectors.crossend import load_signing_key
 
-            try:
-                load_signing_key(spec.signing_key_file)
-            except (OSError, ValueError, UnicodeDecodeError) as exc:
-                raise ValueError(f"bad --signing-key-file: {exc}") from exc
+                try:
+                    load_signing_key(path)
+                except (OSError, ValueError, UnicodeDecodeError) as exc:
+                    raise ValueError(f"bad {flag}: {exc}") from exc
     except ValueError as exc:
         print(f"aegis serve: {exc}", file=sys.stderr)
         return 2
@@ -186,6 +188,10 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         os.environ["AEGIS_SIGNING_KEY_FILE"] = spec.signing_key_file
     else:
         os.environ.pop("AEGIS_SIGNING_KEY_FILE", None)
+    if spec.mgmt_key_file:
+        os.environ["AEGIS_MGMT_KEY_FILE"] = spec.mgmt_key_file
+    else:
+        os.environ.pop("AEGIS_MGMT_KEY_FILE", None)
     print(f"aegis serve: source {spec.environment} ({spec.describe()['label']}) on http://{args.host}:{args.port}")
     uvicorn.run("aegisflight.backend.app:app", host=args.host, port=args.port, reload=args.reload)
     return 0
@@ -214,16 +220,37 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
     except ValueError as exc:
         print(f"aegis ips-bridge: {exc}", file=sys.stderr)
         return 2
+    from ..detectors.crossend import load_signing_key  # its errors never quote key bytes
+
     key = None
     if args.signing_key_file:
         try:
-            raw = Path(args.signing_key_file).read_bytes()
-            key = raw if len(raw) == 32 else bytes.fromhex(raw.decode("ascii").strip())
-            if len(key) != 32:
-                raise ValueError("key must be 32 bytes")
-        except (OSError, ValueError, UnicodeDecodeError) as exc:
+            key = load_signing_key(args.signing_key_file)
+        except (OSError, ValueError) as exc:
             print(f"aegis ips-bridge: bad --signing-key-file: {exc}", file=sys.stderr)
             return 2
+    mgmt_key = None
+    if args.mgmt_key_file:
+        try:
+            mgmt_key = load_signing_key(args.mgmt_key_file)
+        except (OSError, ValueError) as exc:
+            print(f"aegis ips-bridge: bad --mgmt-key-file: {exc}", file=sys.stderr)
+            return 2
+        if not args.mgmt_state:
+            print("aegis ips-bridge: refusing --mgmt-key-file without --mgmt-state: without the persisted anti-replay state "
+                  "a restart would accept a recorded management command again", file=sys.stderr)
+            return 2
+    if (args.filter_override_file or args.filter_lockout_failopen_s is not None) and not args.vehicle_uplink_filter:
+        print("aegis ips-bridge: --filter-override-file / --filter-lockout-failopen-s only apply with --vehicle-uplink-filter", file=sys.stderr)
+        return 2
+    if args.vehicle_uplink_filter and key is None:
+        print("aegis ips-bridge: --vehicle-uplink-filter needs --signing-key-file: without a key the filter cannot tell the pilot "
+              "from a forger and would block the pilot.", file=sys.stderr)
+        return 2
+    if args.vehicle_uplink_filter and args.defense_mode == "active-ips":
+        print("aegis ips-bridge: --vehicle-uplink-filter is the alternative to --defense-mode active-ips on a vehicle link; "
+              "use passive or advisory with it.", file=sys.stderr)
+        return 2
     if args.defense_mode == "active-ips" and key is None and not args.allow_unsigned:
         print("aegis ips-bridge: refusing --defense-mode active-ips without --signing-key-file: an unsigned link "
               "cannot stop a counter-tracking forger. Provision a key, or pass --allow-unsigned to accept the risk.",
@@ -277,14 +304,28 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         store.start_run(run_id, label="ips-bridge")
     else:
         run_id = "ips-bridge"
-    bridge = InlineIpsBridge(fc, gcs, config_dir=args.config_dir, mode=args.defense_mode,
-                             trusted_sysids=tuple(args.trusted_sysid) if args.trusted_sysid else None,
-                             store=store, run_id=run_id, secret_key=key,
-                             allow_unsigned_from_trusted=args.signing_permissive,
-                             signing_max_age_s=args.signing_max_age_s, signing_state_path=args.signing_state,
-                             ekf_secondary=args.ekf_secondary, crossend_interval_s=args.crossend_interval,
-                             contested_policy=args.contested_policy, replay_memory=args.replay_memory,
-                             on_alarm=lambda m: print(f"aegis ips-bridge: ALARM {m}", flush=True), archive=archive)
+    try:  # e.g. an unreadable / corrupt / unwritable --mgmt-state: refuse to start, never run without replay state
+        bridge = InlineIpsBridge(fc, gcs, config_dir=args.config_dir, mode=args.defense_mode,
+                                 trusted_sysids=tuple(args.trusted_sysid) if args.trusted_sysid else None,
+                                 store=store, run_id=run_id, secret_key=key,
+                                 allow_unsigned_from_trusted=args.signing_permissive,
+                                 signing_max_age_s=args.signing_max_age_s, signing_state_path=args.signing_state,
+                                 ekf_secondary=args.ekf_secondary, crossend_interval_s=args.crossend_interval,
+                                 firmware_dir=args.firmware_dir, firmware_recheck_s=args.firmware_recheck_s,
+                                 contested_policy=args.contested_policy, replay_memory=args.replay_memory,
+                                 gcs_alerts=args.gcs_alerts == "on", alert_min_interval_s=args.alert_min_interval,
+                                 mgmt_status_interval_s=args.mgmt_status_interval,
+                                 mgmt_max_bytes_per_s=args.mgmt_max_bytes_per_s, mgmt_key=mgmt_key,
+                                 mgmt_state_path=args.mgmt_state, lock_posture_file=args.lock_posture_file,
+                                 mgmt_max_cmd_age_s=args.mgmt_max_age_s,
+                                 audit_log_path=args.audit_log,
+                                 unsigned_acknowledged=args.allow_unsigned and key is None and args.defense_mode == "active-ips",
+                                 vehicle_filter=args.vehicle_uplink_filter, filter_override_file=args.filter_override_file,
+                                 filter_lockout_failopen_s=args.filter_lockout_failopen_s,
+                                 on_alarm=lambda m: print(f"aegis ips-bridge: ALARM {m}", flush=True), archive=archive)
+    except ValueError as exc:
+        print(f"aegis ips-bridge: {exc}", file=sys.stderr)
+        return 2
     fc.start()
     gcs.start()
     bridge.start()
@@ -302,6 +343,12 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         except OSError as exc:
             print(f"aegis ips-bridge: cannot bind status port: {exc}", file=sys.stderr)
     print(f"aegis ips-bridge: {args.fc_port} <-> {args.gcs_port}, posture {args.defense_mode}", flush=True)
+    if args.vehicle_uplink_filter:
+        print("aegis ips-bridge: NOTICE --vehicle-uplink-filter is on: forged, unsigned, replayed and wrong-key control frames from the GCS "
+              "are DROPPED before the flight controller once a validly signed ground-station frame has proved the key (until then it only "
+              "reports). The downlink is untouched and no counter-command is sent. Not switchable over the radio or the status API.", flush=True)
+        if args.filter_override_file:
+            print(f"aegis ips-bridge: local override: while {args.filter_override_file} exists the filter only reports", flush=True)
     if args.defense_mode == "active-ips" and key is None:
         print("aegis ips-bridge: NOTICE active-ips without signing acknowledged via --allow-unsigned", flush=True)
     end = None if args.seconds is None else time.monotonic() + args.seconds
@@ -325,6 +372,22 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                                   "archive": archive.close()}
             write_manifest(args.run_dir, finish_run(run_prov))
             print(f"aegis ips-bridge: run archived in {args.run_dir} ({run_prov['status']})", flush=True)
+    return 0
+
+
+def _cmd_fw_manifest(args: argparse.Namespace) -> int:
+    from ..integrity.verifier import FirmwareVerifier
+
+    v = FirmwareVerifier(args.dir)
+    manifest = v.build_manifest()
+    comps = manifest["components"]
+    if not comps:
+        print(f"aegis fw-manifest: no *.bin files in {args.dir}; the manifest is empty", file=sys.stderr)
+        return 2
+    for name, digest in comps.items():
+        print(f"{digest}  {name}")
+    print(f"manifest written: {v.manifest_path} ({len(comps)} components). Keep it with the files and treat it as trusted: "
+          "an attacker who can rewrite both defeats the check (it is not signed).")
     return 0
 
 
@@ -395,6 +458,9 @@ def build_parser() -> argparse.ArgumentParser:
                          "(autonomous mitigation; refused on a serial device, which is receive-only)")
     sv.add_argument("--signing-key-file", default=None,
                     help="32-byte MAVLink-2 key (raw or 64 hex chars) used to authenticate the ips-bridge cross-end summary")
+    sv.add_argument("--mgmt-key-file", default=None,
+                    help="32-byte MANAGEMENT key (separate from the flight key): enables sending the signed in-band "
+                         "posture command to the ips-bridge over the radio (live serial/udp source only)")
     sv.set_defaults(func=_cmd_serve)
 
     ib = sub.add_parser("ips-bridge", help="inline IPS between a flight controller port and a GCS/radio port")
@@ -404,8 +470,21 @@ def build_parser() -> argparse.ArgumentParser:
     ib.add_argument("--gcs-baud", type=int, default=57600)
     ib.add_argument("--allow-url", action="store_true", help="allow socket:// virtual ports (tests, SITL)")
     ib.add_argument("--defense-mode", choices=["passive", "advisory", "active-ips"], default="passive",
-                    help="passive/advisory forward every frame byte-identically; active-ips filters and counter-acts "
+                    help="passive/advisory never drop or alter a forwarded frame (except the uplink control frames "
+                         "dropped by --vehicle-uplink-filter) and originate nothing toward the FC; by default the bridge "
+                         "still sends AEGIS alerts/status and the cross-end summary to the GCS side and consumes "
+                         "MAV_CMD_USER_1 COMMAND_LONGs addressed to component 191 (see --gcs-alerts, "
+                         "--mgmt-status-interval, --crossend-interval); active-ips filters and counter-acts "
                          "(refused when --fc-port is a serial device: a physical FC is receive-only)")
+    ib.add_argument("--vehicle-uplink-filter", action="store_true",
+                    help="drop forged / unsigned / replayed / wrong-key control frames from the GCS side before the flight controller, usable on a serial vehicle link (the downlink is never changed and no counter-command is ever sent). Needs --signing-key-file; not combinable with active-ips; fixed for the run (no status-API or radio switch). See docs/VEHICLE_UPLINK_FILTER.md")
+    ib.add_argument("--filter-override-file", default=None,
+                    help="with --vehicle-uplink-filter: LOCAL off switch. While this file exists on the bridge's disk the filter only reports; "
+                         "remove it and the filter re-proves the key before it drops anything again. Not reachable over the radio or the status API")
+    ib.add_argument("--filter-lockout-failopen-s", type=float, default=None,
+                    help="with --vehicle-uplink-filter, OPTIONAL watchdog (default off): if control frames from a trusted sysid keep failing "
+                         "the signature check and no validly signed ground-station frame was seen for this many seconds, forward everything "
+                         "until one is seen. Cannot tell a lock-out from an attacker spoofing the pilot's sysid while the real GCS is silent")
     ib.add_argument("--trusted-sysid", type=int, action="append",
                     help="ground-station sysid allowed to command the vehicle (repeatable; default from detector.yaml)")
     ib.add_argument("--signing-key-file", default=None,
@@ -421,6 +500,11 @@ def build_parser() -> argparse.ArgumentParser:
     ib.add_argument("--ekf-secondary", action="store_true",
                     help="declare that the aircraft has a configured non-GPS EKF source set; only then may active-ips "
                          "send the EKF source switch (default off: GPS faults escalate to ALT_HOLD instead)")
+    ib.add_argument("--firmware-dir", default=None,
+                    help="directory of REAL firmware/config *.bin files with a trusted manifest (create it with `aegis fw-manifest DIR`); "
+                         "re-hashed every --firmware-recheck-s and a mismatch raises a firmware-integrity alert. Default: not checked")
+    ib.add_argument("--firmware-recheck-s", type=float, default=30.0,
+                    help="seconds between firmware re-hash passes (hashing cost grows with the size of the files)")
     ib.add_argument("--crossend-interval", type=float, default=1.0,
                     help="seconds between cross-end summaries of the last forwarded GLOBAL_POSITION_INT sent to the GCS "
                          "side only (0 = off); lets a GCS-side 'aegis serve' detect telemetry altered after the bridge")
@@ -429,6 +513,24 @@ def build_parser() -> argparse.ArgumentParser:
                          "sensitive/control frames from that source in flight (can block the real pilot; forced disarm passes)")
     ib.add_argument("--replay-memory", type=int, default=4096,
                     help="unsigned link: number of forwarded sensitive frames remembered for the byte-identical replay filter")
+    ib.add_argument("--gcs-alerts", choices=["on", "off"], default="on",
+                    help="send IDS alerts / IPS actions as short AEGIS: STATUSTEXTs to the GCS side (never the FC)")
+    ib.add_argument("--alert-min-interval", type=float, default=2.0,
+                    help="at most one alert STATUSTEXT per attack type per this many seconds (escalations bypass)")
+    ib.add_argument("--mgmt-status-interval", type=float, default=2.0,
+                    help="seconds between compact status MEMORY_VECTs to the GCS side (0 = off)")
+    ib.add_argument("--mgmt-max-bytes-per-s", type=float, default=150.0,
+                    help="byte budget for ALL management traffic (alerts, actions, status, ACKs)")
+    ib.add_argument("--mgmt-key-file", default=None,
+                    help="32-byte MANAGEMENT key (raw or 64 hex), independent of the flight key; none = remote control disabled")
+    ib.add_argument("--mgmt-state", default=None,
+                    help="persisted anti-replay state of the management channel (required with --mgmt-key-file)")
+    ib.add_argument("--mgmt-max-age-s", type=float, default=300.0,
+                    help="ignore a signed management command older than this vs the bridge's wall clock (applied only "
+                         "while the clock is set; 0 = off)")
+    ib.add_argument("--lock-posture-file", default=None,
+                    help="while this file exists remote commands can only RAISE the posture (local override)")
+    ib.add_argument("--audit-log", default=None, help="hash-chained JSONL audit log of management commands")
     ib.add_argument("--run-dir", default=None,
                     help="evidence run: archive both directions' raw frames, decisions, actions and run_manifest.json "
                          "here (refuses a dirty tree unless --allow-dirty; the run is then stamped NOT-REPRODUCIBLE)")
@@ -447,6 +549,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="bind address of the status API (default 127.0.0.1; non-loopback needs --control-token-file)")
     ib.set_defaults(func=_cmd_ips_bridge)
 
+    fm = sub.add_parser("fw-manifest", help="hash the *.bin files of a directory into its trusted manifest.json")
+    fm.add_argument("dir", help="directory holding the firmware / config images to protect")
+    fm.set_defaults(func=_cmd_fw_manifest)
     v = sub.add_parser("verify-log", help="verify a SQLite event-log hash chain")
     v.add_argument("db", help="path to the SQLite event log")
     v.set_defaults(func=_cmd_verify_log)

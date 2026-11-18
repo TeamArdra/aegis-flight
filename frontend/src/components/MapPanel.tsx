@@ -1,5 +1,6 @@
+import { memo, useMemo, useRef } from "react";
 import type { DefenseMode, Environment, MitigationInfo, Telemetry, Threat } from "../types";
-import { extentOf, fitExtent, niceScale, projectTrack, toLocal, type LatLon } from "../lib/geo";
+import { extentOf, fitExtent, niceScale, projectTrackInc, toLocal, type LatLon, type ProjCache } from "../lib/geo";
 import { THREAT_THRESHOLD } from "../lib/constants";
 
 interface Props {
@@ -28,7 +29,7 @@ function fmtNum(val: number | null | undefined, digits = 1, fallback = "0.0"): s
 // an operational local-frame view, not a geographic map — no tiles, no real GPS
 // basemap. When ACTIVE IPS is engaged, renders both the solid green IPS-Restored
 // Track and the dashed red Rejected/Blocked Ghost Track.
-export function MapPanel({
+function MapPanelImpl({
   track,
   trackThreat,
   rawTrack,
@@ -101,64 +102,74 @@ export function MapPanel({
     return `IPS PROTECTED`;
   };
 
-  let path = "";
-  let threatPath = "";
-  let rawPath = "";
-  let head: [number, number] | null = null;
-  let rawHead: [number, number] | null = null;
-  let start: [number, number] | null = null;
-  let spanM = 0;
-  let hasDivergence = false;
+  // The projection is incremental (only new fixes are projected) and the path strings are rebuilt only when
+  // the track inputs change, not on every unrelated re-render.
+  const trackCache = useRef<ProjCache | null>(null);
+  const rawCache = useRef<ProjCache | null>(null);
+  const geo = useMemo(() => {
+    let path = "";
+    let threatPath = "";
+    let rawPath = "";
+    let head: [number, number] | null = null;
+    let rawHead: [number, number] | null = null;
+    let start: [number, number] | null = null;
+    let spanM = 0;
+    let hasDivergence = false;
 
-  if (origin && track.length > 0) {
-    const pts = projectTrack(track, origin);
-    const xs = pts.map((p) => p[0]);
-    const ys = pts.map((p) => p[1]);
-    let ext = extentOf(pts);
+    if (origin && track.length > 0) {
+      trackCache.current = projectTrackInc(track, origin, trackCache.current);
+      const pts = trackCache.current.pts;
+      const xs = pts.map((p) => p[0]);
+      const ys = pts.map((p) => p[1]);
+      let ext = extentOf(pts);
 
-    let rawPts: Array<[number, number]> = [];
-    if (isSim && rawTrack && rawTrack.length > 1) {
-      rawPts = projectTrack(rawTrack, origin);
-      // rawTrack is scoped to the current attack episode (see useLiveData), so compare the
-      // two LATEST fixes rather than index-aligning against the full effective history.
-      const r = rawPts[rawPts.length - 1];
-      const sepM = Math.hypot(r[0] - xs[xs.length - 1], r[1] - ys[ys.length - 1]);
-      hasDivergence = isIpsActive && isPositionAttack && (isSanitizingGps || sepM > 2.5);
-      if (hasDivergence) {
-        // include the ghost, but clamp to +-250 m of the start so the real track never shrinks to a speck
-        const clamp = (v: number, c: number) => Math.max(c - 250, Math.min(c + 250, v));
-        const all = pts.concat(rawPts.map((q): [number, number] => [clamp(q[0], xs[0]), clamp(q[1], ys[0])]));
-        ext = extentOf(all);
-      }
-    }
-
-    const fit = fitExtent(ext, W, H, pad);
-    spanM = Math.min(W - 2 * pad, H - 2 * pad) / fit.pxPerM;
-    const sx = fit.sx, sy = fit.sy;
-    path = pts.map((_, i) => `${i ? "L" : "M"}${sx(xs[i]).toFixed(1)},${sy(ys[i]).toFixed(1)}`).join(" ");
-    if (trackThreat && trackThreat.length === track.length) {
-      const segs: string[] = [];
-      for (let i = 1; i < track.length; i++) {
-        if (trackThreat[i]) {
-          const move = trackThreat[i - 1] ? "L" : `M${sx(xs[i - 1]).toFixed(1)},${sy(ys[i - 1]).toFixed(1)} L`;
-          segs.push(`${move}${sx(xs[i]).toFixed(1)},${sy(ys[i]).toFixed(1)}`);
+      let rawPts: Array<[number, number]> = [];
+      if (isSim && rawTrack && rawTrack.length > 1) {
+        rawCache.current = projectTrackInc(rawTrack, origin, rawCache.current);
+        rawPts = rawCache.current.pts;
+        // rawTrack is scoped to the current attack episode (see useLiveData), so compare the
+        // two LATEST fixes rather than index-aligning against the full effective history.
+        const r = rawPts[rawPts.length - 1];
+        const sepM = Math.hypot(r[0] - xs[xs.length - 1], r[1] - ys[ys.length - 1]);
+        hasDivergence = isIpsActive && isPositionAttack && (isSanitizingGps || sepM > 2.5);
+        if (hasDivergence) {
+          // include the ghost, but clamp to +-250 m of the start so the real track never shrinks to a speck
+          const clamp = (v: number, c: number) => Math.max(c - 250, Math.min(c + 250, v));
+          const all = pts.concat(rawPts.map((q): [number, number] => [clamp(q[0], xs[0]), clamp(q[1], ys[0])]));
+          ext = extentOf(all);
         }
       }
-      threatPath = segs.join(" ");
-    }
-    head = [sx(xs[xs.length - 1]), sy(ys[ys.length - 1])];
-    const o = toLocal(origin, origin[0], origin[1]);
-    start = [sx(o[0]), sy(o[1])];
 
-    if (hasDivergence && rawPts.length > 1) {
-      rawPath = rawPts.map((q, i) => `${i ? "L" : "M"}${sx(q[0]).toFixed(1)},${sy(q[1]).toFixed(1)}`).join(" ");
-      const lq = rawPts[rawPts.length - 1];
-      rawHead = [
-        Math.max(pad + 6, Math.min(W - pad - 6, sx(lq[0]))),
-        Math.max(pad + 6, Math.min(H - pad - 6, sy(lq[1]))),
-      ];
+      const fit = fitExtent(ext, W, H, pad);
+      spanM = Math.min(W - 2 * pad, H - 2 * pad) / fit.pxPerM;
+      const sx = fit.sx, sy = fit.sy;
+      path = pts.map((_, i) => `${i ? "L" : "M"}${sx(xs[i]).toFixed(1)},${sy(ys[i]).toFixed(1)}`).join(" ");
+      if (trackThreat && trackThreat.length === track.length) {
+        const segs: string[] = [];
+        for (let i = 1; i < track.length; i++) {
+          if (trackThreat[i]) {
+            const move = trackThreat[i - 1] ? "L" : `M${sx(xs[i - 1]).toFixed(1)},${sy(ys[i - 1]).toFixed(1)} L`;
+            segs.push(`${move}${sx(xs[i]).toFixed(1)},${sy(ys[i]).toFixed(1)}`);
+          }
+        }
+        threatPath = segs.join(" ");
+      }
+      head = [sx(xs[xs.length - 1]), sy(ys[ys.length - 1])];
+      const o = toLocal(origin, origin[0], origin[1]);
+      start = [sx(o[0]), sy(o[1])];
+
+      if (hasDivergence && rawPts.length > 1) {
+        rawPath = rawPts.map((q, i) => `${i ? "L" : "M"}${sx(q[0]).toFixed(1)},${sy(q[1]).toFixed(1)}`).join(" ");
+        const lq = rawPts[rawPts.length - 1];
+        rawHead = [
+          Math.max(pad + 6, Math.min(W - pad - 6, sx(lq[0]))),
+          Math.max(pad + 6, Math.min(H - pad - 6, sy(lq[1]))),
+        ];
+      }
     }
-  }
+    return { path, threatPath, rawPath, head, rawHead, start, spanM, hasDivergence };
+  }, [track, trackThreat, rawTrack, origin, isSim, isIpsActive, isPositionAttack, isSanitizingGps]);
+  const { path, threatPath, rawPath, head, rawHead, start, spanM, hasDivergence } = geo;
   const noFix = !origin || track.length === 0;
 
   // scale bar: a clean ~1/4-frame reference in metres
@@ -169,32 +180,38 @@ export function MapPanel({
   const AH = 44;
   // SIM keeps the fixed 0-100 m strip; real data auto-scales (rel_alt in metres, floor 10 m)
   const altMax = isSim ? 100 : Math.max(10, Math.ceil(Math.max(0, ...(altHistory ?? []).map((h) => Math.max(h.rawAlt, h.effAlt))) / 10) * 10);
-  let rawAltPath = "";
-  let effAltPath = "";
-  let hasAltDivergence = false;
-  if (altHistory && altHistory.length > 1) {
-    const nA = altHistory.length;
-    const ax = (i: number) => (i / (nA - 1)) * W;
-    const ay = (alt: number) => AH - Math.max(0, Math.min(altMax, alt)) * (AH / altMax);
-    rawAltPath = "M" + altHistory.map((h, i) => `${ax(i).toFixed(1)},${ay(h.rawAlt).toFixed(1)}`).join(" L");
-    effAltPath = "M" + altHistory.map((h, i) => `${ax(i).toFixed(1)},${ay(h.effAlt).toFixed(1)}`).join(" L");
-    hasAltDivergence = altHistory.some((h) => h.diverging);
-  }
+  const { rawAltPath, effAltPath, hasAltDivergence } = useMemo(() => {
+    let rawAltPath = "";
+    let effAltPath = "";
+    let hasAltDivergence = false;
+    if (altHistory && altHistory.length > 1) {
+      const nA = altHistory.length;
+      const ax = (i: number) => (i / (nA - 1)) * W;
+      const ay = (alt: number) => AH - Math.max(0, Math.min(altMax, alt)) * (AH / altMax);
+      rawAltPath = "M" + altHistory.map((h, i) => `${ax(i).toFixed(1)},${ay(h.rawAlt).toFixed(1)}`).join(" L");
+      effAltPath = "M" + altHistory.map((h, i) => `${ax(i).toFixed(1)},${ay(h.effAlt).toFixed(1)}`).join(" L");
+      hasAltDivergence = altHistory.some((h) => h.diverging);
+    }
+    return { rawAltPath, effAltPath, hasAltDivergence };
+  }, [altHistory, altMax]);
 
   // -------- timeline (threat score over time) --------
   const SW = 680, SH = 66;
   const thrY = SH - THREAT_THRESHOLD * SH;
-  let line = "", area = "";
-  let last: { t: number; score: number } | null = null;
-  if (scoreHistory.length > 1) {
-    const nH = scoreHistory.length;
-    const px = (i: number) => (i / (nH - 1)) * SW;
-    const py = (s: number) => SH - Math.max(0, Math.min(1, s)) * SH;
-    const pts = scoreHistory.map((h, i) => `${px(i).toFixed(1)},${py(h.score).toFixed(1)}`);
-    line = "M" + pts.join(" L");
-    area = `M0,${SH} L` + pts.join(" L") + ` L${SW},${SH} Z`;
-    last = scoreHistory[scoreHistory.length - 1];
-  }
+  const { line, area, last } = useMemo(() => {
+    let line = "", area = "";
+    let last: { t: number; score: number } | null = null;
+    if (scoreHistory.length > 1) {
+      const nH = scoreHistory.length;
+      const px = (i: number) => (i / (nH - 1)) * SW;
+      const py = (s: number) => SH - Math.max(0, Math.min(1, s)) * SH;
+      const pts = scoreHistory.map((h, i) => `${px(i).toFixed(1)},${py(h.score).toFixed(1)}`);
+      line = "M" + pts.join(" L");
+      area = `M0,${SH} L` + pts.join(" L") + ` L${SW},${SH} Z`;
+      last = scoreHistory[scoreHistory.length - 1];
+    }
+    return { line, area, last };
+  }, [scoreHistory, SW, SH]);
 
   return (
     <div className="panel">
@@ -422,3 +439,5 @@ export function MapPanel({
   );
 }
 
+// memoised: the dashboard state changes at 10 Hz, these panels re-render only when their own props change
+export const MapPanel = memo(MapPanelImpl);

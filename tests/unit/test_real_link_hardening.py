@@ -67,6 +67,32 @@ def test_unstable_burst_is_not_adopted_as_the_new_normal():
     assert det.nominal_rate < 100.0 and any(r.triggered for r in wobble[-20:])
 
 
+def test_step_inside_the_learning_window_is_learned_from_the_final_plateau():
+    """Pi finding: a GCS that asked for its streams 12 s into the window made the learner reject the step as a flood."""
+    det = ProtocolDetector({**_PROTO, "auto_rate_baseline": True, "rate_learn_s": 20.0})
+    _run(det, [1.0] * 60 + [135.0] * 45)                    # 12 s heartbeat-only, then 9 s at 135 msg/s
+    after = _run(det, [136.0] * 40, t0=21.0)
+    assert all(r.score == 0.0 for r in after)               # no false DoS alarms once the window closes
+    assert det.nominal_rate >= 130.0 and det.max_rate >= 4.0 * 130.0   # same rule as an ordinary learned baseline
+    flood = det.process(_frame(40.0, det.max_rate + 50.0))
+    assert flood.triggered and flood.attack_votes.get(AttackType.DOS, 0.0) == 1.0
+
+
+def test_step_in_the_last_seconds_of_the_window_gets_one_more_window_to_settle():
+    """Pi finding (second run): the GCS connected ~3 s before the window closed, so the final seconds were a ramp."""
+    det = ProtocolDetector({**_PROTO, "auto_rate_baseline": True, "rate_learn_s": 20.0})
+    _run(det, [1.0] * 85 + [40.0, 90.0, 120.0, 128.0, 130.0] + [130.0] * 15)          # window closes mid-ramp
+    after = _run(det, [131.0] * 140, t0=22.0)                                             # extended window, then flight
+    assert all(r.score == 0.0 for r in after)
+    assert det.nominal_rate >= 125.0 and "learned" in (det._learn_note or "")
+
+
+def test_unstable_tail_in_the_learning_window_is_still_rejected():
+    det = ProtocolDetector({**_PROTO, "auto_rate_baseline": True, "rate_learn_s": 20.0})
+    _run(det, [1.0] * 60 + [100.0 + 10.0 * i for i in range(120)])                        # keeps climbing past the hard limit
+    assert det.nominal_rate == _PROTO["nominal_msg_rate_hz"] and "rejected" in (det._learn_note or "")
+
+
 def test_flood_during_learning_is_rejected():
     det = ProtocolDetector({**_PROTO, "auto_rate_baseline": True})
     rates = [30.0] * 50 + [900.0] * 55

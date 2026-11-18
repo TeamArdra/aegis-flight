@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { api } from "../services/api";
 
 interface SubModeDef {
@@ -73,7 +73,7 @@ const DRIFT_PRESETS = [
   { val: 6.0, label: "6.0 m/s (Standard)" },
 ];
 
-export function ControlPanel({ activeAttack, controls, environment }: {
+function ControlPanelImpl({ activeAttack, controls, environment }: {
   activeAttack: string | null;
   controls: boolean; // SIM only (lib/source.ts envView)
   environment: string;
@@ -244,3 +244,6 @@ export function ControlPanel({ activeAttack, controls, environment }: {
     </div>
   );
 }
+
+// memoised: the dashboard state changes at 10 Hz, these panels re-render only when their own props change
+export const ControlPanel = memo(ControlPanelImpl);

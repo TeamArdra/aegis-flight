@@ -117,6 +117,19 @@ def _payload(raw: bytes, signed_len: int = 0) -> bytes | None:
     return None
 
 
+_ZEROS40 = bytes(40)
+
+
+def _payload_crc32(raw: bytes) -> int:
+    """``zlib.crc32(_payload(raw) or raw)`` without building the zero-padded copy (CRC-32 chains over the padding)."""
+    if raw:
+        if raw[0] == _V2 and len(raw) >= 12:
+            return zlib.crc32(_ZEROS40, zlib.crc32(raw[10:10 + raw[1]]))
+        if raw[0] == _V1 and len(raw) >= 8:
+            return zlib.crc32(_ZEROS40, zlib.crc32(raw[6:6 + raw[1]]))
+    return zlib.crc32(raw)
+
+
 def _command(raw: bytes, msgid: int) -> tuple[int, float, float] | None:
     """``(command, param1, param2)`` of a COMMAND_LONG / COMMAND_INT frame."""
     p = _payload(raw)
@@ -222,6 +235,19 @@ class InlinePolicy:
         self._clock = clock
         self._lock = threading.Lock()
         self.enforce = False                # static uplink rules + dynamic rewrites; off = byte-identical forwarding
+        # receive-only-compatible filtering (InlineIpsBridge vehicle_filter): with enforce on, ONLY the uplink rules run;
+        # the downlink is forwarded untouched (no forged-frame drop, no rewrite) and no dynamic rule applies
+        self.uplink_filter_only = False
+        # safeguards of that filter (docs/VEHICLE_UPLINK_FILTER.md, section 5): it starts in 'learning' (forwarding everything, only
+        # reporting) and engages on the first validly signed frame from a ground station, which proves the key; 'override' is the
+        # operator's local off switch; 'failopen' is the optional lock-out watchdog. 'off' = the filter was not requested.
+        self.filter_state = "off"
+        self.filter_override = False
+        self.lockout_failopen_s: float | None = None
+        self._last_valid_t: float | None = None
+        self._engaged_t: float | None = None
+        self._lockout_drops = 0
+        self.filter_events: list[tuple[str, str]] = []
         self._last_touch: float | None = None
         # vehicle state learnt from the frames the policy itself forwards (no detector involved)
         self.armed: bool | None = None
@@ -267,6 +293,17 @@ class InlinePolicy:
         self.dropped_inflight_disarm = 0
         self.dropped_burst = 0
         self.dropped_dynamic = 0
+        # report-only signature verdicts (posture below ACTIVE_IPS): counted and announced, never dropped
+        self.observed_unsigned = 0
+        self.observed_bad_signature = 0
+        self.observed_replay = 0
+        self._observed_pending: list[tuple[str, bytes, int, int]] = []
+        self.max_signed_ts = 0  # newest valid signing timestamp seen in either direction (10 us units)
+        self.dropped_forged_down = 0
+        self.observed_forged_down = 0
+        self._down_signed: dict[tuple[int, int], int] = {}  # (sysid, compid) -> valid signed frames seen
+        self._down_signed_t: dict[tuple[int, int], int] = {}  # (sysid, compid) -> recv_ns of the last valid signed frame
+        self.signing_lapsed = 0  # sources that stopped signing (not in stats(): the forwarding guard hashes it)
         self.rewritten = 0
         self.hook_errors = 0
 
@@ -282,6 +319,71 @@ class InlinePolicy:
                 self._recent.clear()
                 self._contested_until.clear()
                 self._alarms.clear()
+
+    def set_uplink_filter_only(self, flag: bool) -> None:
+        with self._lock:
+            if bool(flag) == self.uplink_filter_only:
+                return  # unchanged: a posture change between the reporting postures must not make the filter re-learn the key
+            self.uplink_filter_only = bool(flag)
+            self.filter_state = "learning" if flag else "off"
+            self._lockout_drops = 0
+
+    def _set_filter_state(self, state: str, detail: str = "") -> None:
+        if state == self.filter_state:
+            return
+        self.filter_state = state
+        now = self._clock()
+        self._engaged_t = now if state == "engaged" else None
+        self._lockout_drops = 0
+        if len(self.filter_events) < 16:
+            self.filter_events.append((state, detail))
+
+    def take_filter_events(self) -> list[tuple[str, str]]:
+        out, self.filter_events = self.filter_events, []
+        return out
+
+    def _filter_gate(self, ctx: FrameContext) -> bool:
+        """Vehicle uplink filter safeguards. True = forward this frame untouched (the filter is not acting on it)."""
+        if self.filter_override:
+            self._set_filter_state("override", "local override file present: forwarding everything, reporting only")
+        elif self.filter_state == "override":
+            self._set_filter_state("learning", "override cleared: waiting for a validly signed ground-station frame")
+        v = self._verifier
+        if v is None:
+            return True
+        gcs_signed = ctx.signed and ctx.sysid not in self.vehicle_sysids
+        if self.filter_state == "engaged":
+            if self.lockout_failopen_s is not None and gcs_signed and not self._is_control(ctx):
+                if self._check_signature(ctx, observe=True) == "ok":
+                    self._note_valid()
+            return False
+        if gcs_signed and self.filter_state in ("learning", "failopen") and self._check_signature(ctx, observe=True) == "ok":
+            self._note_valid()
+            self._set_filter_state("engaged", "a validly signed ground-station frame proves the key: filtering uplink control")
+            return True
+        self._observe_signature(ctx)
+        return True
+
+    def _is_control(self, ctx: FrameContext) -> bool:
+        cmd = _command(ctx.raw, ctx.msgid) if ctx.msgid in _COMMAND_MSGIDS else None
+        return ctx.msgid in CONTROL_MSGIDS or (cmd is not None and cmd[0] in SENSITIVE_COMMANDS)
+
+    def _note_valid(self) -> None:
+        self._last_valid_t = self._clock()
+        self._lockout_drops = 0
+
+    def _note_lockout_drop(self, ctx: FrameContext, verdict: str) -> None:
+        """Optional watchdog. Pilot lock-out looks like this: control frames from a TRUSTED ground-station sysid keep failing the
+        signature check while no validly signed ground-station frame has been seen for lockout_failopen_s. It cannot tell that from an
+        attacker who spoofs the pilot's sysid while the real GCS is silent, which is why it is off by default."""
+        if self.lockout_failopen_s is None or ctx.sysid not in self.trusted_sysids or verdict not in ("unsigned", "bad_signature"):
+            return
+        self._lockout_drops += 1
+        since = self._last_valid_t if self._last_valid_t is not None else self._engaged_t
+        if self._lockout_drops >= 3 and since is not None and self._clock() - since >= self.lockout_failopen_s:
+            self._set_filter_state("failopen", f"pilot lock-out suspected: no valid signed ground-station frame for "
+                                  f"{self.lockout_failopen_s:.0f} s while control frames from a trusted sysid were dropped; "
+                                  "forwarding everything until a signed frame is seen")
 
     def take_alarms(self) -> list[int]:
         """Sysids with a new contested alarm to raise (rate-limited per source); the bridge sends the STATUSTEXT."""
@@ -335,21 +437,72 @@ class InlinePolicy:
 
     # -- hooks --------------------------------------------------------------- #
 
+    SIGNED_SOURCE_MIN = 20  # valid signed frames before a source counts as "signs its frames"
+    SIGNING_LAPSE_NS = 10_000_000_000  # no valid signed frame for this long: the source no longer counts as signing
+
+    def _down_forged(self, ctx: FrameContext) -> str | None:
+        """Signed link: a source that has been signing its frames and now sends an unsigned (or badly signed) one is a forgery.
+
+        The vehicle's own telemetry is signed on a signed link, so an attacker without the key (a man in the middle on the
+        flight-controller link, a rogue component) cannot produce frames that pass. A source is only judged after it was seen
+        signing, so links or components that never sign are left alone. Replayed-timestamp verdicts are ignored (reordering).
+        """
+        v = self._verifier
+        assert v is not None
+        src = (ctx.sysid, ctx.compid)
+        n = self._down_signed.get(src, 0)
+        if n >= self.SIGNED_SOURCE_MIN and ctx.recv_ns - self._down_signed_t.get(src, ctx.recv_ns) > self.SIGNING_LAPSE_NS:
+            # the source stopped signing (FC signing turned off, a reboot into an unsigned setup): dropping all of its
+            # telemetry from now on would black the vehicle out for the pilot, so it is judged afresh -- and said loudly
+            n = 0
+            del self._down_signed[src]
+            self.signing_lapsed += 1
+            if len(self._observed_pending) < 64:
+                self._observed_pending.append(("signing_lapsed", ctx.raw, ctx.sysid, ctx.msgid))
+        if not ctx.signed:
+            return "unsigned" if n >= self.SIGNED_SOURCE_MIN else None
+        res = v.verify_frame(ctx.raw)
+        if res.valid:
+            self.max_signed_ts = max(self.max_signed_ts, res.timestamp_10us)
+            self._down_signed_t[src] = ctx.recv_ns
+            if n < self.SIGNED_SOURCE_MIN + 5:
+                if len(self._down_signed) >= 256 and src not in self._down_signed:
+                    evict = next(iter(self._down_signed))
+                    self._down_signed.pop(evict)
+                    self._down_signed_t.pop(evict, None)
+                self._down_signed[src] = n + 1
+            return None
+        if n >= self.SIGNED_SOURCE_MIN and res.signed and not res.replayed:
+            return "bad_signature"
+        return None
+
     def down(self, ctx: FrameContext) -> list[bytes]:
         """FC -> GCS."""
         try:
+            if self._verifier is not None:
+                forged = self._down_forged(ctx)
+                if forged:
+                    if self.enforce and not self.uplink_filter_only:
+                        self.dropped_forged_down += 1
+                        return []  # never reaches the GCS and never feeds the learned vehicle state
+                    self.observed_forged_down += 1
+                    if len(self._observed_pending) < 64:
+                        self._observed_pending.append((forged, ctx.raw, ctx.sysid, ctx.msgid))
             self._learn_state(ctx)
-            if not self.enforce or not self.dynamic_fresh or not self.sanitizer.active:
+            if not self.enforce or self.uplink_filter_only or not self.dynamic_fresh or not self.sanitizer.active:
                 return [ctx.raw]
             san = self.sanitizer
             if ctx.sysid in self.protected_sysids:
                 # the vehicle's own telemetry may be rewritten (GPS / altitude) but a protected sysid is never
-                # quarantined
+                # quarantined and never shed by the flood gatekeeper: dropping the flight controller's telemetry
+                # on a false or soft rate alarm would blind the pilot
                 saved, san.quarantined_sysids = san.quarantined_sysids, set()
+                saved_rl, san.rate_limit_active = san.rate_limit_active, False
                 try:
                     out = san(ctx)
                 finally:
                     san.quarantined_sysids = saved
+                    san.rate_limit_active = saved_rl
             else:
                 out = san(ctx)
             if not out:
@@ -364,7 +517,11 @@ class InlinePolicy:
     def up(self, ctx: FrameContext) -> list[bytes]:
         """GCS -> FC."""
         try:
+            if self.uplink_filter_only and self._filter_gate(ctx):
+                return [ctx.raw]
             if not self.enforce:
+                if self._verifier is not None:
+                    self._observe_signature(ctx)
                 return [ctx.raw]
             trusted = ctx.sysid in self.trusted_sysids
             msgid = ctx.msgid
@@ -374,9 +531,15 @@ class InlinePolicy:
                 verdict = self._check_signature(ctx)
                 if verdict == "ok":
                     trusted = True  # a valid signature, not the sysid, makes the sender trusted
+                    if self.uplink_filter_only:
+                        self._note_valid()
                 elif verdict == "unsigned" and trusted and self.allow_unsigned_from_trusted:
                     pass  # rollout mode: an unsigned frame from a trusted sysid still passes
                 else:
+                    if self.uplink_filter_only:
+                        self._note_lockout_drop(ctx, verdict)
+                        if self.filter_state == "failopen":
+                            return [ctx.raw]
                     return []
             track = self.provenance and self._verifier is None
             verdict = self._observe_seq(ctx) if track else "unknown"
@@ -400,7 +563,7 @@ class InlinePolicy:
                 return self._replay_filter(ctx, self._after_provenance(ctx, trusted, cmd))
             if cmd is not None and cmd[0] in SENSITIVE_COMMANDS:
                 return self._command_rule(ctx, trusted, *cmd)
-            if self.dynamic_fresh and self.sanitizer.active and not trusted:
+            if self.dynamic_fresh and self.sanitizer.active and not trusted and not self.uplink_filter_only:
                 # quarantined / flooding sender on the uplink (the sanitizer drops both directions)
                 if ctx.sysid in self.sanitizer.quarantined_sysids and ctx.sysid not in self.protected_sysids:
                     self.dropped_dynamic += 1
@@ -428,7 +591,8 @@ class InlinePolicy:
     def _observe_dual(self, ctx: FrameContext) -> None:
         """Same (sysid, compid) and same seq but a different payload within 2 s: two transmitters share the identity."""
         key = (ctx.sysid, ctx.compid)
-        h = zlib.crc32(_payload(ctx.raw) or ctx.raw)
+        h = _payload_crc32(ctx.raw)
+        seq = ctx.seq
         now = self._clock()
         with self._lock:
             ring = self._recent.get(key)
@@ -436,8 +600,12 @@ class InlinePolicy:
                 if len(self._recent) >= 256:
                     self._recent.pop(next(iter(self._recent)))
                 ring = self._recent[key] = deque(maxlen=32)
-            hit = any(now - t <= 2.0 and s == ctx.seq and ph != h for t, s, ph in ring)
-            ring.append((now, ctx.seq, h))
+            hit = False
+            for t, s, ph in ring:
+                if s == seq and ph != h and now - t <= 2.0:
+                    hit = True
+                    break
+            ring.append((now, seq, h))
             if not hit:
                 return
             was = now < self._contested_until.get(key, 0.0)
@@ -472,8 +640,8 @@ class InlinePolicy:
                 self._seen.pop(next(iter(self._seen)))
         return out
 
-    def _check_signature(self, ctx: FrameContext) -> str:
-        """``ok`` | ``unsigned`` | ``bad_signature`` | ``replay`` (each counted)."""
+    def _check_signature(self, ctx: FrameContext, observe: bool = False) -> str:
+        """``ok`` | ``unsigned`` | ``bad_signature`` | ``replay`` (each counted: as a drop, or as an observation when ``observe``)."""
         v = self._verifier
         assert v is not None
         res = v.verify_frame(ctx.raw)
@@ -481,20 +649,59 @@ class InlinePolicy:
             if self.max_age_s is not None:
                 now_10us = (time.time() - MAVLINK_EPOCH_UNIX_S) * 100_000
                 if res.timestamp_10us < now_10us - self.max_age_s * 100_000:
-                    self.dropped_replay += 1
+                    if observe:
+                        self.observed_replay += 1
+                    else:
+                        self.dropped_replay += 1
                     return "replay"
             self.signed_ok += 1
+            self.max_signed_ts = max(self.max_signed_ts, res.timestamp_10us)
             self._state_dirty = True
             self._maybe_persist()
             return "ok"
         if not res.signed:
-            self.dropped_unsigned += 1
+            if observe:
+                self.observed_unsigned += 1
+            else:
+                self.dropped_unsigned += 1
             return "unsigned"
         if res.replayed:
-            self.dropped_replay += 1
+            if observe:
+                self.observed_replay += 1
+            else:
+                self.dropped_replay += 1
             return "replay"
-        self.dropped_bad_signature += 1
+        if observe:
+            self.observed_bad_signature += 1
+        else:
+            self.dropped_bad_signature += 1
         return "bad_signature"
+
+    def _observe_signature(self, ctx: FrameContext) -> None:
+        """IDS / advisory postures: judge the signature of control frames exactly as ACTIVE_IPS would, but only report."""
+        msgid = ctx.msgid
+        cmd = _command(ctx.raw, msgid) if msgid in _COMMAND_MSGIDS else None
+        if not (msgid in CONTROL_MSGIDS or (cmd is not None and cmd[0] in SENSITIVE_COMMANDS)):
+            return
+        verdict = self._check_signature(ctx, observe=True)
+        if verdict == "ok" or (verdict == "unsigned" and ctx.sysid in self.trusted_sysids and self.allow_unsigned_from_trusted):
+            return
+        if len(self._observed_pending) < 64:
+            self._observed_pending.append((verdict, ctx.raw, ctx.sysid, msgid))
+
+    def next_signing_timestamp(self) -> int | None:
+        """A timestamp just above the newest valid signed frame seen on the link, or None before any was seen."""
+        return self.max_signed_ts + 1 if self.max_signed_ts else None
+
+    def observed_stats(self) -> dict[str, int]:
+        """Report-only signature verdicts (IDS / advisory postures); kept apart from stats() so the forwarding guard is untouched."""
+        return {"unsigned": self.observed_unsigned, "bad_signature": self.observed_bad_signature, "replay": self.observed_replay,
+                "forged_down_observed": self.observed_forged_down, "forged_down_dropped": self.dropped_forged_down}
+
+    def take_observed(self) -> list[tuple[str, bytes, int, int]]:
+        """Pending report-only verdicts (``verdict, raw, sysid, msgid``), cleared on read. Forwarding thread only."""
+        out, self._observed_pending = self._observed_pending, []
+        return out
 
     # -- signing state persistence ------------------------------------------- #
 

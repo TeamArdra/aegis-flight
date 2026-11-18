@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import { api } from "../services/api";
 import { describe, selectTopology } from "../lib/topology";
 import { ActiveIpsDialog } from "./ActiveIpsDialog";
@@ -74,7 +74,7 @@ function getPilotAdvisory(subMode: string): string {
   return "Monitor flight parameters; standby for pilot action";
 }
 
-export function DefensePanel({ mode, mitigation, threat, telemetry, topologyInfo, bridgeTopology, environment, signing }: Props) {
+function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, bridgeTopology, environment, signing }: Props) {
   const [dialog, setDialog] = useState(false);
   const [dialogErr, setDialogErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -563,7 +563,7 @@ export function DefensePanel({ mode, mitigation, threat, telemetry, topologyInfo
             </div>
           ) : (
             actions.slice().reverse().map((act, i) => (
-              <div key={i} className="timeline-item">
+              <div key={actions.length - 1 - i} className="timeline-item">
                 <span className="tl-time mono">{act.t.toFixed(1)}s</span>
                 <span className={`tl-tag tl-tag-${act.tag.toLowerCase()}`}>{act.tag}</span>
                 <span className="tl-detail">{act.detail}</span>
@@ -697,3 +697,6 @@ function TopologyCard({ backend, bridge }: { backend?: TopologyInfo | null; brid
     </div>
   );
 }
+
+// memoised: the dashboard state changes at 10 Hz, these panels re-render only when their own props change
+export const DefensePanel = memo(DefensePanelImpl);

@@ -36,6 +36,8 @@ class IDSPipeline:
         model_path: str | Path | None = None,
         firmware_dir: str | Path | None = None,
         crossend: CrossEndMonitor | None = None,
+        firmware_real: bool = False,
+        firmware_recheck_every: int = 5,
     ) -> None:
         self.cfg = cfg
         # optional GCS-side cross-end check (detectors/crossend.py); None = byte-identical behaviour
@@ -48,11 +50,15 @@ class IDSPipeline:
         self.physics = PhysicsDetector(det["physics"])
         self.anomaly = AnomalyDetector(det["anomaly"], model_path)
 
+        # firmware_real: the directory holds REAL files with a trusted manifest (``aegis fw-manifest``); the simulated
+        # fixture is never written into it and a reset never overwrites it
+        self._firmware_real = bool(firmware_real)
         self.verifier: FirmwareVerifier | None = None
         if firmware_dir is not None:
             self.verifier = FirmwareVerifier(firmware_dir)
-            self.verifier.ensure_fixture()
-        self.integrity = IntegrityDetector(self.verifier)
+            if not self._firmware_real:
+                self.verifier.ensure_fixture()
+        self.integrity = IntegrityDetector(self.verifier, recheck_every=firmware_recheck_every)
 
         self.fusion = FusionEngine(det["fusion"])
 
@@ -145,7 +151,7 @@ class IDSPipeline:
         """
         # 1. Restore the simulated firmware to known-good (reflash) BEFORE
         #    the integrity detector re-verifies against it.
-        if self.verifier is not None:
+        if self.verifier is not None and not self._firmware_real:
             self.verifier.restore_fixture()
         # 2. Reset feature extraction + every detector + fusion state.
         self.extractor.reset()

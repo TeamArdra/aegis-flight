@@ -20,7 +20,12 @@ aegis ips-bridge --fc-port /dev/ttyAMA0 --fc-baud 921600 --gcs-port /dev/ttyUSB0
 physical flight controller, so `active-ips` is refused on it: the CLI exits 2, `InlineIpsBridge(...)`/`set_mode` raise
 `ValueError`, and `POST /posture` answers 409 `receive_only_link`. `active-ips` runs only with a `socket://` FC port
 (ArduCopter / PX4 SITL, `--allow-url`), which is where every `active-ips` result below was produced. In `passive` /
-`advisory` the bridge still relays the operator's own uplink to the FC byte-identically, as a radio would.
+`advisory` the bridge still relays the operator's own uplink to the FC byte-identically, as a radio would. The
+real-Pixhawk bench runs of `active-ips` (`docs/REAL_PIXHAWK_TEST.md`) reached the Pixhawk through `px_fc_proxy.py` as a
+`socket://` link: they are bench evidence on a proxied link, not a statement about a flight configuration.
+A proposal for enforcement on a real vehicle link that keeps the postures receive-only (`--vehicle-uplink-filter`: drops forged uplink
+control only, never changes the downlink, never sends a counter-command, fixed for the run) is in `docs/VEHICLE_UPLINK_FILTER.md`. It is
+off by default and not agreed with the team.
 
 Code: `src/aegisflight/mitigation/inline_policy.py` (rules), `src/aegisflight/hal/inline_ips.py` (bridge),
 `mitigation/sanitizer.py` (downlink rewrite). Tests: `tests/unit/test_inline_ips.py` (synthetic frames, fake
@@ -29,7 +34,7 @@ transports, and one run over real transports on loopback sockets).
 ## Postures
 | Posture | Behaviour |
 |---|---|
-| `passive` (default) / `advisory` | every frame is forwarded byte-identically in both directions; nothing is dropped or sent |
+| `passive` (default) / `advisory` | every other frame is forwarded byte-identically in both directions and NOTHING of the bridge's own is ever sent to the flight controller. The link is not transparent on the GCS side: by default (`--gcs-alerts on`, `--mgmt-status-interval 2`, `--crossend-interval 1`) the bridge sends the cross-end summary and the in-band management traffic (STATUSTEXT alerts/actions, status MEMORY_VECT, COMMAND_ACKs, see `docs/MGMT_CHANNEL.md`) to the GCS side, and it withholds every uplink COMMAND_LONG `MAV_CMD_USER_1` (31010) addressed to component 191, signed or not and whether or not a management key is configured. `advisory` differs from `passive` only in posture label: there is no separate advisory STATUSTEXT path |
 | `active-ips` | static uplink rules + controller-driven downlink rules + counter-frames to the FC |
 
 The operator chooses the posture (`--defense-mode`, or `InlineIpsBridge.set_mode`); leaving `active-ips` clears all enforcement.
@@ -75,6 +80,33 @@ With a key, in `active-ips`:
   frames still do not;
 - the bridge's own counter-frames are signed with the same key, and the IDS side verifies signatures too (`sig_invalid`).
 
+Downlink (vehicle -> GCS) on a signed link, in every posture:
+- the vehicle's own telemetry may be unsigned (ArduPilot over USB, FC-side signing off), so the analyser accepts unsigned
+  frames from the vehicle sysids. That exemption ends for a (sysid, compid) once it has sent 20 validly signed frames: an
+  unsigned frame claiming that source is then a forgery. It is reported (`signing_observed.forged_down_*`, an `AEGIS:`
+  STATUSTEXT), never ingested by the detectors, and in `active-ips` dropped before the GCS;
+- if that source sends no valid signed frame for 10 s (signing turned off on the FC, a reboot into an unsigned setup) it
+  no longer counts as signing: its telemetry flows and reaches the detectors again, instead of a self-inflicted blackout,
+  and the lapse is announced (`AEGIS: signing-lapsed ...`, `policy.signing_lapsed`). The cost: a man in the middle who
+  suppresses all of the vehicle's signed frames for 10 s can then inject unsigned telemetry. The lapse is visible to the
+  pilot when it happens. Tests: `tests/unit/test_signed_downlink_telemetry.py`.
+- **Availability trade-off (maintainer decision, fail-closed kept; review X1).** Suspicious downlink traffic can cause
+  the vehicle's legitimate telemetry to be dropped: an unsigned frame claiming a source that signs, or a replayed genuine
+  signed recording that makes an unsigned vehicle look like a signing one (see `docs/THREAT_MODEL.md`), leads the
+  analyser to drop that source's unsigned telemetry, and `active-ips` drops it before the GCS, until the 10 s lapse.
+  The security boundary is deliberately not relaxed to avoid this.
+
+Boot quiet: for the first 20 s after the bridge starts, and only while the vehicle is not armed, GPS_SPOOFING and DOS alerts
+(any severity) and their RATE_LIMIT / SANITIZE_GPS / ANTI_JAM_DR / GPS_RECOVERED actions are detected, logged and acted on
+but not announced to the GCS: a GPS that has not converged raises CRITICAL GPS_SPOOFING at power-on on the bench, and a
+burst of parameter traffic looks like a flood. Every other alert class is always announced, and arming ends the window at
+once. The cost: real GPS spoofing or a flood that starts within 20 s of bridge start while disarmed is announced late (it
+is still logged and acted on). After an in-flight bridge restart the window also applies until the first heartbeat shows
+the vehicle armed (at most 20 s).
+**Maintainer decision (review X4): the 20 s boot-quiet window is retained.** During it the pilot is not warned of GPS
+spoofing or a flood, and full detection coverage is not guaranteed for the first 20 s after the bridge starts (while
+disarmed). Do not rely on AegisFlight warnings in that window.
+
 Not covered: signing must be enabled on the GCS and the flight controller (`SETUP_SIGNING`; PX4 and ArduPilot accept the
 first key from whoever sends it first, so provision on a trusted link). Signed downlink telemetry cannot be rewritten
 (GPS correction does not apply to it). Rules are only checked for control traffic, not for every frame. The verifier matches
@@ -91,7 +123,7 @@ recomputes the CRC; if nothing needs changing it forwards the original bytes.
 - Host micro-benchmark (this PC, no real I/O, 15,000 frames through the policy): p50 ~3 us, p95 ~4 us per frame.
   That is policy cost only. Serial latency, the analyser's decision time (17.7 ms mean with ML on) and anything on a
   companion computer are **not measured**.
-- **Not tested against a real flight controller, a radio or SITL.** Do the first run with the aircraft restrained.
+- **Tested against ArduCopter SITL, over a real LR900 radio pair (2026-10-30), and against a real Pixhawk 6X on a bench with a Pi 5 (2026-10-31; disarmed, propellers removed, USB link).** Not flown. Any first flight should be restrained. See `docs/REAL_PIXHAWK_TEST.md`.
 - **No hardware bypass.** Both ports end in this process; if the companion loses power or the process dies the link is
   cut. A relay or splitter that connects FC and radio directly when the companion is down is required for flight.
 - Without a signing key, trust is by sysid and an attacker who claims sysid 255 passes; use signing and set
@@ -136,6 +168,15 @@ The dashboard does not offer a topology selector. `status()` (and `GET /status`)
 one). `uplink_visible` is true once frames were seen from the GCS side or the GCS link is connected;
 `can_block_frames` needs `active-ips` with both links up; `can_send_counter_commands` needs `active-ips` with the FC
 link up. A single-port `aegis serve` sidecar is reported as kind `A` (cannot block frames). See `docs/API.md`.
+
+## In-band management channel (radio)
+
+On a drone whose only link to the ground is the telemetry radio, the bridge also reports and takes signed controls over that
+radio with standard MAVLink 2 messages: every IDS alert and IPS action as a short `AEGIS:` STATUSTEXT, a 32-byte status
+MEMORY_VECT every 2 s, and signed `MAV_CMD_USER_1` posture commands answered by COMMAND_ACK, all under one byte budget
+(150 B/s default). Flags: `--gcs-alerts`, `--alert-min-interval`, `--mgmt-status-interval`, `--mgmt-max-bytes-per-s`,
+`--mgmt-key-file`, `--mgmt-state`, `--lock-posture-file`, `--audit-log`. `status()` carries a `mgmt` counters block. Full
+description: `docs/MGMT_CHANNEL.md`; wiring and limits: `docs/MINIMAL_BUILD.md`.
 
 ## Status endpoint
 
@@ -352,6 +393,92 @@ explicit choice:
 - `--status-host HOST` (default `127.0.0.1`); a non-loopback host needs `--control-token-file` and prints a warning that the
   status API is reachable from the network.
 - `GET /status` also returns `signing: {configured, unsigned_acknowledged}` and `control: {enabled}`.
+
+Real-radio tests: see [docs/RADIO_TEST.md](RADIO_TEST.md) and [docs/RADIO_TEST_RESULTS.md](RADIO_TEST_RESULTS.md). None of the radio phases passes as written yet. Signing was run once on the real Pixhawk over USB, with the bridge as the enforcement point (see the last section).
+
+## Raspberry Pi 3B+ verification
+
+Measured on 2026-10-30 on a Pi 3B+ (Python 3.13, ML off), with SITL and the hub on the laptop, over `ssh -R` tunnels on a
+direct Ethernet cable. No radio in the path. The Pi was under-voltage and soft-temperature-limited during the soak, so CPU and
+latency are worst-case. Details: `docs/RADIO_TEST_RESULTS.md`, section "Pi 3B+ in-the-loop results".
+
+| Test | Measured result |
+|---|---|
+| Passive forwarding | 23,077 frames forwarded, 0 dropped, p50 0.43 ms |
+| ACTIVE_IPS forwarding | 23,321 of 23,321 downlink forwarded; 20 forged uplink dropped; 0 false rate alerts; p50 0.25 ms, p95 0.42 ms |
+| Signing (active-ips) | signed_ok 16; dropped: unsigned 40, wrong key 10, replay 3; 0 valid commands dropped |
+| Bridge `kill -9`, manual restart | telemetry outage 13.0 s (11 s dead, about 2 s start-up) |
+| Tunnel cut 10 s | one 11.8 s gap; the bridge reconnected without a restart |
+| GPS glitch, 111 m | detected +0.5 s; ALT_HOLD at +3.7 s; pilot LOITER override honoured |
+| GPS drift, about 1 m/s | NOT detected (known limit) |
+| Soak, 1,800 s | 0 send failures, 0 hook errors, 0 analyser errors; RSS 65 MiB flat; CPU mean 55.7 % (throttled Pi) |
+| Flood, 400 msg/s, rogue sysid 66 | detected within about 2 s; sysid quarantined; 3,962 uplink dropped; downlink 34,395 of 34,395 forwarded |
+| Altitude bias +40 m (man in the middle) | TELEMETRY_MANIPULATION CRITICAL; 98 frames sanitised |
+| Battery step, +3 V | NOT detected (known limit) |
+| Frozen attitude at hover | NOT detected (needs speed above 2 m/s; known limit) |
+| One firmware byte flipped | FIRMWARE_INTEGRITY INVALID within about 5 s; pilot takeover required |
+| Real radio, signing (rsg1) | 10 signed accepted; 40 unsigned, 10 wrong key, 3 replay dropped; mode GUIDED; 4,929 of 4,929 downlink forwarded |
+| Real radio, GPS glitch (rgps1) | GPS_SPOOFING HIGH +0.8 s; ALT_HOLD +4.0 s; no AUTO, RTL or LOITER; gps_recovered +22.8 s |
+| Real radio, bridge kill and manual restart (rlong1) | 27.6 s telemetry gap (25 s dead); 24,701 downlink forwarded after restart, 0 dropped; state NOMINAL |
+| Real radio, GPS ladder on a signed link after the clock fix (cid) | ALT_HOLD +4.3 s after the glitch (was rejected in cic: the bridge's counter-command timestamps came from a Pi clock 3 h 9 min behind); descent in ALT_HOLD with no pilot throttle, as documented; 0 heartbeat gaps over 3 s |
+
+These are software results on a Pi with no radio. They do not replace the real-radio phases in `docs/RADIO_TEST.md`, which
+are only partly run. Real-radio note (2026-10-30, MicoAir LR900 pair, ACTIVE_IPS): rad2 (`--allow-unsigned`) gave 9,792 of 9,801 frames sent by the bridge at the ground (9 in flight), 567 of 567 uplink frames to the bridge, and forged LAND and a flood from sysid 66 stopped at the bridge. rsg1 (signing key on the Pi) gave 40 unsigned, 10 wrong-key and 3 replayed frames dropped with the mode unchanged. rgps1 gave a GPS glitch detected at +0.8 s with ALT_HOLD at +4.0 s and no forbidden mode. rlong1 (20 min, ACTIVE_IPS): bridge killed with `kill -9` and restarted by hand gave a 27.6 s telemetry gap; 24,701 downlink forwarded after the restart with 0 dropped; RSS slope 0.063 MiB/min; forged LAND from sysid 66 dropped twice. Not run over the radio: plain passive and advisory postures (the randomised signed campaign ran them with attacks), ground-side management commands, firmware tamper, ground-radio unplug, longer air-radio unplugs (one 16 s air-radio unplug was run, unp1), the 30 to 60 minute soak (20 minutes was run), range, and the stale and future signing timestamps. Details: `docs/RADIO_TEST_RESULTS.md`, real-radio session section.
+
+## Pi deployment notes (Pi 5, bench, 2026-10-31)
+
+Measured on the bench with a real Pixhawk 6X (USB), disarmed, propellers removed, over a MicoAir LR900 pair. Not flown. The procedure is in `docs/REAL_PIXHAWK_TEST.md`. The figures and the judgement against the plan are in `docs/RADIO_TEST_RESULTS.md`, section "Real Pixhawk 6X on a Pi 5, 2026-10-31".
+
+**What changed for a Pi deployment**
+
+* **Hardware.** Raspberry Pi 5 with Raspberry Pi OS Lite (Debian 13) and Python 3.13. The flight controller is on USB (`/dev/ttyACM0`); `--fc-baud` is ignored by USB CDC. The radio is on USB: use the `/dev/serial/by-id/...` path, because two radios of this kind report identical USB IDs. A Raspberry Pi 3B+ dropped off the network when the Pixhawk's USB port was opened (3 of 3), so it was replaced for these runs.
+* **Packages the bridge imports at start-up.** `aegis ips-bridge --help` works without them, because the arguments are parsed before the heavy imports. The bridge itself needs `pymavlink`, `pyserial`, `numpy`, `pyyaml`, `psutil`, `joblib` and `scikit-learn` (with `scipy` and `threadpoolctl`). `pyserial` is the optional `serial` extra in `pyproject.toml`. The core dependencies in `pyproject.toml` are a larger set; they also list pandas, pydantic, fastapi and uvicorn.
+* **Unsigned link, active-ips.** The CLI refuses `active-ips` without a signing key unless `--allow-unsigned` is given. The refusal says that an unsigned link cannot stop a counter-tracking forger. The bench runs used `--allow-unsigned` for this reason. Passive and advisory do not need it.
+* **Power.** Use a supply that meets the Pi 5's rating, and check `vcgencmd get_throttled` before any timing run. `0x0` is the clean reading. The Pi 3B+ supply showed under-voltage on one boot.
+* **Clock.** Signing timestamps come from the wall clock. A signing-enabled flight controller rejects counter-commands stamped from a clock that is far behind. On the bench the Pi clock was 3 h 9 min behind and the counter-commands were rejected; the bridge now stamps them from observed signed traffic (commit `e099e04`, per `git log`). Sync the Pi clock before signing. `--signing-max-age-s` also compares frame timestamps with the local clock, so leave it unset on a Pi without a correct clock.
+* **Start-up.** On the Pi 3B+ bench a user crontab `@reboot` entry started the bridge (phase 8, rbt1). The systemd unit `scripts/radio_test/aegis-bridge.service` is provided but was not installed or tested on any Pi.
+* **Firmware check.** `--firmware-dir` with `--firmware-recheck-s` was run over the radio. The check re-hashes the `*.bin` files in that directory; it does not read the flight controller's own firmware. Its alert headline was late (see `docs/RADIO_TEST_RESULTS.md`).
+
+**Unsigned-link limits, as measured on the bench**
+
+* Blocked in active-ips: forged LAND, force-disarm and LOITER from an unknown sysid; a flood from that sysid (the sender was quarantined); a replayed frame.
+* Not blocked: a counter-tracking forger that uses the pilot's sysid and next sequence number passed in two runs. A forged RTL that used its own counter also passed while the vehicle was on the ground; the in-flight provenance rule cannot be exercised on a disarmed vehicle.
+* Only signing stops the counter-tracking forger. Signing was run once on the real Pixhawk over USB (see the last section); the flight controller's own enforcement was not tested.
+
+**GPS on the bench.** The stationary receiver's own wander produced `GPS_SPOOFING` false alerts. This is a known open issue and is not fixed (`docs/RADIO_TEST_RESULTS.md`).
+
+**Status.** The 1,500 s (25 min) Pi 5 soak completed; its result, and its cost (false GPS alerts moved the vehicle's mode), are in the last section.
+
+## Signing enforcement point and the Pi 5 bench soak (2026-10-31)
+
+**Signing on the real Pixhawk over USB (one run).** Over USB, the bridge is the enforcement point that can be observed. The flight
+controller's own signature checking was **not tested**: it needs a UART or telemetry port wired to the Pi. A test key was sent to the
+Pixhawk and later switched off, and whether it was stored cannot be read back. Unsigned requests on the USB link kept being answered.
+That fits ArduPilot exempting the USB link from signing, but it is an inference and is not verified.
+
+| Event | Unsigned link: active-ips with `--allow-unsigned` | Signed link: active-ips with `--signing-key-file`, no `--allow-unsigned` |
+|---|---|---|
+| Legitimately signed pilot command (set-mode ALT_HOLD) | not applicable | passed; the vehicle changed mode |
+| Forged LAND from sysid 77 | blocked; sender quarantined | blocked (`dropped_unsigned`) |
+| RTL spoofing sysid 255 | passed while the vehicle was on the ground (`suspect_provenance`) | blocked (unsigned; `dropped_unsigned`) |
+| Wrong-key signed LAND spoofing sysid 255 | not run on this link | blocked (`dropped_bad_signature` 1) |
+| LOITER from sysid 77 | blocked | blocked (`dropped_unsigned`) |
+| Replay of a captured ALT_HOLD | blocked (`dropped_replay_unsigned` 1) | blocked (`dropped_replay` 1) |
+| Force-disarm from sysid 77 | blocked | blocked (`dropped_unsigned`) |
+| Flood from an unknown sysid | 443 frames dropped (`dropped_dynamic`) | 5 s flood after quarantine: `dropped_dynamic` 449 for the run |
+| Counter-tracking forger (uses the pilot's next sequence number) | passed in two runs | not in the record |
+
+On the signed link, 0 of 7 forged or replayed events reached the vehicle. The run had 134 alerts and 0 errors, and every blocked event
+was announced at the ground (`AEGIS: blocked` texts). **Limits, stated plainly:** one run and one key; the wrong-key and replay
+cases are one frame each; no signed-timestamp skew test; the flight controller's own enforcement not tested. So this run does not show
+that the vehicle would refuse a forged frame that got past the bridge.
+
+**Pi 5 soak, 1,500 s, active-ips (2026-10-31).** Forwarding was clean: 81,368 frames down and 1,503 up forwarded, 0 dropped either way,
+0 send failures, 0 errors, handling p50 15.6 us, p95 58.5 us, max 5.0 ms, no heartbeat gap over 3 s, RSS about 68 MB and flat, and no
+throttle flags. **The cost:** the bridge raised 207 alerts from the unfixed GPS false-alarm issue and sent 457 counter-commands through
+its autonomous GPS response. The disarmed vehicle was held in ALT_HOLD for the run and was restored to STABILIZE by hand. Until the GPS
+false-alarm issue is fixed, active-ips should not be treated as safe on a flying vehicle. Details: `docs/RADIO_TEST_RESULTS.md`, section
+"Real Pixhawk 6X on a Pi 5, 2026-10-31".
 
 ## Evidence runs: `--run-dir` (raw-log archive)
 

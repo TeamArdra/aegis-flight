@@ -65,5 +65,16 @@ benchmark to score detections — never by the detectors.
   received from any sysid/compid. A forged or other-source frame can therefore establish "seen", and a
   GCS heartbeat can mask loss of the vehicle heartbeat (latent; not observed in any capture).
   Per-source liveness is proposed, not implemented.
+- **Signed-downlink replay is not fully prevented** (live analyser with a signing key and an unsigned vehicle,
+  `sources/mavlink_live.py` `unsigned_allowed_sysids`). The analyser ingests the vehicle's unsigned telemetry until it has
+  seen that source sign 20 valid frames; then unsigned frames from it are dropped until 10 s pass without a valid signed
+  frame. Bad-MAC frames, fake-signed HEARTBEATs and frames from the GCS / radio side of an inline bridge can no longer
+  change that state (PR #39 security fixes). A **replay of genuine signed frames** recorded with the same key in an
+  earlier session, arriving on the vehicle side of the link or after an analyser restart, still marks the vehicle as
+  signing and blinds the detectors to its unsigned telemetry while the replay lasts, plus 10 s. On a keyed
+  `socket://` active-ips bridge, the same replay on the FC side makes the policy drop the vehicle's genuine telemetry
+  before the GCS. Without the exemption, a keyed analyser drops that telemetry permanently. Closing this needs a
+  wall-clock seed or persisted anti-replay state for the parser, and both reject genuine signed streams whose flight
+  controller clock lags or resets. Open; complete replay protection is not claimed.
 - This is a PoC over a *simulated* link; real-RF, multi-vehicle, and
   hardware-in-the-loop coverage are future work (see the technical proposal).
