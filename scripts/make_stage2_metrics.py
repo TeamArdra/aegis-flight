@@ -44,12 +44,13 @@ AP_DRIFT = ["ap_attack_final_drift_001", "ap_attack_final_drift_002", "ap_attack
 # ArduPilot phases: boot, await_gps, arm, takeoff, square, rtl, landed, post_link (decisions after the link span, which
 # the run's own summary.json also excludes). artifacts/ardupilot/BASELINE_SUMMARY.md counts arm as ground.
 BEFORE_ARM = {"boot", "await_gps"}
-CLAIM = "link-level detection (false-alarm reference); not flight-hour or real-world validation"
-CLAIM_BENCH = "link-level detection on a disarmed, props-off bench FC; exposure is wall time, not flight time"
+CLAIM = ("per row, in each source's own words (\"not recorded\" where the source states none); no figure here is "
+         "flight-hour, real-flight or real-world validation")
+BENCH_DOC = "docs/HARDWARE_BENCH_PIXHAWK6X.md"      # the bench write-up: states the claim class of runs without a manifest
 PX4_LIVE = ["artifacts/sitl/live_run_001.jsonl", "artifacts/sitl/live_run_002.jsonl"]
 BENCH = ["artifacts/hardware/serial_ids_com7_001", "artifacts/hardware/serial_ids_com7_002",
          "artifacts/hardware/gps_hw_verify_20261029/live_capture"]
-# BENCH runs whose own manifest states their environment and claim class; the others take CLAIM_BENCH
+# BENCH runs whose own manifest states their environment and claim class; the others take BENCH_DOC's header
 BENCH_MANIFEST = {"artifacts/hardware/gps_hw_verify_20261029/live_capture": "artifacts/hardware/gps_hw_verify_20261029/manifest.json"}
 PX4_P2 = ["artifacts/sitl/p2_final_trial_001", "artifacts/sitl/p2_final_trial_002", "artifacts/sitl/p2_final_trial_003"]
 REPLAY_TLOG = "artifacts/sitl/benign_replay_stage1_default.json"
@@ -84,7 +85,7 @@ def required_inputs() -> list[str]:
             + [f"artifacts/ardupilot/{d}/{f}" for d in AP_BENIGN + AP_DRIFT for f in ("manifest.json", "summary.json")]
             + PX4_LIVE + [px4_summary(p) for p in PX4_LIVE]
             + [f"{d}{ext}" for d in PX4_P2 for ext in (".manifest.json", ".ids_decisions.jsonl")]
-            + [f"{d}/summary.json" for d in BENCH] + list(BENCH_MANIFEST.values())
+            + [f"{d}/summary.json" for d in BENCH] + list(BENCH_MANIFEST.values()) + [BENCH_DOC]
             + [REPLAY_TLOG, ALFA])
 
 
@@ -110,47 +111,73 @@ def _prov(commit=NR, dirty=NR, config=NR, ml=NR, utc=NR, utc_field=NR, note=None
     return out
 
 
+def bench_doc_claim(root: Path) -> str:
+    """The claim class the bench write-up states in its header (``**Claim class: none.**``); "not recorded" if absent."""
+    hit = re.search(r"^\*\*Claim class: ([^*]+?)\.\*\*", (root / BENCH_DOC).read_text(encoding="utf-8"), re.M)
+    return hit.group(1) if hit else NR
+
+
 def provenance(root: Path) -> dict:
-    """What each source's own committed metadata records about the code, config and ML state that produced it.
-    An absent value is "not recorded"; nothing is inferred."""
+    """What each source's own committed metadata records about the code, config, ML state and claim class that produced
+    it. An absent value is "not recorded"; nothing is inferred."""
     def rd(p: str) -> dict:
         return json.loads((root / p).read_text())
 
+    def cc(src: dict, field: str, where: str) -> dict:
+        return ({"claim_class": src[field], "claim_class_field": f"{where} {field}"} if field in src
+                else {"claim_class": NR, "claim_class_field": f"{where}: no claim class"})
+
     j = rd(f"{EXT}/results.json")["config"]
-    out = {EXT: _prov(ml=j["model_used"], note=f"results.json records python {j.get('python', NR)} and the grid only")}
+    rj = rd(f"{EXT}/results.json")
+    j = rj["config"]
+    out = {EXT: _prov(ml=j["model_used"], note=f"results.json records python {j.get('python', NR)} and the grid only",
+                      **cc(rj, "claim_class", f"{EXT}/results.json"))}
     for d in AP_BENIGN + AP_DRIFT:
         pv, sm = rd(f"artifacts/ardupilot/{d}/manifest.json")["provenance"], rd(f"artifacts/ardupilot/{d}/summary.json")
+        # benign rows come from decisions.jsonl (described by summary.json); drift rows from evaluation.json
+        cs = (cc(sm, "claim_class", f"artifacts/ardupilot/{d}/summary.json") if d in AP_BENIGN else
+              cc(rd(f"artifacts/ardupilot/{d}/evaluation.json"), "claim_class", f"artifacts/ardupilot/{d}/evaluation.json"))
         out[f"artifacts/ardupilot/{d}"] = _prov(pv["aegisflight_commit"], pv["working_tree_dirty"],
                                                 f"{sm['config_dir']}; configs_sha256 {pv['configs_sha256']}",
                                                 sm["ml_enabled"], pv["collected_utc"], "provenance.collected_utc",
-                                                stream_config=sm["stream_config"])
+                                                stream_config=sm["stream_config"], **cs)
     for p in PX4_LIVE:
         sm = rd(px4_summary(p))
         pv = sm["provenance"]
         out[p] = _prov(pv["aegisflight_commit"], pv["working_tree_dirty"], f"configs_sha256 {pv['configs_sha256']}",
-                       sm["ml_enabled"], sm["started_utc"], "started_utc", note=pv.get("note"))
+                       sm["ml_enabled"], sm["started_utc"], "started_utc", note=pv.get("note"),
+                       **cc(sm, "claim_class", px4_summary(p)))
     for d in PX4_P2:
         man = rd(f"{d}.manifest.json")
         pv, par = man["full_provenance"], man["parameters"]
         out[f"{d}.manifest.json"] = _prov(pv["aegisflight_commit"], pv["working_tree_dirty"],
                                           f"{par['detector_profile']}; configs_sha256 {pv['configs_sha256']}",
                                           f"model_choice {par['model_choice']}", pv["collected_utc"],
-                                          "full_provenance.collected_utc")
+                                          "full_provenance.collected_utc", **cc(man, "claim_class", f"{d}.manifest.json"))
     for d in BENCH:
         sm = rd(f"{d}/summary.json")
         if d in BENCH_MANIFEST:
-            pv = rd(BENCH_MANIFEST[d])["provenance"]
+            man = rd(BENCH_MANIFEST[d])
+            pv = man["provenance"]
             out[d] = _prov(pv["git_head"], pv["working_tree_at_capture"],
                            f"{sm['config_dir']}; configs/detector.yaml sha256 {pv['config_detector_yaml_sha256']}",
-                           sm["ml_enabled"], sm["started_utc"], "started_utc")
+                           sm["ml_enabled"], sm["started_utc"], "started_utc",
+                           **cc(man, "claim_class", BENCH_MANIFEST[d]))
         else:
             out[d] = _prov(config=sm["config_dir"], ml=sm["ml_enabled"], utc=sm["started_utc"], utc_field="started_utc",
-                           note="commit not in summary.json; see the BENCH row note" if d in BENCH_NOTES else None)
+                           note="commit not in summary.json; see the BENCH row note" if d in BENCH_NOTES else None,
+                           claim_class=bench_doc_claim(root),
+                           claim_class_field=f"{BENCH_DOC} header (summary.json has no claim class)")
     r = rd(REPLAY_TLOG)
-    out[REPLAY_TLOG] = _prov(ml=r["ml_enabled"], note=f"model {r['model']}")
+    out[REPLAY_TLOG] = _prov(ml=r["ml_enabled"], note=f"model {r['model']}", **cc(r, "claim_class", REPLAY_TLOG))
     a = rd(ALFA)
-    out[ALFA] = _prov(note=f"experiment: {a['experiment']}; python {a.get('python', NR)}")
+    out[ALFA] = _prov(note=f"experiment: {a['experiment']}; python {a.get('python', NR)}", **cc(a, "claim_class", ALFA))
     return out
+
+
+def claim_of(prov: dict, keys: list[str]) -> str:
+    """The claim class of the sources behind a row (a pool of runs that disagree lists each wording)."""
+    return " | ".join(dict.fromkeys(prov[k]["claim_class"] for k in keys))
 
 
 def snapshot(prov: dict) -> dict:
@@ -160,9 +187,9 @@ def snapshot(prov: dict) -> dict:
             "sources_without_date": [k for k, v in prov.items() if v["utc"] == NR]}
 
 
-def rate_block(events: int, decisions: int, threats: int, src: str, note: str = "") -> dict:
+def rate_block(events: int, decisions: int, threats: int, src: str, note: str = "", claim: str = NR) -> dict:
     exp = decisions * PERIOD_S
-    out = {"source": src, "alert_events": events, "decisions": decisions, "exposure_h": r6(exp / 3600),
+    out = {"source": src, "claim_class": claim, "alert_events": events, "decisions": decisions, "exposure_h": r6(exp / 3600),
            "false_alerts_per_h": r6(m.rate_per_hour(events, exp)) if exp else None,
            "false_alerts_per_h_upper95": r6(m.rate_upper_per_hour(events, exp)) if exp else None,
            "threat_decisions": threats, "decision_fpr": r6(threats / decisions) if decisions else None}
@@ -186,18 +213,18 @@ def load_sim(root: Path):
     return rows, sess
 
 
-def sim_false_alerts(rows, sess) -> dict:
+def sim_false_alerts(rows, sess, claim: str = NR) -> dict:
     src = f"{EXT}/decisions.csv.gz"
     out: dict = {}
     for kind in ("benign", "link_fifo_benign", "link_reorder_benign"):
         rs = [r for i, s in sess.items() if s["kind"] == kind for r in rows[i] if r["warmup"] == "0"]
-        out[kind] = rate_block(sum(r["alert"] for r in rs), len(rs), sum(r["threat"] == "1" for r in rs), src)
+        out[kind] = rate_block(sum(r["alert"] for r in rs), len(rs), sum(r["threat"] == "1" for r in rs), src, claim=claim)
     for kind in ("single", "combo"):
         for g, grace in (("grace5", True), ("grace0", False)):
             rs = [r for i, s in sess.items() if s["kind"] == kind for r in rows[i]
                   if r["warmup"] == "0" and r["true"] == "BENIGN" and not (grace and r["in_grace"] == "1")]
             out[f"{kind}_attack_sessions_benign_decisions_{g}"] = rate_block(
-                sum(r["alert"] for r in rs), len(rs), sum(r["threat"] == "1" for r in rs), src)
+                sum(r["alert"] for r in rs), len(rs), sum(r["threat"] == "1" for r in rs), src, claim=claim)
     return out
 
 
@@ -214,7 +241,7 @@ def confusion_crosscheck(fa: dict, root: Path) -> dict:
     return out
 
 
-def sim_sessions(rows, sess) -> dict:
+def sim_sessions(rows, sess, claim: str = NR) -> dict:
     src = f"{EXT}/sessions.csv"
     det = defaultdict(list)
     ttd = defaultdict(list)
@@ -224,7 +251,7 @@ def sim_sessions(rows, sess) -> dict:
             det[cls].append(s["detected"] == "True")
             if s["ttd_s"]:
                 ttd[cls].append(float(s["ttd_s"]))
-    out: dict = {"latency_detection_rule": RULE_SIM, "detection": {}, "benign_session_fpr": {}}
+    out: dict = {"claim_class": claim, "latency_detection_rule": RULE_SIM, "detection": {}, "benign_session_fpr": {}}
     for cls, d in sorted(det.items()):
         k, n = sum(d), len(d)
         lo, hi = m.wilson(k, n)
@@ -256,18 +283,20 @@ def ttd_crosscheck(rows, sess) -> dict:
     return {"sessions_compared": n, "max_abs_diff_s": r6(worst)}
 
 
-def drift_latency(root: Path) -> dict:
+def drift_latency(root: Path, prov: dict) -> dict:
     ap = []
     for d in AP_DRIFT:
         p = f"artifacts/ardupilot/{d}/evaluation.json"
         e = json.loads((root / p).read_text())
         w, fa = e["window_decision_time"], e["observed_arm"]["first_alert"]
-        ap.append({"source": p, "from_onset_s": r6(fa["t"] - w["onset_t_s"]) if fa else None,
+        ap.append({"source": p, "claim_class": prov[f"artifacts/ardupilot/{d}"]["claim_class"],
+                   "from_onset_s": r6(fa["t"] - w["onset_t_s"]) if fa else None,
                    "from_release_s": r6(fa["t"] - w["end_t_s"]) if fa else None})
     px = []
     for d in PX4_P2:
         t = load_trial(root / f"{d}.manifest.json")
-        px.append({"source": f"{d}.manifest.json", "from_onset_s": t["time_to_detection_from_onset_s"],
+        px.append({"source": f"{d}.manifest.json", "claim_class": prov[f"{d}.manifest.json"]["claim_class"],
+                   "from_onset_s": t["time_to_detection_from_onset_s"],
                    "from_release_s": t["time_to_detection_from_end_s"],
                    "note": "detection counted only after the attack window ends (preregistered P2 rule)"})
 
@@ -288,11 +317,12 @@ def sitl_benign(root: Path, prov: dict) -> dict:
         rs = [json.loads(ln) for ln in (root / p).read_text().splitlines() if ln]
         rs = [r for r in rs if r.get("phase") != "post_link"]
         fl = [r for r in rs if r.get("phase") not in BEFORE_ARM]
+        cl = prov[f"artifacts/ardupilot/{d}"]["claim_class"]
         out[d] = {"in_link_span": rate_block(sum(r["alert"] for r in rs), len(rs), sum(r["threat"] for r in rs), p,
-                                             "every phase inside the link span (post_link excluded, as in summary.json)"),
+                                             "every phase inside the link span (post_link excluded, as in summary.json)", cl),
                   "from_arm_phase": rate_block(sum(r["alert"] for r in fl), len(fl), sum(r["threat"] for r in fl), p,
                                                "arm, takeoff, square, rtl, landed: excludes boot / await_gps and post_link; "
-                                               "includes the on-ground arm phase, so it is not an in-flight figure")}
+                                               "includes the on-ground arm phase, so it is not an in-flight figure", cl)}
     def pool(runs: list[str], note: str = "") -> dict:
         res: dict = {"runs": runs,
                      "stream_configs": sorted({prov[f"artifacts/ardupilot/{d}"]["stream_config"] for d in runs})}
@@ -301,7 +331,8 @@ def sitl_benign(root: Path, prov: dict) -> dict:
             n = sum(out[d][part]["decisions"] for d in runs)
             th = sum(out[d][part]["threat_decisions"] for d in runs)
             res[part] = rate_block(ev, n, th, "artifacts/ardupilot/{" + ",".join(runs) + "}/decisions.jsonl",
-                                   note or out[runs[0]][part]["note"])
+                                   note or out[runs[0]][part]["note"],
+                                   claim_of(prov, [f"artifacts/ardupilot/{d}" for d in runs]))
         return res
 
     groups: dict = defaultdict(list)             # pool only like with like: same ML state and same recorded commit
@@ -315,7 +346,7 @@ def sitl_benign(root: Path, prov: dict) -> dict:
     return {"runs": out, "pooled": tot}
 
 
-def px4_live(root: Path) -> dict:
+def px4_live(root: Path, prov: dict) -> dict:
     """PX4 live-UDP benign runs log (t, threat, type) per decision; alert events are re-derived with the engine rule."""
     out = {}
     for p in PX4_LIVE:
@@ -323,23 +354,21 @@ def px4_live(root: Path) -> dict:
         ev = m.alert_events([(float(r["t"]), bool(r["threat"]), r["type"]) for r in rs])
         out[Path(p).stem] = rate_block(sum(ev), len(rs), sum(bool(r["threat"]) for r in rs), p,
                                        "alert events re-derived (severity not logged; shipped config: threat implies "
-                                       ">= SUSPICIOUS); run predates per-vehicle calibration")
+                                       ">= SUSPICIOUS); run predates per-vehicle calibration", prov[p]["claim_class"])
     return out
 
 
-def bench(root: Path) -> dict:
+def bench(root: Path, prov: dict | None = None) -> dict:
     """Serial-monitor runs: ``alert_decisions`` in summary.json is the engine's own ``is_alert`` count
     (``scripts/hardware/run_serial_ids.py``), i.e. alert events; exposure is the run's wall time."""
+    prov = prov if prov is not None else provenance(root)
     out = {}
     for d in BENCH:
         p = f"{d}/summary.json"
         s = json.loads((root / p).read_text())
         exp = float(s["wall_s"])
-        if d in BENCH_MANIFEST:
-            man = json.loads((root / BENCH_MANIFEST[d]).read_text())
-            env, claim, cs = man["environment"]["live"], man["claim_class"], BENCH_MANIFEST[d]
-        else:
-            env, claim, cs = "BENCH", CLAIM_BENCH, "docs/HARDWARE_BENCH_PIXHAWK6X.md"
+        env = json.loads((root / BENCH_MANIFEST[d]).read_text())["environment"]["live"] if d in BENCH_MANIFEST else "BENCH"
+        claim, cs = prov[d]["claim_class"], prov[d]["claim_class_field"]
         out[d.removeprefix("artifacts/hardware/")] = {
             "source": p, "alert_events": s["alert_decisions"], "exposure_h": r6(exp / 3600),
             "false_alerts_per_h": r6(m.rate_per_hour(s["alert_decisions"], exp)),
@@ -353,21 +382,22 @@ def bench(root: Path) -> dict:
     return out
 
 
-def replay(root: Path) -> dict:
+def replay(root: Path, prov: dict) -> dict:
     p = REPLAY_TLOG
     j = json.loads((root / p).read_text())
-    runs = [{"source": p, "flight": r["flight"], "decisions": r["decisions"], "threat_decisions": r["false_alarm_decisions"],
-             "decision_fpr": r6(r["false_alarm_rate"])} for r in j["runs"]]
+    runs = [{"source": p, "claim_class": prov[p]["claim_class"], "flight": r["flight"], "decisions": r["decisions"],
+             "threat_decisions": r["false_alarm_decisions"], "decision_fpr": r6(r["false_alarm_rate"])} for r in j["runs"]]
     pa = ALFA
     a = json.loads((root / pa).read_text())
     return {"benign_tlog_replay": runs,
-            "alfa": {"source": pa, "decision_hours": a["total_decision_hours"], "note": "decision-level only; see file"}}
+            "alfa": {"source": pa, "claim_class": prov[pa]["claim_class"], "decision_hours": a["total_decision_hours"],
+                     "note": "decision-level only; see file"}}
 
 
-def classification(root: Path) -> dict:
+def classification(root: Path, claim: str = NR) -> dict:
     p = f"{EXT}/results.json"
     j = json.loads((root / p).read_text())
-    out = {}
+    out: dict = {"claim_class": claim}
     for g in ("grace5", "grace0"):
         cm = j[f"confusion_{g}"]
         prf = m.per_class_prf(cm)
@@ -401,23 +431,24 @@ MISSING = [
 def build(root: Path) -> dict:
     check_inputs(root)
     rows, sess = load_sim(root)
-    sim = sim_false_alerts(rows, sess)
     prov = provenance(root)
+    sim = sim_false_alerts(rows, sess, prov[EXT]["claim_class"])
     return {
         "schema": "aegisflight.stage2_metrics/1",
         "definitions": "src/aegisflight/metrics/stage2.py; docs/BENCHMARKING.md#stage-2-metrics",
         "decision_period_s": PERIOD_S,
         "percentile_method": PERCENTILES,
-        "claim_class": CLAIM, "claim_class_bench": CLAIM_BENCH,
+        "claim_class": CLAIM,
         "snapshot": snapshot(prov),
         "provenance": prov,
-        "false_alerts_per_hour": {"SIM": sim, "SITL_ardupilot": sitl_benign(root, prov), "SITL_px4_live": px4_live(root),
-                                  "REPLAY": replay(root), "BENCH": bench(root)},
-        "sessions": sim_sessions(rows, sess),
+        "false_alerts_per_hour": {"SIM": sim, "SITL_ardupilot": sitl_benign(root, prov),
+                                  "SITL_px4_live": px4_live(root, prov), "REPLAY": replay(root, prov),
+                                  "BENCH": bench(root, prov)},
+        "sessions": sim_sessions(rows, sess, prov[EXT]["claim_class"]),
         "confusion_crosscheck_vs_results_json": confusion_crosscheck(sim, root),
         "latency_crosscheck_vs_sessions_csv": ttd_crosscheck(rows, sess),
-        "drift_latency": drift_latency(root),
-        "classification": classification(root),
+        "drift_latency": drift_latency(root, prov),
+        "classification": classification(root, prov[EXT]["claim_class"]),
         "missing_inputs": MISSING,
     }
 
@@ -442,22 +473,25 @@ def lat_txt(d: dict) -> str:
 def to_md(r: dict) -> str:
     sn = r["snapshot"]
     L = ["# Stage 2 metrics", "", f"Definitions: `{r['definitions']}`. Decision period {r['decision_period_s']} s.", "",
-         f"**Claim class (every SIM / SITL / REPLAY figure): {r['claim_class']}.** "
-         "BENCH: claim class and environment per run, listed under the table. No figure here is real-flight evidence.", "",
+         f"**Claim class: {r['claim_class']}.** Each row's claim class is its source's own wording (section 0 and the "
+         "`claim class` column).", "",
          f"**Dated snapshot.** {sn['note']} Recorded source dates: {sn['recorded_dates'][0]} to {sn['recorded_dates'][1]}. "
          "No recorded commit: " + ", ".join(f"`{k}`" for k in sn["sources_without_commit"]) + ". "
          "No recorded date: " + ", ".join(f"`{k}`" for k in sn["sources_without_date"]) + ".", "",
          "## 0. Provenance per source (as each source's own metadata records it; \"not recorded\" = absent)", "",
-         "| source | commit | dirty tree | config | ML | UTC (field) | note |", "|---|---|---|---|---|---|---|"]
-    L += [f"| `{k}` | {short(v['commit'])} | {v['working_tree_dirty']} | {short(v['config'])} | {v['ml']} | "
-          f"{v['utc']} ({v['utc_field']}) | {v.get('note', '')} |" for k, v in r["provenance"].items()]
-    L += ["", "## 1. False alerts per hour (alert events after cooldown, benign ground truth)", "",
-         "| source | set | events | exposure h | per h | 95% upper (one-sided Poisson) | decision FPR | artifact |",
+         "| source | claim class (source's words; field) | commit | dirty tree | config | ML | UTC (field) | note |",
          "|---|---|---|---|---|---|---|---|"]
+    L += [f"| `{k}` | {v['claim_class']} ({v['claim_class_field']}) | {short(v['commit'])} | {v['working_tree_dirty']} | "
+          f"{short(v['config'])} | {v['ml']} | {v['utc']} ({v['utc_field']}) | {v.get('note', '')} |"
+          for k, v in r["provenance"].items()]
+    L += ["", "## 1. False alerts per hour (alert events after cooldown, benign ground truth)", "",
+         "| source | set | claim class | events | exposure h | per h | 95% upper (one-sided Poisson) | decision FPR | artifact |",
+         "|---|---|---|---|---|---|---|---|---|"]
 
     def row(src, name, b):
-        L.append(f"| {src} | {name} | {b['alert_events']} | {fmt(b['exposure_h'])} | {fmt(b['false_alerts_per_h'])} | "
-                 f"{fmt(b['false_alerts_per_h_upper95'])} | {fmt(b['decision_fpr'])} | `{b['source']}` |")
+        L.append(f"| {src} | {name} | {b['claim_class']} | {b['alert_events']} | {fmt(b['exposure_h'])} | "
+                 f"{fmt(b['false_alerts_per_h'])} | {fmt(b['false_alerts_per_h_upper95'])} | {fmt(b['decision_fpr'])} | "
+                 f"`{b['source']}` |")
     fa = r["false_alerts_per_hour"]
     for k, b in fa["SIM"].items():
         row("SIM", k, b)
@@ -482,8 +516,8 @@ def to_md(r: dict) -> str:
     L += [f"- {k}: {b['environment']}; {b['claim_class']} (`{b['claim_class_source']}`). Events: {b['alert_events_from']}."
           + (f" Note: {b['note']}." if b.get("note") else "") for k, b in fa["BENCH"].items()]
     L += ["", "REPLAY (decision level only, no alert flags logged):", ""]
-    L += [f"- {x['flight']}: decision FPR {fmt(x['decision_fpr'])} ({x['threat_decisions']}/{x['decisions']}), `{x['source']}`"
-          for x in fa["REPLAY"]["benign_tlog_replay"]]
+    L += [f"- {x['flight']}: decision FPR {fmt(x['decision_fpr'])} ({x['threat_decisions']}/{x['decisions']}), claim class "
+          f"{x['claim_class']}, `{x['source']}`" for x in fa["REPLAY"]["benign_tlog_replay"]]
     L += ["", "## 2. Grace (with vs without)", "",
           "Grace excludes benign decisions in the 5 s after an attack stops: the recovery tail, where the detector state "
           "(residual windows, rate counters) still reflects the attack, so a threat there is late attribution of a real "
@@ -497,7 +531,8 @@ def to_md(r: dict) -> str:
     L += ["", f"Recomputed benign row vs `{EXT}/results.json` (benign + single sessions): "
           f"{r['confusion_crosscheck_vs_results_json']}."]
     L += ["", "## 3. Session-level detection (two-sided Wilson 95%) and onset latency", "",
-          f"Percentiles: {r['percentile_method']}. Detection rule: {r['sessions']['latency_detection_rule']}.", "",
+          f"Claim class (`{EXT}`): {r['sessions']['claim_class']}. Percentiles: {r['percentile_method']}. "
+          f"Detection rule: {r['sessions']['latency_detection_rule']}.", "",
           "| class | detected/n | rate | two-sided 95% Wilson CI | latency n | median s (nearest rank) | p95 s (nearest rank) |",
           "|---|---|---|---|---|---|---|"]
     for c, d in r["sessions"]["detection"].items():
@@ -513,9 +548,11 @@ def to_md(r: dict) -> str:
     for env, d in r["drift_latency"].items():
         L.append(f"- {env}: from onset {lat_txt(d['from_onset'])}; from release {lat_txt(d['from_release'])}. "
                  f"Detection rule: {d['detection_rule']}.")
-        L += [f"  - `{t['source']}`: onset {fmt(t['from_onset_s'])} s, release {fmt(t['from_release_s'])} s" for t in d["trials"]]
-    L += ["", "## 5. Per-class precision / recall / F1 (extended benchmark)", ""]
-    for g, c in r["classification"].items():
+        L += [f"  - `{t['source']}`: onset {fmt(t['from_onset_s'])} s, release {fmt(t['from_release_s'])} s; claim class "
+              f"{t['claim_class']}" for t in d["trials"]]
+    L += ["", "## 5. Per-class precision / recall / F1 (extended benchmark)", "",
+          f"Claim class (`{EXT}`): {r['classification']['claim_class']}.", ""]
+    for g, c in ((g, c) for g, c in r["classification"].items() if g != "claim_class"):
         L += [f"### {g} (`{c['source']}`)", "", "| class | P | R | F1 | support |", "|---|---|---|---|---|"]
         L += [f"| {k} | {fmt(v['precision'])} | {fmt(v['recall'])} | {fmt(v['f1'])} | {v['support']} |" for k, v in c["per_class"].items()]
         labels = list(c["confusion"])
@@ -529,7 +566,7 @@ def to_md(r: dict) -> str:
     L += [f"- {g}: binary accuracy (attack = positive, as `docs/BENCHMARKING.md` defines accuracy) {fmt(c['accuracy_binary'])} "
           f"(equals `{EXT}/results.json` `binary_{g}.accuracy`: {c['accuracy_binary_matches_results_json']}); "
           f"multiclass (attribution) accuracy {fmt(c['accuracy_multiclass'])} (`{c['source']}`)"
-          for g, c in r["classification"].items()]
+          for g, c in r["classification"].items() if g != "claim_class"]
     L += ["", "## Missing inputs", ""] + [f"- {x['source']}: missing {x['missing']} -> {x['effect']}" for x in r["missing_inputs"]]
     return "\n".join(L) + "\n"
 

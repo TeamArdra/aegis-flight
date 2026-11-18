@@ -198,7 +198,7 @@ def test_make_stage2_metrics_reconciles_with_committed_results(tmp_path):
     assert all(v["match"] for v in r["confusion_crosscheck_vs_results_json"].values())
     assert r["latency_crosscheck_vs_sessions_csv"]["max_abs_diff_s"] == 0.0
     assert r["false_alerts_per_hour"]["SIM"]["benign"]["decision_fpr"] == pytest.approx(4 / 6900, abs=1e-6)
-    assert r["claim_class"].startswith("link-level") and "claim class" in (tmp_path / "metrics.md").read_text().lower()
+    assert "each source's own words" in r["claim_class"] and "claim class" in (tmp_path / "metrics.md").read_text().lower()
     assert set(r["false_alerts_per_hour"]["SITL_px4_live"]) == {"live_run_001", "live_run_002"}
     assert r["missing_inputs"] and (tmp_path / "metrics.md").read_text().rstrip().endswith("none is claimed")
 
@@ -414,3 +414,59 @@ def test_session_51_real_engine_alert_matches_the_re_derivation(monkeypatch):
     engine = {round(a.t, 2): bool(a.is_alert) for a in res.assessments}
     assert [engine[round(r.t, 2)] for r in res.records] == [r["alert"] for r in rows[51]]
     assert engine[64.6] is True and engine[64.8] is False
+
+
+def test_every_row_claim_class_is_its_sources_own_wording():
+    """Re-verification item 1: rows were labelled "link-level detection" while their sources say "none" (benign SITL,
+    REPLAY, and the bench write-up for BENCH 001/002). Each row's claim class must be read from its own source, verbatim,
+    and "not recorded" where the source states none."""
+    import json
+    import re
+
+    root, g = _generator()
+    r = g.build(root)
+    rd = lambda p: json.loads((root / p).read_text(encoding="utf-8"))  # noqa: E731
+
+    def has_claim(o) -> bool:
+        return any("claim" in k.lower() or has_claim(v) for k, v in o.items()) if isinstance(o, dict) else (
+            any(has_claim(v) for v in o) if isinstance(o, list) else False)
+
+    fa = r["false_alerts_per_hour"]
+    for d, run in fa["SITL_ardupilot"]["runs"].items():
+        want = rd(f"artifacts/ardupilot/{d}/summary.json")["claim_class"]
+        assert run["in_link_span"]["claim_class"] == run["from_arm_phase"]["claim_class"] == want
+        assert want.startswith("none")
+    for pool in fa["SITL_ardupilot"]["pooled"].values():
+        assert pool["in_link_span"]["claim_class"] == " | ".join(dict.fromkeys(
+            rd(f"artifacts/ardupilot/{d}/summary.json")["claim_class"] for d in pool["runs"]))
+    for t in r["drift_latency"]["sitl_ardupilot"]["trials"]:
+        assert t["claim_class"] == rd(t["source"])["claim_class"]                         # evaluation.json
+    for t in r["drift_latency"]["sitl_px4"]["trials"]:
+        assert t["claim_class"] == rd(t["source"])["claim_class"]                         # P2 manifest
+    for x in fa["REPLAY"]["benign_tlog_replay"]:
+        assert x["claim_class"] == rd(g.REPLAY_TLOG)["claim_class"]
+    doc = (root / g.BENCH_DOC).read_text(encoding="utf-8")
+    assert re.search(r"^\*\*Claim class: none\.\*\*", doc, re.M)                     # the bench write-up's header
+    for d in g.BENCH:
+        row = fa["BENCH"][d.removeprefix("artifacts/hardware/")]
+        want = rd(g.BENCH_MANIFEST[d])["claim_class"] if d in g.BENCH_MANIFEST else "none"
+        assert row["claim_class"] == want
+    # sources that state no claim class are labelled "not recorded", never given one
+    for src, rows in ((f"{g.EXT}/results.json", list(fa["SIM"].values()) + [r["sessions"], r["classification"]]),
+                      (g.ALFA, [fa["REPLAY"]["alfa"]])):
+        assert not has_claim(rd(src)) and all(x["claim_class"] == g.NR for x in rows)
+    for p in g.PX4_LIVE:
+        assert not has_claim(rd(g.px4_summary(p))) and fa["SITL_px4_live"][p.split("/")[-1].removesuffix(".jsonl")]["claim_class"] == g.NR
+    # "link-level" appears only where the source itself says so (the drift latency rows)
+    def claims(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                yield from ([(k, v)] if k == "claim_class" else claims(v))
+        elif isinstance(o, list):
+            for v in o:
+                yield from claims(v)
+    link = [v for k, v in claims({k: v for k, v in r.items() if k not in ("drift_latency", "provenance")})
+            if "link-level" in str(v)]
+    assert link == []
+    drift_sources = {f"artifacts/ardupilot/{d}" for d in g.AP_DRIFT} | {f"{d}.manifest.json" for d in g.PX4_P2}
+    assert {k for k, v in r["provenance"].items() if "link-level" in v["claim_class"]} == drift_sources
