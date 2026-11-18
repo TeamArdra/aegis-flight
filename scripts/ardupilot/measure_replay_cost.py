@@ -33,7 +33,13 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1] / "scripts" / "sitl"))  # provenance helper
 
-from provenance import add_provenance_args, begin_run, finish_run, require_clean_tree, stamp_stem  # noqa: E402
+from provenance import (  # noqa: E402
+    add_provenance_args,
+    begin_run,
+    finish_run,
+    require_clean_tree,
+    stamp_stem,
+)
 from replay_ap_tlog import replay  # noqa: E402
 
 from aegisflight.config import load_config  # noqa: E402

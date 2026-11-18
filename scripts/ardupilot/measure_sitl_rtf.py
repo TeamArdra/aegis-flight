@@ -21,7 +21,13 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1] / "scripts" / "sitl"))
 
-from provenance import add_provenance_args, begin_run, finish_run, require_clean_tree, stamp_stem  # noqa: E402
+from provenance import (  # noqa: E402
+    add_provenance_args,
+    begin_run,
+    finish_run,
+    require_clean_tree,
+    stamp_stem,
+)
 from tlog_stats import iter_raw_frames  # noqa: E402
 
 

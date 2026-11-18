@@ -7,7 +7,12 @@ import json
 from pathlib import Path
 
 import pytest
-from test_inline_ips import FakeLink, command_long, gpi, heartbeat  # noqa: E402 - sibling test module
+from test_inline_ips import (  # noqa: E402 - sibling test module
+    FakeLink,
+    command_long,
+    gpi,
+    heartbeat,
+)
 
 from aegisflight import run_provenance
 from aegisflight.hal.inline_ips import InlineIpsBridge
