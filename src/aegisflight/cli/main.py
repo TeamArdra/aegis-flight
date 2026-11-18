@@ -444,7 +444,11 @@ def build_parser() -> argparse.ArgumentParser:
     ib.add_argument("--gcs-baud", type=int, default=57600)
     ib.add_argument("--allow-url", action="store_true", help="allow socket:// virtual ports (tests, SITL)")
     ib.add_argument("--defense-mode", choices=["passive", "advisory", "active-ips"], default="passive",
-                    help="passive/advisory forward every frame byte-identically; active-ips filters and counter-acts "
+                    help="passive/advisory never drop or alter a forwarded frame (except the uplink control frames "
+                         "dropped by --vehicle-uplink-filter) and originate nothing toward the FC; by default the bridge "
+                         "still sends AEGIS alerts/status and the cross-end summary to the GCS side and consumes "
+                         "MAV_CMD_USER_1 COMMAND_LONGs addressed to component 191 (see --gcs-alerts, "
+                         "--mgmt-status-interval, --crossend-interval); active-ips filters and counter-acts "
                          "(refused when --fc-port is a serial device: a physical FC is receive-only)")
     ib.add_argument("--vehicle-uplink-filter", action="store_true",
                     help="drop forged / unsigned / replayed / wrong-key control frames from the GCS side before the flight controller, usable on a serial vehicle link (the downlink is never changed and no counter-command is ever sent). Needs --signing-key-file; not combinable with active-ips; fixed for the run (no status-API or radio switch). See docs/VEHICLE_UPLINK_FILTER.md")

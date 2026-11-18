@@ -13,7 +13,11 @@ never fed to the tap/detectors, and the uplink control frames are consumed by th
 Everything is subject to ONE byte budget (:class:`ByteBudget`), see ``docs/MGMT_CHANNEL.md``.
 
 Honest limits: it is a status + alert + posture channel. It cannot start/stop processes, change configuration,
-provision or rotate keys, or read logs. Nothing here has been measured on a real radio or companion computer.
+provision or rotate keys, or read logs. On real hardware it has only been exercised on the bench (Raspberry Pi 3B+ and Pi 5
+companions, the MicoAir LR900 radio pair, a disarmed Pixhawk 6X with the propellers removed; docs/RADIO_TEST_RESULTS.md,
+unverified session records). No real vehicle has flown with it: the airborne runs in that file use ArduCopter SITL. The uplink
+MAV_CMD_USER_1 COMMAND_LONGs to component 191 (MAV_COMP_ID_ONBOARD_COMPUTER) are consumed, for any target system, whether or
+not they are signed or a management key is set.
 """
 
 from __future__ import annotations
