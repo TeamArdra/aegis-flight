@@ -46,6 +46,10 @@ protocol:
   command_burst_window_s: 2.0
   command_burst_max: 4
   require_signing: false            # if true, unsigned msgs are flagged
+  signing_settle_s: 2.0             # bootstrap settle window per unverified stream (s)
+  unsigned_allowed:                 # per-source unsigned exemptions when require_signing is true
+    - sysid: 51
+      msg: RADIO_STATUS
   min_gnss_fix_type: 3              # GPS_RAW_INT fix_type below this = no 3D fix
   min_gnss_satellites: 5            # fewer satellites than this = degraded fix
   gnss_loss_ticks: 5                # consecutive decisions (1 s @5 Hz) before firing

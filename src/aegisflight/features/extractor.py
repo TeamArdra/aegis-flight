@@ -299,6 +299,11 @@ class FeatureExtractor:
         # command log
         self._commands: deque[CommandEvent] = deque(maxlen=200)
         self._sig_invalid_window = 0  # P4: reset each decision, see note_sig_invalid()
+        self._unsigned_window: dict[tuple[int, str], int] = {}
+        self._source_msgs_window: dict[tuple[int, int], set[str]] = {}
+        self._sig_streams_tracked = False
+        self._sig_invalid_streams_window: dict[tuple[int, int, int], int] = {}
+        self._sig_verified_streams_window: set[tuple[int, int, int]] = set()
 
     # -- ingestion ---------------------------------------------------------- #
 
@@ -309,6 +314,19 @@ class FeatureExtractor:
         live source."""
         self._sig_invalid_window += n
 
+    def note_signing_streams(
+        self,
+        invalid_streams: dict[tuple[int, int, int], int] | None = None,
+        verified_streams: set[tuple[int, int, int]] | None = None,
+    ) -> None:
+        """Accumulate per-stream ``(sysid, compid, link_id)`` signing events into this window."""
+        self._sig_streams_tracked = True
+        if invalid_streams:
+            for k, v in invalid_streams.items():
+                self._sig_invalid_streams_window[k] = self._sig_invalid_streams_window.get(k, 0) + int(v)
+        if verified_streams:
+            self._sig_verified_streams_window.update(verified_streams)
+
     def update(self, msg: MessageEnvelope) -> None:
         t = msg.recv_time
         src = (msg.sysid, msg.compid)
@@ -318,10 +336,13 @@ class FeatureExtractor:
         self._recv_n += 1
         rts.append(t)
         self._sources[src] = self._sources.get(src, 0) + 1
+        self._source_msgs_window.setdefault(src, set()).add(msg.msgname.upper())
         if msg.signed:
             self._signed += 1
         else:
             self._unsigned += 1
+            uk = (msg.sysid, msg.msgname)
+            self._unsigned_window[uk] = self._unsigned_window.get(uk, 0) + 1
 
         # per-source sequence gap tracking (single link => +1 expected)
         prev = self._seq_state.get(src)
@@ -744,3 +765,7 @@ class FeatureExtractor:
         self._sources = {}
         self._seq_gap = {}
         self._sig_invalid_window = 0
+        self._unsigned_window = {}
+        self._source_msgs_window = {}
+        self._sig_invalid_streams_window = {}
+        self._sig_verified_streams_window = set()

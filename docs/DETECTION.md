@@ -428,3 +428,8 @@ satellites. It is stored as `None` (API `gps.satellites: null`, dashboard "unkno
 Trade-off: a forger who can replace the vehicle's `GPS_RAW_INT` stream could keep reporting 255 with a 3D fix and so
 suppress the low-satellite and jump signals; those signals were never authentication. An injected 255 frame between two
 genuine reports cannot hide a jump: the jump is measured against the last known count.
+
+## MAVLink-2 Signing Bootstrap & Per-Source Allowlist (#19)
+When `protocol.require_signing: true`:
+- **Per-stream bootstrap settle (`signing_settle_s`, default 2.0 s):** each `(sysid, compid, link_id)` stream suppresses `sig_invalid` during `[t0, t0 + signing_settle_s)` only until that stream produces its first validly signed frame (emitting a score-0 coverage note while settling). Once verified or past `signing_settle_s`, the settle window never re-opens for that stream.
+- **Per-source `unsigned_allowed`:** replaces the link-wide `signed_ratio < 1.0` check on live streams with an explicit allowlist (default `[{sysid: 51, msg: RADIO_STATUS}]`), preventing SiK telemetry-radio status frames from triggering false alarms while flagging unexpected unsigned senders. Checking committed bench probe JSONs (`artifacts/hardware/*probe*.json`) confirmed `RADIO_STATUS` (`msgid 109`) was not emitted in those USB-direct probes (no SiK local radio attached).

@@ -97,12 +97,23 @@ class IDSPipeline:
             if self.crossend is not None:
                 self.crossend.update(m)
         self.extractor.note_sig_invalid(tick.sig_invalid)  # P4: 0 for every non-signing source
+        self.extractor.note_signing_streams(tick.sig_invalid_streams, tick.sig_verified_streams)
         if tick.tick % self.decision_every != 0:
             return None
 
         t0 = time.perf_counter()
         frame = self.extractor.extract(tick.t)
         self.last_frame = frame
+        self.protocol.observe_signing_context(
+            unsigned_events=self.extractor._unsigned_window,
+            sig_invalid_streams=(
+                self.extractor._sig_invalid_streams_window if self.extractor._sig_streams_tracked else None
+            ),
+            sig_verified_streams=(
+                self.extractor._sig_verified_streams_window if self.extractor._sig_streams_tracked else None
+            ),
+            source_msgs=self.extractor._source_msgs_window,
+        )
         r_proto = self.protocol.process(frame)
         if self.crossend is not None:
             self._merge_crossend(r_proto, tick.t)
