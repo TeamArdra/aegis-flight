@@ -180,3 +180,41 @@ def test_restricted_visibility_injection_scenarios() -> None:
                 assert forged.command == 176 and forged.get_srcSystem() == 255
             if h is h_inf:
                 assert out[1][4] == 14  # continued sequence after gcs_hb_next (seq=13)
+
+
+def test_rewrite_failure_counter_and_rogue_disarm_armed_precondition() -> None:
+    # R3: rewrite exception increments frames_rewrite_failed instead of failing silently
+    atk = AltitudeBiasAttack(AltitudeBiasParams(onset_s=1.0, duration_s=10.0), warmup_s=0.0, target_sysid=3, target_compid=1)
+    atk(_ctx(_hb(), recv_s=0.0))
+    # Truncated/corrupt GLOBAL_POSITION_INT frame with V2 magic so decode raises
+    corrupt_gpi = bytes([0xFD, 28, 0, 0, 1, 3, 1, 33, 0, 0]) + b"\x00" * 5
+    res = atk(
+        FrameContext(
+            raw=corrupt_gpi,
+            direction="down",
+            recv_ns=int(2.0 * 1e9),
+            msgid=33,
+            sysid=3,
+            compid=1,
+            seq=1,
+            signed=False,
+        )
+    )
+    assert res == [corrupt_gpi]
+    assert atk.frames_rewrite_failed == 1
+
+    # R2: RogueForceDisarmAttack tracks vehicle_armed_observed from HEARTBEAT base_mode (0x80) and can auto-arm
+    h_rogue = build_restricted_visibility_hook("rogue_force_disarm", seed=1001, target_sysid=3, target_compid=1)
+    h_rogue.auto_arm_if_disarmed = True
+    disarmed_hb = bytes(_mk(3, 1, 1).heartbeat_encode(mav2.MAV_TYPE_QUADROTOR, mav2.MAV_AUTOPILOT_PX4, 0x00, 0, 4).pack(_mk(3, 1, 1)))
+    armed_hb = bytes(_mk(3, 1, 2).heartbeat_encode(mav2.MAV_TYPE_QUADROTOR, mav2.MAV_AUTOPILOT_PX4, 0x80, 0, 4).pack(_mk(3, 1, 2)))
+    gcs_hb = bytes(_mk(255, 190, 10).heartbeat_encode(mav2.MAV_TYPE_GCS, mav2.MAV_AUTOPILOT_INVALID, 0, 0, 4).pack(_mk(255, 190, 10)))
+
+    h_rogue(_ctx(disarmed_hb, direction="down", recv_s=0.0))
+    assert h_rogue.vehicle_armed_observed is False
+    out_up = h_rogue(_ctx(gcs_hb, direction="up", recv_s=1.0))
+    assert h_rogue.pre_arm_sent is True
+    assert len(out_up) == 2 and _decode(out_up[1]).command == 400 and _decode(out_up[1]).param1 == 1.0
+
+    h_rogue(_ctx(armed_hb, direction="down", recv_s=2.0))
+    assert h_rogue.vehicle_armed_observed is True

