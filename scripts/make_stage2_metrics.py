@@ -87,11 +87,7 @@ SNAPSHOT = ("Every figure describes the code that produced its source artifact (
             "date under provenance), not the tree this file was generated on. Later live-source/detector changes (e.g. "
             "PR #39, pending) are not reflected: this is a dated snapshot of committed evidence.")
 RERUN = "artifacts/validation/submission_rerun_20261029/extended_rerun"     # committed re-run of the extended benchmark
-RERUN_README = "artifacts/validation/submission_rerun_20261029/README.md"  # dates the committed SIM artifact (2026-09-24)
-# Decision-level re-run of every extended session on the current tree with the committed model (sha256 3fe74cdd...):
-# not a committed artifact, so it is quoted with its provenance, not computed here.
-DECISION_RERUN = {"date": "2026-11-18", "sessions_not_reproducing": [76, 77, 78, 79],
-                  "by": "PR #48 re-verification (two independent re-runs); not a committed artifact"}
+RERUN_README = "artifacts/validation/submission_rerun_20261029/README.md"  # dates both runs; states the re-run's tree
 MIXED = ("WARNING: pools ML-on and ML-off runs recorded at different commits; it describes no single detector "
          "configuration. Use the per-group pools")
 
@@ -246,20 +242,53 @@ def snapshot(prov: dict) -> dict:
 
 
 def sim_reproducibility(root: Path, sess: dict) -> dict:
-    """How far the committed SIM artifact reproduces: the committed 2026-10-29 re-run compared with it (computed), and the
-    decision-level re-run (quoted, see DECISION_RERUN). Every SIM figure here is still computed from the committed decisions."""
+    """How far the committed SIM artifact is reproduced by the committed 2026-10-29 re-run. Every value is computed from
+    the two committed directories and the re-run's README; nothing about per-decision reproducibility is claimed."""
+    readme = " ".join((root / RERUN_README).read_text(encoding="utf-8").split())
+    committed = re.search(r"committed \((\d{4}-\d{2}-\d{2}), ([^)]+)\)", readme)
+    generated = re.search(r"Generated (\d{4}-\d{2}-\d{2})", readme)
+    tree = re.search(r"Tree: commit `([0-9a-f]+)` plus the working-tree changes", readme)
+    if not (committed and generated and tree):
+        raise BadInputError(f"{RERUN_README}: the committed date, the re-run date or the re-run tree is not stated as expected")
     with open(root / RERUN / "sessions.csv", newline="") as f:
         rerun = {int(r["idx"]): r for r in csv.DictReader(f)}
     differ = sorted(i for i in sess if sess[i] != rerun.get(i))
+    cols = sorted({c for i in differ for c in sess[i] if sess[i][c] != rerun.get(i, {}).get(c)})
     a, b = (json.loads((root / q).read_text()) for q in (f"{EXT}/results.json", f"{RERUN}/results.json"))
-    nd = DECISION_RERUN["sessions_not_reproducing"]
-    return {"committed_rerun": RERUN, "rerun_session_rows_differing": differ,
-            "rerun_differing_keys": sorted({sess[i]["key"] for i in differ}),
+    modes = sorted(k for k in set(a["per_mode"]) | set(b["per_mode"]) if a["per_mode"].get(k) != b["per_mode"].get(k))
+    no_decisions = (not (root / RERUN / "decisions.csv.gz").exists()
+                    and re.search(r"`decisions\.csv\.gz`[^.]*was not copied", readme) is not None)
+    return {"committed_rerun": RERUN, "readme": RERUN_README,
+            "committed_date": committed.group(1), "committed_code": committed.group(2),
+            "rerun_date": generated.group(1), "rerun_tree_commit": tree.group(1),
+            "per_mode_differing": modes,
+            "per_mode_differing_sessions": sorted(i for i in sess if sess[i]["key"] in modes),
+            "rerun_session_rows_differing": differ, "rerun_session_columns_differing": cols,
             "grace5_binary_identical": a["binary_grace5"] == b["binary_grace5"],
             "grace0_fp_committed_vs_rerun": [a["binary_grace0"]["fp"], b["binary_grace0"]["fp"]],
-            "decision_rerun": {**DECISION_RERUN, "keys": sorted({sess[i]["key"] for i in nd}),
-                               "sessions_reproducing": len(sess) - len(nd), "sessions": len(sess)},
-            "note": "every SIM figure here is computed from the committed decisions, not from a re-run"}
+            "rerun_kept_no_per_decision_output": no_decisions}
+
+
+def sim_reproducibility_note(sr: dict) -> str:
+    """The metrics.md sentence, assembled only from ``sim_reproducibility`` values."""
+    def ids(xs):
+        return ", ".join(map(str, xs[:-1])) + (" and " if len(xs) > 1 else "") + str(xs[-1]) if xs else "none"
+    modes = ", ".join(f"`{x}`" for x in sr["per_mode_differing"])
+    fp_c, fp_r = sr["grace0_fp_committed_vs_rerun"]
+    return (f"`{EXT}` was committed on {sr['committed_date']} from {sr['committed_code']} (`{sr['readme']}`). "
+            f"The committed re-run of {sr['rerun_date']} (`{sr['committed_rerun']}/`; tree as stated in that README: commit "
+            f"{sr['rerun_tree_commit']} plus working-tree changes) does not reproduce it exactly: among its per-mode results "
+            + ("only " if len(sr["per_mode_differing"]) == 1 else "")
+            + f"{modes} (sessions {', '.join(map(str, sr['per_mode_differing_sessions']))}) "
+            + ("differs" if len(sr["per_mode_differing"]) == 1 else "differ")
+            + f"; `sessions.csv` differs in rows {ids(sr['rerun_session_rows_differing'])} "
+            f"({', '.join(f'`{c}`' for c in sr['rerun_session_columns_differing'])} only); the no-grace false positives are "
+            f"{fp_r} against {fp_c} committed; the 5 s-grace binary rows are "
+            + ("identical" if sr["grace5_binary_identical"] else "different") + ". "
+            + ("That re-run kept no per-decision output, so which decisions differ, and whether the other sessions reproduce "
+               "decision by decision, is not established by a committed artifact. " if sr["rerun_kept_no_per_decision_output"]
+               else "")
+            + f"Every SIM figure here is computed from the committed {sr['committed_date']} decisions.")
 
 
 def rate_block(events: int, decisions: int, threats: int, src: str, note: str = "", claim: str = NR) -> dict:
@@ -557,22 +586,13 @@ def lat_txt(d: dict) -> str:
 def to_md(r: dict) -> str:
     sn = r["snapshot"]
     sr = sn["sim_reproducibility"]
-    dr = sr["decision_rerun"]
     L = ["# Stage 2 metrics", "", f"Definitions: `{r['definitions']}`. Decision period {r['decision_period_s']} s.", "",
          f"**Claim class: {r['claim_class']}.** Each row's claim class is its source's own wording (section 0 and the "
          "`claim class` column).", "",
          f"**Dated snapshot.** {sn['note']} Recorded source dates: {sn['recorded_dates'][0]} to {sn['recorded_dates'][1]}. "
          "No recorded commit: " + ", ".join(f"`{k}`" for k in sn["sources_without_commit"]) + ". "
          "No recorded date: " + ", ".join(f"`{k}`" for k in sn["sources_without_date"]) + ".", "",
-         f"**SIM reproducibility.** `{EXT}` is a 2026-09-24 snapshot of pre-Stage-2 code (`{RERUN_README}`). "
-         f"A decision-level re-run of all {dr['sessions']} sessions on the current tree ({dr['date']}; {dr['by']}) "
-         f"found sessions {', '.join(map(str, dr['sessions_not_reproducing']))} ({', '.join(dr['keys'])}) do not "
-         f"reproduce their committed decisions; the other {dr['sessions_reproducing']} of {dr['sessions']} do. "
-         f"The gap predates PR #48: the committed 2026-10-29 re-run (`{sr['committed_rerun']}`) already differs in "
-         f"session rows {', '.join(map(str, sr['rerun_session_rows_differing']))} ({', '.join(sr['rerun_differing_keys'])}) "
-         f"and in no-grace false positives ({sr['grace0_fp_committed_vs_rerun'][0]} committed vs "
-         f"{sr['grace0_fp_committed_vs_rerun'][1]} re-run); 5 s-grace binary rows identical: "
-         f"{sr['grace5_binary_identical']}. Note: {sr['note']}.", "",
+         f"**SIM reproducibility.** {sim_reproducibility_note(sr)}", "",
          "## 0. Provenance per source (as each source's own metadata records it; \"not recorded\" = absent)", "",
          "| source | claim class (source's words; field) | commit | dirty tree | config | ML | UTC (field) | note |",
          "|---|---|---|---|---|---|---|---|"]

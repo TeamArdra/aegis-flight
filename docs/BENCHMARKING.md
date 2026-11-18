@@ -149,9 +149,9 @@ those sources stay decision level instead of being estimated. Definitions (code:
 - **Provenance and pooling**: each source's commit, dirty-tree flag, config, ML state and date are
   copied from its own metadata ("not recorded" where absent). The figures therefore describe the code
   that produced each source, not the current tree: the output is a dated snapshot, and later changes
-  (e.g. PR #39, pending) are not reflected. The committed extended benchmark (2026-09-24) does not fully
-  reproduce on the current tree (`dos:blackout`); `metrics.md` states the gap, and the SIM figures are
-  computed from the committed decisions. ArduPilot SITL runs are pooled only within the same recorded ML
+  (e.g. PR #39, pending) are not reflected. The committed extended benchmark (2026-09-24) is not reproduced
+  exactly by the committed 2026-10-29 re-run (`dos:blackout`); `metrics.md` states the gap, computed from the
+  committed re-run files only, and the SIM figures are computed from the committed decisions. ArduPilot SITL runs are pooled only within the same recorded ML
   state and commit. The all-runs pool is kept for comparison and carries a warning.
 
 ## Interpreting the numbers

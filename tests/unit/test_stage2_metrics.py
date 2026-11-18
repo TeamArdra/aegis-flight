@@ -500,12 +500,13 @@ def test_every_row_claim_class_is_its_sources_own_wording():
     assert {k for k, v in r["provenance"].items() if "link-level" in v["claim_class"]} == drift_sources
 
 
-def test_snapshot_states_pr39_pending_and_the_sim_reproducibility_gap():
-    """Re-verification items 3 / 6: the committed SIM benchmark is a 2026-09-24 snapshot that does not fully reproduce on
-    the current tree (dos:blackout). The gap is computed from the committed 2026-10-29 re-run; the figures still come
-    from the committed decisions. PR #39 is unmerged, so the note must not call it a past change."""
+def test_sim_reproducibility_note_is_computed_from_the_committed_rerun_only():
+    """Re-verification R2-3: the reproducibility note may state only what the committed 2026-10-29 re-run and its README
+    support. Every figure in the note is recomputed here from those files; the earlier hand-typed decision-level claim
+    (76-79 / 112 of 116, from uncommitted logs) and any "current tree" claim must be gone. PR #39 is named as pending."""
     import csv
     import json
+    import re
 
     root, g = _generator()
     r = g.build(root)
@@ -515,15 +516,28 @@ def test_snapshot_states_pr39_pending_and_the_sim_reproducibility_gap():
         sess = {int(x["idx"]): x for x in csv.DictReader(f)}
     with open(root / g.RERUN / "sessions.csv", newline="") as f:
         rerun = {int(x["idx"]): x for x in csv.DictReader(f)}
-    assert sr["rerun_session_rows_differing"] == sorted(i for i in sess if sess[i] != rerun[i])
-    assert sr["rerun_differing_keys"] == ["dos:blackout"] and sr["decision_rerun"]["keys"] == ["dos:blackout"]
-    assert set(sr["rerun_session_rows_differing"]) <= set(sr["decision_rerun"]["sessions_not_reproducing"])
-    assert sr["decision_rerun"]["sessions_reproducing"] + len(sr["decision_rerun"]["sessions_not_reproducing"]) == len(sess)
     a, b = (json.loads((root / p).read_text()) for p in (f"{g.EXT}/results.json", f"{g.RERUN}/results.json"))
-    assert sr["grace0_fp_committed_vs_rerun"] == [a["binary_grace0"]["fp"], b["binary_grace0"]["fp"]]
-    md = g.to_md(r)
-    assert "**SIM reproducibility.**" in md and "computed from the committed decisions" in md
-    assert "not a committed artifact" in md                                       # the decision-level claim is attributed
+    readme = " ".join((root / g.RERUN_README).read_text(encoding="utf-8").split())
+    modes = sorted(k for k in a["per_mode"] if a["per_mode"][k] != b["per_mode"][k])
+    rows = sorted(i for i in sess if sess[i] != rerun[i])
+    cols = sorted({c for i in rows for c in sess[i] if sess[i][c] != rerun[i][c]})
+    assert sr["per_mode_differing"] == modes == ["dos:blackout"]
+    assert sr["per_mode_differing_sessions"] == sorted(i for i in sess if sess[i]["key"] in modes) == [76, 77, 78, 79]
+    assert sr["rerun_session_rows_differing"] == rows == [76, 77, 78]
+    assert sr["rerun_session_columns_differing"] == cols == ["alarm_tail_s"]
+    assert sr["grace0_fp_committed_vs_rerun"] == [a["binary_grace0"]["fp"], b["binary_grace0"]["fp"]] == [470, 463]
+    assert sr["grace5_binary_identical"] is (a["binary_grace5"] == b["binary_grace5"]) is True
+    assert "committed (2026-09-24, pre-Stage-2 code)" in readme and "Generated 2026-10-29" in readme
+    assert "Tree: commit `d0d134b` plus the working-tree changes" in readme
+    assert sr["rerun_kept_no_per_decision_output"] and not (root / g.RERUN / "decisions.csv.gz").exists()
+    note = g.sim_reproducibility_note(sr)
+    for fig in ("committed on 2026-09-24 from pre-Stage-2 code", "re-run of 2026-10-29", "commit d0d134b",
+                "only `dos:blackout` (sessions 76, 77, 78, 79) differs", "rows 76, 77 and 78 (`alarm_tail_s` only)",
+                "463 against 470 committed", "5 s-grace binary rows are identical", "no per-decision output"):
+        assert fig in note, fig
+    assert not re.search(r"112|116|current tree|not a committed artifact|2026-11-18", note)
+    assert "decision_rerun" not in json.dumps(r) and not hasattr(g, "DECISION_RERUN")
+    assert f"**SIM reproducibility.** {note}" in g.to_md(r)
 
 
 def test_make_stage2_metrics_exits_2_on_an_off_grid_decision_time(tmp_path, capsys):
