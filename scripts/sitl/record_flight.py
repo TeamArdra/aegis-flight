@@ -183,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--purpose", default="benign PX4 SITL reference capture")
     add_provenance_args(ap)
     a = ap.parse_args(argv)
-    require_clean_tree(a.allow_dirty)  # before any output is created (#25)
+    start_state = require_clean_tree(a.allow_dirty)  # before any output is created (#25); re-checked at the end
     run_started = datetime.now(UTC).isoformat()
 
     out = Path(a.out)
@@ -223,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     }
     manifest["run_provenance"] = finish_run(begin_run(
         allow_dirty=a.allow_dirty, profile_dir=None, model_path=None, ml_enabled=False,
-        px4_git_describe=manifest["px4_git_describe"], started_utc=run_started))
+        px4_git_describe=manifest["px4_git_describe"], started_utc=run_started, start_state=start_state))
     stamp_stem(out, manifest["run_provenance"])
     out.with_suffix(".json").write_text(json.dumps(manifest, indent=2))
     print(json.dumps({k: manifest[k] for k in ("duration_s", "frames", "vehicle", "px4_git_describe")}, indent=2))

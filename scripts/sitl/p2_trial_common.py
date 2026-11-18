@@ -54,9 +54,9 @@ class _TrialParser(argparse.ArgumentParser):
 
     def parse_args(self, args=None, namespace=None):  # type: ignore[override]
         ns = super().parse_args(args, namespace)
-        _prov.require_clean_tree(ns.allow_dirty)
+        start = _prov.require_clean_tree(ns.allow_dirty)
         _RUN.clear()
-        _RUN.update(args=ns, started_utc=datetime.now(UTC).isoformat())
+        _RUN.update(args=ns, started_utc=datetime.now(UTC).isoformat(), start_state=start)
         return ns
 
 
@@ -118,6 +118,7 @@ def provenance_block(distro: str, px4_dir: str, extra: dict[str, Any]) -> dict[s
     px4 = px4_describe(distro, px4_dir)
     run = _prov.collect_run_provenance(
         allow_dirty=bool(a and a.allow_dirty), px4_git_describe=px4, started_utc=_RUN.get("started_utc"),
+        start_state=_RUN.get("start_state"),
         profile_dir=getattr(a, "profile", None) or None,
         model_path=resolve_model(a.profile, a.model)[0] if a else None)
     return {

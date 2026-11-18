@@ -93,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--model", default=MODEL, help="anomaly model bundle (default: Stage-1 models/isoforest.joblib)")
     add_provenance_args(ap)
     a = ap.parse_args(argv)
-    require_clean_tree(a.allow_dirty)  # before any output is created (#25)
+    start_state = require_clean_tree(a.allow_dirty)  # before any output is created (#25); re-checked at the end
     run_started = datetime.now(UTC).isoformat()
     sys.stdout.reconfigure(encoding="utf-8")  # evidence strings contain non-cp1252 glyphs
     cfg = load_config(a.config_dir)
@@ -113,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
            "runs": runs, "pooled": summarise_run("POOLED", all_rows)}
     doc["run_provenance"] = finish_run(begin_run(
         allow_dirty=a.allow_dirty, profile_dir=a.config_dir, model_path=model, ml_enabled=model is not None,
-        started_utc=run_started))
+        started_utc=run_started, start_state=start_state))
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     stamp_stem(Path(a.out).with_suffix(""), doc["run_provenance"])
     Path(a.out).write_text(json.dumps(doc, indent=2, default=str))

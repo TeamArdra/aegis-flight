@@ -42,7 +42,7 @@ def test_dirty_tracked_file_refused(repo: Path) -> None:
     (repo / "src" / "m.py").write_text("x = 2\n")
     with pytest.raises(prov.DirtyTreeError) as ei:
         prov.require_clean_tree(False, repo)
-    assert ei.value.code == ei.value.args[0] and "src/m.py" in str(ei.value) and "--allow-dirty" in str(ei.value)
+    assert ei.value.code == 2 and "src/m.py" in str(ei.value) and "--allow-dirty" in str(ei.value)
     assert ei.value.paths == ["src/m.py"]
 
 
@@ -62,7 +62,7 @@ def test_allow_dirty_stamps_dir_and_manifest(repo: Path, tmp_path: Path) -> None
     assert m["status"] == "NOT-REPRODUCIBLE" and m["reproducible"] is False
     assert m["working_tree_dirty"] is True and m["dirty_paths"] == ["src/m.py"]
     out = tmp_path / "run"
-    path = prov.write_manifest(out, prov.finish_run(m))
+    path = prov.write_manifest(out, prov.finish_run(m, repo))
     assert path == out / "run_manifest.json"
     assert (out / "NOT-REPRODUCIBLE").is_file()
     assert json.loads(path.read_text())["status"] == "NOT-REPRODUCIBLE"
@@ -85,7 +85,7 @@ def test_manifest_schema_every_field(repo: Path, tmp_path: Path) -> None:
     model.write_bytes(b"model-bytes")
     m = prov.finish_run(prov.collect_run_provenance(
         profile_dir=repo / "configs", model_path=model, px4_git_describe="v1.15.0-12-gabc",
-        ardupilot_version="ArduCopter V4.5.7", command_line="run.py --x", repo=repo))
+        ardupilot_version="ArduCopter V4.5.7", command_line="run.py --x", repo=repo), repo)
     assert set(m) == set(prov.MANIFEST_FIELDS)
     assert m["schema"] == "aegisflight.run_manifest/1" == prov.SCHEMA_ID
     assert len(m["commit"]) == 40 and m["working_tree_dirty"] is False and m["dirty_paths"] == []
@@ -123,3 +123,66 @@ def test_add_provenance_args_defines_allow_dirty() -> None:
 def test_legacy_collect_still_works() -> None:
     d = prov.collect()
     assert {"aegisflight_commit", "working_tree_dirty", "python", "configs_sha256"} <= set(d)
+
+
+# -- PR #50 security review: tree state is taken at the START and re-checked at the end ----------------------- #
+
+
+def test_run_started_dirty_then_cleaned_is_not_reproducible(repo: Path) -> None:
+    (repo / "src" / "m.py").write_text("x = 2\n")
+    start = prov.require_clean_tree(True, repo)
+    _git(repo, "checkout", "--", "src/m.py")  # cleaned before the run ends
+    m = prov.finish_run(prov.collect_run_provenance(allow_dirty=True, profile_dir=repo / "configs", repo=repo,
+                                                    start_state=start), repo)
+    assert m["status"] == "NOT-REPRODUCIBLE" and m["reproducible"] is False
+    assert "dirty at run start" in m["not_reproducible_reason"] and m["dirty_paths"] == ["src/m.py"]
+
+
+def test_commit_made_during_the_run_is_not_reproducible_and_keeps_start_commit(repo: Path) -> None:
+    start = prov.require_clean_tree(False, repo)
+    (repo / "src" / "m.py").write_text("x = 3\n")
+    _git(repo, "commit", "-q", "-am", "mid-run")
+    m = prov.collect_run_provenance(profile_dir=repo / "configs", repo=repo, start_state=start)
+    assert m["status"] == "NOT-REPRODUCIBLE" and m["commit"] == start["commit"]
+    assert "commit changed during the run" in m["not_reproducible_reason"]
+
+
+def test_finish_run_rechecks_a_manifest_taken_at_start(repo: Path) -> None:
+    m = prov.begin_run(profile_dir=repo / "configs", repo=repo)
+    assert m["status"] == "REPRODUCIBLE" and m["not_reproducible_reason"] is None
+    (repo / "src" / "m.py").write_text("x = 4\n")
+    prov.finish_run(m, repo)
+    assert m["status"] == "NOT-REPRODUCIBLE" and "became dirty during the run" in m["not_reproducible_reason"]
+
+
+def test_clean_unchanged_run_stays_reproducible(repo: Path) -> None:
+    start = prov.require_clean_tree(False, repo)
+    m = prov.finish_run(prov.collect_run_provenance(profile_dir=repo / "configs", repo=repo, start_state=start), repo)
+    assert m["status"] == "REPRODUCIBLE" and m["not_reproducible_reason"] is None
+
+
+def test_tree_state_ignores_cwd_and_uses_the_running_code(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    foreign = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip()
+    monkeypatch.chdir(repo)  # a clean one-commit repo that is NOT the code's checkout
+    st = prov.tree_state()
+    assert st["commit"] != foreign
+    assert prov.collect_run_provenance(allow_dirty=True)["commit"] != foreign
+
+
+def test_not_running_from_a_checkout_is_never_reproducible(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from aegisflight import run_provenance as rp
+
+    fake = tmp_path / "site-packages" / "aegisflight" / "run_provenance.py"
+    fake.parent.mkdir(parents=True)
+    monkeypatch.setattr(rp, "__file__", str(fake))
+    assert rp.code_repo() is None
+    st = rp.tree_state()
+    assert st["dirty"] is True and st["commit"] == "unknown"
+
+
+def test_dirty_tree_exits_with_status_2_and_prints_the_reason(repo: Path, capsys: pytest.CaptureFixture) -> None:
+    (repo / "src" / "m.py").write_text("x = 2\n")
+    with pytest.raises(SystemExit) as ei:
+        prov.require_clean_tree(False, repo)
+    assert ei.value.code == 2
+    assert "src/m.py" in capsys.readouterr().err

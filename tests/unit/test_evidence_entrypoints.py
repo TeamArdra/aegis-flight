@@ -64,3 +64,19 @@ def test_ardupilot_version_names_the_copter_release(monkeypatch: pytest.MonkeyPa
     argv = seen[0]
     assert argv[argv.index("--match") + 1] == "'Copter-*'"  # quoted: wsl -- runs it through a shell
     assert "--long" in argv and "--tags" in argv
+
+
+def test_trial_driver_started_dirty_then_cleaned_is_not_reproducible(monkeypatch: pytest.MonkeyPatch,
+                                                                     tmp_path: Path) -> None:
+    """PR #50 review P1: the tree is judged at parse time (run start), not only when the manifest is written."""
+    states = iter([{"commit": "a" * 40, "dirty": True, "dirty_paths": ["src/x.py"]}])
+    clean = {"commit": "a" * 40, "dirty": False, "dirty_paths": []}
+    monkeypatch.setattr(run_provenance, "tree_state", lambda repo=None: next(states, clean))
+    monkeypatch.setattr(p2_trial_common, "px4_describe", lambda *a, **k: "v1.15.0")
+    import provenance as sitl_prov
+
+    monkeypatch.setattr(sitl_prov, "collect", lambda **kw: {"aegisflight_commit": "a" * 40, "python": "3.11.0"})
+    ap = p2_trial_common.build_argparser("t", default_seconds=1.0)
+    ap.parse_args(["--seed", "1", "--out", str(tmp_path / "o"), "--allow-dirty", "--model", "none"])
+    run = p2_trial_common.provenance_block("d", "/px4", {})["run_provenance"]
+    assert run["status"] == "NOT-REPRODUCIBLE" and "dirty at run start" in run["not_reproducible_reason"]

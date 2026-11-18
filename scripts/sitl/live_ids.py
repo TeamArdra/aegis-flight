@@ -97,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-ml", action="store_true")
     add_provenance_args(ap)
     a = ap.parse_args(argv)
-    require_clean_tree(a.allow_dirty)  # before any output is created (#25)
+    start_state = require_clean_tree(a.allow_dirty)  # before any output is created (#25); re-checked at the end
     run_started = datetime.now(UTC).isoformat()
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -143,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     summary["provenance"] = collect(tlog_sha256=sha256_file(out.with_suffix(".tlog")))
     summary["run_provenance"] = finish_run(begin_run(
         allow_dirty=a.allow_dirty, profile_dir=None, model_path=model, ml_enabled=model is not None,
-        px4_git_describe=px4_describe(), started_utc=run_started))
+        px4_git_describe=px4_describe(), started_utc=run_started, start_state=start_state))
     stamp_stem(out, summary["run_provenance"])
     out.with_suffix(".summary.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2))

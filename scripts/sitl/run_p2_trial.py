@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="default: 'px4' if --profile is set, else 'stage1' (B2 cross-pairing is refused)")
     add_provenance_args(ap)
     a = ap.parse_args(argv)
-    require_clean_tree(a.allow_dirty)  # before any output is created (#25)
+    start_state = require_clean_tree(a.allow_dirty)  # before any output is created (#25); re-checked at the end
     run_started = datetime.now(UTC).isoformat()
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -159,7 +159,8 @@ def main(argv: list[str] | None = None) -> int:
     actual = compute_actual_effect(out.with_suffix(".frames.jsonl"), ref_lat_deg=PX4_HOME_LAT)
     prov_raw = collect(python_version=sys.version.split()[0])
     run_prov = finish_run(begin_run(allow_dirty=a.allow_dirty, profile_dir=a.profile or None, model_path=model,
-                                    px4_git_describe=px4_describe(), started_utc=run_started))
+                                    px4_git_describe=px4_describe(), started_utc=run_started,
+                                    start_state=start_state))
     stamp_stem(out, run_prov)
     import importlib.metadata as md
 

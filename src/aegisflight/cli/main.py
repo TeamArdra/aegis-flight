@@ -287,9 +287,8 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         try:
             run_prov = begin_run(allow_dirty=args.allow_dirty, profile_dir=args.config_dir)  # ML is simulation-only: none
             archive = BridgeRunArchive(args.run_dir)
-        except DirtyTreeError as exc:
-            print(f"aegis ips-bridge: {exc}", file=sys.stderr)
-            return 2
+        except DirtyTreeError:
+            return 2  # require_clean_tree already printed the reason to stderr
         except FileExistsError as exc:
             print(f"aegis ips-bridge: {exc}", file=sys.stderr)
             return 2
