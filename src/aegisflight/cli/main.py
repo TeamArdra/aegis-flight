@@ -220,24 +220,20 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
     except ValueError as exc:
         print(f"aegis ips-bridge: {exc}", file=sys.stderr)
         return 2
+    from ..detectors.crossend import load_signing_key  # its errors never quote key bytes
+
     key = None
     if args.signing_key_file:
         try:
-            raw = Path(args.signing_key_file).read_bytes()
-            key = raw if len(raw) == 32 else bytes.fromhex(raw.decode("ascii").strip())
-            if len(key) != 32:
-                raise ValueError("key must be 32 bytes")
-        except (OSError, ValueError, UnicodeDecodeError) as exc:
+            key = load_signing_key(args.signing_key_file)
+        except (OSError, ValueError) as exc:
             print(f"aegis ips-bridge: bad --signing-key-file: {exc}", file=sys.stderr)
             return 2
     mgmt_key = None
     if args.mgmt_key_file:
         try:
-            raw = Path(args.mgmt_key_file).read_bytes()
-            mgmt_key = raw if len(raw) == 32 else bytes.fromhex(raw.decode("ascii").strip())
-            if len(mgmt_key) != 32:
-                raise ValueError("key must be 32 bytes")
-        except (OSError, ValueError, UnicodeDecodeError) as exc:
+            mgmt_key = load_signing_key(args.mgmt_key_file)
+        except (OSError, ValueError) as exc:
             print(f"aegis ips-bridge: bad --mgmt-key-file: {exc}", file=sys.stderr)
             return 2
         if not args.mgmt_state:
