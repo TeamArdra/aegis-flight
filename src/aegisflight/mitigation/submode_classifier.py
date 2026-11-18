@@ -210,10 +210,14 @@ class AttackSubModeClassifier:
         if atk == AttackType.DOS:
             if "message-rate spike" in ev_text and frame.msg_rate_hz < 250.0:
                 return AttackSubMode.MAV_RATE_SPIKE
-            if frame.msg_rate_hz > 84.0 or "flood" in ev_text:
+            if "flood" in ev_text:
                 return AttackSubMode.DOS_FLOOD
+            # Check explicit GNSS loss/jamming before the Stage-1 84 Hz flood fallback so
+            # higher-rate live MAVLink links (~120-150 Hz) still trigger the GNSS playbook.
             if (snap.gps_fix_type is not None and snap.gps_fix_type < 3) or "gnss" in ev_text:
                 return AttackSubMode.DOS_GNSS_JAMMING
+            if frame.msg_rate_hz > 84.0:
+                return AttackSubMode.DOS_FLOOD
             return AttackSubMode.DOS_BLACKOUT
 
         if atk == AttackType.FIRMWARE_INTEGRITY:
