@@ -9,19 +9,40 @@ development host (Windows 10, CPython 3.14, numpy/scikit-learn as installed in `
 
 ### Rule: only speed / memory may change
 
-Results must be bit-identical. `scripts/make_golden.py` + `tests/unit/test_golden_equivalence.py` +
-`tests/golden/golden.json` (generated from the pre-optimisation code) hash, per decision, every field of the
+Results must not change. `scripts/make_golden.py` + `tests/unit/test_golden_equivalence.py` +
+`tests/golden/golden.json` hash, per decision, every field of the
 `ThreatAssessment` (floats via `repr`, only the wall-clock `wall_time` / `latency_ms` excluded), every field of the
 `FeatureFrame`, and every field of the four `DetectorResult`s; live-style cases also hash the parsed envelopes and the
-parser statistics. 137 tests: 131 cases (76 with ML off, 55 with ML on) plus self-checks (the guard is shown to fail on
-a changed constant, a changed threshold and a one-ulp float change). Cases: every attack mode of
+parser statistics. The fixture is a snapshot of the current code, not of the pre-optimisation code: it was added with
+the speed-ups (`15c3aaf`, generated, per that commit, from the pre-optimisation code), regenerated after them (`7ff7ab2`,
+new `FeatureFrame` fields and the live-profile detection changes), extended with rounded layers (`14e629e`), and its
+ML-on section was regenerated from the canonical team model (every ML digest other than 3 host-dependent `frame`
+digests came out unchanged). That the speed-ups changed no result was shown separately, by running `make_golden.py`
+on the old and the new code on one Windows host (PR #39 audit), not by this fixture.
+
+What the guard enforces by default, on every host (CI included): parsed messages, parser statistics and decision
+summaries (decisions, threats, alerts, attack types) exactly; with ML off also the full `ThreatAssessment` hashes
+exactly; and the feature and detector layers with floats rounded to 9 significant digits (`frame_r` / `detectors_r`).
+The exact feature and detector hashes are host-dependent in the last bit (see the Raspberry Pi section below; Linux
+x86-64 CI differs in the exact `frame` and `detectors` hashes of every ML-off case; a second Windows CPython 3.13 host
+differs in the exact `frame` hash of 4 ML-off cases with numpy 2.5.3, 2.5.4 and 2.5.5), so comparing every hash bit for
+bit is **opt-in**: `AEGIS_GOLDEN_STRICT=1`, meant for the host that records the fixture (`recorded_env` in the fixture);
+elsewhere a strict failure confined to `frame` / `detectors` is a host difference. The test reports which mode ran as a
+skip reason (`pytest -r s`). A plain `python scripts/make_golden.py` refuses to overwrite an existing fixture; `--ml-only`
+rewrites only the ML-on section, `--rewrite-all` everything.
+
+140 tests: 131 cases (76 with ML off, 55 with ML on) plus self-checks (the guard is shown to fail on a changed constant, a
+changed threshold and a one-ulp float change; the fast Isolation Forest scorer is checked bitwise against scikit-learn on a
+model trained in the test and, when present, on `models/isoforest.joblib`). Cases: every attack mode of
 `benchmark.extended.MODES` x 2 seeds, benign, 4 composites, 2 benign link-stress runs, and 14 synthetic pymavlink
 streams (EKF_STATUS_REPORT gating, GPS_RAW_INT / GPS_STATUS receiver signature, mission upload + MISSION_CURRENT,
 SET_MODE / COMMAND_LONG from unexpected sources, sequence gaps / duplicates / reorder, floods, GPS and heartbeat
 dropouts, garbage / truncated / unknown-id / bad-CRC datagrams, signed frames with a verifying parser, cross-end
 summaries from sysid 1 / comp 191 with and without a key, management frames from comp 191 / 192), each with the
-ArduCopter profile (auto rate baseline on) and the default config. ML cases are skipped if `models/isoforest.joblib`
-is missing or is not the model the fixture was built with. Also: `aegis benchmark` (ML on) reproduces
+ArduCopter profile (auto rate baseline on) and the default config. ML cases need the canonical team model
+`models/isoforest.joblib` (sha256 `3fe74cdd...42939c4`, recorded in the fixture as `ml_model_sha256`). It is git-ignored,
+and `aegis train` stamps a creation time into the bundle, so a retrain never reproduces it; without it the ML cases skip,
+as they do in CI. Also: `aegis benchmark` (ML on) reproduces
 TP/FP/TN/FN = 6535 / 4 / 16826 / 65 and all 378 non-timing cells of `artifacts/benchmarks/results.csv`.
 
 ### Before / after (host, `python scripts/perf_bench.py`)
@@ -85,10 +106,13 @@ each, about +-10 % run-to-run noise); the Raspberry Pi 3B+ figures for this path
 cProfile); raw results in `artifacts/perf/forwarding_before.json` / `forwarding_after1.json`.
 
 Rule: zero behaviour change. `tests/unit/test_forwarding_equivalence.py` replays a deterministic corpus (25 bridge
-scenarios x 3 postures, 260 framer cases, `split_frames`, CRC) against `tests/golden_forwarding/golden.json`, which was
-generated from the code before any change: forwarded bytes to FC and GCS, management frames, tap contents and every
-bridge / policy / sanitizer / management counter are compared bit for bit. No buffering or batching was added; no
-frame is held longer than before.
+scenarios x 3 postures, 260 framer cases, `split_frames`, CRC) against `tests/golden_forwarding/golden.json`:
+forwarded bytes to FC and GCS, management frames, tap contents and every bridge / policy / sanitizer / management
+counter are compared bit for bit. The fixture was generated from the code before the optimisation (`15c3aaf`, where
+the optimised code was checked against it) and has since been regenerated deliberately three times for behaviour
+changes (`e1ceb76` flood scenarios, `93d5572` signing-failure announcements, `14e629e` management lock-out removal),
+so today it is a snapshot of current behaviour, not proof of equivalence to the pre-optimisation code. No buffering
+or batching was added; no frame is held longer than before.
 
 | Operation | before p50 / mean (us) | after p50 / mean (us) |
 |---|---|---|
@@ -210,9 +234,13 @@ may be slightly pessimistic. This is a Pi 3B+, not a Pi Zero 2 W; nothing was me
 **Correctness on ARM Linux.** All 48 simulator cases (10,800 decisions, ML off) give decisions byte-identical to the x86 PC
 (threat, severity, attack class, score to the last digit, alert, evidence). About 1% of internal feature values differ in the
 last bits (130 of 14,850 ML-feature values on 6 cases, max 4.4e-16 absolute / 2.6e-15 relative), a CPU / libm effect that never
-reached a decision. So the bit-exact golden hashes of the feature and detector layers hold on x86 only; off x86
-`tests/unit/test_golden_equivalence.py` compares the parsed messages, parser statistics, decision summaries and (ML off) the
-full assessments. Unit tests on the Pi: 1,027 passed, the 8 errors need the dashboard libraries that were deliberately not
+reached a decision. So the exact golden hashes of the feature and detector layers are host-specific. That is not an ARM
+effect only: Linux x86-64 CI differs in the exact `frame` and `detectors` hashes of every ML-off case (CI run 43982963893,
+at `dd5aa5a`, where `parse` / `stats` / `assess` all matched), and a second Windows x86-64 CPython 3.13 host differs in the
+exact `frame` hash of 4 ML-off cases. Bit-exact comparison is therefore opt-in (`AEGIS_GOLDEN_STRICT=1`, on the recording
+host). By default, on every host, `tests/unit/test_golden_equivalence.py` compares the parsed messages, parser statistics,
+decision summaries, (ML off) the full assessments exactly, and the feature and detector values rounded to 9 significant
+digits. Unit tests on the Pi: 1,027 passed, the 8 errors need the dashboard libraries that were deliberately not
 installed, the forwarding equivalence guard, the serial framer tests and the Linux-only serial tests all passed (272 in those files).
 
 **Detection pipeline (host = this Pi), microseconds, p50 / p95:**
