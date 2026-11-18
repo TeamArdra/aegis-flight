@@ -18,7 +18,11 @@ from pathlib import Path
 os.environ["MAVLINK20"] = "1"
 from pymavlink import mavutil  # noqa: E402
 
-from aegisflight.hal.mgmt_channel import OP_STATUS_NOW, build_command_frame, verify_audit_log  # noqa: E402
+from aegisflight.hal.mgmt_channel import (  # noqa: E402
+    OP_STATUS_NOW,
+    build_command_frame,
+    verify_audit_log,
+)
 
 LABEL, VARIANT = sys.argv[1], sys.argv[2]
 D = Path("C:/afsitl")
