@@ -186,3 +186,43 @@ def test_dirty_tree_exits_with_status_2_and_prints_the_reason(repo: Path, capsys
         prov.require_clean_tree(False, repo)
     assert ei.value.code == 2
     assert "src/m.py" in capsys.readouterr().err
+
+
+# ---- re-review F1 / F3 (PR #50) -------------------------------------------------------------------------------- #
+
+def test_entry_script_from_another_checkout_is_not_judged_by_the_package_checkout(tmp_path: Path, monkeypatch) -> None:
+    """A script run from checkout A while ``aegisflight`` is imported from checkout B must not get B's commit."""
+    import types
+
+    from aegisflight import run_provenance as rp
+
+    other = tmp_path / "other"
+    other.mkdir()
+    subprocess.run(["git", "init", "-q", str(other)], check=True)
+    script = other / "trial.py"
+    script.write_text("x = 1\n")
+    assert rp.code_repo() is not None  # this test session runs from a checkout
+    monkeypatch.setitem(sys.modules, "__main__", types.SimpleNamespace(__file__=str(script)))
+    assert rp.code_repo() is None
+    assert rp.tree_state()["dirty"] is True  # cannot be proved clean -> never REPRODUCIBLE
+
+
+def test_entry_script_inside_the_package_checkout_is_accepted(monkeypatch) -> None:
+    import types
+
+    from aegisflight import run_provenance as rp
+
+    repo = rp.code_repo()
+    assert repo is not None
+    monkeypatch.setitem(sys.modules, "__main__", types.SimpleNamespace(__file__=str(repo / "scripts" / "x.py")))
+    assert rp.code_repo() == repo
+
+
+def test_extra_fields_cannot_overwrite_the_reproducibility_stamp(monkeypatch) -> None:
+    from aegisflight import run_provenance as rp
+
+    dirty = {"commit": "abc", "dirty": True, "dirty_paths": ["src/x.py"]}
+    monkeypatch.setattr(rp, "tree_state", lambda repo=None: dirty)
+    m = rp.collect_run_provenance(allow_dirty=True, start_state=dirty,
+                                  extra={"reproducible": True, "status": "REPRODUCIBLE", "note": "kept"})
+    assert m["reproducible"] is False and m["status"] != "REPRODUCIBLE" and m["note"] == "kept"

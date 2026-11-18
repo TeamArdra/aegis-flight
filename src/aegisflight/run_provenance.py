@@ -87,6 +87,9 @@ def sha256_dir(path: str | Path) -> str | None:
     return h.hexdigest()
 
 
+_STAMP_KEYS = frozenset({"reproducible", "status", "not_reproducible_reason", "working_tree_dirty", "commit"})
+
+
 def _git(*args: str, repo: str | Path | None = None) -> str | None:
     try:
         r = subprocess.run(["git", *args], capture_output=True, text=True, timeout=30,
@@ -103,9 +106,17 @@ def code_repo() -> Path | None:
     pkg = Path(__file__).resolve().parent  # <repo>/src/aegisflight
     candidate = pkg.parents[1]
     top = _git("rev-parse", "--show-toplevel", repo=pkg)
-    if top and os.path.normcase(str(Path(top).resolve())) == os.path.normcase(str(candidate)):
-        return candidate
-    return None
+    if not (top and os.path.normcase(str(Path(top).resolve())) == os.path.normcase(str(candidate))):
+        return None
+    # the entry script must come from the same checkout: a script run from worktree A while the package is imported from
+    # checkout B (e.g. a shared editable venv) would otherwise be stamped with B's commit and clean state. Entry points
+    # inside an installed environment (pytest, the aegis console script) are not a checkout's code and are not judged.
+    main = getattr(sys.modules.get("__main__"), "__file__", None)
+    if main and "site-packages" not in Path(main).parts:
+        mtop = _git("rev-parse", "--show-toplevel", repo=Path(main).resolve().parent)
+        if mtop and os.path.normcase(str(Path(mtop).resolve())) != os.path.normcase(str(candidate)):
+            return None
+    return candidate
 
 
 def tree_state(repo: str | Path | None = None) -> dict[str, Any]:
@@ -224,9 +235,9 @@ def collect_run_provenance(
         "ended_utc": None,
         "not_reproducible_reason": None,
     }
+    if extra:  # before the drift check: extra fields can never overwrite the reproducibility stamp
+        manifest.update({k: v for k, v in extra.items() if k not in _STAMP_KEYS})
     _apply_drift(manifest, state, end)
-    if extra:
-        manifest.update(extra)
     return manifest
 
 
