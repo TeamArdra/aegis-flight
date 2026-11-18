@@ -21,6 +21,7 @@ Missing/incompatible model => the detector degrades to a no-op (score 0).
 
 from __future__ import annotations
 
+import logging
 import math
 from operator import attrgetter
 from pathlib import Path
@@ -32,6 +33,8 @@ from ..core.enums import AttackType, DetectorName
 from ..core.types import DetectorResult
 from ..features.extractor import ML_FEATURES, FeatureFrame
 from .base import Detector
+
+log = logging.getLogger(__name__)
 
 # Which ML feature, when most anomalous, implies which attack class.
 FEATURE_ATTACK_MAP: dict[str, AttackType] = {
@@ -195,11 +198,18 @@ class AnomalyDetector(Detector):
         self._fast: _FastScorer | None = None
         self._fast_bundle: dict | None = None
         self._get_features = attrgetter(*ML_FEATURES)
+        if path is not None and not path.exists():
+            # a model was asked for but is absent: keep degrading (live sources run ML-off by design),
+            # but never silently -- a "benign" ML-off run must be visible in the logs
+            log.warning("ML model requested but not loaded: %s does not exist; ML detector is OFF "
+                        "(fetch it with `python scripts/fetch_models.py`)", path)
         if path is not None and path.exists():
             try:
                 self.bundle = joblib.load(path)
-            except Exception:  # noqa: BLE001 - corrupt/incompatible model => degrade
+            except Exception as exc:  # noqa: BLE001 - corrupt/incompatible model => degrade
                 self.bundle = None
+                log.warning("ML model requested but not loaded: %s is unreadable (%s: %s); ML detector is "
+                            "OFF", path, type(exc).__name__, exc)
             else:
                 self._fast = _fast_scorer(path, self.bundle)
                 self._fast_bundle = self.bundle

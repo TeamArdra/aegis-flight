@@ -27,9 +27,11 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
     from ..config import load_config
     from ..logging import EventStore
     from ..metrics import evaluate
+    from ..model_integrity import resolve_model_or_exit
 
     cfg = load_config()
-    model = None if args.no_model else args.model
+    model = resolve_model_or_exit(args.model, no_model=args.no_model,
+                                  allow_unverified=args.allow_unverified_model)
     print(f"Simulating scenario='{args.attack}' seed={args.seed} route={args.route or 'default'} "
           f"model={'off' if model is None else model}")
     res = run_session(cfg, args.attack, seed=args.seed, route=args.route, model_path=model)
@@ -67,9 +69,11 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
 def _cmd_benchmark(args: argparse.Namespace) -> int:
     from ..benchmark.harness import run_benchmark
     from ..config import load_config
+    from ..model_integrity import resolve_model_or_exit
 
     cfg = load_config()
-    model = None if args.no_model else args.model
+    model = resolve_model_or_exit(args.model, no_model=args.no_model,
+                                  allow_unverified=args.allow_unverified_model)
     result = run_benchmark(cfg, seeds=args.seeds, model_path=model, out_dir=args.out)
     b = result["binary"]
     print(f"accuracy={b['accuracy']} recall={b['recall_tpr']} FPR={b['fpr']} F1={b['f1']}")
@@ -415,7 +419,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--seed", type=int, default=42)
     s.add_argument("--route", default=None, help="survey_box|out_and_back|perimeter")
     s.add_argument("--model", default="models/isoforest.joblib")
-    s.add_argument("--no-model", action="store_true")
+    s.add_argument("--no-model", action="store_true", help="explicit ML-off run (rule + physics only)")
+    s.add_argument("--allow-unverified-model", action="store_true",
+                   help="use a model whose SHA-256 differs from models/MODELS.sha256 (e.g. `aegis train` output)")
     s.add_argument("--db", default=None, help="log alerts to this SQLite path")
     s.set_defaults(func=_cmd_simulate)
 
@@ -423,7 +429,9 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3, 4, 5, 6])
     b.add_argument("--out", default="artifacts/benchmarks")
     b.add_argument("--model", default="models/isoforest.joblib")
-    b.add_argument("--no-model", action="store_true")
+    b.add_argument("--no-model", action="store_true", help="explicit ML-off run (rule + physics only)")
+    b.add_argument("--allow-unverified-model", action="store_true",
+                   help="use a model whose SHA-256 differs from models/MODELS.sha256 (e.g. `aegis train` output)")
     b.add_argument("--no-figures", action="store_true")
     b.set_defaults(func=_cmd_benchmark)
 

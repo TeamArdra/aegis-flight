@@ -29,6 +29,7 @@ import copy
 import csv
 import gzip
 import json
+import logging
 import platform
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -274,6 +275,8 @@ def run_extended(out_dir: str | Path = "artifacts/benchmarks_extended",
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     if model_path and not Path(model_path).exists():
+        logging.getLogger(__name__).warning(
+            "extended benchmark asked for ML but %s does not exist: running ML OFF", model_path)
         model_path = None
     specs = build_grid(**grid_kw)
     t0 = time.perf_counter()
