@@ -42,6 +42,7 @@ class ProtocolDetector(Detector):
         self.require_signing = bool(p.get("require_signing", False))
         self.cadence_guard_enabled = bool(p.get("cadence_guard_enabled", False))
         self.cadence_min_interval_s = float(p.get("cadence_min_interval_s", 1.5))
+        self.semantic_link_attribution = bool(p.get("semantic_link_attribution", False))
         self._last_cmd_seen: dict[tuple[int, int], float] = {}
         # GNSS fix loss (jamming / receiver denial): fix_type < min_fix_type or
         # satellites < min_satellites for >= gnss_loss_ticks consecutive decisions.
@@ -262,9 +263,22 @@ class ProtocolDetector(Detector):
             if hb_never
             else frame.heartbeat_age_s > self.hb_timeout
         )
+        gps_fault_now = (
+            elapsed > self.gps_dropout and not in_grace
+            if gps_never
+            else frame.gps_age_s > self.gps_dropout
+        )
         if hb_fault:
             s = ramp(frame.heartbeat_age_s, self.hb_timeout, self.hb_timeout * 2)
-            bump(AttackType.DOS, max(0.6, s))
+            # (#22) When other telemetry channels remain healthy and frames continue arriving,
+            # selective heartbeat starvation is packet loss (MAVLINK_ANOMALY) rather than blackout (DOS).
+            selective_loss = (
+                self.semantic_link_attribution
+                and not hb_never
+                and not gps_fault_now
+                and rate >= 5.0
+            )
+            bump(AttackType.MAVLINK_ANOMALY if selective_loss else AttackType.DOS, max(0.6, s))
             if hb_never:
                 evidence.append(
                     "heartbeat stale (never received: no HEARTBEAT since monitoring began) "
@@ -286,11 +300,7 @@ class ProtocolDetector(Detector):
                 "inactive; not attack evidence under this profile "
                 "(protocol.require_global_position=false)"
             )
-        elif (
-            elapsed > self.gps_dropout and not in_grace
-            if gps_never
-            else frame.gps_age_s > self.gps_dropout
-        ):
+        elif gps_fault_now:
             s = max(0.5, ramp(frame.gps_age_s, self.gps_dropout, self.gps_dropout * 3))
             if gps_never:
                 bump(self.never_seen_gps_vote, min(s, self.never_seen_gps_max))

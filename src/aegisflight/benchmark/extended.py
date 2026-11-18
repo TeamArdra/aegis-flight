@@ -39,7 +39,7 @@ import numpy as np
 
 from ..config import AegisConfig, load_config
 from ..core.enums import AttackType
-from ..metrics.scoring import evaluate
+from ..metrics.scoring import evaluate, hierarchical_link_summary, link_layer_label
 from .runner import run_session
 
 MODES: dict[str, list[str]] = {
@@ -174,8 +174,14 @@ def _session_events(sess: dict) -> dict:
         after = [r["t"] - end_t for r in recs if end_t < r["t"] <= end_t + 30 and r["threat"]]
         tail = max(after) if after else 0.0
     correct = [r["pred"] == r["true"] for r in inwin if r["threat"]]
+    hier_correct = [
+        link_layer_label(AttackType(r["pred"])) == link_layer_label(AttackType(r["true"]))
+        for r in inwin
+        if r["threat"]
+    ]
     return {"detected": detected, "ttd": sess["time_to_detect_s"], "alarm_tail_s": tail,
-            "attribution_acc": (sum(correct) / len(correct)) if correct else None}
+            "attribution_acc": (sum(correct) / len(correct)) if correct else None,
+            "hier_attribution_acc": (sum(hier_correct) / len(hier_correct)) if hier_correct else None}
 
 
 def summarise(sessions: list[dict]) -> dict:
@@ -192,12 +198,15 @@ def summarise(sessions: list[dict]) -> dict:
         out[f"binary_{name}_excl_known_gap"] = _binary(nogap)
         ev = evaluate([AttackType(r["true"]) for r in recs], [AttackType(r["pred"]) for r in recs])
         out[f"confusion_{name}"] = ev.to_dict()["confusion_matrix"]
+        out[f"hierarchical_link_layer_{name}"] = hierarchical_link_summary(
+            [AttackType(r["true"]) for r in recs], [AttackType(r["pred"]) for r in recs]
+        )
     per_mode: dict[str, dict] = {}
     for s in single:
         if s["spec"]["kind"] != "single":
             continue
         pm = per_mode.setdefault(s["key"], {"sessions": 0, "detected": 0, "ttd": [], "tail": [],
-                                            "attr": [], "pos": 0, "tp": 0})
+                                            "attr": [], "hier_attr": [], "pos": 0, "tp": 0})
         ev = _session_events(s)
         pm["sessions"] += 1
         pm["detected"] += int(ev["detected"])
@@ -207,6 +216,8 @@ def summarise(sessions: list[dict]) -> dict:
             pm["tail"].append(ev["alarm_tail_s"])
         if ev["attribution_acc"] is not None:
             pm["attr"].append(ev["attribution_acc"])
+        if ev["hier_attribution_acc"] is not None:
+            pm["hier_attr"].append(ev["hier_attribution_acc"])
         sc = [r for r in _scored(s["records"], True) if r["true"] != "BENIGN"]
         pm["pos"] += len(sc)
         pm["tp"] += sum(r["pred"] != "BENIGN" for r in sc)
@@ -217,6 +228,9 @@ def summarise(sessions: list[dict]) -> dict:
             "max_ttd_s": float(np.max(v["ttd"])) if v["ttd"] else None,
             "median_alarm_tail_s": float(np.median(v["tail"])) if v["tail"] else None,
             "attribution_accuracy": float(np.mean(v["attr"])) if v["attr"] else None,
+            "hierarchical_attribution_accuracy": (
+                float(np.mean(v["hier_attr"])) if v["hier_attr"] else None
+            ),
             "known_gap": k in KNOWN_GAP_MODES}
         for k, v in sorted(per_mode.items())}
     for kind in ("benign", *LINK_STRESS):

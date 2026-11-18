@@ -428,3 +428,21 @@ satellites. It is stored as `None` (API `gps.satellites: null`, dashboard "unkno
 Trade-off: a forger who can replace the vehicle's `GPS_RAW_INT` stream could keep reporting 255 with a 3D fix and so
 suppress the low-satellite and jump signals; those signals were never authentication. An injected 255 frame between two
 genuine reports cannot hide a jump: the jump is measured against the last known count.
+
+## Link-layer attribution & hierarchical reporting (#22, Decision D10)
+
+On `FeatureFrame`, several link-level attack modes overlap physically: `dos:flood` (`~100 msg/s`,
+`gap ~250`) and `mavlink_anomaly:rate_spike` (`~106 msg/s`, `gap ~250`) produce nearly identical
+feature vectors, and `dos:latency` (`median jitter 32.4 ms`) overlaps benign simulated jitter
+(`median 46.7 ms`) and `mavlink_anomaly:seq_scramble`.
+
+- **Opt-in semantic packet-loss rule (`protocol.semantic_link_attribution`, default `false`):**
+  when enabled, selective heartbeat starvation (`heartbeat_age_s > heartbeat_timeout_s` while
+  `gps_age_s <= gps_dropout_s` and `msg_rate_hz >= 5.0`) votes `MAVLINK_ANOMALY` rather than
+  `DOS`, reserving `DOS` for link-wide blackouts (`msg_rate_hz < 5.0` or GPS also stale).
+- **Hierarchical link-layer metric (`metrics/scoring.py:hierarchical_link_summary`):**
+  groups `DOS` and `MAVLINK_ANOMALY` under `LINK_LAYER_DISRUPTION` so overlapping link-layer
+  transport faults (`rate_spike`, `latency`, `packet_loss`, `flood`) are reported honestly alongside
+  strict per-class confusion matrices without degrading Stage-1 defaults or binary recall/FPR.
+- **Methodology disclosure:** these rules and evaluations (`scripts/eval_link_attribution.py` on
+  fresh `master_seed=20261119`) were designed with knowledge of the simulator's attack definitions.

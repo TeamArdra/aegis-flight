@@ -49,6 +49,7 @@ protocol:
   min_gnss_fix_type: 3              # GPS_RAW_INT fix_type below this = no 3D fix
   min_gnss_satellites: 5            # fewer satellites than this = degraded fix
   gnss_loss_ticks: 5                # consecutive decisions (1 s @5 Hz) before firing
+  semantic_link_attribution: false  # opt-in (#22): selective HB loss while GPS healthy -> MAVLINK_ANOMALY
 
 # ------------------------------------------------------------------ #
 # Detector B: physics / cyber-physical consistency
