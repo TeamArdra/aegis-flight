@@ -264,13 +264,27 @@ ungated fix after a gated one is the *transition* fix. Each fix's residual incre
 
 ### Real-link hardening (2026-10-29): rate baseline, multirotor yaw, actuation guards
 
-* `protocol.auto_rate_baseline` (default `false`; Stage-1, SIM and replay unchanged). On: for `rate_learn_s` (20 s)
+* `protocol.auto_rate_baseline` (unset by default = on for every non-SIM source, off for SIM; `true` / `false` force
+  it; Stage-1, SIM and scripted replays that build `IDSPipeline` with the default config are unchanged). On: for `rate_learn_s` (20 s)
   after the first heartbeat the median of `msg_rate_hz` is learned and rate alarms are suppressed (score-0 evidence
   `coverage: learning link message-rate baseline`). Afterwards nominal = max(configured, median) and the flood limit =
   max(configured, 4 x median), frozen. If during learning the rate exceeds the configured `max_msg_rate_hz` or the
   p95 is more than 5x the median, learning is rejected (evidence line says so) and the configured thresholds stay.
   Enabled for every non-SIM live source (`LiveEngine`, `InlineIpsBridge`). A flood that begins inside the 20 s window
   is not alarmed on until learning ends (and is then rejected), an accepted limitation. Engineering default, not calibrated.
+* **Step adoption (2026-10-30, PR #39; scope disclosure).** A p95 above 5x the median while the peak stays at or below
+  `max_msg_rate_hz` is now treated as a step (a GCS that connected and requested its streams part-way through the
+  window), not rejected: if the last `min(5 s, rate_learn_s / 4)` form a stable plateau (at least 3 samples, max <= 2 x
+  min) that plateau becomes the baseline (nominal = max(configured, its median), flood limit = max(configured, 4 x its
+  median)); if the rate is still moving, the window is extended once by `rate_learn_s`. This applies to **every source
+  with the learner on, i.e. every non-SIM source: PX4 SITL and ArduPilot SITL through `LiveEngine`, serial and dashboard
+  REPLAY sources, and `aegis ips-bridge`**, not only the ArduCopter profile. The committed SITL artifacts
+  (`artifacts/sitl/`, `artifacts/ardupilot/`, last changed 2026-10-10) predate both this change and the auto-on default
+  (2026-10-29) and were not regenerated, and the golden fixture's synthetic streams do not exercise a step. Consequence
+  to keep in mind: a flood that starts inside the learning window, stays at or below `max_msg_rate_hz` and holds a
+  stable level at the end of the window is adopted as the link's normal rate (and the flood limit rises to 4x it),
+  where it was rejected before. Motivated by and checked on one Raspberry Pi 3B+ SITL run (false DoS alerts after a
+  late GCS connect); not calibrated.
 * `physics.yaw_course_enabled` (default `true`). `false` disables the heading-vs-course rule, i.e. the
   frozen-attitude telemetry check, for that profile. Used by `configs/ardupilot_copter/` because a multirotor's
   yaw is independent of its track.
@@ -321,6 +335,12 @@ them is unaffected. They replace the frozen-attitude coverage that `yaw_course_e
   `BATTERY_STATUS` / `VFR_HUD` data, which has not been captured yet.
 * **Limits:** a forger who rewrites both messages consistently, or edits a quantity that is reported once, is not caught by this.
   On a signed link the signature already covers it. Evidence: `tests/unit/test_xmsg_checks.py`.
+* **Red/blue disclosure (AGENTS.md section 5).** The three checks were written after the `px_fc_proxy.py` telemetry rewrites
+  (`scripts/ardupilot/real_pixhawk/`: battery jump, attitude freeze, heading offset) went undetected in earlier bench runs,
+  and were then scored on those same rewrites (`docs/RADIO_TEST_RESULTS.md`, campaign batches; unverified session records). Their bench
+  detections are therefore not independent of the attack implementation, and the battery and heading tolerances (1.5 V,
+  10 deg) and `attitude_repeat_n` (8) are uncalibrated engineering defaults. No independent attack implementation or
+  held-out data has been used to score them.
 
 ### Mission-path check (2026-10-28, additive)
 
