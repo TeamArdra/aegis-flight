@@ -1,9 +1,17 @@
-"""Byte-exact equivalence guard for the inline forwarding path (see scripts/make_golden_forwarding.py).
+"""Byte-exact regression guard for the inline forwarding path (see scripts/make_golden_forwarding.py).
 
-The fixture ``tests/golden_forwarding/golden.json`` was generated from the code BEFORE the forwarding-path
-optimisation. For the same input bytes, clocks and configuration the bridge must forward / drop / rewrite exactly
-the same bytes, emit exactly the same management frames and keep exactly the same counters, and the serial stream
-framer must emit the same frames with the same error counters. Never regenerate the fixture to make this pass.
+For the same input bytes, clocks and configuration the bridge must forward / drop / rewrite exactly the same bytes,
+emit exactly the same management frames and keep exactly the same counters as recorded in
+``tests/golden_forwarding/golden.json``, and the serial stream framer must emit the same frames with the same error
+counters.
+
+What the fixture is: a snapshot of the CURRENT behaviour, not proof of equivalence to the pre-optimisation code. It
+was generated before the forwarding-path optimisation (``15c3aaf``) and then deliberately regenerated three times for
+behaviour changes: ``e1ceb76`` (flood scenario split into a rogue-source and a vehicle-telemetry flood), ``93d5572``
+(8 entries, management-frame digests, incl. passive/advisory signing-failure announcements) and ``14e629e`` (three
+management cases, the M7 lock-out removal). That the optimisation itself changed no byte rests on the comparison
+made at ``15c3aaf``, not on the current file. Never regenerate the fixture to make this pass; a deliberate behaviour
+change regenerates it in its own commit that says which entries changed and why.
 """
 
 from __future__ import annotations

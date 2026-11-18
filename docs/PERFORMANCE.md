@@ -106,10 +106,13 @@ each, about +-10 % run-to-run noise); the Raspberry Pi 3B+ figures for this path
 cProfile); raw results in `artifacts/perf/forwarding_before.json` / `forwarding_after1.json`.
 
 Rule: zero behaviour change. `tests/unit/test_forwarding_equivalence.py` replays a deterministic corpus (25 bridge
-scenarios x 3 postures, 260 framer cases, `split_frames`, CRC) against `tests/golden_forwarding/golden.json`, which was
-generated from the code before any change: forwarded bytes to FC and GCS, management frames, tap contents and every
-bridge / policy / sanitizer / management counter are compared bit for bit. No buffering or batching was added; no
-frame is held longer than before.
+scenarios x 3 postures, 260 framer cases, `split_frames`, CRC) against `tests/golden_forwarding/golden.json`:
+forwarded bytes to FC and GCS, management frames, tap contents and every bridge / policy / sanitizer / management
+counter are compared bit for bit. The fixture was generated from the code before the optimisation (`15c3aaf`, where
+the optimised code was checked against it) and has since been regenerated deliberately three times for behaviour
+changes (`e1ceb76` flood scenarios, `93d5572` signing-failure announcements, `14e629e` management lock-out removal),
+so today it is a snapshot of current behaviour, not proof of equivalence to the pre-optimisation code. No buffering
+or batching was added; no frame is held longer than before.
 
 | Operation | before p50 / mean (us) | after p50 / mean (us) |
 |---|---|---|
