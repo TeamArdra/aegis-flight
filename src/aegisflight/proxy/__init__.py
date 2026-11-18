@@ -28,6 +28,20 @@ from .attacks_live_dos_replay import (
     draw_drop_params,
     draw_replay_params,
 )
+from .attacks_live_telemetry import (
+    AltitudeBiasAttack,
+    AltitudeBiasParams,
+    BatteryJumpAttack,
+    BatteryJumpParams,
+    BenignPilotControlHook,
+    FirmwareIdentityAttack,
+    FirmwareIdentityParams,
+    FrozenAttitudeAttack,
+    FrozenAttitudeParams,
+    SpeedMismatchAttack,
+    SpeedMismatchParams,
+    build_restricted_visibility_hook,
+)
 from .groundtruth import (
     FrameLogEntry,
     FrameLogWriter,
@@ -46,7 +60,19 @@ from .groundtruth import (
 from .hooks import FrameContext, FrameHook, passthrough
 
 __all__ = [
+    "AltitudeBiasAttack",
+    "AltitudeBiasParams",
+    "BatteryJumpAttack",
+    "BatteryJumpParams",
+    "BenignPilotControlHook",
     "COMMAND_INJECTION_RANGES",
+    "FirmwareIdentityAttack",
+    "FirmwareIdentityParams",
+    "FrozenAttitudeAttack",
+    "FrozenAttitudeParams",
+    "SpeedMismatchAttack",
+    "SpeedMismatchParams",
+    "build_restricted_visibility_hook",
     "DELAY_RANGES",
     "DROP_RANGES",
     "GNSS_DEGRADATION_RANGES",
