@@ -262,7 +262,10 @@ class LiveEngine:
             from ..mavlink.gcs_notifier import GcsNotifier
             target = ((self.spec.gcs_notify_host, self.spec.gcs_notify_port)
                       if getattr(self.spec, "gcs_notify_port", None) else None)
-            self.gcs_notifier = GcsNotifier(enabled=True, udp_target=target)
+            self.gcs_notifier = GcsNotifier(
+                enabled=self.mitigation.mode != DefenseMode.PASSIVE,
+                udp_target=target,
+            )
         self._start_run()
 
     async def start(self) -> None:
@@ -415,6 +418,8 @@ class LiveEngine:
         if mode == "active-ips" and not self.spec.transmit_allowed:
             raise ValueError("active-ips is refused on a serial device link (receive-only)")
         self.mitigation.set_mode(mode)
+        if self.gcs_notifier is not None:
+            self.gcs_notifier.enabled = self.mitigation.mode != DefenseMode.PASSIVE
         if (mode == "active-ips" and not self.is_sim and not self.signing_configured and allow_unsigned is True):
             self.unsigned_acknowledged = True
             self.mitigation._add_action(time.time(), "UNSIGNED_ACK",
@@ -676,7 +681,7 @@ class LiveEngine:
             if assessment.is_alert:
                 # persisted only: /api/events reads the run back from the store (no in-memory copy)
                 self.store.log_event(assessment, self._run_id)
-                if self.gcs_notifier is not None:
+                if self.gcs_notifier is not None and self.mitigation.mode != DefenseMode.PASSIVE:
                     self.gcs_notifier.notify(assessment)
                 # First alert after an injection -> stamp live time-to-detect.
                 if self._ttd_pending and self._attack_injected_t is not None:

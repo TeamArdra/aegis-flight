@@ -318,6 +318,7 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                                  mgmt_state_path=args.mgmt_state, lock_posture_file=args.lock_posture_file,
                                  mgmt_max_cmd_age_s=args.mgmt_max_age_s,
                                  audit_log_path=args.audit_log,
+                                 mgmt_enable=bool(args.mgmt_enable),
                                  unsigned_acknowledged=args.allow_unsigned and key is None and args.defense_mode == "active-ips",
                                  vehicle_filter=args.vehicle_uplink_filter, filter_override_file=args.filter_override_file,
                                  filter_lockout_failopen_s=args.filter_lockout_failopen_s,
@@ -518,6 +519,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="unsigned link: number of forwarded sensitive frames remembered for the byte-identical replay filter")
     ib.add_argument("--gcs-alerts", choices=["on", "off"], default="on",
                     help="send IDS alerts / IPS actions as short AEGIS: STATUSTEXTs to the GCS side (never the FC)")
+    ib.add_argument("--mgmt-enable", action="store_true",
+                    help="in PASSIVE posture, opt in to in-band GCS management TX/RX and cross-end summaries (default off = 0B TX)")
     ib.add_argument("--alert-min-interval", type=float, default=2.0,
                     help="at most one alert STATUSTEXT per attack type per this many seconds (escalations bypass)")
     ib.add_argument("--mgmt-status-interval", type=float, default=2.0,
