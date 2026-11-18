@@ -89,6 +89,18 @@ class MissingInputError(FileNotFoundError):
     """A named input is absent: the run stops instead of reporting a source with fewer (or zero) inputs."""
 
 
+class BadInputError(ValueError):
+    """A named input is present but cannot be scored as the definitions require (e.g. off-grid decision times)."""
+
+
+def events_of(rows: list, where: str) -> list[bool]:
+    """``stage2.alert_events`` with the input named in the error if a decision time is off the engine's tick grid."""
+    try:
+        return m.alert_events(rows)
+    except m.OffGridTimeError as e:
+        raise BadInputError(f"{where}: {e}") from None
+
+
 def required_inputs() -> list[str]:
     """Every file the generator reads, relative to the repository root."""
     return ([f"{EXT}/{f}" for f in ("decisions.csv.gz", "sessions.csv", "results.json")]
@@ -235,9 +247,9 @@ def load_sim(root: Path):
             rows[int(r["session"])].append(r)
     with open(root / EXT / "sessions.csv", newline="") as f:
         sess = {int(r["idx"]): r for r in csv.DictReader(f)}
-    for rs in rows.values():
+    for i, rs in rows.items():
         rs.sort(key=lambda r: float(r["t"]))
-        ev = m.alert_events([(float(r["t"]), r["threat"] == "1", r["pred"]) for r in rs])
+        ev = events_of([(float(r["t"]), r["threat"] == "1", r["pred"]) for r in rs], f"{EXT}/decisions.csv.gz session {i}")
         for r, a in zip(rs, ev, strict=True):
             r["alert"] = a
     return rows, sess
@@ -381,7 +393,7 @@ def px4_live(root: Path, prov: dict) -> dict:
     out = {}
     for p in PX4_LIVE:
         rs = [json.loads(ln) for ln in (root / p).read_text().splitlines() if ln]
-        ev = m.alert_events([(float(r["t"]), bool(r["threat"]), r["type"]) for r in rs])
+        ev = events_of([(float(r["t"]), bool(r["threat"]), r["type"]) for r in rs], p)
         out[Path(p).stem] = rate_block(sum(ev), len(rs), sum(bool(r["threat"]) for r in rs), p,
                                        "alert events re-derived (severity not logged; shipped config: threat implies "
                                        ">= SUSPICIOUS); run predates per-vehicle calibration", prov[p]["claim_class"])
@@ -629,7 +641,7 @@ def main(argv: list[str] | None = None) -> int:
     root = Path(a.root)
     try:
         res = build(root)
-    except MissingInputError as e:
+    except (MissingInputError, BadInputError) as e:
         print(f"error: {e}; nothing written", file=sys.stderr)
         return 2
     out = Path(a.out_dir) if a.out_dir else root / "artifacts" / "validation" / f"stage2_metrics_{a.tag}"

@@ -510,3 +510,27 @@ def test_snapshot_states_pr39_pending_and_the_sim_reproducibility_gap():
     md = g.to_md(r)
     assert "**SIM reproducibility.**" in md and "computed from the committed decisions" in md
     assert "not a committed artifact" in md                                       # the decision-level claim is attributed
+
+
+def test_make_stage2_metrics_exits_2_on_an_off_grid_decision_time(tmp_path, capsys):
+    """Re-verification item 4: a decision log whose times are off the engine's 0.1 s tick grid made the generator exit 1
+    with a traceback. It must exit 2 with one line naming the input, and write nothing, like a missing input."""
+    import json
+    import shutil
+
+    root, g = _generator()
+    src = tmp_path / "root"
+    for p in g.required_inputs():
+        (src / p).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(root / p, src / p)
+    bad = src / g.PX4_LIVE[0]
+    rows = [json.loads(ln) for ln in bad.read_text().splitlines() if ln]
+    rows[1]["t"] = 0.25                                                  # between ticks 2 (0.2 s) and 3 (0.3 s)
+    bad.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    assert g.main(["--tag", "t", "--root", str(src), "--out-dir", str(tmp_path / "out")]) == 2
+    err = capsys.readouterr().err
+    assert err.count("\n") == 1 and err.startswith("error: ") and "Traceback" not in err
+    assert g.PX4_LIVE[0] in err and "t=0.25 is not on the 0.1 s tick grid" in err
+    assert not (tmp_path / "out").exists()
+    with pytest.raises(m.OffGridTimeError):
+        m.engine_tick_time(0.25)

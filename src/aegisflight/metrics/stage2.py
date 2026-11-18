@@ -73,17 +73,22 @@ def wilson(k: int, n: int, z: float = Z95) -> tuple[float, float]:
     return lo, hi
 
 
+class OffGridTimeError(ValueError):
+    """A decision time that is not on the engine's tick grid: the re-derivation refuses to guess."""
+
+
 def engine_tick_time(t: float, tick_s: float = TICK_S) -> float:
     """The engine's own float for a logged (rounded) decision time: ``k * tick_s`` with ``k = round(t / tick_s)``.
 
     The engine timestamps tick ``k`` as ``k * dt`` (``simulator/flight.py``, ``sources/mavlink_live.py``; ``dt = 1 /
     sample_rate_hz``) and compares those raw floats against ``cooldown_s``. Logs keep ``round(t, 2)`` or ``round(t, 3)``,
     and a 4.0 s gap differs by one ulp between the two: ``646 * 0.1 - 606 * 0.1 = 4.000000000000007`` but
-    ``64.6 - 60.6 = 3.999999999999993``. Raises ``ValueError`` if ``t`` is not on the tick grid, rather than guess.
+    ``64.6 - 60.6 = 3.999999999999993``. Raises ``OffGridTimeError`` (a ``ValueError``) if ``t`` is not on the tick
+    grid, rather than guess.
     """
     k = round(t / tick_s)
     if abs(t / tick_s - k) > 1e-6:
-        raise ValueError(f"t={t!r} is not on the {tick_s} s tick grid; pass the source's tick_s (or None for raw t)")
+        raise OffGridTimeError(f"t={t!r} is not on the {tick_s} s tick grid; pass the source's tick_s (or None for raw t)")
     return k * tick_s
 
 
