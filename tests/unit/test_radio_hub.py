@@ -145,7 +145,9 @@ def test_downlink_broadcast_to_gcs_and_observers(make_hub, factory):
     assert st["downlink"]["bytes"] == len(payload)
     assert st["downlink"]["frames"] == 5
     assert {c["kind"] for c in st["clients"]} == {"gcs", "obs"}
-    assert all(c["tx_bytes"] == len(payload) for c in st["clients"])
+    # Each sender thread bumps tx_bytes only after sendall() returns, so a client can hold
+    # every byte before its counter moves: poll (bounded) instead of reading once.
+    assert wait_for(lambda: [c["tx_bytes"] for c in hub.stats()["clients"]] == [len(payload)] * 3)
 
 
 def test_uplink_written_to_serial_in_chunks(make_hub, factory):
@@ -170,8 +172,9 @@ def test_observer_is_read_only(make_hub, factory):
     assert wait_for(lambda: b"".join(ser.written) == b"from-gcs")
     time.sleep(0.2)
     assert b"".join(ser.written) == b"from-gcs"
-    obs = next(c for c in hub.stats()["clients"] if c["kind"] == "obs")
-    assert obs["rx_bytes"] == len(b"observer-junk")
+    # rx_bytes is bumped by the observer's recv thread; poll it instead of trusting the sleeps above.
+    assert wait_for(lambda: [c["rx_bytes"] for c in hub.stats()["clients"] if c["kind"] == "obs"]
+                    == [len(b"observer-junk")])
 
 
 def test_reconnect_after_unplug_keeps_clients(make_hub, factory):
