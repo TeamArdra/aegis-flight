@@ -127,3 +127,50 @@ def test_resume_cannot_launder_a_dirty_campaign_into_reproducible(tmp_path, stub
     monkeypatch.setattr(run_provenance, "tree_state", lambda repo=None: dirty)
     assert rc.main(_only(stub(), root, "--n", "2", "--resume", "--allow-dirty")) == 0  # dirty resume stays stamped
     assert (root / "NOT-REPRODUCIBLE").is_file()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drive paths")
+def test_wsl_path_never_goes_through_wslpath():
+    """Dry-run defect: ``wsl -- wslpath C:\a\b`` loses the backslashes, so every px4 trial failed 'SITL did not become
+    ready' without SITL ever being started. The path is now converted locally."""
+    assert rc.wsl_path(Path(r"C:\Users\x y\repo\scripts\sitl\start_px4_sitl.sh")) == \
+        "/mnt/c/Users/x y/repo/scripts/sitl/start_px4_sitl.sh"
+    assert rc.sitl_script().startswith("/mnt/") and rc.sitl_script().endswith("/scripts/sitl/start_px4_sitl.sh")
+
+
+def test_sitl_restart_runs_the_script_by_its_wsl_path(monkeypatch):
+    calls: list[list[str]] = []
+
+    class Done:
+        returncode, stdout, stderr = 0, "", ""
+
+    def fake_run(argv, **kw):
+        calls.append(list(argv))
+        return Done()
+
+    monkeypatch.setattr(rc.subprocess, "run", fake_run)
+    monkeypatch.setattr(rc.time, "sleep", lambda s: None)
+    assert rc.sitl_restart() is True
+    assert not any("wslpath" in c for c in calls)
+    script = rc.sitl_script()
+    assert ["wsl", "-d", rc.DISTRO, "--", "bash", script, "stop"] in calls
+    assert ["wsl", "-d", rc.DISTRO, "--", "bash", script, "start"] in calls
+    assert "\\" not in script
+
+
+def test_px4_sitl_is_stopped_after_the_campaign(tmp_path, stub, monkeypatch):
+    """Dry-run defect: the runner left PX4 SITL running after the last trial (run_trial_batch.sh stops it)."""
+    events: list[str] = []
+    monkeypatch.setattr(rc, "sitl_restart", lambda distro=rc.DISTRO: events.append("restart") or True)
+    monkeypatch.setattr(rc, "sitl_stop", lambda distro=rc.DISTRO: events.append("stop"))
+    drv = tmp_path / "stub_driver.py"
+    stub()  # writes the stub driver
+    scen = tmp_path / "px4.json"
+    scen.write_text(json.dumps([{"name": "p_one", "kind": "px4", "script": str(drv), "seed": 5}]))
+    root = tmp_path / "c"
+    assert rc.main(["--out-root", str(root), "--scenarios-file", str(scen), "--only", "p_one", "--n", "2"]) == 0
+    assert events == ["restart", "restart", "stop"]
+    events.clear()
+    assert rc.main(["--out-root", str(tmp_path / "d"), "--scenarios-file", str(scen), "--only", "p_one", "--n", "1",
+                    "--no-sitl-restart"]) == 0
+    assert events == []  # the operator manages SITL: never touched

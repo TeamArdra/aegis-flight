@@ -137,15 +137,34 @@ def quarantine_partial(sc: Scenario, root: Path, i: int) -> list[str]:
     return moved
 
 
+def wsl_path(p: Path) -> str:
+    """Windows path -> /mnt/<drive>/... without calling ``wslpath``: ``wsl -- wslpath C:\\x\\y`` goes through the WSL
+    command line, which eats the backslashes, so ``wslpath`` sees ``C:xy`` and fails (found in the #25 n=1 dry run)."""
+    d = Path(p).resolve()
+    if not d.drive:
+        return d.as_posix()  # already a POSIX path (the runner itself inside WSL / Linux)
+    return f"/mnt/{d.drive[0].lower()}/" + "/".join(d.parts[1:])
+
+
+def sitl_script() -> str:
+    return wsl_path(REPO / "scripts" / "sitl" / "start_px4_sitl.sh")
+
+
+def _wsl(distro: str, *a: str, timeout: float = 60) -> subprocess.CompletedProcess:
+    return subprocess.run(["wsl", "-d", distro, "--", *a], capture_output=True, text=True, timeout=timeout)
+
+
+def sitl_stop(distro: str = DISTRO) -> None:
+    """Stop our isolated PX4 SITL after the last trial (run_trial_batch.sh does the same; nothing is left running)."""
+    _wsl(distro, "bash", sitl_script(), "stop")
+
+
 def sitl_restart(distro: str = DISTRO) -> bool:
     """Fresh PX4 SITL boot (same procedure as run_trial_batch.sh): stop, clear the persisted signing key, start, wait."""
-    script = subprocess.run(["wsl", "-d", distro, "--", "wslpath", "-a", str(REPO / "scripts/sitl/start_px4_sitl.sh")],
-                            capture_output=True, text=True, timeout=30).stdout.strip()
-    if not script:
-        return False
+    script = sitl_script()
 
     def wsl(*a: str, timeout: float = 60) -> subprocess.CompletedProcess:
-        return subprocess.run(["wsl", "-d", distro, "--", *a], capture_output=True, text=True, timeout=timeout)
+        return _wsl(distro, *a, timeout=timeout)
 
     wsl("bash", script, "stop")
     time.sleep(3)
@@ -256,6 +275,7 @@ def main(argv: list[str] | None = None) -> int:
         state = {"schema": STATE_SCHEMA, "commit": prov["commit"], "reproducible": prov["reproducible"], "trials": {}}
     root.mkdir(parents=True, exist_ok=True)
     write_manifest(root, prov, MANIFEST_NAME)
+    ran_px4 = False
     for sc in scenarios:
         for i in range(a.n):
             key = f"{sc.name}/{i + 1:03d}"
@@ -263,10 +283,13 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"skip   {key} (complete)", flush=True)
                 continue
             print(f"run    {key} seed={sc.seed} index={i}", flush=True)
+            ran_px4 = ran_px4 or sc.kind == "px4"
             rec = run_trial(sc, root, i, a.allow_dirty, restart=not a.no_sitl_restart)
             state["trials"][key] = rec
             write_json(state_path, state)  # after every trial: a crash loses at most the one in flight
             print(f"  -> {rec['status']}" + (f": {rec.get('reason')}" if rec["status"] != "done" else ""), flush=True)
+    if ran_px4 and not a.no_sitl_restart:
+        sitl_stop()
     summary = summarise(root, scenarios, a.n, state)
     prov["campaign"]["summary"] = summary["scenarios"]
     write_manifest(root, finish_run(prov), MANIFEST_NAME)
