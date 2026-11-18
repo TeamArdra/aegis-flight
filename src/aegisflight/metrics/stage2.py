@@ -6,20 +6,30 @@ Definitions (stated here once; ``scripts/make_stage2_metrics.py`` and ``docs/BEN
   that is not suppressed by the per-attack-type cooldown (``fusion.cooldown_s``) while an alert is active (the active
   state clears after ``fusion.clear_ticks`` consecutive non-threat decisions). One persistent condition is one event,
   not one event per 0.2 s decision. ``alert_events`` re-derives ``is_alert`` from ``(t, threat, attack_type)`` with the
-  engine's own rule, for artifacts that logged only those columns.
-* **False alerts per flight hour**: alert events on benign ground truth / exposure hours, where exposure is the
-  scored decision time of the same decisions (count x decision period). The interval is the exact one-sided 95%
+  engine's own rule, for artifacts that logged only those columns. Logged ``t`` is rounded; the re-derivation maps it
+  back to the engine's raw tick time (``engine_tick_time``) so the exact-cooldown boundary is decided as the engine did.
+* **False alerts per hour of exposure**: alert events on benign ground truth / exposure hours, where exposure is the
+  scored decision time of the same decisions (count x decision period): simulated or SITL time including any scored
+  ground phases, or bench wall time, never flight time. Issue #28's "per flight hour" is not measured by any source. The interval is the exact one-sided 95%
   Poisson (Garwood) upper bound on the event count, divided by the exposure: with 0 events in T hours the bound is
   2.996 / T.
 * **Session-level rates** (detection, session FPR): proportions over sessions with two-sided 95% Wilson intervals,
   which stay inside [0, 1] and behave at 0 / n and n / n, where the normal approximation does not.
 * **Onset latency**: time from the first decision labelled with the attack to the first threat decision inside the
   attack window (the benchmark's ``time_to_detect_s``). **Release latency** (drift): from the last labelled attack
-  decision (the attacker stops) to the same detection; negative when detection came before the release.
+  decision (the attacker stops) to the same detection; negative when detection came before the release. The SITL drift
+  rows take onset, release and "detection" from each source's own evaluation rule, which differ; the generator states
+  the rule next to every latency row (``detection_rule``).
 * **Per-class precision / recall / F1** from a confusion matrix ``cm[true][pred]``. A class with support but no
   predictions has precision 0 (and F1 0), not NaN, so it pulls the macro average down instead of disappearing.
-  Macro-F1 is the unweighted mean over classes with non-zero support.
+  Macro-F1 is the unweighted mean over a stated class set, and two sets are reported, labelled: **attack classes only**
+  (the set ``metrics/scoring.py`` ``Evaluation.macro()`` averages) and **including BENIGN** (every class with support).
+* **Accuracy** is reported two ways, labelled: **binary** (attack = positive, any attack label counts as detected; the
+  ``docs/BENCHMARKING.md`` definition and ``results.json`` ``binary_*.accuracy``) and **multiclass** (attribution: the
+  exact class must match). Both are dominated by the benign majority and are listed last.
 * **Percentiles**: nearest-rank (no interpolation), so a reported p95 is an observed value; always reported with n.
+  The nearest-rank median is the lower middle value for even n, and for n < 20 the nearest-rank p95 is the maximum
+  (``ceil(0.95 n) = n``), so it is labelled as such. ``metrics/scoring.py`` interpolates (numpy default) instead.
 """
 
 from __future__ import annotations
@@ -30,6 +40,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from scipy.stats import chi2
 
 Z95 = 1.959963984540054
+TICK_S = 1.0 / 10.0          # engine tick: 1 / configs/simulation.yaml sample_rate_hz (a test pins it to the config)
 
 
 def rate_per_hour(events: int, exposure_s: float) -> float:
@@ -63,16 +74,41 @@ def wilson(k: int, n: int, z: float = Z95) -> tuple[float, float]:
     return lo, hi
 
 
-def alert_events(rows: Iterable[tuple[float, bool, str]], cooldown_s: float = 4.0, clear_ticks: int = 4) -> list[bool]:
+class OffGridTimeError(ValueError):
+    """A decision time that is not on the engine's tick grid: the re-derivation refuses to guess."""
+
+
+def engine_tick_time(t: float, tick_s: float = TICK_S) -> float:
+    """The engine's own float for a logged (rounded) decision time: ``k * tick_s`` with ``k = round(t / tick_s)``.
+
+    The engine timestamps tick ``k`` as ``k * dt`` (``simulator/flight.py``, ``sources/mavlink_live.py``; ``dt = 1 /
+    sample_rate_hz``) and compares those raw floats against ``cooldown_s``. Logs keep ``round(t, 2)`` or ``round(t, 3)``,
+    and a 4.0 s gap differs by one ulp between the two: ``646 * 0.1 - 606 * 0.1 = 4.000000000000007`` but
+    ``64.6 - 60.6 = 3.999999999999993``. Raises ``OffGridTimeError`` (a ``ValueError``) if ``t`` is not on the tick
+    grid, rather than guess.
+    """
+    k = round(t / tick_s)
+    if abs(t / tick_s - k) > 1e-6:
+        raise OffGridTimeError(f"t={t!r} is not on the {tick_s} s tick grid; pass the source's tick_s (or None for raw t)")
+    return k * tick_s
+
+
+def alert_events(rows: Iterable[tuple[float, bool, str]], cooldown_s: float = 4.0, clear_ticks: int = 4,
+                 tick_s: float | None = TICK_S) -> list[bool]:
     """``is_alert`` for each ``(t, threat, attack_type)`` decision, by the fusion engine's de-duplication rule.
 
     Valid when every threat decision is at or above the alert severity (true for the shipped config: the threat
     threshold equals the SUSPICIOUS band); ``tests/unit/test_stage2_metrics.py`` checks it against the engine.
+    ``t`` may be the logged, rounded time: with ``tick_s`` set (default: the shipped 10 Hz tick) it is mapped back to
+    the engine's raw tick time by ``engine_tick_time``, so a gap of exactly ``cooldown_s`` is decided as the engine
+    decided it. ``tick_s=None`` uses ``t`` as given.
     """
     last: dict[str, float] = {}
     active, streak = False, 0
     out: list[bool] = []
     for t, threat, kind in rows:
+        if tick_s is not None:
+            t = engine_tick_time(t, tick_s)
         alert = False
         if threat:
             if (t - last.get(kind, -1e9)) >= cooldown_s or not active:
@@ -132,5 +168,15 @@ def macro_f1(prf: Mapping[str, Mapping[str, float | int]], classes: Iterable[str
 
 
 def accuracy(cm: Mapping[str, Mapping[str, int]]) -> float:
+    """Multiclass (attribution) accuracy: the diagonal over all decisions."""
     tot = sum(v for row in cm.values() for v in row.values())
     return sum(cm[c].get(c, 0) for c in cm) / tot if tot else float("nan")
+
+
+def binary_accuracy(cm: Mapping[str, Mapping[str, int]], negative: str = "BENIGN") -> float:
+    """Binary accuracy, attack = positive: (TN + TP) / N, where TN = ``cm[negative][negative]`` and TP counts every
+    attack decision predicted as any attack class (a misattributed attack is still detected)."""
+    tot = sum(v for row in cm.values() for v in row.values())
+    tn = cm.get(negative, {}).get(negative, 0)
+    tp = sum(v for t, row in cm.items() if t != negative for p, v in row.items() if p != negative)
+    return (tn + tp) / tot if tot else float("nan")
