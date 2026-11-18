@@ -171,9 +171,28 @@ def test_unknown_satellite_count_never_produces_a_sat_jump():
     ex.update(_env(1.0, "GPS_RAW_INT", 24, satellites_visible=255, fix_type=3, eph=100))
     assert ex.extract(1.1).gps_sat_jump == 0  # 14 -> 255 is not a 241-satellite jump
     ex.update(_env(2.0, "GPS_RAW_INT", 24, satellites_visible=12, fix_type=3, eph=100))
-    assert ex.extract(2.1).gps_sat_jump == 0  # 255 -> 12 is not a jump either (unknown breaks the pair)
+    assert ex.extract(2.1).gps_sat_jump == 2  # compared with the last KNOWN count (14), never with 255
     ex.update(_env(3.0, "GPS_RAW_INT", 24, satellites_visible=4, fix_type=3, eph=100))
     assert ex.extract(3.1).gps_sat_jump == 8  # known -> known still counts
+
+
+def test_one_injected_unknown_count_cannot_hide_a_real_satellite_jump():
+    """Security review of PR #51 (P2): 14, 14, 255, 2 at a 3D fix must still report the 14 -> 2 drop."""
+    ex = FeatureExtractor()
+    ex.update(_env(0.0, "GPS_STATUS", 25, satellite_snr=[40] * 12 + [0] * 8, satellites_visible=12))
+    for i, sats in enumerate([14, 14, 255]):
+        ex.update(_env(float(i), "GPS_RAW_INT", 24, satellites_visible=sats, fix_type=3, eph=100))
+    ex.update(_env(3.0, "GPS_RAW_INT", 24, satellites_visible=2, fix_type=3, eph=100))
+    assert ex.extract(3.1).gps_sat_jump == 12
+
+
+def test_a_fix_loss_on_an_unknown_count_report_still_breaks_the_pair():
+    ex = FeatureExtractor()
+    ex.update(_env(0.0, "GPS_STATUS", 25, satellite_snr=[40] * 12 + [0] * 8, satellites_visible=12))
+    ex.update(_env(0.0, "GPS_RAW_INT", 24, satellites_visible=14, fix_type=3, eph=100))
+    ex.update(_env(1.0, "GPS_RAW_INT", 24, satellites_visible=255, fix_type=0, eph=100))
+    ex.update(_env(2.0, "GPS_RAW_INT", 24, satellites_visible=2, fix_type=3, eph=100))
+    assert ex.extract(2.1).gps_sat_jump == 0  # recovery after a fix loss is handled by other rules, not a jump
 
 
 def test_physics_satellite_jump_rule_ignores_unknown_counts_end_to_end():

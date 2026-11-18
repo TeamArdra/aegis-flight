@@ -400,13 +400,17 @@ class FeatureExtractor:
             # a jump counts only with a 3D fix on BOTH reports: satellites returning after a fix
             # loss (or leaving with it) is receiver recovery / jamming, handled by other rules
             valid = self.snapshot.gps_fix_type >= 3
-            # an unknown count (None) on either report can never count as a jump
-            if (sats is not None and self._prev_sats is not None and valid and self._prev_valid
-                    and sats != self._prev_sats):
-                self._sat_jump = abs(sats - self._prev_sats)
-                self._sat_jump_t = t
-            self._prev_sats = sats
-            self._prev_valid = valid
+            if sats is None:
+                # unknown count (MAVLink 255): never a jump itself, and it never replaces the last KNOWN count, so one
+                # injected 255 frame cannot hide a real jump between two genuine reports; a fix loss still breaks the pair
+                if not valid:
+                    self._prev_valid = False
+            else:
+                if self._prev_sats is not None and valid and self._prev_valid and sats != self._prev_sats:
+                    self._sat_jump = abs(sats - self._prev_sats)
+                    self._sat_jump_t = t
+                self._prev_sats = sats
+                self._prev_valid = valid
             vel = f.get("vel")
             if vel is not None and int(vel) != 65535:  # 65535 = unknown
                 self._raw_vel_ms = int(vel) / 100.0

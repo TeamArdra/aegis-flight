@@ -425,5 +425,6 @@ rules may no longer catch) are in `docs/CALIBRATION_PX4.md`. It is not attack de
 **Unknown satellite count (MAVLink 255).** `GPS_RAW_INT.satellites_visible = 255` means "unknown", not 255
 satellites. It is stored as `None` (API `gps.satellites: null`, dashboard "unknown"). The GNSS-loss rule then judges
 `fix_type` alone (`fix_type < 3` still fires, `>= 3` does not) and the satellite-jump rule ignores the pair.
-Trade-off: a forger who can write `GPS_RAW_INT` could report 255 with a 3D fix to suppress the low-satellite and
-jump signals; those signals were never authentication.
+Trade-off: a forger who can replace the vehicle's `GPS_RAW_INT` stream could keep reporting 255 with a 3D fix and so
+suppress the low-satellite and jump signals; those signals were never authentication. An injected 255 frame between two
+genuine reports cannot hide a jump: the jump is measured against the last known count.
