@@ -1,5 +1,10 @@
 # Real-radio test of the inline IPS bridge
 
+> **Evidence class: BENCH (disarmed, propellers removed). Never flight validation.** The attack and injection drivers used
+> for these runs were removed from the tree (AGENTS.md section 5: attack tooling targets only local SITL); they remain in
+> git history at `c9816ff`. The recorded results below are historical BENCH records and are not reproducible from the
+> current tree by design.
+
 > **Status (2026-10-30, updated 2026-10-31):** tooling written. The unit tests `tests/unit/test_radio_*.py` exist but were not re-run in this
 > documentation pass. The real radio is a MicoAir LR900 pair, configured and carrying data both ways. Measured runs over the
 > radio exist for phase 1 (baseline), phases 2 and 3 (ACTIVE_IPS only), phases 4 and 5 (ACTIVE_IPS, and passive, advisory and active-ips in the randomised campaign; partly), phase 6

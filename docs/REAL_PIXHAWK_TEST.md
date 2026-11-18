@@ -1,5 +1,10 @@
 # Real Pixhawk 6X on a Raspberry Pi 5: how to reproduce the bench runs
 
+> **Evidence class: BENCH (disarmed, propellers removed). Never flight validation.** The attack and injection drivers used
+> for these runs were removed from the tree (AGENTS.md section 5: attack tooling targets only local SITL); they remain in
+> git history at `c9816ff`. The recorded results below are historical BENCH records and are not reproducible from the
+> current tree by design.
+
 This is the reproduction guide for the real flight-controller runs recorded in `docs/RADIO_TEST_RESULTS.md`, section "Real Pixhawk 6X on a Pi 5, 2026-10-31". It covers the rig, the safety rules, the scripts and their order, how the Pixhawk was snapshotted, restored and signed, and the lessons from the runs. The plan the runs were judged against is `docs/RADIO_TEST.md`.
 
 **Every run here is a bench run.** The vehicle is disarmed with the propellers removed. Nothing in this guide flies it. The scripts are in `scripts/ardupilot/real_pixhawk/` (see its `README.md`).
