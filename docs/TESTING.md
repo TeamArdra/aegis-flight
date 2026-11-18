@@ -11,7 +11,7 @@ Run with the project venv; the suite must pass in full (the count grows with new
 features — `pytest -q` prints it). The pyramid above shows the Stage-1 layout and its
 historic counts.
 
-**Latest full run (2026-10-31, consolidated `main` `eb829e9`):** host 1061 passed, 3 skipped (POSIX PTY), 0 failed, 1064 collected
+**Historical baseline snapshot (2026-10-31, consolidated `main` `eb829e9`; run `python -m pytest` for current counts):** host 1061 passed, 3 skipped (POSIX PTY), 0 failed, 1064 collected
 (`tests/unit` 962, `tests/integration` 95, `tests/e2e` 2, `backend/tests` 5); clean clone + fresh venv 1052 passed, 12 skipped (git-ignored
 captures / model absent, PTY), 0 failed; frontend 31 passed; Stage-1 regression 6535 / 4 / 16826 / 65, 378 of 378 cells equal. On `3e3d88e`
 (`origin/main` after PR #3) the capture-007 parity test failed on the host (fixed in `537a5ee`). Saved in `artifacts/validation/consolidation_20261031/`.
@@ -60,7 +60,7 @@ The suite covers raw serial framing and MAVLink parsing up to the SIM-only defen
 - **`test_hal.py` (7 tests)**:
   - Hardware discovery across USB/serial ports (CubePilot, Pixhawk, SiK telemetry, ELRS).
   - Platform and companion compute detection (Raspberry Pi, Jetson, Rockchip).
-  - Dynamic latency budgeting (15 ms to 65 ms).
+  - Static heuristic latency budgeting (`hal/discovery.py`, unmeasured on target hardware).
   - Dual-topology routing: auto-selection of Topology B vs Topology A vs A+B.
   - `InlineBridge` packet processing and 150 ms fail-open watchdog timer.
 - **`test_gcs_notifier.py` (4 tests)**:

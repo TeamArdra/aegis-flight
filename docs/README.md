@@ -38,7 +38,7 @@ QUICKSTART  →  HANDOFF  →  ARCHITECTURE  →  END_TO_END_FLOW  →  FILE_REF
 - [FRONTEND.md](FRONTEND.md) — React dashboard structure, mode-segregated HUD, and data flow.
 - [CONFIGURATION.md](CONFIGURATION.md) — every config field and tunable.
 - [SERIAL_TRANSPORT.md](SERIAL_TRANSPORT.md) — serial transport, framing, and virtual/hardware ports.
-- [HARDWARE_BENCH_PIXHAWK6X.md](HARDWARE_BENCH_PIXHAWK6X.md) — physical Pixhawk 6X + Raspberry Pi companion bench validation.
+- [HARDWARE_BENCH_PIXHAWK6X.md](HARDWARE_BENCH_PIXHAWK6X.md) — physical Pixhawk 6X receive-only USB/TELEM1 bench captures and replays (companion-Pi bench runs are recorded in [RADIO_TEST_RESULTS.md](RADIO_TEST_RESULTS.md); no flight validation).
 - [REAL_PIXHAWK_TEST.md](REAL_PIXHAWK_TEST.md) — reproducing the 2026-10-31 real Pixhawk 6X runs on a Raspberry Pi 5: hardware, safety, scripts, snapshot and restore, lessons.
 - [RADIO_TEST.md](RADIO_TEST.md) — test plan for the real LR900 radio pair; [RADIO_TEST_RESULTS.md](RADIO_TEST_RESULTS.md) — measured results and the judgement against the plan.
 - [INLINE_IPS.md](INLINE_IPS.md) — inline IPS bridge (Topology B): postures, signing, unsigned-link limits, Pi deployment notes; [MINIMAL_BUILD.md](MINIMAL_BUILD.md) — wiring options and risks.
