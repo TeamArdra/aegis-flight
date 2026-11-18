@@ -58,7 +58,7 @@ export default function App() {
         {/* 1. primary: threat assessment · flight track · incidents */}
         <section className="ops">
           <div className="stack">
-            <ThreatPanel threat={live.threat} />
+            <ThreatPanel threat={live.threat} telemetry={live.telemetry} />
             <DetectorPanel threat={live.threat} />
           </div>
           <MapPanel
