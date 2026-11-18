@@ -14,7 +14,9 @@ A frame row is ``{"t_ns", "raw", "verdict"}`` with ``raw`` hex of the original b
 
 The forwarding path only appends to an in-memory queue; a writer thread does the file I/O, so archiving can never
 delay a frame. If the queue overflows (``max_queue``) rows are dropped and counted in ``stats()['dropped_rows']``;
-the manifest records the count, so an incomplete archive is visible rather than silent.
+the manifest records the count, so an incomplete archive is visible rather than silent. A row the writer could not
+write (a disk error) is counted in ``write_errors`` with the first error in ``writer_error``; the writer keeps going and
+``close()`` never raises, so the bridge can still close its links and the manifest is still written.
 """
 
 from __future__ import annotations
@@ -44,6 +46,8 @@ class BridgeRunArchive:
         self._thread = threading.Thread(target=self._writer, name="ips-archive", daemon=True)
         self.rows = dict.fromkeys(FILES, 0)
         self.dropped_rows = 0
+        self.write_errors = 0
+        self.writer_error: str | None = None
         self._last_summary = ""
         self._closed = False
         self._thread.start()
@@ -99,14 +103,26 @@ class BridgeRunArchive:
 
     # -- writer -------------------------------------------------------------- #
 
+    def _error(self, exc: BaseException) -> None:
+        self.write_errors += 1
+        if self.writer_error is None:
+            self.writer_error = f"{type(exc).__name__}: {exc}"
+
     def _drain(self) -> None:
         with self._lock:
             batch, self._q = list(self._q), deque()
         for name, row in batch:
-            self._files[name].write(json.dumps(row, default=str) + "\n")
+            try:
+                self._files[name].write(json.dumps(row, default=str) + "\n")
+            except Exception as exc:  # noqa: BLE001 - a lost row is counted, never fatal to the writer
+                self._error(exc)
+                continue
             self.rows[name] += 1
         for f in self._files.values():
-            f.flush()
+            try:
+                f.flush()
+            except Exception as exc:  # noqa: BLE001 - buffered rows may be lost: the archive is incomplete
+                self._error(exc)
 
     def _writer(self) -> None:
         while not self._stop.wait(self._flush):
@@ -114,14 +130,19 @@ class BridgeRunArchive:
 
     def stats(self) -> dict[str, Any]:
         return {"dir": str(self.dir), "rows": dict(self.rows), "dropped_rows": self.dropped_rows,
-                "complete": self.dropped_rows == 0}
+                "write_errors": self.write_errors, "writer_error": self.writer_error,
+                "complete": self.dropped_rows == 0 and self.write_errors == 0}
 
     def close(self) -> dict[str, Any]:
+        """Stop the writer, write what is queued and close the files. Never raises: errors are counted in ``stats()``."""
         if not self._closed:
             self._closed = True
             self._stop.set()
             self._thread.join(timeout=5.0)
             self._drain()
             for f in self._files.values():
-                f.close()
+                try:
+                    f.close()
+                except Exception as exc:  # noqa: BLE001
+                    self._error(exc)
         return self.stats()

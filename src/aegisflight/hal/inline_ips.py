@@ -269,7 +269,8 @@ class InlineIpsBridge:
                 th.join(timeout=2.0)
         self.policy.flush()
         if self.archive is not None:
-            self.archive.close()
+            with contextlib.suppress(Exception):  # an archive error must never keep the links open
+                self.archive.close()
         for tr in (self.fc, self.gcs):
             with contextlib.suppress(Exception):
                 tr.close()

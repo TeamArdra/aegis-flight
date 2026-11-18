@@ -192,3 +192,77 @@ def test_consumed_management_commands_are_archived_and_still_never_forwarded(tmp
     assert [r["verdict"] for r in up] == ["consumed", "forwarded"] and "out" not in up[0]
     fcframes = [fr.raw for f in fc.sent for fr in split_frames(f)[0]]
     assert cmd not in fcframes and pilot in fcframes  # forwarding unchanged: the command never reaches the FC
+
+
+class _FailingFile:
+    """Wraps an archive file: the ``fail_on``-th write (1-based) and every later one raise ``OSError`` (disk full)."""
+
+    def __init__(self, f, fail_on: int) -> None:
+        self.f, self.fail_on, self.n = f, fail_on, 0
+
+    def write(self, s: str) -> int:
+        self.n += 1
+        if self.n >= self.fail_on:
+            raise OSError(28, "No space left on device")
+        return self.f.write(s)
+
+    def flush(self) -> None:
+        self.f.flush()
+
+    def close(self) -> None:
+        self.f.close()
+
+
+def test_a_disk_write_error_is_counted_and_marks_the_archive_incomplete(tmp_path):
+    """PR #50 review P2: an OSError mid-batch killed the writer thread silently and the archive still said complete."""
+    arch = BridgeRunArchive(tmp_path / "r", flush_interval_s=60)
+    arch._files["frames_down.jsonl"] = _FailingFile(arch._files["frames_down.jsonl"], fail_on=2)
+    for i in range(5):
+        arch.frame("down", i, b"\xfd", [b"\xfd"])
+    st = arch.close()
+    assert st["rows"]["frames_down.jsonl"] == 1 and st["write_errors"] == 4
+    assert st["complete"] is False and "No space left" in st["writer_error"]
+
+
+def test_the_writer_thread_survives_a_write_error(tmp_path):
+    import time
+
+    arch = BridgeRunArchive(tmp_path / "r", flush_interval_s=0.01)
+    arch._files["frames_down.jsonl"] = _FailingFile(arch._files["frames_down.jsonl"], fail_on=1)
+    arch.frame("down", 1, b"\xfd", [b"\xfd"])
+    time.sleep(0.2)
+    assert arch._thread.is_alive()
+    arch.frame("up", 2, b"\xfd", [b"\xfd"])  # another file still works
+    time.sleep(0.2)
+    st = arch.close()
+    assert st["rows"]["frames_up.jsonl"] == 1 and st["write_errors"] == 1 and st["complete"] is False
+
+
+def test_an_archive_close_error_still_lets_the_bridge_close_its_links(tmp_path):
+    class _BadArchive(BridgeRunArchive):
+        def close(self):
+            raise OSError(5, "I/O error")
+
+    class _Link(FakeLink):
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    fc, gcs = _Link(), _Link()
+    b = InlineIpsBridge(fc, gcs, mode="passive", crossend_interval_s=0, archive=_BadArchive(tmp_path / "r"))
+    b.close()  # must not raise
+    assert fc.closed and gcs.closed
+
+
+def test_cli_still_writes_the_manifest_when_the_archive_close_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_provenance, "tree_state", lambda repo=None: {"commit": "c" * 40, "dirty": False, "dirty_paths": []})
+
+    def bad_close(self):
+        raise OSError(5, "I/O error")
+
+    monkeypatch.setattr(BridgeRunArchive, "close", bad_close)
+    rd = tmp_path / "run"
+    assert cli.main([*_BASE, "--run-dir", str(rd)]) == 0
+    m = json.loads((rd / "run_manifest.json").read_text())
+    assert m["bridge"]["archive"]["complete"] is False and "I/O error" in m["bridge"]["archive"]["writer_error"]

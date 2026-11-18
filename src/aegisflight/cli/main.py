@@ -366,9 +366,13 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         if archive is not None and run_prov is not None:
             from ..run_provenance import finish_run, write_manifest
 
+            try:
+                archive_stats = archive.close()
+            except Exception as exc:  # noqa: BLE001 - the manifest is still written; the archive is marked incomplete
+                archive_stats = {"complete": False, "writer_error": f"{type(exc).__name__}: {exc}"}
             run_prov["bridge"] = {"fc_port": args.fc_port, "gcs_port": args.gcs_port, "defense_mode": args.defense_mode,
                                   "signing": key is not None, "final_status": bridge.status(),
-                                  "archive": archive.close()}
+                                  "archive": archive_stats}
             write_manifest(args.run_dir, finish_run(run_prov))
             print(f"aegis ips-bridge: run archived in {args.run_dir} ({run_prov['status']})", flush=True)
     return 0
