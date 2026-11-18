@@ -495,5 +495,7 @@ false-alarm issue is fixed, active-ips should not be treated as safe on a flying
 
 The forwarding path only appends rows to an in-memory queue and a writer thread does the file I/O, so archiving does not
 delay a frame; if the queue overflows the rows are dropped and counted (`bridge.archive.dropped_rows`,
-`complete: false`), never silently. Environment tag and claim class are those of the run's wire (SITL loopback);
+`complete: false`), never silently. A row the writer cannot write (a disk error) is counted too
+(`bridge.archive.write_errors`, the first error in `writer_error`, `complete: false`); the writer keeps going, and an
+archive error on close never stops the bridge closing its links or writing `run_manifest.json`. Environment tag and claim class are those of the run's wire (SITL loopback);
 the archive adds no claim.
