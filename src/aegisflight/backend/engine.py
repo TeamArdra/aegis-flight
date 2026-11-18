@@ -240,15 +240,31 @@ class LiveEngine:
         if self.is_sim:
             self.store.start_run(self._run_id, label="live-demo")
         else:
+            meta = self.spec.run_meta()
+            if getattr(self, "_firmware_allowlist", None) is not None:
+                meta["firmware_allowlist_sha256"] = self._firmware_allowlist.sha256
+                meta["firmware_allowlist_signed"] = self._firmware_allowlist.signed
             self.store.start_run(self._run_id, label=f"{self.spec.environment.lower()}-{self.spec.kind}",
-                                 meta=self.spec.run_meta())
+                                 meta=meta)
 
     def _build(self) -> None:
         crossend = None
+        self._firmware_allowlist = None
         if not self.is_sim:  # inert until a bridge summary is seen; never used for SIM
             from ..detectors.crossend import CrossEndMonitor, load_signing_key
+            from ..integrity.allowlist import default_allowlist_path, load_firmware_allowlist
+
             crossend = CrossEndMonitor(load_signing_key(self.spec.signing_key_file) if self.spec.signing_key_file else None)
-        self.pipeline = IDSPipeline(self.cfg, model_path=self.model_path, firmware_dir=self.fw_dir, crossend=crossend)
+            al_path = default_allowlist_path(self.spec.config_dir)
+            if al_path is not None:
+                self._firmware_allowlist = load_firmware_allowlist(al_path)
+        self.pipeline = IDSPipeline(
+            self.cfg,
+            model_path=self.model_path,
+            firmware_dir=self.fw_dir,
+            crossend=crossend,
+            firmware_allowlist=self._firmware_allowlist,
+        )
         if self.is_sim:
             self.source = SimulatedTelemetrySource(self.cfg, NoAttack(), seed=42)
             self._gen = self.source.stream()

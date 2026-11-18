@@ -428,3 +428,10 @@ satellites. It is stored as `None` (API `gps.satellites: null`, dashboard "unkno
 Trade-off: a forger who can replace the vehicle's `GPS_RAW_INT` stream could keep reporting 255 with a 3D fix and so
 suppress the low-satellite and jump signals; those signals were never authentication. An injected 255 frame between two
 genuine reports cannot hide a jump: the jump is measured against the last known count.
+
+## Live Firmware Identity Allowlist (`integrity/allowlist.py`) {#firmware-allowlist}
+While Stage-1 simulations verify on-disk files via `FirmwareVerifier`, real autopilots and SITL links do not expose firmware files to the IDS. When `configs/firmware_allowlist.yaml` is loaded for a non-simulated link:
+- Observed `AUTOPILOT_VERSION` frames are compared against the matching `(sysid, compid)` entry across `flight_sw_version`, `flight_custom_version`, `board_version`, `vendor_id`, `product_id`, and `uid` (where pinned).
+- Any field mismatch raises `FIRMWARE_INTEGRITY` (score `1.0`) naming the mismatched field(s); if `AUTOPILOT_VERSION` has not been observed yet or no entry is pinned for that endpoint, a score-0 coverage note is emitted instead of alerting.
+- Allowlist integrity supports optional HMAC-SHA256 verification via `hmac_sha256` and env `AEGIS_ALLOWLIST_KEY` (never committed): signed files with a missing key or invalid signature fail closed (`AllowlistError`), while unsigned files load with an explicit warning.
+- Run provenance and live run metadata record `firmware_allowlist_sha256`.

@@ -69,6 +69,13 @@ firmware `tamper_component`). These drive the benchmark's ground-truth windows
 and the simulated attack strength; they do **not** affect the live dashboard's
 runtime-injected attacks (those activate from "now").
 
+## `configs/firmware_allowlist.yaml`
+Pinned `AUTOPILOT_VERSION` allowlist entries (`sysid`, `compid`, `flight_sw_version`,
+`flight_custom_version`, `board_version`, `vendor_id`, `product_id`, `uid`) checked
+against live/replay links (`integrity/allowlist.py`). Supports optional `hmac_sha256`
+signing verified against `AEGIS_ALLOWLIST_KEY` (fail closed on mismatch or missing key;
+unsigned files load with a warning).
+
 ## Notes
 - Config is **not** hot-reloaded: restart the process / re-run after edits.
 - Built-in defaults in `config.py` mirror the YAML exactly, so deleting a YAML
