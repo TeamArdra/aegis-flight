@@ -359,3 +359,62 @@ def test_a_30_msgid_flood_claiming_the_vehicle_sysid_does_not_starve_the_status_
     assert 1 <= len(announce) <= 10  # at most one per alert interval (2 s), aggregated over all 30 message types
     assert all(t.startswith("AEGIS: forged-vehicle-up sys1 x") for t in announce)
     assert len(fc.sent) == 6000  # forwarding unchanged
+
+
+# --------------------------------------------------------------------------- N4: the tag survives the real threads
+
+
+@pytest.mark.parametrize("mode", ["passive", "active-ips"])
+def test_the_gcs_side_tag_survives_the_real_bridge_threads(mode: str) -> None:
+    """Drives InlineIpsBridge.start(): a future coalescing or copying tap must fail here, not silently drop the tag."""
+    import threading
+    import time
+    from types import MethodType
+
+    class _ThreadLink(_Link):
+        def __init__(self) -> None:
+            super().__init__()
+            self.lock = threading.Lock()
+
+        def poll(self):  # type: ignore[no-untyped-def]
+            with self.lock:
+                out, self.inbox = self.inbox, []
+            return out
+
+        def send(self, data: bytes) -> bool:
+            with self.lock:
+                self.sent.append(bytes(data))
+            return True
+
+    key = os.urandom(32)
+    fc, gcs = _ThreadLink(), _ThreadLink()
+    b = InlineIpsBridge(fc, gcs, mode=mode, secret_key=key, crossend_interval_s=0, mgmt_status_interval_s=0)  # type: ignore[arg-type]
+    seen: list[tuple[str, int, object]] = []
+    orig = b.analyse_tick
+
+    def _record(self, tick, _o=orig):  # type: ignore[no-untyped-def]
+        seen.extend((e.msgname, e.sysid, e.fields.get("alt")) for e in tick.messages)
+        return _o(tick)
+
+    b.analyse_tick = MethodType(_record, b)  # type: ignore[method-assign]
+    m, sink = _enc(1, key=key, ts=10_000)
+    m.global_position_int_send(1000, 0, 0, 70000, 65000, 0, 0, 0, 0)
+    gcs_side = [_unsigned_gpi(1, 90000), sink.buf,  # an unsigned forgery; a genuinely signed (replayed) frame
+                _garbage_signed(_unsigned_heartbeat(1), link_id=0, ts=6)]  # a bad-MAC HEARTBEAT
+    b.start()
+    try:
+        now = time.monotonic_ns()
+        with fc.lock:
+            fc.inbox.append((now, _unsigned_gpi(1, 10000)))
+        with gcs.lock:
+            gcs.inbox.extend((now + 1 + i, f) for i, f in enumerate(gcs_side))
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline and not any(a == 10000 for _n, _s, a in seen):
+            time.sleep(0.05)
+        time.sleep(0.5)  # a few more ticks: anything wrongly ingested would show up by now
+    finally:
+        b.close()
+    assert sorted(a for n, _s, a in seen if n == "GLOBAL_POSITION_INT") == [10000]
+    assert not any(n == "HEARTBEAT" for n, _s, _a in seen)
+    assert b.status()["frames"]["forged_vehicle_up"] == 3
+    assert fc.sent == gcs_side  # forwarded unchanged; nothing else toward the FC
