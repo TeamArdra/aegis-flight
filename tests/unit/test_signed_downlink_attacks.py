@@ -232,7 +232,7 @@ def test_an_unsigned_vehicle_sysid_frame_from_the_gcs_side_is_reported_and_not_i
     assert _forged_up_texts(gcs.sent[1:]) == ["AEGIS: forged-vehicle-up sys1 x1"]
 
 
-def test_without_a_key_a_gcs_side_vehicle_sysid_frame_is_still_tagged_counted_and_not_ingested() -> None:
+def test_without_a_key_a_gcs_side_vehicle_sysid_frame_is_tagged_counted_and_ingested_as_on_main() -> None:
     from aegisflight.sources.mavlink_live import GcsSideDatagram
 
     fc, gcs = _Link(), _Link()
@@ -243,12 +243,13 @@ def test_without_a_key_a_gcs_side_vehicle_sysid_frame_is_still_tagged_counted_an
     tap = b.tap.poll()
     assert [type(d) for _s, d in tap] == [GcsSideDatagram] and tap[0][1] == forged
     p = MavlinkFrameParser(unsigned_allowed_sysids=frozenset(b.policy.vehicle_sysids))  # no key, as the bridge builds it
-    assert [e for s, d in tap for e in p.parse(d, s / 1e9)] == [] and p.gcs_side_vehicle_frames == 1
-    assert b.status()["frames"]["forged_vehicle_up"] == 1
+    assert [(e.msgname, e.fields["alt"]) for s, d in tap for e in p.parse(d, s / 1e9)] == [("GLOBAL_POSITION_INT", 90000)]
+    assert b.status()["frames"]["forged_vehicle_up"] == 1  # counted ...
+    assert b.mgmt._forged_up == {}  # ... but not announced on an unkeyed bridge
     assert fc.sent == [forged]  # forwarded unchanged
 
 
-def test_the_parser_never_ingests_or_exempts_gcs_side_datagrams() -> None:
+def test_the_parser_never_exempts_gcs_side_datagrams() -> None:
     # imported here, not at module level: the name is absent before the F3 fix, and the F1/F2 tests must still collect
     from aegisflight.sources.mavlink_live import GcsSideDatagram
 
@@ -259,14 +260,19 @@ def test_the_parser_never_ingests_or_exempts_gcs_side_datagrams() -> None:
     assert _names(p, GcsSideDatagram(gpi), 0.0) == []
     assert p.stats.sig_invalid == 1  # verified and rejected: the exemption is not applied
     assert _names(p, gpi, 0.1) == ["GLOBAL_POSITION_INT"]  # the same bytes from the FC side keep the exemption
-    assert _names(p, GcsSideDatagram(_unsigned_heartbeat(1)), 0.2) == []  # accepted by the id allowlist, still not ingested
+    assert _names(p, GcsSideDatagram(_unsigned_heartbeat(1)), 0.2) == ["HEARTBEAT"]  # PX4 id allowlist: as without exemption
     assert p.gcs_side_vehicle_frames == 1
 
 
 # --------------------------------------------------------------------------- N1(a): signed GCS-side frames, replays
 
 
-def test_f1g_a_replayed_old_signed_recording_from_the_gcs_side_does_not_mark_an_unsigned_vehicle_as_signing() -> None:
+def _vehicle_signing_state(p: MavlinkFrameParser) -> tuple[object, ...]:
+    sig = p._mav.signing
+    return dict(p._signed_src), dict(sig.stream_timestamps), sig.timestamp
+
+
+def test_f1g_a_replayed_old_signed_recording_from_the_gcs_side_loses_no_genuine_frame_and_leaves_signing_state_alone() -> None:
     """Re-review variant F1.g, from the GCS side: 25 genuine signed frames recorded in an earlier session (same key)."""
     from aegisflight.sources.mavlink_live import GcsSideDatagram
 
@@ -274,12 +280,31 @@ def test_f1g_a_replayed_old_signed_recording_from_the_gcs_side_does_not_mark_an_
     p = MavlinkFrameParser(secret_key=key, unsigned_allowed_sysids=VEHICLE)
     t = 0.1
     assert _names(p, _unsigned_gpi(1, 10000), t) == ["GLOBAL_POSITION_INT"]
+    state = _vehicle_signing_state(p)
     for f in _signed_attitude_stream(25, key, ts0=10_000):  # tiny timestamps: recorded long ago
         t += 0.1
-        assert _names(p, GcsSideDatagram(f), t) == []  # valid MAC, still never the vehicle's telemetry
-    assert _names(p, _unsigned_gpi(1, 10000), t + 0.1) == ["GLOBAL_POSITION_INT"]
-    assert p.stats.sig_valid == 0 and (1, 1) not in p._signed_src and p.gcs_side_vehicle_frames == 25
-    assert p._mav.signing.stream_timestamps == {}  # the replay left no signing state behind
+        _names(p, GcsSideDatagram(f), t)  # valid MAC: ingested as main would, but it marks nothing as signing
+    assert _vehicle_signing_state(p) == state
+    assert (1, 1) not in p._signed_src
+    assert _names(p, _unsigned_gpi(1, 10000), t + 0.1) == ["GLOBAL_POSITION_INT"]  # the vehicle's telemetry still flows
+
+
+def test_a_gcs_side_replay_is_ingested_at_most_once_and_never_once_the_vehicle_stream_is_newer() -> None:
+    """GCS-side frames keep anti-replay (as on main) in their own namespace: a repeat, or a recording older than the vehicle's
+    live signed stream, is rejected as old, while the vehicle's own state is never touched."""
+    from aegisflight.sources.mavlink_live import GcsSideDatagram
+
+    key = os.urandom(32)
+    p = MavlinkFrameParser(secret_key=key, unsigned_allowed_sysids=VEHICLE)
+    rec = _signed_attitude_stream(5, key, ts0=10_000)
+    assert sum(len(_names(p, GcsSideDatagram(f), 0.1)) for f in rec) == 5
+    assert sum(len(_names(p, GcsSideDatagram(f), 0.2)) for f in rec) == 0  # replayed again: old
+    q = MavlinkFrameParser(secret_key=key, unsigned_allowed_sysids=VEHICLE)
+    live = _signed_attitude_stream(3, key, ts0=1_000_000)
+    assert sum(len(_names(q, f, 0.1 * (i + 1))) for i, f in enumerate(live)) == 3  # the vehicle signs, FC side
+    state = _vehicle_signing_state(q)
+    assert sum(len(_names(q, GcsSideDatagram(f), 1.0)) for f in rec) == 0  # older than the live stream: old, as on main
+    assert _vehicle_signing_state(q) == state
 
 
 def test_a_valid_signed_vehicle_sysid_frame_from_the_gcs_side_never_changes_the_vehicle_stream() -> None:
@@ -289,13 +314,15 @@ def test_a_valid_signed_vehicle_sysid_frame_from_the_gcs_side_never_changes_the_
     p = MavlinkFrameParser(secret_key=key, unsigned_allowed_sysids=VEHICLE)
     genuine = _signed_attitude_stream(10, key, ts0=1_000_000)
     ahead = _signed_attitude_stream(1, key, ts0=9_000_000)[0]  # same link/sysid/compid, timestamp far ahead, valid MAC
-    assert _names(p, GcsSideDatagram(ahead), 0.0) == []
+    state = _vehicle_signing_state(p)
+    assert _names(p, GcsSideDatagram(ahead), 0.0) == ["ATTITUDE"]  # verified: ingested as main would
+    assert _vehicle_signing_state(p) == state  # ... but neither the stream nor pymavlink's signing.timestamp moved
     assert sum(len(_names(p, f, 0.1 * (i + 1))) for i, f in enumerate(genuine)) == 10  # not made "old" by it
-    assert p.stats.sig_valid == 10
+    assert p._signed_src[(1, 1)][0] == 10  # signing evidence comes from the vehicle side only
 
 
 @pytest.mark.parametrize("mode", ["passive", "advisory", "active-ips"])
-def test_f1h_a_signed_recording_replayed_from_the_gcs_side_through_the_bridge_neither_blinds_nor_is_ingested(mode: str) -> None:
+def test_f1h_a_signed_recording_replayed_from_the_gcs_side_through_the_bridge_loses_no_genuine_frame(mode: str) -> None:
     """Re-review variant F1.h (GCS-side arm) through the real forwarding path, staged so that arrival order is kept."""
     key = os.urandom(32)
     fc, gcs = _Link(), _Link()
@@ -310,10 +337,11 @@ def test_f1h_a_signed_recording_replayed_from_the_gcs_side_through_the_bridge_ne
     fc.inbox.append((t + 2_000_000_000, _unsigned_gpi(1, 10001)))
     b.pump_once()
     p = MavlinkFrameParser(secret_key=key, unsigned_allowed_sysids=frozenset(b.policy.vehicle_sysids))
-    tap = b.tap.poll()
-    ingested = [(e.msgname, e.fields.get("alt")) for s, d in tap for e in p.parse(d, s / 1e9)]
-    assert ingested == [("GLOBAL_POSITION_INT", 10000), ("GLOBAL_POSITION_INT", 10001)]
-    assert p.stats.sig_valid == 0 and b.status()["frames"]["forged_vehicle_up"] == 25
+    ingested = [(e.msgname, e.fields.get("alt")) for s, d in b.tap.poll() for e in p.parse(d, s / 1e9)]
+    gpi = [alt for name, alt in ingested if name == "GLOBAL_POSITION_INT"]
+    assert gpi == [10000, 10001]  # no genuine vehicle frame lost
+    assert (1, 1) not in p._signed_src and p._mav.signing.stream_timestamps == {}  # vehicle signing state unchanged
+    assert b.status()["frames"]["forged_vehicle_up"] == 25
     assert fc.sent == old  # forwarded byte-identically, nothing else toward the FC
 
 
@@ -414,7 +442,9 @@ def test_the_gcs_side_tag_survives_the_real_bridge_threads(mode: str) -> None:
         time.sleep(0.5)  # a few more ticks: anything wrongly ingested would show up by now
     finally:
         b.close()
-    assert sorted(a for n, _s, a in seen if n == "GLOBAL_POSITION_INT") == [10000]
-    assert not any(n == "HEARTBEAT" for n, _s, _a in seen)
+    # the unsigned forgery (90000) gets no exemption: had the tag been lost on the way, it would be ingested here
+    assert sorted(a for n, _s, a in seen if n == "GLOBAL_POSITION_INT") == [10000, 70000]  # 70000: valid MAC, as on main
+    assert sum(n == "HEARTBEAT" for n, _s, _a in seen) == 1  # PX4 allowlist, as on main
+    assert b._source is not None and (1, 1) not in b._source._asm.parser._signed_src  # nothing marked as signing
     assert b.status()["frames"]["forged_vehicle_up"] == 3
     assert fc.sent == gcs_side  # forwarded unchanged; nothing else toward the FC

@@ -391,12 +391,14 @@ class InlineIpsBridge:
             t0 = perf_ns()
             if not down and fr.sysid in policy.vehicle_sysids:
                 # the vehicle never transmits from the GCS / radio side: a frame claiming its sysid there (signed or not, a
-                # replayed recording included, key or not) is tagged so the analyser never ingests it as vehicle telemetry
-                # and never lets it change the signing state; counted and announced (aggregated), never blocked here
+                # replayed recording included, key or not) is tagged so the analyser never gives it the unsigned-vehicle
+                # exemption and never lets it change the vehicle's signing state; otherwise it is verified and ingested
+                # normally (the detectors keep their evidence). Always counted; announced (aggregated) on a keyed bridge
                 tap_push(stamp, GcsSideDatagram(fr.raw))
                 self.forged_vehicle_up += 1
-                with contextlib.suppress(Exception):
-                    self.mgmt.note_forged_vehicle_up(fr.sysid)
+                if self._secret_key is not None:
+                    with contextlib.suppress(Exception):
+                        self.mgmt.note_forged_vehicle_up(fr.sysid)
             else:
                 tap_push(stamp, fr.raw)  # the detectors always see the original
             ctx = FrameContext(direction, fr.raw, stamp, fr.sysid, fr.compid, fr.seq, fr.msgid, fr.signed)  # type: ignore[arg-type]

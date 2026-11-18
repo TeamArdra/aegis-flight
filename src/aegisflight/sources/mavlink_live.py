@@ -205,11 +205,13 @@ class GcsSideDatagram(bytes):
     """A frame that CLAIMS a vehicle sysid but reached an inline bridge from its ground-station / radio side.
 
     ``hal/inline_ips.py`` tags its analyser tap with this type for every such uplink frame, signed or not, with or without a
-    key. Equal to, and hashed like, the plain bytes. The vehicle never transmits from that side, so
-    :class:`MavlinkFrameParser` never ingests a frame in such a datagram as telemetry (it is counted in
-    ``gcs_side_vehicle_frames``), never applies the ``unsigned_allowed_sysids`` exemption to it, and never lets it change the
-    signing state, even when its MAC verifies (a replayed recording of the vehicle's own signed frames). It is still
-    verified, so a frame that fails verification is counted ``sig_invalid`` as before.
+    key. Equal to, and hashed like, the plain bytes. The vehicle never transmits from that side, so for a frame in such a
+    datagram :class:`MavlinkFrameParser` never applies the ``unsigned_allowed_sysids`` exemption and never lets it change the
+    vehicle's signing state (no "this source signs" evidence, no change to the vehicle's anti-replay timestamps), even when
+    its MAC verifies (a replayed recording). Ingestion otherwise follows normal verification, as without the exemption: no
+    key -> ingested; key -> ingested only if its signature verifies (or its id is in the unsigned allowlist), else dropped
+    and counted ``sig_invalid``. A verified GCS-side frame is judged against the vehicle's stream and earlier GCS-side frames
+    (a repeat or an older recording is rejected as old), but recorded only in a separate GCS-side anti-replay namespace.
     """
 
     __slots__ = ()
@@ -241,8 +243,8 @@ class MavlinkFrameParser:
     unsigned telemetry, so an unsigned frame claiming its id is a forgery and is dropped (``sig_invalid``) instead of
     reaching the detectors. If that source sends no valid signed frame for ``SIGNING_LAPSE_S`` (signing turned off on
     the flight controller, a reboot into an unsigned configuration) the exemption returns, so the detectors are not
-    blinded; ``signing_lapses`` counts it. A frame in a :class:`GcsSideDatagram` never gets the exemption, never changes
-    the signing state and is never ingested.
+    blinded; ``signing_lapses`` counts it. A frame in a :class:`GcsSideDatagram` never gets the exemption and never changes
+    the vehicle's signing state; it is otherwise verified and ingested normally.
 
     Only a frame whose MAC truly verified counts as ``sig_valid`` and as evidence that its source signs, and only such a
     frame may advance the per-stream anti-replay timestamp: a claimed signature with a bad MAC (accepted or not) changes
@@ -284,7 +286,10 @@ class MavlinkFrameParser:
         self._unsigned_sysids = unsigned_allowed_sysids
         self._signed_src: dict[tuple[int, int], tuple[int, float]] = {}  # (sysid, compid) -> (valid signed, last t)
         self.signing_lapses = 0
-        self.gcs_side_vehicle_frames = 0  # parsed but not ingested (GcsSideDatagram); kept out of LiveStats on purpose
+        self.gcs_side_vehicle_frames = 0  # GcsSideDatagram frames ingested; kept out of LiveStats on purpose (golden digests)
+        # anti-replay state of verified GcsSideDatagram frames, kept apart from the vehicle's own (pymavlink's) state
+        self._gcs_streams: dict[tuple[int, int, int], int] = {}
+        self._gcs_sig_ts = 0
         if self._verify:
             self._mav.signing.secret_key = secret_key
             self._mav.signing.allow_unsigned_callback = (
@@ -388,11 +393,19 @@ class MavlinkFrameParser:
                 # pymavlink's check_signature() stores the stream timestamp BEFORE it compares the MAC, so a frame whose
                 # MAC fails still advances it: one unauthenticated far-future frame would make every later genuine signed
                 # frame "old". Snapshot it and undo it below unless the MAC really verified (goodsig_count moved). A
-                # GcsSideDatagram frame never changes the signing state, not even with a valid MAC (a replayed recording).
+                # GcsSideDatagram frame never changes the vehicle's signing state, not even with a valid MAC (a replayed
+                # recording): it is judged against the vehicle's stream AND earlier GCS-side frames, then the vehicle's
+                # state is restored and a verified frame is recorded only in the GCS-side namespace.
                 sig = self._mav.signing
                 skey = (frame[-13], sysid, compid) if self._verify and signed else None
+                gcs = skey is not None and self._cur_gcs_side
                 prev_ts = sig.stream_timestamps.get(skey) if skey is not None else None
                 prev_sig_ts = sig.timestamp  # pymavlink raises it after a good MAC; the new-stream check reads it
+                if gcs:
+                    g = self._gcs_streams.get(skey)
+                    if g is not None and (prev_ts is None or g > prev_ts):
+                        sig.stream_timestamps[skey] = g
+                    sig.timestamp = max(prev_sig_ts, self._gcs_sig_ts)
                 good0 = sig.goodsig_count
                 try:
                     self._cur_sysid, self._cur_compid, self._cur_signed, self._cur_t = sysid, compid, signed, recv_time
@@ -400,11 +413,13 @@ class MavlinkFrameParser:
                     fields = msg.to_dict()
                     fields.pop("mavpackettype", None)
                     name = getattr(cls, "msgname", None) or msg.get_type()
-                    if skey is not None and sig.goodsig_count > good0 and not self._cur_gcs_side:
+                    if skey is not None and sig.goodsig_count > good0:
                         # the MAC verified. A claimed signature that failed but was let through by the unsigned
-                        # allowlist (e.g. a garbage-MAC HEARTBEAT) is NOT a valid signature and never marks its source
+                        # allowlist (e.g. a garbage-MAC HEARTBEAT) is NOT a valid signature and never marks its source;
+                        # a GCS-side frame never marks the vehicle as signing either
                         st.sig_valid += 1
-                        self._note_signed(sysid, compid, recv_time)
+                        if not gcs:
+                            self._note_signed(sysid, compid, recv_time)
                 except self._mav_error as exc:
                     if self._verify and str(exc) == "Invalid signature":
                         st.sig_invalid += 1
@@ -414,15 +429,20 @@ class MavlinkFrameParser:
                     st.bad_frames += 1
                     continue
                 finally:
-                    if skey is not None and (sig.goodsig_count == good0 or self._cur_gcs_side):
+                    verified = sig.goodsig_count > good0
+                    if gcs and verified:
+                        if skey not in self._gcs_streams and len(self._gcs_streams) >= 256:
+                            self._gcs_streams.pop(next(iter(self._gcs_streams)))
+                        self._gcs_streams[skey] = sig.stream_timestamps[skey]
+                        self._gcs_sig_ts = max(self._gcs_sig_ts, sig.timestamp)
+                    if skey is not None and (gcs or not verified):
                         if prev_ts is None:
                             sig.stream_timestamps.pop(skey, None)
                         else:
                             sig.stream_timestamps[skey] = prev_ts
                         sig.timestamp = prev_sig_ts
             if self._cur_gcs_side:
-                self.gcs_side_vehicle_frames += 1  # a vehicle sysid from the GCS side is never the vehicle's telemetry
-                continue
+                self.gcs_side_vehicle_frames += 1
             st.frames_received += 1
             out.append(MessageEnvelope(recv_time=recv_time, sysid=sysid, compid=compid,
                                        msgid=msgid, msgname=name, seq=seq, signed=signed,
