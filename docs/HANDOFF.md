@@ -118,6 +118,7 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
 ## Completed in Stage 2
 1. **MAVLink 2 message signing & cryptographic attestation**: Implemented in `src/aegisflight/mavlink/signing.py`.
 2. **Serial & UDP transports & SITL integration**: Fully verified with ArduPilot 4.7.1 and PX4 1.14 (`docs/ARDUPILOT_SITL.md`, `docs/STAGE2_RUNBOOK.md`).
+3. **Strict 3-mode separation (`#58`)**: Default `passive` posture on `InlineIpsBridge` is now strictly zero-TX on both `fc` and `gcs` links and forwards `compid 191` frames transparently; keyed deployments that require in-band `passive -> advisory` remote promotion must pass `--mgmt-enable`.
 3. **Hardware Abstraction Layer (HAL)**: Auto-discovery across flight controllers, companion computers, and dynamic latency budgets (`src/aegisflight/hal/`).
 4. **Dual-Topology Autonomous Prevention**: Topology A (Sidecar Actuator) and Topology B (Inline Transparent Bridge with 150 ms fail-open watchdog).
 5. **Cross-Platform Native Desktop GCS**: Tauri 2.0 (Rust) + React 18 + TypeScript (`frontend/src-tauri/`).

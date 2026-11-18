@@ -143,10 +143,10 @@ def test_advisory_sends_gcs_statustext_only_with_zero_fc_writes_or_drops() -> No
     bridge.pipeline.last_frame = frame
     bridge.analyse_tick(TelemetryTick(t=12.0, tick=12, messages=[]))
 
-    # Zero writes to FC, only STATUSTEXT / crossend to GCS
+    # Zero writes to FC, only STATUSTEXT / crossend to GCS (exactly 1 STATUSTEXT per alert, no duplicate)
     assert fc.sent == []
     gcs_msgs = [fr.msgid for raw in gcs.sent for fr in split_frames(raw)[0]]
-    assert 253 in gcs_msgs  # STATUSTEXT sent to GCS
+    assert gcs_msgs.count(253) == 1  # exactly one STATUSTEXT sent to GCS per alert
     assert 76 not in gcs_msgs  # no COMMAND_LONG sent to GCS
 
 

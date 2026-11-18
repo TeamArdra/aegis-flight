@@ -537,11 +537,11 @@ class InlineIpsBridge:
                 with contextlib.suppress(Exception):
                     self.store.log_event(assessment, self.run_id)
         mode = self.controller.mode
-        if mode == DefenseMode.ACTIVE_IPS or mode == DefenseMode.ADVISORY:
+        if mode == DefenseMode.ACTIVE_IPS or (mode == DefenseMode.ADVISORY and not self._mgmt_active()):
             for frame in act.counter_frames:
                 is_txt = _is_statustext(frame)
-                if mode == DefenseMode.ADVISORY and not is_txt:
-                    continue  # ADVISORY never writes non-STATUSTEXT or touches FC
+                if mode == DefenseMode.ADVISORY and (not is_txt or not self.gcs_alerts):
+                    continue  # ADVISORY never writes non-STATUSTEXT or touches FC; _mgmt_active() already emitted mgmt.alert()
                 # corrective commands go to the flight controller; a STATUSTEXT warning is for the pilot's GCS
                 # (the FC does not relay a STATUSTEXT it receives), so it goes to the GCS side only
                 link = self.gcs if is_txt else self.fc
