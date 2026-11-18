@@ -90,3 +90,27 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  claims-guard:
+    name: claims-guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify no unsupported claims outside audit docs
+        run: |
+          if git grep -nE '11\.4 ?%|42\.8 MB|2,900|82\.4 ?km|4\.8 h|mIDS|0\.08 ms|EKF failsafe blind|92/100|729\+' \
+            -- '*.md' '*.tsx' '*.ts' '*.py' \
+            ':!docs/STAGE2_*' \
+            ':!docs/SUBMISSION_READINESS_AUDIT.md' \
+            ':!docs/REDTEAM_AUDIT_STAGE2.md' \
+            ':!docs/GPS_WORKSTREAM_PROGRESS.md' \
+            ':!docs/stage2_report_draft.md' \
+            ':!docs/current_state.md' \
+            ':!.github/workflows/ci.yml'; then
+            echo "ERROR: unsupported claim found outside allowlisted audit docs" >&2
+            exit 1
+          fi
