@@ -15,7 +15,10 @@ Refuses a dirty tree unless ``--allow-dirty`` (children are then stamped NOT-REP
     <out-root>/<scenario>/_incomplete/    leftovers of an interrupted or failed attempt (moved, never deleted)
 
 ``--resume`` skips trials already complete at THIS commit and re-runs the rest; it refuses to resume a campaign that
-was started on a different commit (that would mix evidence from two trees). Environment: SITL. Claim class: whatever
+was started on a different commit (that would mix evidence from two trees). A trial only counts as done when its own
+manifest's ``run_provenance`` names the campaign's commit and reproducibility: each driver re-checks the tree itself,
+so a commit made mid-campaign makes the affected trials ``failed`` (reason given) instead of mixing commits under one
+complete summary. Scenario names must match ``NAME_RE`` (no absolute path, separator or '..'). Environment: SITL. Claim class: whatever
 each driver's own manifest states; this script adds no claim. The built-in table lists the PX4 scenarios that have a
 driver today; scenarios from #24 / #18 / #20 and the bridge command are added with ``--scenarios-file`` (a JSON list
 of objects with the fields of ``Scenario``) without editing this file.
@@ -26,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -79,11 +83,17 @@ BUILTIN: list[Scenario] = [
 ]
 
 
+#: A scenario name becomes a directory under --out-root: no absolute path, separator or '..' (as run_ap_sitl_ids NAME_RE)
+NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
+
+
 def load_scenarios(path: str | None) -> list[Scenario]:
     out = {s.name: s for s in BUILTIN}
     if path:
         for raw in json.loads(Path(path).read_text(encoding="utf-8")):
             s = Scenario(**raw)
+            if not NAME_RE.fullmatch(s.name) or ".." in s.name:
+                raise ValueError(f"scenario name {s.name!r} must match {NAME_RE.pattern} and not contain '..'")
             out[s.name] = s  # a file entry replaces a built-in of the same name
     return list(out.values())
 
@@ -110,11 +120,50 @@ def build_command(sc: Scenario, root: Path, i: int, allow_dirty: bool) -> list[s
     return [*cmd, "--allow-dirty"] if allow_dirty else cmd
 
 
-def is_done(sc: Scenario, root: Path, i: int) -> bool:
+def _done_paths(sc: Scenario, root: Path, i: int) -> dict[str, str]:
     p = trial_paths(root, sc, i)
     if sc.kind == "ardupilot":  # run_ap_sitl_ids writes <out-dir>/<name>/
         p = {**p, "dir": str(Path(p["scenario_dir"]) / p["name"])}
-    return all(Path(f.format(**p)).exists() for f in sc.done_files)
+    return p
+
+
+def is_done(sc: Scenario, root: Path, i: int) -> bool:
+    """Every ``done_files`` entry exists. An empty list never counts as done (``all([])`` would be True)."""
+    p = _done_paths(sc, root, i)
+    return bool(sc.done_files) and all(Path(f.format(**p)).exists() for f in sc.done_files)
+
+
+def trial_provenance(sc: Scenario, root: Path, i: int) -> dict | None:
+    """The trial's own ``run_provenance``: a ``run_manifest/1`` file, or the ``run_provenance`` block of a JSON manifest,
+    among the trial's ``done_files``. ``None`` if there is none."""
+    p = _done_paths(sc, root, i)
+    for f in sc.done_files:
+        path = Path(f.format(**p))
+        if path.suffix != ".json" or not path.is_file():
+            continue
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(doc, dict) and doc.get("schema") == "aegisflight.run_manifest/1":
+            return doc
+        if isinstance(doc, dict) and isinstance(doc.get("run_provenance"), dict):
+            return doc["run_provenance"]
+    return None
+
+
+def provenance_mismatch(sc: Scenario, root: Path, i: int, commit: str, reproducible: bool) -> str | None:
+    """Why the trial's own manifest does not belong to this campaign (commit or reproducibility differ), else ``None``.
+    Each child re-checks the tree itself, so a commit made mid-campaign shows up here, not in the campaign state."""
+    run = trial_provenance(sc, root, i)
+    if run is None:
+        return "no run_provenance in the trial's manifest (cannot prove which commit it ran on)"
+    if run.get("commit") != commit:
+        return f"trial ran on commit {run.get('commit')} but the campaign is at {commit}"
+    if bool(run.get("reproducible")) != reproducible:
+        return (f"trial is {'REPRODUCIBLE' if run.get('reproducible') else 'NOT-REPRODUCIBLE'} but the campaign is "
+                f"{'REPRODUCIBLE' if reproducible else 'NOT-REPRODUCIBLE'}")
+    return None
 
 
 def quarantine_partial(sc: Scenario, root: Path, i: int) -> list[str]:
@@ -184,7 +233,9 @@ def write_json(path: Path, doc: dict) -> None:
     os.replace(tmp, path)
 
 
-def run_trial(sc: Scenario, root: Path, i: int, allow_dirty: bool, restart: bool) -> dict:
+def run_trial(sc: Scenario, root: Path, i: int, allow_dirty: bool, restart: bool,
+              expect: tuple[str, bool] | None = None) -> dict:
+    """``expect`` = the campaign's ``(commit, reproducible)``: a trial whose own manifest differs is ``failed``."""
     rec: dict = {"scenario": sc.name, "index": i, "seed": sc.seed, "started_utc": datetime.now(UTC).isoformat()}
     quarantine_partial(sc, root, i)
     Path(trial_paths(root, sc, i)["scenario_dir"]).mkdir(parents=True, exist_ok=True)
@@ -205,6 +256,8 @@ def run_trial(sc: Scenario, root: Path, i: int, allow_dirty: bool, restart: bool
         ok = rc == 0 and is_done(sc, root, i)
         if rc == 0 and not ok:
             reason = "driver exited 0 but the expected output files are missing"
+        if ok and expect is not None and (mismatch := provenance_mismatch(sc, root, i, *expect)):
+            ok, reason = False, mismatch
         rec.update(status="done" if ok else "failed", rc=rc, **({"reason": reason} if reason else {}))
     rec["ended_utc"] = datetime.now(UTC).isoformat()
     return rec
@@ -243,7 +296,11 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     if a.n < 1:
         ap.error("--n must be >= 1")
-    scenarios = [s for s in load_scenarios(a.scenarios_file) if not a.only or s.name in a.only]
+    try:
+        loaded = load_scenarios(a.scenarios_file)
+    except ValueError as exc:
+        ap.error(str(exc))
+    scenarios = [s for s in loaded if not a.only or s.name in a.only]
     if a.only and {s.name for s in scenarios} != set(a.only):
         ap.error(f"unknown scenario(s): {sorted(set(a.only) - {s.name for s in scenarios})}")
     root = Path(a.out_root)
@@ -276,15 +333,17 @@ def main(argv: list[str] | None = None) -> int:
     root.mkdir(parents=True, exist_ok=True)
     write_manifest(root, prov, MANIFEST_NAME)
     ran_px4 = False
+    expect = (state["commit"], bool(state.get("reproducible", True)))
     for sc in scenarios:
         for i in range(a.n):
             key = f"{sc.name}/{i + 1:03d}"
-            if state["trials"].get(key, {}).get("status") == "done" and is_done(sc, root, i):
+            if (state["trials"].get(key, {}).get("status") == "done" and is_done(sc, root, i)
+                    and provenance_mismatch(sc, root, i, *expect) is None):
                 print(f"skip   {key} (complete)", flush=True)
                 continue
             print(f"run    {key} seed={sc.seed} index={i}", flush=True)
             ran_px4 = ran_px4 or sc.kind == "px4"
-            rec = run_trial(sc, root, i, a.allow_dirty, restart=not a.no_sitl_restart)
+            rec = run_trial(sc, root, i, a.allow_dirty, restart=not a.no_sitl_restart, expect=expect)
             state["trials"][key] = rec
             write_json(state_path, state)  # after every trial: a crash loses at most the one in flight
             print(f"  -> {rec['status']}" + (f": {rec.get('reason')}" if rec["status"] != "done" else ""), flush=True)

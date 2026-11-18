@@ -15,14 +15,16 @@ import run_campaign as rc  # noqa: E402
 from aegisflight import run_provenance  # noqa: E402
 
 STUB = '''
-import json, sys
+import json, os, sys
 a = sys.argv[1:]
 get = lambda k: a[a.index(k) + 1]
 out = get("--out")
 if "--fail-index" in a and int(get("--trial-index")) == int(get("--fail-index")):
     sys.exit(3)
+# like a real driver, the manifest carries the child's own run_provenance (commit: STUB_COMMIT, default "a" * 40)
+run = {"commit": os.environ.get("STUB_COMMIT", "a" * 40), "reproducible": "--allow-dirty" not in a}
 open(out + ".manifest.json", "w").write(json.dumps({"seed": int(get("--seed")), "index": int(get("--trial-index")),
-                                                    "allow_dirty": "--allow-dirty" in a}))
+                                                    "allow_dirty": "--allow-dirty" in a, "run_provenance": run}))
 '''
 
 
@@ -174,3 +176,55 @@ def test_px4_sitl_is_stopped_after_the_campaign(tmp_path, stub, monkeypatch):
     assert rc.main(["--out-root", str(tmp_path / "d"), "--scenarios-file", str(scen), "--only", "p_one", "--n", "1",
                     "--no-sitl-restart"]) == 0
     assert events == []  # the operator manages SITL: never touched
+
+
+# -- PR #50 security review ------------------------------------------------------------------------------------- #
+
+
+def test_a_trial_on_another_commit_is_not_counted_done(tmp_path, stub, monkeypatch):
+    """P2: each child re-checks the tree itself, so a commit made mid-campaign gave trials from two commits under one
+    "complete" summary. A trial whose own manifest names another commit is now failed, with the reason."""
+    root = tmp_path / "c"
+    monkeypatch.setenv("STUB_COMMIT", "b" * 40)  # the children see a different HEAD than the campaign
+    assert rc.main(_only(stub(), root, "--n", "1")) == 1
+    summ = json.loads((root / "campaign_summary.json").read_text())
+    assert summ["complete"] is False and all(r["n_completed"] == 0 for r in summ["scenarios"])
+    assert "trial ran on commit " + "b" * 40 in (root / "campaign_summary.md").read_text()
+
+
+def test_resume_reruns_a_done_trial_whose_manifest_names_another_commit(tmp_path, stub):
+    root = tmp_path / "c"
+    assert rc.main(_only(stub(), root, "--n", "1")) == 0
+    m = root / "s_one" / "trial_001.manifest.json"
+    doc = json.loads(m.read_text())
+    doc["run_provenance"]["commit"] = "b" * 40  # e.g. re-run by hand on another commit after the campaign
+    m.write_text(json.dumps(doc))
+    assert rc.main(_only(stub(), root, "--n", "1", "--resume")) == 0
+    assert json.loads(m.read_text())["run_provenance"]["commit"] == "a" * 40  # re-run, not skipped
+    assert list((root / "s_one" / "_incomplete").rglob("trial_001.manifest.json"))  # the old one moved, not deleted
+
+
+def test_a_trial_without_run_provenance_is_not_counted_done(tmp_path):
+    sc = rc.Scenario("x", "command", done_files=["{stem}.manifest.json"])
+    (tmp_path / "x").mkdir()
+    (tmp_path / "x" / "trial_001.manifest.json").write_text("{}")
+    assert rc.is_done(sc, tmp_path, 0)
+    assert "no run_provenance" in rc.provenance_mismatch(sc, tmp_path, 0, "a" * 40, True)
+
+
+def test_empty_done_files_never_counts_as_done(tmp_path):
+    """P3: ``all([])`` is True, so ``done_files: []`` counted a trial as done with no outputs at all."""
+    assert rc.is_done(rc.Scenario("x", "command", done_files=[]), tmp_path, 0) is False
+
+
+@pytest.mark.parametrize("name", ["../escape", "a/../../b", "..", "/abs/path", "C:/abs", "C:\\abs", "a/b", ""])
+def test_scenario_names_that_escape_out_root_are_rejected(tmp_path, name):
+    """P3: a scenario name is a directory under --out-root; an absolute or '..' name escaped it (and quarantine then
+    moved files there)."""
+    scen = tmp_path / "s.json"
+    scen.write_text(json.dumps([{"name": name, "kind": "command", "cmd": ["x"]}]))
+    with pytest.raises(ValueError):
+        rc.load_scenarios(str(scen))
+    with pytest.raises(SystemExit) as ei:
+        rc.main(["--out-root", str(tmp_path / "c"), "--scenarios-file", str(scen), "--n", "1"])
+    assert ei.value.code == 2

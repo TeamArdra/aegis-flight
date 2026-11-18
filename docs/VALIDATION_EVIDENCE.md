@@ -318,4 +318,5 @@ Helper API (`scripts/sitl/provenance.py`, implemented in `src/aegisflight/run_pr
 
 Bridge runs (`aegis ips-bridge --run-dir <dir>`) additionally archive `frames_down.jsonl` / `frames_up.jsonl`
 (both directions' raw frames, hex), `decisions.jsonl`, `actions.jsonl` and `run_manifest.json` in that directory.
-The campaign runner is `scripts/sitl/run_campaign.py` (fixed seeds, `--n` per scenario, `--resume`).
+The campaign runner is `scripts/sitl/run_campaign.py` (fixed seeds, `--n` per scenario, `--resume`). A trial counts as
+done only when its own `run_provenance` names the campaign's commit and reproducibility; otherwise it is failed, with the reason.
