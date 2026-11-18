@@ -367,3 +367,50 @@ def test_every_latency_row_states_its_detection_rule_and_sidedness_is_printed():
     md = g.to_md(r)
     assert "95% upper (one-sided Poisson)" in md and "two-sided Wilson 95% CI" in md and "two-sided 95% Wilson CI" in md
     assert all(rule in md for rule in (g.RULE_SIM, g.RULE_AP, g.RULE_P2))
+
+
+def test_single_attack_grace0_is_53_because_session_51_alerts_on_its_attack_decision():
+    """F1 (#48 audit), pinned. The first version reported 54 single-attack no-grace benign alert events. In session 51
+    (command_injection:arm_disarm_burst) the engine re-alerts at t = 64.6 s, the last COMMAND_INJECTION decision, since
+    646*0.1 - 606*0.1 = 4.000000000000007 >= cooldown; the rounded-t rule (64.6 - 60.6 = 3.999999999999993) moved that
+    alert onto the benign in-grace decision at 64.8 s, counting one benign event too many. The real-engine check is
+    the next test."""
+    root, g = _generator()
+    rows, sess = g.load_sim(root)
+    s51 = {float(r["t"]): r for r in rows[51]}
+    assert sess[51]["key"] == "command_injection:arm_disarm_burst"
+    assert (s51[64.6]["true"], s51[64.6]["alert"]) == ("COMMAND_INJECTION", True)
+    assert (s51[64.8]["true"], s51[64.8]["in_grace"], s51[64.8]["alert"]) == ("BENIGN", "1", False)
+    fa = g.sim_false_alerts(rows, sess)
+    assert fa["single_attack_sessions_benign_decisions_grace0"]["alert_events"] == 53
+    assert fa["single_attack_sessions_benign_decisions_grace5"]["alert_events"] == 26     # in grace: unaffected
+    old = {i: m.alert_events([(float(r["t"]), r["threat"] == "1", r["pred"]) for r in rows[i]], tick_s=None)
+           for i, s in sess.items() if s["kind"] == "single"}
+    assert sum(a for i, al in old.items() for r, a in zip(rows[i], al, strict=True)
+               if r["warmup"] == "0" and r["true"] == "BENIGN") == 54                    # what the first version reported
+
+
+def test_session_51_real_engine_alert_matches_the_re_derivation(monkeypatch):
+    """The ground truth behind the 53: re-run extended-benchmark session 51 with the real pipeline and the committed
+    model. The decision sequence must equal decisions.csv.gz, and the engine's own is_alert must equal alert_events on
+    the logged (rounded) t. Needs models/isoforest.joblib (gitignored), so it is skipped where the model is absent."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    model = root / "models" / "isoforest.joblib"
+    if not model.is_file():
+        pytest.skip("models/isoforest.joblib not present (gitignored; run `aegis train`)")
+    from aegisflight.benchmark.extended import build_grid, session_config
+    from aegisflight.benchmark.runner import run_session
+    from aegisflight.config import load_config
+
+    monkeypatch.chdir(root)
+    _, g = _generator()
+    rows, _ = g.load_sim(root)
+    spec = next(s for s in build_grid() if s.idx == 51)
+    res = run_session(session_config(load_config(), spec), spec.scenario, seed=spec.seed, model_path=str(model), grace_s=5.0)
+    assert [(round(r.t, 2), int(r.threat), r.pred_label.value) for r in res.records] == \
+        [(float(r["t"]), int(r["threat"]), r["pred"]) for r in rows[51]]
+    engine = {round(a.t, 2): bool(a.is_alert) for a in res.assessments}
+    assert [engine[round(r.t, 2)] for r in res.records] == [r["alert"] for r in rows[51]]
+    assert engine[64.6] is True and engine[64.8] is False
