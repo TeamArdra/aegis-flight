@@ -101,6 +101,18 @@ If the bridge process dies the channel is gone too (see `docs/MINIMAL_BUILD.md`)
 STATUSTEXT/MEMORY_VECT frames of an UNSIGNED link can be forged or suppressed by whoever can transmit on the radio; with a flight
 key the ground rejects unsigned or invalid ones.
 
+## Component 191: identity and collision check
+
+The bridge speaks as sysid 1 / compid 191 (`MAV_COMP_ID_ONBOARD_COMPUTER`, `MGMT_COMPID` in `hal/mgmt_channel.py`) and consumes
+every `MAV_CMD_USER_1` COMMAND_LONG addressed to component 191, in every posture, signed or not. Checked on 2026-11-18:
+
+- In this repository nothing else uses component 191. `gcs_compids: [190, 191, 200]` in `configs/detector.yaml` /
+  `config.py` lists 191, but no code reads that key; `backend/bridge_remote.py` and the radio tools filter 191/192 as the
+  bridge's own stream. There is no actual collision in the shipped code or SITL setups.
+- Deployment constraint (not enforced in code): do not run another onboard component at compid 191 that uses
+  `MAV_CMD_USER_1` (for example a MAVROS / mavlink-router / companion app configured with that id) behind the bridge; its
+  commands would be consumed by the bridge and never reach it.
+
 ## SITL evidence
 
 Harness (`scripts/ardupilot/inline_demo/`): `run_mgmt.sh <label> on|off`, `mgmt_drive.py` (driver), `hub_mgmt.py` (loopback hub with
