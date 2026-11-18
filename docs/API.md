@@ -65,7 +65,7 @@ Other fields: `frames`, `last_frame_age_s`, `stale_after_s`,
 `messages{NAME: {count, age_s}}`, `transport` (the transport's own counters —
 `connected, disconnects, reconnects, open_failures, crc_rejects, garbage_bytes,
 frames_received, bytes_received, bytes_sent, write_errors, last_error_history,
-bad_frames`; `null` for replay), `gps` (`fix_type, fix_name, satellites,
+bad_frames`; `null` for replay), `gps` (`fix_type, fix_name, satellites` (`null` = unknown: MAVLink `satellites_visible` 255),
 valid_fix, gps_raw_age_s, position_age_s, position_zero`: the last raw report;
 `valid_fix` applies the GNSS rule's thresholds to each report, whereas the rule
 itself votes only after `gnss_loss_ticks` consecutive bad decisions), `error`.

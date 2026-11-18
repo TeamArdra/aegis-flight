@@ -209,7 +209,7 @@ function TelemetryPanelImpl({
       restored: battDiff ? `${n(sanitized?.battery_voltage, 2)} V` : undefined,
       anomalyNotice: battWarn ? "⚠️ Anomaly (Unsanitized)" : undefined,
     },
-    { label: "GPS sats", value: tele?.satellites != null ? String(tele.satellites) : "—" },
+    { label: "GPS sats", value: tele == null ? "—" : tele.satellites != null ? String(tele.satellites) : "unknown" },
     {
       label: "Flight mode",
       value: tele?.flight_mode ?? "—",

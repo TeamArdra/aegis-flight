@@ -27,6 +27,16 @@ EKF_POS_HORIZ_REL = 8  # ardupilotmega EKF_STATUS_FLAGS
 EKF_POS_HORIZ_ABS = 16
 EKF_CONST_POS_MODE = 128
 _EPH_UNKNOWN = 65535  # MAVLink: UINT16_MAX = unknown
+SATELLITES_UNKNOWN = 255  # MAVLink GPS_RAW_INT.satellites_visible: 255 = unknown, not 255 satellites
+
+
+def satellites_or_none(raw: Any) -> int | None:
+    """``GPS_RAW_INT.satellites_visible`` as a count, or ``None`` when absent or the 255 "unknown" marker."""
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return None if n == SATELLITES_UNKNOWN else n
 
 FLAG_NO_SOLUTION = "ekf_no_horizontal_solution"
 FLAG_GPS_UNHEALTHY = "gps_sensor_unhealthy"
@@ -62,7 +72,7 @@ class GpsHealthObserver:
                 self._gps_healthy = bool(health & SENSOR_GPS) if present & SENSOR_GPS else None
         elif msgname == "GPS_RAW_INT":
             self._fix = _int(fields.get("fix_type"))
-            self._sats = _int(fields.get("satellites_visible"))
+            self._sats = satellites_or_none(fields.get("satellites_visible"))
             eph = _int(fields.get("eph"))
             self._hdop = None if eph is None or eph == _EPH_UNKNOWN else round(eph / 100.0, 2)
 

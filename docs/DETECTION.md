@@ -26,7 +26,7 @@ detector score is their max); each casts a vote for the attack it implies:
 | Rogue telemetry source | sysid ∉ expected & not a command source | MAVLINK_ANOMALY |
 | Heartbeat stale | `heartbeat_age > heartbeat_timeout_s` (3); never received: elapsed monitoring time `> heartbeat_timeout_s` and past `startup_grace_s` (0 = off) | DOS |
 | GPS dropout | `gps_age > gps_dropout_s` (2); never received: coverage line only (score 0) unless `require_global_position`, then elapsed `> gps_dropout_s` and past `startup_grace_s` | DOS |
-| GNSS fix loss | `fix_type < min_gnss_fix_type` (3) or `satellites < min_gnss_satellites` (5) for `≥ gnss_loss_ticks` (5) consecutive decisions → 0.7 | DOS |
+| GNSS fix loss | `fix_type < min_gnss_fix_type` (3) or `satellites < min_gnss_satellites` (5; skipped when the count is unknown, see below) for `≥ gnss_loss_ticks` (5) consecutive decisions → 0.7 | DOS |
 | Command provenance | command from sysid ∉ `expected_gcs_sysids`; sensitive cmd / burst | COMMAND_INJECTION |
 | Signing | `require_signing` and unsigned present | MAVLINK_ANOMALY |
 
@@ -421,3 +421,10 @@ separate, generated PX4-SITL profile (`configs/px4_sitl/detector.yaml`) and a se
 PX4-benign anomaly model (`models/isoforest_px4.joblib`) exist for false-alarm reduction on
 that stack only; methodology, held-out evaluation and the cost side (what the loosened
 rules may no longer catch) are in `docs/CALIBRATION_PX4.md`. It is not attack detection.
+
+**Unknown satellite count (MAVLink 255).** `GPS_RAW_INT.satellites_visible = 255` means "unknown", not 255
+satellites. It is stored as `None` (API `gps.satellites: null`, dashboard "unknown"). The GNSS-loss rule then judges
+`fix_type` alone (`fix_type < 3` still fires, `>= 3` does not) and the satellite-jump rule ignores the pair.
+Trade-off: a forger who can replace the vehicle's `GPS_RAW_INT` stream could keep reporting 255 with a 3D fix and so
+suppress the low-satellite and jump signals; those signals were never authentication. An injected 255 frame between two
+genuine reports cannot hide a jump: the jump is measured against the last known count.

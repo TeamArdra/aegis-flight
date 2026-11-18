@@ -590,3 +590,26 @@ def test_extractor_gps_raw_seen_flag_sets_and_clears_on_reset():
     ext.reset()
     assert ext.extract(1.0).gps_raw_seen is False
     assert "gps_raw_seen" not in ML_FEATURES
+
+
+# ---- GPS_RAW_INT.satellites_visible == 255 means "unknown" (issue #16) ---------------------- #
+
+def test_gnss_loss_still_fires_on_fix_type_when_satellite_count_is_unknown():
+    """fix_type < 3 with satellites 255 (unknown) is judged on the fix alone and still fires."""
+    rows = _run(_fix_stream(lambda t: (0, 255)), seconds=5.0)
+    _, _, res = rows[GNSS_TICKS - 1]
+    assert res.score == pytest.approx(0.7) and res.attack_votes == {AttackType.DOS: 0.7}
+    assert res.signals["gnss_bad_ticks"] == float(GNSS_TICKS)
+    assert _gnss_ev(res) == [f"GNSS fix never acquired: fix_type=0, satellites=None for {GNSS_TICKS} "
+                             "decisions (no valid fix since monitoring began)"]
+
+
+def test_gnss_loss_does_not_fire_on_a_3d_fix_with_unknown_satellite_count():
+    for _t, _, res in _run(_fix_stream(lambda t: (3, 255)), seconds=5.0):
+        assert _gnss_ev(res) == [] and res.signals["gnss_bad_ticks"] == 0.0
+
+
+def test_gnss_loss_after_a_valid_unknown_count_fix_is_a_loss_not_never_acquired():
+    rows = _run(_fix_stream(lambda t: (3, 255) if t < 2.0 else (0, 255)), seconds=5.0)
+    ev = [e for _t, _, r in rows for e in _gnss_ev(r)]
+    assert ev and all(e.startswith("GNSS fix lost: fix_type=0, satellites=None") for e in ev)
