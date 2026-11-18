@@ -52,7 +52,7 @@ QUICKSTART  →  HANDOFF  →  ARCHITECTURE  →  END_TO_END_FLOW  →  FILE_REF
 - [STAGE2_PROGRESS.md](STAGE2_PROGRESS.md) — Stage 2 engineering ledger and implementation progress.
 - [STAGE2_RUNBOOK.md](STAGE2_RUNBOOK.md) — SITL integration, automated verification, and regression test suites.
 - [stage2_report_draft.md](stage2_report_draft.md) — withdrawn report draft; rebuild from VALIDATION_EVIDENCE.md.
-- [SKILLS_REGISTRY.md](SKILLS_REGISTRY.md) — catalogue of optional third-party agent skills (human-installed only).
+- [SKILLS_REGISTRY.md](SKILLS_REGISTRY.md) — policy notice for third-party agent skills (unverified external skill catalogue removed).
 - [TESTING.md](TESTING.md) — the test suite and the pre-release gate.
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — symptom → diagnostic → fix.
 - [MGMT_CHANNEL.md](MGMT_CHANNEL.md) — the in-band management channel over the telemetry radio (alerts, IPS actions, compact status, signed control); [PERFORMANCE.md](PERFORMANCE.md) — detection-pipeline, forwarding-path and dashboard speed-ups and Raspberry Pi measurements.

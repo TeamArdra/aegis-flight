@@ -70,7 +70,7 @@ The GCS displays:
 ## Segment 4 — Denial of Service & High-Rate Flood
 - Click **Denial of Service**.
 - Threat state escalates to `CRITICAL / DOS`.
-- `MitigationController` / `InlinePolicy` switches into DoS rate-shedding QoS (`qos_rate_cap`), keeping critical heartbeat/attitude frames prioritized.
+- `MitigationController` (`src/aegisflight/mitigation/controller.py`) transitions to the `DOS_FLOOD` / `DOS_BLACKOUT` playbook (`CONTENTION_DETECTED` → `ACTIVE_MITIGATION`) and logs the link-contention alert to the GCS and event chain (no physical packet-rate shaper is claimed).
 
 ## Segment 5 — Hardware Abstraction Layer & Topology Detection
 - In the **Defense HUD**, read the **detected topology** (no selector): `A` sidecar, `A+B` inline bridge, or SIM/REPLAY. It lists what it can do (block frames, send counter-commands) from the live link and posture.
