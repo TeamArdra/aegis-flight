@@ -484,3 +484,29 @@ def test_every_row_claim_class_is_its_sources_own_wording():
     assert link == []
     drift_sources = {f"artifacts/ardupilot/{d}" for d in g.AP_DRIFT} | {f"{d}.manifest.json" for d in g.PX4_P2}
     assert {k for k, v in r["provenance"].items() if "link-level" in v["claim_class"]} == drift_sources
+
+
+def test_snapshot_states_pr39_pending_and_the_sim_reproducibility_gap():
+    """Re-verification items 3 / 6: the committed SIM benchmark is a 2026-09-24 snapshot that does not fully reproduce on
+    the current tree (dos:blackout). The gap is computed from the committed 2026-10-29 re-run; the figures still come
+    from the committed decisions. PR #39 is unmerged, so the note must not call it a past change."""
+    import csv
+    import json
+
+    root, g = _generator()
+    r = g.build(root)
+    assert "PR #39, pending" in r["snapshot"]["note"]
+    sr = r["snapshot"]["sim_reproducibility"]
+    with open(root / g.EXT / "sessions.csv", newline="") as f:
+        sess = {int(x["idx"]): x for x in csv.DictReader(f)}
+    with open(root / g.RERUN / "sessions.csv", newline="") as f:
+        rerun = {int(x["idx"]): x for x in csv.DictReader(f)}
+    assert sr["rerun_session_rows_differing"] == sorted(i for i in sess if sess[i] != rerun[i])
+    assert sr["rerun_differing_keys"] == ["dos:blackout"] and sr["decision_rerun"]["keys"] == ["dos:blackout"]
+    assert set(sr["rerun_session_rows_differing"]) <= set(sr["decision_rerun"]["sessions_not_reproducing"])
+    assert sr["decision_rerun"]["sessions_reproducing"] + len(sr["decision_rerun"]["sessions_not_reproducing"]) == len(sess)
+    a, b = (json.loads((root / p).read_text()) for p in (f"{g.EXT}/results.json", f"{g.RERUN}/results.json"))
+    assert sr["grace0_fp_committed_vs_rerun"] == [a["binary_grace0"]["fp"], b["binary_grace0"]["fp"]]
+    md = g.to_md(r)
+    assert "**SIM reproducibility.**" in md and "computed from the committed decisions" in md
+    assert "not a committed artifact" in md                                       # the decision-level claim is attributed

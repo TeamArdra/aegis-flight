@@ -73,8 +73,14 @@ BENCH_NOTES = {
 }
 BENCH_001_ALERTS = "artifacts/hardware/serial_ids_com7_001/alerts.jsonl"
 SNAPSHOT = ("Every figure describes the code that produced its source artifact (per-source commit, config, ML state and "
-            "date under provenance), not the tree this file was generated on. Those runs predate later changes to the "
-            "live source and detectors (e.g. PR #39): this is a dated snapshot of committed evidence.")
+            "date under provenance), not the tree this file was generated on. Later live-source/detector changes (e.g. "
+            "PR #39, pending) are not reflected: this is a dated snapshot of committed evidence.")
+RERUN = "artifacts/validation/submission_rerun_20261029/extended_rerun"     # committed re-run of the extended benchmark
+RERUN_README = "artifacts/validation/submission_rerun_20261029/README.md"  # dates the committed SIM artifact (2026-09-24)
+# Decision-level re-run of every extended session on the current tree with the committed model (sha256 3fe74cdd...):
+# not a committed artifact, so it is quoted with its provenance, not computed here.
+DECISION_RERUN = {"date": "2026-11-18", "sessions_not_reproducing": [76, 77, 78, 79],
+                  "by": "PR #48 re-verification (two independent re-runs); not a committed artifact"}
 MIXED = ("WARNING: pools ML-on and ML-off runs recorded at different commits; it describes no single detector "
          "configuration. Use the per-group pools")
 
@@ -92,6 +98,7 @@ def required_inputs() -> list[str]:
             + PX4_LIVE + [px4_summary(p) for p in PX4_LIVE]
             + [f"{d}{ext}" for d in PX4_P2 for ext in (".manifest.json", ".ids_decisions.jsonl")]
             + [f"{d}/summary.json" for d in BENCH] + list(BENCH_MANIFEST.values()) + [BENCH_DOC, BENCH_001_ALERTS]
+            + [f"{RERUN}/sessions.csv", f"{RERUN}/results.json", RERUN_README]
             + [REPLAY_TLOG, ALFA])
 
 
@@ -191,6 +198,23 @@ def snapshot(prov: dict) -> dict:
     return {"note": SNAPSHOT, "recorded_dates": [dates[0], dates[-1]] if dates else None,
             "sources_without_commit": [k for k, v in prov.items() if v["commit"] == NR],
             "sources_without_date": [k for k, v in prov.items() if v["utc"] == NR]}
+
+
+def sim_reproducibility(root: Path, sess: dict) -> dict:
+    """How far the committed SIM artifact reproduces: the committed 2026-10-29 re-run compared with it (computed), and the
+    decision-level re-run (quoted, see DECISION_RERUN). Every SIM figure here is still computed from the committed decisions."""
+    with open(root / RERUN / "sessions.csv", newline="") as f:
+        rerun = {int(r["idx"]): r for r in csv.DictReader(f)}
+    differ = sorted(i for i in sess if sess[i] != rerun.get(i))
+    a, b = (json.loads((root / q).read_text()) for q in (f"{EXT}/results.json", f"{RERUN}/results.json"))
+    nd = DECISION_RERUN["sessions_not_reproducing"]
+    return {"committed_rerun": RERUN, "rerun_session_rows_differing": differ,
+            "rerun_differing_keys": sorted({sess[i]["key"] for i in differ}),
+            "grace5_binary_identical": a["binary_grace5"] == b["binary_grace5"],
+            "grace0_fp_committed_vs_rerun": [a["binary_grace0"]["fp"], b["binary_grace0"]["fp"]],
+            "decision_rerun": {**DECISION_RERUN, "keys": sorted({sess[i]["key"] for i in nd}),
+                               "sessions_reproducing": len(sess) - len(nd), "sessions": len(sess)},
+            "note": "every SIM figure here is computed from the committed decisions, not from a re-run"}
 
 
 def rate_block(events: int, decisions: int, threats: int, src: str, note: str = "", claim: str = NR) -> dict:
@@ -453,7 +477,7 @@ def build(root: Path) -> dict:
         "decision_period_s": PERIOD_S,
         "percentile_method": PERCENTILES,
         "claim_class": CLAIM,
-        "snapshot": snapshot(prov),
+        "snapshot": {**snapshot(prov), "sim_reproducibility": sim_reproducibility(root, sess)},
         "provenance": prov,
         "false_alerts_per_hour": {"SIM": sim, "SITL_ardupilot": sitl_benign(root, prov),
                                   "SITL_px4_live": px4_live(root, prov), "REPLAY": replay(root, prov),
@@ -486,12 +510,23 @@ def lat_txt(d: dict) -> str:
 
 def to_md(r: dict) -> str:
     sn = r["snapshot"]
+    sr = sn["sim_reproducibility"]
+    dr = sr["decision_rerun"]
     L = ["# Stage 2 metrics", "", f"Definitions: `{r['definitions']}`. Decision period {r['decision_period_s']} s.", "",
          f"**Claim class: {r['claim_class']}.** Each row's claim class is its source's own wording (section 0 and the "
          "`claim class` column).", "",
          f"**Dated snapshot.** {sn['note']} Recorded source dates: {sn['recorded_dates'][0]} to {sn['recorded_dates'][1]}. "
          "No recorded commit: " + ", ".join(f"`{k}`" for k in sn["sources_without_commit"]) + ". "
          "No recorded date: " + ", ".join(f"`{k}`" for k in sn["sources_without_date"]) + ".", "",
+         f"**SIM reproducibility.** `{EXT}` is a 2026-09-24 snapshot of pre-Stage-2 code (`{RERUN_README}`). "
+         f"A decision-level re-run of all {dr['sessions']} sessions on the current tree ({dr['date']}; {dr['by']}) "
+         f"found sessions {', '.join(map(str, dr['sessions_not_reproducing']))} ({', '.join(dr['keys'])}) do not "
+         f"reproduce their committed decisions; the other {dr['sessions_reproducing']} of {dr['sessions']} do. "
+         f"The gap predates PR #48: the committed 2026-10-29 re-run (`{sr['committed_rerun']}`) already differs in "
+         f"session rows {', '.join(map(str, sr['rerun_session_rows_differing']))} ({', '.join(sr['rerun_differing_keys'])}) "
+         f"and in no-grace false positives ({sr['grace0_fp_committed_vs_rerun'][0]} committed vs "
+         f"{sr['grace0_fp_committed_vs_rerun'][1]} re-run); 5 s-grace binary rows identical: "
+         f"{sr['grace5_binary_identical']}. Note: {sr['note']}.", "",
          "## 0. Provenance per source (as each source's own metadata records it; \"not recorded\" = absent)", "",
          "| source | claim class (source's words; field) | commit | dirty tree | config | ML | UTC (field) | note |",
          "|---|---|---|---|---|---|---|---|"]
