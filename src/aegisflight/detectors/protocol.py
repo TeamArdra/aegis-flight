@@ -43,6 +43,7 @@ class ProtocolDetector(Detector):
         self.cadence_guard_enabled = bool(p.get("cadence_guard_enabled", False))
         self.cadence_min_interval_s = float(p.get("cadence_min_interval_s", 1.5))
         self.semantic_link_attribution = bool(p.get("semantic_link_attribution", False))
+        self.semantic_link_min_rate_hz = float(p.get("semantic_link_min_rate_hz", 5.0))
         self._last_cmd_seen: dict[tuple[int, int], float] = {}
         # GNSS fix loss (jamming / receiver denial): fix_type < min_fix_type or
         # satellites < min_satellites for >= gnss_loss_ticks consecutive decisions.
@@ -276,7 +277,7 @@ class ProtocolDetector(Detector):
                 self.semantic_link_attribution
                 and not hb_never
                 and not gps_fault_now
-                and rate >= 5.0
+                and rate >= self.semantic_link_min_rate_hz
             )
             bump(AttackType.MAVLINK_ANOMALY if selective_loss else AttackType.DOS, max(0.6, s))
             if hb_never:

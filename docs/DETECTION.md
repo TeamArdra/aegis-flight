@@ -438,11 +438,20 @@ feature vectors, and `dos:latency` (`median jitter 32.4 ms`) overlaps benign sim
 
 - **Opt-in semantic packet-loss rule (`protocol.semantic_link_attribution`, default `false`):**
   when enabled, selective heartbeat starvation (`heartbeat_age_s > heartbeat_timeout_s` while
-  `gps_age_s <= gps_dropout_s` and `msg_rate_hz >= 5.0`) votes `MAVLINK_ANOMALY` rather than
-  `DOS`, reserving `DOS` for link-wide blackouts (`msg_rate_hz < 5.0` or GPS also stale).
+  `gps_age_s <= gps_dropout_s` and `msg_rate_hz >= protocol.semantic_link_min_rate_hz`, default `5.0`)
+  votes `MAVLINK_ANOMALY` rather than `DOS`, reserving `DOS` for link-wide blackouts
+  (`msg_rate_hz < semantic_link_min_rate_hz` or GPS also stale).
+  **Strict-attribution trade-off (environment `SIM`, claim class: link-level detection):** on the
+  fresh-seed extended benchmark (`master_seed=20261119`), enabling `semantic_link_attribution`
+  raises `mavlink_anomaly:packet_loss` strict accuracy from `0.0000` to `0.9531`, while reducing
+  `dos:blackout` strict accuracy from `0.7641` to `0.6410` during partial-window transition ticks
+  where heartbeats have been stale for >3 s while residual non-heartbeat frames in the sliding
+  rate window keep `msg_rate_hz >= 5.0` and `gps_age_s <= 2.0`.
 - **Hierarchical link-layer metric (`metrics/scoring.py:hierarchical_link_summary`):**
   groups `DOS` and `MAVLINK_ANOMALY` under `LINK_LAYER_DISRUPTION` so overlapping link-layer
-  transport faults (`rate_spike`, `latency`, `packet_loss`, `flood`) are reported honestly alongside
-  strict per-class confusion matrices without degrading Stage-1 defaults or binary recall/FPR.
+  transport faults (`rate_spike`, `latency`, `packet_loss`, `flood`) are reported as a coarse
+  link-disruption family alongside the primary strict per-class confusion matrix (note:
+  `LINK_LAYER_DISRUPTION` measures coarse link-layer vs non-link-layer attribution, not fine
+  intra-link attribution between `DOS` and `MAVLINK_ANOMALY`).
 - **Methodology disclosure:** these rules and evaluations (`scripts/eval_link_attribution.py` on
   fresh `master_seed=20261119`) were designed with knowledge of the simulator's attack definitions.

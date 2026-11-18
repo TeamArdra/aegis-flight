@@ -42,6 +42,15 @@ def test_selective_heartbeat_loss_attributes_to_mavlink_anomaly_when_enabled() -
     r_blk = det_on.process(f_blackout)
     assert AttackType.DOS in r_blk.attack_votes
 
+    # Heartbeat stops while residual traffic is >= semantic_link_min_rate_hz (5.0 Hz) and GPS fresh -> MAVLINK_ANOMALY;
+    # below custom semantic_link_min_rate_hz -> DOS
+    f_hb_only_5hz = _frame(heartbeat_age_s=3.5, gps_age_s=0.5, msg_rate_hz=5.5)
+    assert AttackType.MAVLINK_ANOMALY in det_on.process(f_hb_only_5hz).attack_votes
+    det_custom = ProtocolDetector(
+        {**DEFAULT_DETECTOR["protocol"], "semantic_link_attribution": True, "semantic_link_min_rate_hz": 10.0}
+    )
+    assert AttackType.DOS in det_custom.process(f_hb_only_5hz).attack_votes
+
 
 def test_hierarchical_link_layer_grouping_and_summary() -> None:
     assert link_layer_label(AttackType.DOS) == "LINK_LAYER_DISRUPTION"
