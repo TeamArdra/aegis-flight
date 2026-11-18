@@ -72,9 +72,11 @@ POSTURE_CODE = {m.value: i for i, m in enumerate(POSTURES)}
 R_ACCEPTED, R_DENIED, R_UNSUPPORTED, R_FAILED, R_IN_PROGRESS = 0, 2, 3, 4, 5
 # reason codes carried in COMMAND_ACK.result_param2 of a DENIED answer
 D_CONTROL_DISABLED, D_LOCKED_OUT, D_RATE_LIMITED, D_SIGNING_REQUIRED, D_POSTURE_LOCKED, D_BAD_PARAM = 1, 2, 3, 4, 5, 6
+D_STATE_UNWRITABLE = 7  # the replay state could not be written, so the command is not executed (fail closed)
 DENY_TEXT = {D_CONTROL_DISABLED: "control disabled (no management key)", D_LOCKED_OUT: "control locked out",
              D_RATE_LIMITED: "rate limited (1 command/s)", D_SIGNING_REQUIRED: "flight signing key required",
-             D_POSTURE_LOCKED: "posture locked (local override file)", D_BAD_PARAM: "bad parameter"}
+             D_POSTURE_LOCKED: "posture locked (local override file)", D_BAD_PARAM: "bad parameter",
+             D_STATE_UNWRITABLE: "replay_state_unwritable"}
 CONFIRM_TTL_S = 10.0
 # >= LOCKOUT_BAD unauthenticated frames in LOCKOUT_WINDOW_S raise one "bad signatures" alarm per LOCKOUT_S. They never
 # lock out a validly signed command (D_LOCKED_OUT is kept as a reserved wire code): otherwise anyone with a radio could
@@ -493,7 +495,13 @@ class MgmtChannel:
         self.max_cmd_age_s = max_cmd_age_s if max_cmd_age_s and max_cmd_age_s > 0 else None
         self._wall = wall_clock
         self._ts_floor = 0  # newest signing timestamp ever executed, on ANY stream (persisted)
+        self.state_write_failures = 0  # not in stats(): the forwarding golden guard hashes it
         self._load_state()
+        if self._verifier is not None:
+            try:  # probe: an unwritable state path fails here, not at the first command
+                self._write_state()
+            except OSError as exc:
+                raise self._state_error(f"cannot be written ({type(exc).__name__})") from None
         self._queue: deque[tuple[int, str, Callable[[], bytes], float]] = deque(maxlen=8)
         self._drops: dict[str, int] = {}
         self._observed: dict[str, int] = {}
@@ -525,29 +533,60 @@ class MgmtChannel:
 
     # -- state ----------------------------------------------------------------- #
 
+    def _state_error(self, problem: str) -> ValueError:
+        """Fixed-text refusal naming the path (never the file's contents)."""
+        window = (f"recorded commands newer than max_cmd_age_s ({self.max_cmd_age_s:g} s), or any recording while the "
+                  "bridge clock is unset," if self.max_cmd_age_s is not None else "every recorded command")
+        return ValueError(f"management replay state {self._state_path} {problem}; refusing to start. Deleting the file "
+                          f"starts fresh but reopens the replay window: {window} would execute again")
+
     def _load_state(self) -> None:
+        """Fail closed: a missing file is a first run; anything else that cannot be read and fully understood is refused."""
         if self._state_path is None or self._verifier is None:
             return
         try:
-            data = json.loads(self._state_path.read_text(encoding="utf-8"))
+            text = self._state_path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return
+        except (OSError, UnicodeDecodeError) as exc:  # a directory, no permission, binary garbage
+            raise self._state_error(f"cannot be read ({type(exc).__name__})") from None
+        try:
+            data = json.loads(text)
+            if not isinstance(data, dict) or not isinstance(data.get("streams", {}), dict):
+                raise TypeError
+            streams: dict[tuple[int, int, int], int] = {}
             for k, ts in data.get("streams", {}).items():
                 link, sysid, compid = (int(x) for x in k.split(","))
-                self._verifier._last_timestamps[(link, sysid, compid)] = int(ts)
-            self._ts_floor = int(data.get("floor", max(self._verifier._last_timestamps.values(), default=0)))
-        except (OSError, ValueError, TypeError):
-            pass
+                if type(ts) is not int or ts < 0:
+                    raise TypeError
+                streams[(link, sysid, compid)] = ts
+            floor = data.get("floor", max(streams.values(), default=0))
+            if type(floor) is not int or floor < 0:
+                raise TypeError
+        except (ValueError, TypeError, AttributeError):
+            raise self._state_error("is corrupt or not a replay-state file") from None
+        self._verifier._last_timestamps.update(streams)
+        self._ts_floor = floor
 
-    def _persist(self) -> None:
-        if self._state_path is None or self._verifier is None:
-            return
+    def _write_state(self) -> None:
+        """Atomically write the replay state; raises OSError."""
+        assert self._state_path is not None and self._verifier is not None
         data = {"streams": {f"{a},{b},{c}": ts for (a, b, c), ts in self._verifier._last_timestamps.items()},
                 "floor": self._ts_floor}
         tmp = self._state_path.with_name(self._state_path.name + ".tmp")
+        tmp.write_text(json.dumps(data), encoding="utf-8")
+        os.replace(tmp, self._state_path)
+
+    def _persist(self) -> bool:
+        """True when the replay state is on disk (or there is none to keep). False = the write failed."""
+        if self._state_path is None or self._verifier is None:
+            return True
         try:
-            tmp.write_text(json.dumps(data), encoding="utf-8")
-            os.replace(tmp, self._state_path)
+            self._write_state()
         except OSError:
-            pass
+            self.state_write_failures += 1
+            return False
+        return True
 
     @property
     def locked_out(self) -> bool:
@@ -718,8 +757,10 @@ class MgmtChannel:
             return
         if not self._fresh(res.timestamp_10us, ev):
             return
-        self._ts_floor = res.timestamp_10us
-        self._persist()  # the replay window is closed on disk BEFORE anything is executed
+        self._ts_floor = res.timestamp_10us  # advanced in memory even if the write below fails: no replay in this run
+        if not self._persist():  # the replay window is closed on disk BEFORE anything is executed, or nothing is
+            self._deny(req, D_STATE_UNWRITABLE, ev)
+            return
         if now - self._last_cmd_t < MIN_CMD_INTERVAL_S:
             self._deny(req, D_RATE_LIMITED, ev, announce=False)
             return

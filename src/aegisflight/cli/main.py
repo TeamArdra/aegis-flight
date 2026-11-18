@@ -286,24 +286,28 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         store.start_run(run_id, label="ips-bridge")
     else:
         run_id = "ips-bridge"
-    bridge = InlineIpsBridge(fc, gcs, config_dir=args.config_dir, mode=args.defense_mode,
-                             trusted_sysids=tuple(args.trusted_sysid) if args.trusted_sysid else None,
-                             store=store, run_id=run_id, secret_key=key,
-                             allow_unsigned_from_trusted=args.signing_permissive,
-                             signing_max_age_s=args.signing_max_age_s, signing_state_path=args.signing_state,
-                             ekf_secondary=args.ekf_secondary, crossend_interval_s=args.crossend_interval,
-                             firmware_dir=args.firmware_dir, firmware_recheck_s=args.firmware_recheck_s,
-                             contested_policy=args.contested_policy, replay_memory=args.replay_memory,
-                             gcs_alerts=args.gcs_alerts == "on", alert_min_interval_s=args.alert_min_interval,
-                             mgmt_status_interval_s=args.mgmt_status_interval,
-                             mgmt_max_bytes_per_s=args.mgmt_max_bytes_per_s, mgmt_key=mgmt_key,
-                             mgmt_state_path=args.mgmt_state, lock_posture_file=args.lock_posture_file,
-                             mgmt_max_cmd_age_s=args.mgmt_max_age_s,
-                             audit_log_path=args.audit_log,
-                             unsigned_acknowledged=args.allow_unsigned and key is None and args.defense_mode == "active-ips",
-                             vehicle_filter=args.vehicle_uplink_filter, filter_override_file=args.filter_override_file,
-                             filter_lockout_failopen_s=args.filter_lockout_failopen_s,
-                             on_alarm=lambda m: print(f"aegis ips-bridge: ALARM {m}", flush=True))
+    try:  # e.g. an unreadable / corrupt / unwritable --mgmt-state: refuse to start, never run without replay state
+        bridge = InlineIpsBridge(fc, gcs, config_dir=args.config_dir, mode=args.defense_mode,
+                                 trusted_sysids=tuple(args.trusted_sysid) if args.trusted_sysid else None,
+                                 store=store, run_id=run_id, secret_key=key,
+                                 allow_unsigned_from_trusted=args.signing_permissive,
+                                 signing_max_age_s=args.signing_max_age_s, signing_state_path=args.signing_state,
+                                 ekf_secondary=args.ekf_secondary, crossend_interval_s=args.crossend_interval,
+                                 firmware_dir=args.firmware_dir, firmware_recheck_s=args.firmware_recheck_s,
+                                 contested_policy=args.contested_policy, replay_memory=args.replay_memory,
+                                 gcs_alerts=args.gcs_alerts == "on", alert_min_interval_s=args.alert_min_interval,
+                                 mgmt_status_interval_s=args.mgmt_status_interval,
+                                 mgmt_max_bytes_per_s=args.mgmt_max_bytes_per_s, mgmt_key=mgmt_key,
+                                 mgmt_state_path=args.mgmt_state, lock_posture_file=args.lock_posture_file,
+                                 mgmt_max_cmd_age_s=args.mgmt_max_age_s,
+                                 audit_log_path=args.audit_log,
+                                 unsigned_acknowledged=args.allow_unsigned and key is None and args.defense_mode == "active-ips",
+                                 vehicle_filter=args.vehicle_uplink_filter, filter_override_file=args.filter_override_file,
+                                 filter_lockout_failopen_s=args.filter_lockout_failopen_s,
+                                 on_alarm=lambda m: print(f"aegis ips-bridge: ALARM {m}", flush=True))
+    except ValueError as exc:
+        print(f"aegis ips-bridge: {exc}", file=sys.stderr)
+        return 2
     fc.start()
     gcs.start()
     bridge.start()
