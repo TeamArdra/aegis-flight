@@ -439,3 +439,8 @@ While Stage-1 simulations verify on-disk files via `FirmwareVerifier`, real auto
 - Any field mismatch raises `FIRMWARE_INTEGRITY` (score `1.0`) naming the mismatched field(s); if `AUTOPILOT_VERSION` has not been observed yet or no entry is pinned for that endpoint, a score-0 coverage note is emitted instead of alerting.
 - Allowlist integrity supports optional HMAC-SHA256 verification via `hmac_sha256` and env `AEGIS_ALLOWLIST_KEY` (never committed): signed files with a missing key or invalid signature fail closed (`AllowlistError`), while unsigned files load with an explicit warning.
 - Run provenance and live run metadata record `firmware_allowlist_sha256`.
+
+## MAVLink-2 Signing Bootstrap & Per-Source Allowlist (#19)
+When `protocol.require_signing: true`:
+- **Per-stream bootstrap settle (`signing_settle_s`, default 2.0 s):** each `(sysid, compid, link_id)` stream suppresses `sig_invalid` during `[t0, t0 + signing_settle_s)` only until that stream produces its first validly signed frame (emitting a score-0 coverage note while settling). Once verified or past `signing_settle_s`, the settle window never re-opens for that stream.
+- **Per-source `unsigned_allowed`:** replaces the link-wide `signed_ratio < 1.0` check on live streams with an explicit allowlist (default `[{sysid: 51, msg: RADIO_STATUS}]`), preventing SiK telemetry-radio status frames from triggering false alarms while flagging unexpected unsigned senders. Checking committed bench probe JSONs (`artifacts/hardware/*probe*.json`) confirmed `RADIO_STATUS` (`msgid 109`) was not emitted in those USB-direct probes (no SiK local radio attached).
