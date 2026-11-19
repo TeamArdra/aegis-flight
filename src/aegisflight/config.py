@@ -147,6 +147,7 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "mission_hysteresis_ticks": 5,
     },
     "anomaly": {
+        "enabled": True,
         "model_path": "models/isoforest.joblib",
         "score_threshold": 0.62,  # normalised anomaly score => triggered
         "contamination": 0.02,
@@ -170,6 +171,7 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "alert_threshold_severity": "SUSPICIOUS",
         "cooldown_s": 4.0,  # suppress duplicate alerts of same type within
         "clear_ticks": 4,  # consecutive normal ticks before clearing state
+        "ml_require_corroboration": False,
     },
 }
 

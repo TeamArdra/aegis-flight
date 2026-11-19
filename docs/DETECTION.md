@@ -419,12 +419,23 @@ baseline benchmark every false positive is of this kind (compare the ML-off abla
 Every alert carries the concatenated evidence from all firing detectors — there
 are no unexplained black-box alerts.
 
-## Per-vehicle calibration (PX4 SITL)
+## Per-vehicle calibration (PX4 SITL & ArduCopter SITL)
 Thresholds above are the **Stage-1 simulator** values and are the reference condition. A
 separate, generated PX4-SITL profile (`configs/px4_sitl/detector.yaml`) and a separate
 PX4-benign anomaly model (`models/isoforest_px4.joblib`) exist for false-alarm reduction on
 that stack only; methodology, held-out evaluation and the cost side (what the loosened
-rules may no longer catch) are in `docs/CALIBRATION_PX4.md`. It is not attack detection.
+rules may no longer catch) are in `docs/CALIBRATION_PX4.md`.
+
+For ArduCopter SITL (`configs/ardupilot_copter/detector.yaml`, issue #49), the profile sets
+`anomaly.enabled: false` (disabling the Stage-1 simulator-trained Isolation Forest unless a
+vehicle-calibrated model is passed via `anomaly.calibrated_model_path`) and
+`fusion.ml_require_corroboration: true` (requiring any lone `ml_anomaly` vote to be
+corroborated by `protocol_rule`, `physics_consistency`, or `firmware_integrity` before
+crossing `fusion.threat_threshold`). Per-hour false-alert rates (`FA/hr` with one-sided 95%
+Poisson upper bounds) and per-detector attribution across calibration and held-out sets
+(`artifacts/ardupilot/calibration/heldout_lock.json`) are committed in
+`artifacts/validation/inflight_fa_per_hour_20261119/summary.md` (`python scripts/evaluate_inflight_fa_per_hour.py`,
+environment `SITL`, claim class: link-level detection).
 
 **Unknown satellite count (MAVLink 255).** `GPS_RAW_INT.satellites_visible = 255` means "unknown", not 255
 satellites. It is stored as `None` (API `gps.satellites: null`, dashboard "unknown"). The GNSS-loss rule then judges
