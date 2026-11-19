@@ -3,6 +3,7 @@ import { api } from "../services/api";
 import { describe, selectTopology } from "../lib/topology";
 import { ActiveIpsDialog } from "./ActiveIpsDialog";
 import { needsActiveIpsDialog, signingText, type SigningInfo } from "../lib/posture";
+import { DECISION_COMPUTE_LABEL, DEFENSE_LIMITS, MODE_OPTIONS, ladderStates as getLadderStates, postureBanner, summaryFallback } from "../lib/wording";
 import type { DefenseMode, Environment, MitigationActionItem, MitigationInfo, Telemetry, Threat, TopologyInfo } from "../types";
 
 interface Props {
@@ -14,37 +15,6 @@ interface Props {
   bridgeTopology?: TopologyInfo | null;
   environment?: Environment | null;
   signing?: SigningInfo | null;
-}
-
-const MODES: Array<{ id: DefenseMode; label: string; desc: string }> = [
-  { id: "passive", label: "PASSIVE", desc: "IDS only · zero bytes transmitted" },
-  { id: "advisory", label: "ADVISORY", desc: "HUD STATUSTEXT alerts · zero control actuation" },
-  { id: "active-ips", label: "ACTIVE IPS", desc: "Counter-commands transmitted on a live link · SIM models inline sanitization" },
-];
-
-function getStatesForMode(mode: DefenseMode) {
-  if (mode === "passive") {
-    return [
-      { id: "NOMINAL", label: "NOMINAL", color: "var(--ok)", desc: "Clean flight baseline · Passive stream audit" },
-      { id: "AUTO_MITIGATING", label: "INTRUSION DETECTED", color: "var(--warn)", desc: "Anomaly isolated & parameterized · 0 bytes transmitted" },
-      { id: "SAFE_HOLD", label: "SUSTAINED ANOMALY", color: "#f97316", desc: "Continuous attack >30s · High-priority IDS alert" },
-      { id: "GCS_TAKEOVER", label: "CRITICAL INTEGRITY ALERT", color: "var(--crit)", desc: "In-flight firmware/safety breach · Operator attention" },
-    ];
-  }
-  if (mode === "advisory") {
-    return [
-      { id: "NOMINAL", label: "NOMINAL", color: "var(--ok)", desc: "Clean flight baseline · HUD advisory standby" },
-      { id: "AUTO_MITIGATING", label: "ADVISORY ALERTING", color: "var(--warn)", desc: "Transmitting MAVLink STATUSTEXT warnings to pilot HUD" },
-      { id: "SAFE_HOLD", label: "HOLD RECOMMENDED", color: "#f97316", desc: "Sustained attack >30s · Recommend pilot switch to ALT_HOLD" },
-      { id: "GCS_TAKEOVER", label: "PILOT TAKEOVER URGENT", color: "var(--crit)", desc: "Critical integrity breach · Immediate manual control advised" },
-    ];
-  }
-  return [
-    { id: "NOMINAL", label: "NOMINAL", color: "var(--ok)", desc: "Clean flight baseline · Golden tracking" },
-    { id: "AUTO_MITIGATING", label: "AUTO MITIGATING", color: "var(--warn)", desc: "Autonomous closed-loop counter-action" },
-    { id: "SAFE_HOLD", label: "SAFE HOLD", color: "#f97316", desc: "Multi-sensor conflict · Loitering on baro/attitude" },
-    { id: "GCS_TAKEOVER", label: "GCS TAKEOVER", color: "var(--crit)", desc: "Safety margin breached · Pilot control required" },
-  ];
 }
 
 function fmtNum(val: number | null | undefined, digits = 1, fallback = "0.0"): string {
@@ -132,45 +102,9 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
   const trustedLon = inputs?.trusted_lon ?? params?.trusted_lon;
   const trustedMode = inputs?.trusted_mode ?? params?.trusted_mode;
 
-  // Real-time Resistance Posture Computation
+  // Posture statement: factual, evidence-bounded (lib/wording.ts)
   const isAttackActive = Boolean(threat?.threat);
-  let resClass = "res-nominal";
-  let resTitle = "NOMINAL FLIGHT BASELINE";
-  let resDesc = "Golden flight state anchor is continually tracking nominal telemetry. Closed-loop IPS is armed and ready.";
-  let resBadge = "ARMED";
-
-  if (activeMode === "active-ips") {
-    if (isAttackActive) {
-      resClass = "res-resisting";
-      resTitle = "AUTONOMOUS RESISTANCE ACTIVE (INJECTION NEUTRALIZED)";
-      resDesc = `Closed-loop IPS is actively resisting ${threat?.attack_type ?? "intrusion"}. False offsets are stripped by fast-path sanitizer and counter-actuation is holding flight integrity.`;
-      resBadge = "NEUTRALIZING";
-    } else {
-      resClass = "res-nominal";
-      resTitle = "ACTIVE IPS ARMED — NOMINAL TRACKING";
-      resDesc = "Autonomous inline sanitization and counter-command actuation are live and protecting flight systems.";
-      resBadge = "ACTIVE PROTECT";
-    }
-  } else if (activeMode === "passive") {
-    if (isAttackActive) {
-      resClass = "res-passive";
-      resTitle = "PASSIVE MONITORING — ATTACK DETECTED (COUNTER-ACTION OFF)";
-      resDesc = `IDS detected ${threat?.attack_type ?? "attack"}, but operational posture is set to PASSIVE (0 bytes sent). Click 'ACTIVE IPS' above to engage autonomous resistance.`;
-      resBadge = "PASSIVE ONLY";
-    } else {
-      resClass = "res-nominal";
-      resTitle = "PASSIVE IDS MONITORING";
-      resDesc = "Passive intrusion detection stream active. Stage-2 zero-transmission baseline maintained.";
-      resBadge = "IDS READY";
-    }
-  } else if (activeMode === "advisory") {
-    if (isAttackActive) {
-      resClass = "res-advisory";
-      resTitle = "ADVISORY ALERTING — GCS HUD NOTIFICATION";
-      resDesc = `Transmitting STATUSTEXT warnings to GCS HUD for ${threat?.attack_type ?? "attack"}. Control surfaces and sensor sanitization remain un-actuated.`;
-      resBadge = "ADVISORY";
-    }
-  }
+  const { cls: resClass, title: resTitle, desc: resDesc, badge: resBadge } = postureBanner(activeMode, isAttackActive, threat?.attack_type, environment);
 
   const applyMode = async (newMode: DefenseMode, allowUnsigned?: boolean) => {
     setOptimisticMode(newMode);
@@ -215,7 +149,7 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
   };
 
   const isMitigating = stateId !== "NOMINAL";
-  const ladderStates = getStatesForMode(activeMode);
+  const ladderStates = getLadderStates(activeMode);
 
   // Recovery monitor title
   const recoveryTitle =
@@ -234,17 +168,17 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
       )}
       <div className="panel-head">
         <div className="title-row">
-          <h3>HYBRID AUTONOMOUS DEFENSE & RECOVERY</h3>
+          <h3>DEFENSE POSTURE & RESPONSE</h3>
           <span className={`pill def-mode-pill def-pill-${activeMode}`}>
             {activeMode.toUpperCase()}
           </span>
         </div>
         <div className="panel-sub">
           {activeMode === "passive"
-            ? "Passive cyber-physical intrusion detection system (IDS) · zero bytes transmitted"
+            ? "Passive intrusion detection (IDS) · nothing sent to the flight controller"
             : activeMode === "advisory"
-            ? "Pilot-in-the-loop advisory alerting system · MAVLink STATUSTEXT dispatch"
-            : "Closed-loop cyber-physical intrusion prevention (IPS) and sensor recovery engine"}
+            ? "Pilot-in-the-loop advisory alerting · alerts to the GCS only"
+            : "Intrusion prevention (IPS) · verified in ArduCopter SITL only, not flight-validated"}
         </div>
       </div>
 
@@ -252,12 +186,15 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
       <div className={`resistance-banner ${resClass}`}>
         <div className="res-header">
           <div>
-            <div className="res-title">{resTitle}</div>
-            <div className="res-desc">{resDesc}</div>
+            <div className="res-title" data-testid="defense-title">{resTitle}</div>
+            <div className="res-desc" data-testid="defense-desc">{resDesc}</div>
           </div>
         </div>
-        <div className="res-badge">{resBadge}</div>
+        <div className="res-badge" data-testid="defense-badge">{resBadge}</div>
       </div>
+      <ul className="topo-reasons" data-testid="defense-limits">
+        {DEFENSE_LIMITS.map((l) => <li key={l}>{l}</li>)}
+      </ul>
 
       {/* 0.1 Read-only topology status (detected by the software, never operator-selected) */}
       <TopologyCard backend={topologyInfo} bridge={bridgeTopology} />
@@ -270,7 +207,7 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
         )}
         <div className="topo-note">Posture is your choice; the Topology capability rows depend on it.</div>
         <div className="mode-toggle-group" role="radiogroup" aria-label="Defense Mode Selector">
-          {MODES.map((m) => {
+          {MODE_OPTIONS.map((m) => {
             const isSelected = activeMode === m.id;
             return (
               <button
@@ -433,7 +370,7 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
                   <span className="val mono">{trustedMode || telemetry?.flight_mode || "AUTO"}</span>
                 </div>
                 <div className="data-row">
-                  <span className="lbl">Detection Latency</span>
+                  <span className="lbl" title="Compute cost of one fused decision, not attack-onset detection latency.">{DECISION_COMPUTE_LABEL}</span>
                   <span className="val mono">{fmtNum(threat?.latency_ms, 2)} ms</span>
                 </div>
               </div>
@@ -559,7 +496,7 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
                 ? "Passive IDS stream active — no intrusions logged yet."
                 : activeMode === "advisory"
                 ? "Advisory monitor armed — no HUD alerts dispatched yet."
-                : "No counter-actions required yet — monitoring flight stream."}
+                : "No counter-actions logged yet."}
             </div>
           ) : (
             actions.slice().reverse().map((act, i) => (
@@ -579,7 +516,7 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
           {activeMode === "passive" ? "IDS STATUS:" : activeMode === "advisory" ? "ADV STATUS:" : "IPS STATUS:"}
         </span>
         <span className="summary-txt">
-          {mitigation?.summary || (activeMode === "passive" ? "Passive IDS monitoring" : "Autonomous IPS standby")}
+          {mitigation?.summary || summaryFallback(activeMode)}
         </span>
       </div>
 
@@ -598,7 +535,7 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
             <div className="passive-notice-card">
               <span className="notice-badge">PASSIVE IDS ONLY</span>
               <span className="notice-text">
-                Counter-command actuation and packet quarantine are locked off (0 bytes transmitted). To engage closed-loop resistance or manual tactical hold, select <b>ACTIVE IPS</b> in the Operational Posture Selector above.
+                No counter-command, frame drop or quarantine: nothing is sent to the flight controller. Only <b>ACTIVE IPS</b> enforces, and it is refused on a serial (physical) flight-controller link.
               </span>
             </div>
             {isMitigating && (

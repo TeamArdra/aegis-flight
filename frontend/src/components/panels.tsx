@@ -2,6 +2,7 @@ import { memo } from "react";
 import type { DefenseMode, MitigationInfo, Telemetry, Threat } from "../types";
 import { THREAT_THRESHOLD } from "../lib/constants";
 import { classifyEvidence, SOURCE_LABEL, type EvidenceSource } from "../lib/evidence";
+import { DECISION_COMPUTE_LABEL, quietThreatText } from "../lib/wording";
 
 const DETECTOR_LABELS: Record<string, string> = {
   protocol_rule: "Protocol / rule",
@@ -11,7 +12,7 @@ const DETECTOR_LABELS: Record<string, string> = {
 };
 
 /* ------------------------------------------------------------------ threat */
-function ThreatPanelImpl({ threat }: { threat: Threat | null }) {
+function ThreatPanelImpl({ threat, telemetry }: { threat: Threat | null; telemetry?: Telemetry | null }) {
   const active = !!threat?.threat;
   const sev = active ? threat!.severity : "NORMAL";
   const score = threat?.threat_score ?? 0;
@@ -28,7 +29,7 @@ function ThreatPanelImpl({ threat }: { threat: Threat | null }) {
       {active ? (
         <div className="threat-sub">{threat!.attack_type.replace(/_/g, " ")}</div>
       ) : (
-        <div className="threat-sub quiet">No active threat — nominal flight</div>
+        <div className="threat-sub quiet" data-testid="threat-quiet">{quietThreatText(telemetry)}</div>
       )}
 
       <div className="gauge">
@@ -55,7 +56,7 @@ function ThreatPanelImpl({ threat }: { threat: Threat | null }) {
           className="readout"
           title="Compute cost of one fused decision — NOT attack-onset detection latency."
         >
-          <div className="r-label">Decision compute</div>
+          <div className="r-label">{DECISION_COMPUTE_LABEL}</div>
           <div className="r-value">
             {(threat?.latency_ms ?? 0).toFixed(1)}
             <span className="u">ms</span>
