@@ -447,15 +447,12 @@ class InlineIpsBridge:
                     self.dropped_down += 1
                 else:
                     self.dropped_up += 1
-                if self._mgmt_active():
-                    with contextlib.suppress(Exception):
-                        self.mgmt.note_drop(drop_label(fr.raw, fr.sysid, fr.msgid, direction))
+                with contextlib.suppress(Exception):
+                    self.mgmt.note_drop(drop_label(fr.raw, fr.sysid, fr.msgid, direction))
             if policy._observed_pending:
-                obs = policy.take_observed()
-                if self._mgmt_active():
-                    with contextlib.suppress(Exception):
-                        for verdict, oraw, osys, omsg in obs:
-                            self.mgmt.note_observed(drop_label(oraw, osys, omsg, direction), verdict)
+                with contextlib.suppress(Exception):
+                    for verdict, oraw, osys, omsg in policy.take_observed():
+                        self.mgmt.note_observed(drop_label(oraw, osys, omsg, direction), verdict)
             failed = 0
             for raw in out:
                 if send(raw):
