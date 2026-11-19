@@ -29,7 +29,10 @@ fastapi, uvicorn, matplotlib, …) and the `aegis` CLI.
 aegis train                 # ~15 s -> models/isoforest.joblib
 ```
 The system runs without it (the ML detector becomes a no-op); training enables
-the 4th detector and improves GPS recall/latency.
+the 4th detector and improves GPS recall/latency. `aegis train` does **not** reproduce the shipped model:
+for the exact one (and the committed Stage-1 numbers) use `python scripts/fetch_models.py`, see
+`docs/MODEL_DISTRIBUTION.md`. `aegis benchmark` / `aegis simulate` exit non-zero when the model is missing
+(use `--no-model` for an explicit ML-off run, `--allow-unverified-model` for your own trained file).
 
 ## 3. Run a session from the CLI
 ```bash
