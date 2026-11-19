@@ -10,6 +10,15 @@
 decision_rate_hz: 5.0          # fusion/decision cadence
 
 # ------------------------------------------------------------------ #
+# Feature extraction
+# ------------------------------------------------------------------ #
+features:
+  # Per-source MAVLink 8-bit sequence reorder tolerance (frames behind high-water mark).
+  # Chosen from UDP/multi-path jitter characteristics (not tuned on benchmark scores):
+  # at ~28-140 msg/s over ~100-500 ms jitter, a late packet lags by 1-16 sequence steps.
+  reorder_window: 16
+
+# ------------------------------------------------------------------ #
 # Detector A: protocol / rule engine
 # ------------------------------------------------------------------ #
 protocol:

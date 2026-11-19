@@ -84,6 +84,16 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
 ## Do NOT change casually
 - **`ML_FEATURES` order/content** (`features/extractor.py`) — the saved model
   depends on it exactly; changing it silently breaks inference. Retrain.
+  *Frozen-contract migration note (issue #14, 2026-11-18):* `ML_FEATURES` order and
+  content are unchanged (`len == 11`). `FeatureExtractor` now tracks per-source
+  sequence numbers against a high-water mark with `features.reorder_window` (default
+  `16`), counting late packets within `1..R` steps in the new additive `FeatureFrame.reorder_count`
+  field (not in `ML_FEATURES`) instead of recording a `256 - k` `max_seq_gap`.
+  In-order and Stage-1 SIM benign/attack streams behave identically; `dos:latency`
+  jitter-induced reorders no longer masquerade as 254-frame sequence gaps.
+  Security consequence: an unauthenticated replay within `R` sequence steps of the
+  high-water mark is counted as `reorder_count` rather than `max_seq_gap`; MAVLink-2
+  signing and command-cadence checks still apply.
 - **`FlightState` / `MessageEnvelope` fields** — codec + extractor contract.
 - **Enum `.value` strings** — API/DB/JSON contract.
 - **The MAVLink message field mappings** — encoder and extractor must agree.

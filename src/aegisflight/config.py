@@ -76,6 +76,12 @@ DEFAULT_MESSAGE_RATES: dict[str, int] = {
 
 DEFAULT_DETECTOR: dict[str, Any] = {
     "decision_rate_hz": 5.0,  # run fusion at this cadence
+    "features": {
+        # High-water mark reorder tolerance in MAVLink 8-bit sequence space (0..127).
+        # Late frames within `reorder_window` behind the per-source high-water mark
+        # increment `FeatureFrame.reorder_count` instead of recording a 256-k gap.
+        "reorder_window": 16,
+    },
     "protocol": {
         "expected_sysids": [1],
         "expected_gcs_sysids": [255, 254],
