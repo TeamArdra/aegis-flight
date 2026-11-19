@@ -84,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
             a.relay_listen_port,
             up_hook=hook,
             down_hook=hook,
-            mirror_up_to_clients=True,
+            mirror_uplink_to_clients=True,
         )
 
     relay.start()
