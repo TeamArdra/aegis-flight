@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import json
+import logging
+import sys
+import warnings
 from pathlib import Path
+
+import pytest
 
 from aegisflight.config import load_config
 from aegisflight.core.enums import AttackType, DetectorName, IntegrityStatus, Severity
@@ -111,3 +116,37 @@ def test_committed_inflight_fa_per_hour_artifacts_and_heldout_lock() -> None:
     drift = metrics["drift_attack_regression"]
     assert drift["detected"] == drift["n_trials"] == 6
     assert drift["max_onset_latency_delta_s"] == 0.0
+
+
+def test_anomaly_detector_load_failure_paths(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config().detector["anomaly"]
+
+    # 1. Missing model file logs a warning and leaves detector unavailable
+    missing = tmp_path / "does_not_exist.joblib"
+    with caplog.at_level(logging.WARNING, logger="aegisflight.detectors.anomaly"):
+        det_missing = AnomalyDetector(cfg, model_path=missing)
+    assert det_missing.available is False
+    assert any("does not exist" in rec.message for rec in caplog.records)
+
+    # 2. Corrupt model file sets load_error and logs a warning
+    caplog.clear()
+    corrupt = tmp_path / "corrupt.joblib"
+    corrupt.write_bytes(b"not-a-joblib-pickle")
+    with caplog.at_level(logging.WARNING, logger="aegisflight.detectors.anomaly"):
+        det_corrupt = AnomalyDetector(cfg, model_path=corrupt)
+    assert det_corrupt.available is False
+    assert det_corrupt.load_error is not None
+    assert any("is unreadable" in rec.message for rec in caplog.records)
+
+    # 3. Missing joblib/sklearn dependency emits RuntimeWarning and sets load_error
+    monkeypatch.setitem(sys.modules, "joblib", None)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        det_no_joblib = AnomalyDetector(cfg, model_path=corrupt)
+    assert det_no_joblib.available is False
+    assert det_no_joblib.load_error is not None and det_no_joblib.load_error.startswith("ImportError:")
+    assert any(issubclass(w.category, RuntimeWarning) for w in caught)
