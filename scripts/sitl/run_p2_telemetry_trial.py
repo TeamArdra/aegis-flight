@@ -54,6 +54,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, required=True)
     ap.add_argument("--trial-index", type=int, default=0)
     ap.add_argument("--seconds", type=float, default=90.0)
+    ap.add_argument("--warmup-s", type=float, default=None, help="override hook warmup_s (default: hook built-in)")
+    ap.add_argument("--onset-s", type=float, default=None, help="override hook onset_s (default: hook built-in)")
+    ap.add_argument("--expected-sysid", type=int, default=None, help="override protocol.expected_sysids for SITL instance")
     ap.add_argument("--profile", default="configs/px4_sitl", help="load_config dir; '' for Stage-1 default")
     ap.add_argument("--px4-git-describe", default=None, help="PX4 git describe string for provenance")
     ap.add_argument("--out", required=True)
@@ -72,12 +75,23 @@ def main(argv: list[str] | None = None) -> int:
 
     frame_log = FrameLogWriter(out.with_suffix(".frames.jsonl"))
     if a.scenario in DOWNLINK_SCENARIOS:
-        hook = DOWNLINK_SCENARIOS[a.scenario](frame_log=frame_log)
+        kw: dict = {"frame_log": frame_log}
+        if a.warmup_s is not None:
+            kw["warmup_s"] = a.warmup_s
+        hook = DOWNLINK_SCENARIOS[a.scenario](**kw)
+        if a.onset_s is not None and hasattr(hook, "_onset_s"):
+            hook._onset_s = float(a.onset_s)
         relay = make_udp_relay(a.px4_host, a.px4_port, a.relay_listen_port, down_hook=hook)
     else:
         hook = build_restricted_visibility_hook(
-            a.scenario, seed=a.seed, trial_index=a.trial_index, frame_log=frame_log
+            a.scenario,
+            seed=a.seed,
+            trial_index=a.trial_index,
+            warmup_s=0.0 if a.warmup_s is None else a.warmup_s,
+            frame_log=frame_log,
         )
+        if a.onset_s is not None and hasattr(hook, "params") and hasattr(hook.params, "onset_s"):
+            hook.params.onset_s = float(a.onset_s)
         relay = make_udp_relay(
             a.px4_host,
             a.px4_port,
@@ -97,6 +111,8 @@ def main(argv: list[str] | None = None) -> int:
     ids_transport = UdpMavlinkTransport(connect=("127.0.0.1", relay.downstream.local_address[1]), gcs_heartbeat=True)
     ids_transport.start()
     cfg = load_config(a.profile or None)
+    if a.expected_sysid is not None:
+        cfg.detector["protocol"]["expected_sysids"] = [int(a.expected_sysid)]
     pipe = IDSPipeline(cfg, model_path=None)
     ids_src = LiveMavlinkSource(ids_transport, sample_rate_hz=10.0, max_ticks=int(a.seconds * 10))
     n_decisions = n_threats = 0
