@@ -14,7 +14,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from provenance import add_provenance_args, collect, finish_run, require_clean_tree
+from provenance import add_provenance_args, collect_run_provenance, finish_run, require_clean_tree
 
 from aegisflight.config import load_config
 from aegisflight.pipeline import IDSPipeline
@@ -55,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--trial-index", type=int, default=0)
     ap.add_argument("--seconds", type=float, default=90.0)
     ap.add_argument("--profile", default="configs/px4_sitl", help="load_config dir; '' for Stage-1 default")
+    ap.add_argument("--px4-git-describe", default=None, help="PX4 git describe string for provenance")
     ap.add_argument("--out", required=True)
     add_provenance_args(ap)
     a = ap.parse_args(argv)
@@ -125,10 +126,14 @@ def main(argv: list[str] | None = None) -> int:
         frame_log.close()
 
     prov = finish_run(
-        collect(python_version=sys.version.split()[0]),
-        start_state=start_state,
-        started=started,
-        ended=datetime.now(UTC).isoformat(),
+        collect_run_provenance(
+            allow_dirty=a.allow_dirty,
+            profile_dir=a.profile or None,
+            model_path=None,
+            px4_git_describe=a.px4_git_describe,
+            started_utc=started,
+            start_state=start_state,
+        )
     )
     out.with_suffix(".manifest.json").write_text(
         json.dumps(
