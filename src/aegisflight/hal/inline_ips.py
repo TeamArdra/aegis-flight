@@ -151,8 +151,10 @@ class InlineIpsBridge:
         filter_lockout_failopen_s: float | None = None,
         mgmt_clock: Callable[[], float] = time.monotonic,
         mgmt_max_cmd_age_s: float | None = MAX_CMD_AGE_S,
+        mgmt_enable: bool = False,
     ) -> None:
         self.fc, self.gcs = fc, gcs
+        self._mgmt_in_passive = bool(mgmt_enable)
         self._refuse_active_on_device(mode)
         # receive-only-compatible filtering of the uplink (docs/VEHICLE_UPLINK_FILTER.md): fixed at construction, never a
         # posture, and nothing at run time (status API, management channel) can switch it on or off
@@ -337,6 +339,14 @@ class InlineIpsBridge:
 
     # -- forwarding ---------------------------------------------------------- #
 
+    def _mgmt_active(self) -> bool:
+        """True when management/cross-end GCS TX & compid-191 RX are permitted.
+
+        Pure PASSIVE posture transmits 0 bytes on both FC and GCS links unless
+        explicitly opted in via ``mgmt_enable=True`` (``--mgmt-enable``).
+        """
+        return self.controller.mode != DefenseMode.PASSIVE or self._mgmt_in_passive
+
     def pump_once(self) -> int:
         """One non-blocking forwarding cycle (also driven directly by tests). Returns frames handled."""
         n = 0
@@ -345,9 +355,10 @@ class InlineIpsBridge:
             n += self._handle(stamp, data, "down")
         for stamp, data in self.gcs.poll():
             n += self._handle(stamp, data, "up")
-        self._send_alarms()
         self._announce_filter()
-        self.mgmt.service()
+        if self._mgmt_active():
+            self._send_alarms()
+            self.mgmt.service()
         return n
 
     def _poll_override(self) -> None:
@@ -362,12 +373,13 @@ class InlineIpsBridge:
         self.policy.filter_override = os.path.exists(self._override_file)
 
     def _announce_filter(self) -> None:
-        """Every change of the filter's state is told to the pilot's GCS (a short STATUSTEXT) and, with the full reason, to the console."""
+        """Every change of the filter's state is told to the pilot's GCS (when mgmt active) and to the console."""
         if not self._vehicle_filter:
             return
         for state, detail in self.policy.take_filter_events():
-            with contextlib.suppress(Exception):
-                self.mgmt.action(f"FILTER_{state.upper()}", "")
+            if self._mgmt_active():
+                with contextlib.suppress(Exception):
+                    self.mgmt.action(f"FILTER_{state.upper()}", "")
             if self.on_alarm is not None:
                 with contextlib.suppress(Exception):
                     self.on_alarm(f"vehicle uplink filter {state}: {detail}")
@@ -401,7 +413,7 @@ class InlineIpsBridge:
         lat_append = self._lat_us.append
         perf_ns = time.perf_counter_ns
         for fr in frames:
-            if not down and fr.msgid == 76 and (req := is_mgmt_command(fr.raw)) is not None:
+            if not down and self._mgmt_active() and fr.msgid == 76 and (req := is_mgmt_command(fr.raw)) is not None:
                 self.mgmt.handle_command(fr.raw, req)  # consumed: never forwarded to the FC, never tapped
                 if self.archive is not None:  # every received frame is archived, a consumed command too (#25)
                     self.archive.consumed(direction, stamp, fr.raw)
@@ -415,7 +427,7 @@ class InlineIpsBridge:
                 # normally (the detectors keep their evidence). Always counted; announced (aggregated) on a keyed bridge
                 tap_push(stamp, GcsSideDatagram(fr.raw))
                 self.forged_vehicle_up += 1
-                if self._secret_key is not None:
+                if self._secret_key is not None and self._mgmt_active():
                     with contextlib.suppress(Exception):
                         self.mgmt.note_forged_vehicle_up(fr.sysid)
             else:
@@ -499,7 +511,8 @@ class InlineIpsBridge:
     def analyse_tick(self, tick: Any) -> None:
         """Process one tick: detect, run the controller, push its state into the policy, send counter-frames."""
         self._last_analyse_wall = time.monotonic()
-        self.emit_crossend()
+        if self._mgmt_active():
+            self.emit_crossend()
         assessment = self.pipeline.process_tick(tick)
         if assessment is None or self.pipeline.last_frame is None:
             return
@@ -511,23 +524,28 @@ class InlineIpsBridge:
             self.archive.decision(now, assessment, self.controller.mode.value, self.controller.state.value, act.summary)
             self.archive.summary_changed(now, act.summary, self.controller.mode.value, self.controller.state.value)
         self.policy.touch()
-        self._announce_actions()
+        if self._mgmt_active():
+            self._announce_actions()
         if assessment.is_alert:
             self.alerts += 1
             rogue = getattr(getattr(act, "params", None), "rogue_sysids", ())
             if self._hold_at_boot(assessment):
                 self._boot_held = True
-            else:
+            elif self._mgmt_active():
                 with contextlib.suppress(Exception):
                     self.mgmt.alert(assessment.attack_type.value, assessment.severity.value, rogue[0] if rogue else None)
             if self.store is not None:
                 with contextlib.suppress(Exception):
                     self.store.log_event(assessment, self.run_id)
-        if self.controller.mode == DefenseMode.ACTIVE_IPS:
+        mode = self.controller.mode
+        if mode == DefenseMode.ACTIVE_IPS or (mode == DefenseMode.ADVISORY and not self._mgmt_active()):
             for frame in act.counter_frames:
+                is_txt = _is_statustext(frame)
+                if mode == DefenseMode.ADVISORY and (not is_txt or not self.gcs_alerts):
+                    continue  # ADVISORY never writes non-STATUSTEXT or touches FC; _mgmt_active() already emitted mgmt.alert()
                 # corrective commands go to the flight controller; a STATUSTEXT warning is for the pilot's GCS
                 # (the FC does not relay a STATUSTEXT it receives), so it goes to the GCS side only
-                link = self.gcs if _is_statustext(frame) else self.fc
+                link = self.gcs if is_txt else self.fc
                 target_link = "gcs" if link is self.gcs else "fc"
                 t = self._clock_ns()
                 ok = link.send(frame)
@@ -544,7 +562,8 @@ class InlineIpsBridge:
                             f"bytes={len(frame)} sent={bool(ok)}",
                         )
                 if ok:
-                    self.counter_frames_sent += 1
+                    if mode == DefenseMode.ACTIVE_IPS:
+                        self.counter_frames_sent += 1
                 else:
                     self.send_failures += 1
 
@@ -570,7 +589,7 @@ class InlineIpsBridge:
     def emit_crossend(self) -> bool:
         """Send ONE summary of the latest forwarded GLOBAL_POSITION_INT to the GCS transport (never the FC, never the
         tap), at most once per interval and only when a new frame was forwarded. Analyser thread only."""
-        if self.crossend_interval_s <= 0:
+        if not self._mgmt_active() or self.crossend_interval_s <= 0:
             return False
         now = self._clock_ns()
         raw = self._last_gpi
@@ -638,6 +657,7 @@ class InlineIpsBridge:
                          "counter_frames_sent": self.counter_frames_sent, "alarms_sent": self.alarms_sent, "crossend_sent": self.crossend_sent, "summary": self.last_summary,
                          "ekf_secondary": self.controller.ekf_secondary_available},
             "last_error": self.last_error,
+            "mgmt_active": self._mgmt_active(),
             "mgmt": self.mgmt.stats(),
             "topology": self.topology_info(),
         }
