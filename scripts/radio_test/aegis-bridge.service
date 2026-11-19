@@ -1,14 +1,20 @@
-# Production auto-start of the bridge on the companion computer (install as root, then `systemctl enable --now aegis-bridge`).
-# Not installed by the bench scripts (they use a user crontab @reboot because the bench Pi has no passwordless sudo).
+# Legacy wrapper unit delegating to the parameterized onboard runtime (#59).
+# Prefer deploy/aegis-onboard.service for production systemd installations.
 [Unit]
-Description=AegisFlight inline IPS bridge
+Description=AegisFlight companion bridge (bench wrapper)
 After=multi-user.target
 Wants=multi-user.target
 
 [Service]
-User=ardra
-Environment=AUTOSTART_ENV=/home/ardra/aegis_test/autostart.env
-ExecStart=/home/ardra/aegis_test/pi_autostart.sh
+Type=simple
+User=aegisflight
+Group=dialout
+WorkingDirectory=/opt/aegisflight
+Environment="AEGIS_HOME=/opt/aegisflight"
+EnvironmentFile=-/etc/aegisflight/onboard.env
+ExecStart=/usr/bin/env bash -lc 'exec "${AEGIS_HOME}/scripts/radio_test/pi_autostart.sh"'
+KillSignal=SIGTERM
+TimeoutStopSec=15
 Restart=on-failure
 RestartSec=3
 
