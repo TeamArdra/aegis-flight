@@ -103,3 +103,13 @@ telemetry-second; run the same command on the target and compare it with 1.0 per
 3. `.venv/Scripts/python.exe scripts/hardware/run_serial_ids.py --port <port> --baud <baud> --out-dir runs/bench_001 --seconds 300` → `summary.json`; compare with `artifacts/ardupilot/BASELINE_SUMMARY.md`.
 4. On the target computer: `.venv/Scripts/python.exe scripts/ardupilot/measure_replay_cost.py data/ardupilot/raw/ap_benign_six_001.clean.tlog --repeat 3 --json artifacts/ardupilot/replay_cost_<machine>.json` (copy the tlog over; it is git-ignored).
 5. Decide B4 (retrain ML on ArduPilot) and B5 (post-reconnect hold-down) — both are aegis-detection scope and need re-benchmarking.
+
+## 9. Universal Companion Hardening (`aegis onboard`, W5–W10)
+
+- **Dual topologies:** `topology: inline` (Radio <-> Companion <-> FC) and `topology: side-tap`
+  (single RX-only Y-tap port, strictly locked to `passive` mode, 0 B TX).
+- **Zero-TX Port & Autobaud Discovery:** Set `fc_port: auto` / `fc_baud: auto` (or run
+  `aegis onboard --preflight`) to passively detect connected MAVLink ports across standard baud rates with 0 B transmitted.
+- **Firmware Enrollment:** Run `aegis onboard --enroll-firmware <allowlist.yaml>` while disarmed to passively capture `AUTOPILOT_VERSION` (0 B TX) and write an optional HMAC-signed (`AEGIS_ALLOWLIST_KEY`) allowlist entry.
+- **systemd Watchdog & WAL:** `deploy/aegis-onboard.service` runs with `Type=notify`, `WatchdogSec=10`, SQLite WAL mode + truncation checkpoints before store rotation, and external `AnchorWriter` (`*.anchors.jsonl`).
+- **Pre-Flight Drills & Forensic Export:** Run `aegis field-drill` (0 B FC TX shadow verification) before flight and `aegis export-report --db <events.sqlite> --format html --out report.html` post-flight.

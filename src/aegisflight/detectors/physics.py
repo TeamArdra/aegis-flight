@@ -17,6 +17,7 @@ from collections.abc import Callable
 from ..core.enums import AttackType, DetectorName
 from ..core.types import DetectorResult
 from ..features.extractor import _LINK_GAP_S, FeatureFrame
+from ..mavlink.codec import COPTER_MAV_TYPES, FIXED_WING_MAV_TYPE, ROVER_MAV_TYPES, VTOL_MAV_TYPES
 from .base import Detector, ramp
 
 
@@ -141,6 +142,11 @@ class PhysicsDetector(Detector):
         self.batt_msg_tol_v = float(p.get("batt_msg_tolerance_v", 1.5))
         self.att_repeat_n = int(p.get("attitude_repeat_n", 8))
         self.hdg_yaw_tol_deg = float(p.get("heading_yaw_tolerance_deg", 10.0))
+        self.use_learned_baro_offset = bool(p.get("use_learned_baro_offset", False))
+        self.yaw_course_auto = bool(p.get("yaw_course_auto", False))
+        self.control_semantics_enabled = bool(p.get("control_semantics_enabled", False))
+        self.control_accel_thresh_ms2 = float(p.get("control_accel_residual_ms2", 4.5))
+        self.optflow_speed_diff_ms = float(p.get("optflow_gps_speed_diff_ms", 4.0))
         self._init_sample_guards()
 
     def _init_sample_guards(self) -> None:
@@ -280,19 +286,12 @@ class PhysicsDetector(Detector):
                 "(sustained sub-noise velocity divergence)"
             )
 
-        # ---- 2D Page-Hinkley / CUSUM micro-drift (< 0.3 m/s) ----
-        cusum_val = max(frame.cusum_drift_m, self.cusum.magnitude_m)
-        signals["cusum_drift_m"] = cusum_val
-        if (self.cusum_enabled or self.cusum.triggered) and cusum_val >= self.cusum_threshold_m:
-            s = ramp(cusum_val, self.cusum_threshold_m, self.cusum_threshold_m * 3.0)
-            bump(AttackType.GPS_SPOOFING, max(0.65, s), hard_hit=True)
-            evidence.append(
-                f"CUSUM micro-drift residual {cusum_val:.2f} m ≥ {self.cusum_threshold_m:.1f} m "
-                "(sustained sub-noise velocity divergence)"
-            )
-
         # ---- GPS altitude vs baro (telemetry manipulation / spoofing) ----
-        ad = frame.gps_baro_alt_diff_m
+        ad = (
+            frame.gps_baro_alt_bias_corrected_diff_m
+            if (self.use_learned_baro_offset and frame.gps_baro_alt_bias_corrected_diff_m is not None)
+            else frame.gps_baro_alt_diff_m
+        )
         signals["gps_baro_alt_diff_m"] = ad
         if ad > self.alt_cons:
             s = ramp(ad, self.alt_cons, self.alt_cons * 3)
@@ -365,10 +364,43 @@ class PhysicsDetector(Detector):
         # ---- heading (attitude) vs course-over-ground (frozen attitude) ----
         yc = frame.yaw_course_diff_deg
         signals["yaw_course_diff_deg"] = yc
-        if self.yaw_course_enabled and yc > self.yaw_course_deg:
+        yc_enabled = self.yaw_course_enabled
+        if self.yaw_course_auto and frame.mav_type is not None:
+            if frame.mav_type in COPTER_MAV_TYPES or frame.mav_type in ROVER_MAV_TYPES or frame.mav_type in VTOL_MAV_TYPES:
+                yc_enabled = False
+            elif frame.mav_type == FIXED_WING_MAV_TYPE:
+                yc_enabled = True
+        if yc_enabled and yc > self.yaw_course_deg:
             s = ramp(yc, self.yaw_course_deg, 90.0)
             bump(AttackType.TELEMETRY_MANIPULATION, max(0.5, s))
             evidence.append(f"heading/course mismatch {yc:.0f}° (attitude inconsistent with track)")
+
+        # ---- ConstDet: attitude vs horizontal acceleration control semantics ----
+        if (
+            self.control_semantics_enabled
+            and frame.snapshot.armed
+            and not frame.nav_gated
+            and frame.control_accel_residual_ms2 is not None
+        ):
+            cr = frame.control_accel_residual_ms2
+            if cr > self.control_accel_thresh_ms2:
+                signals["control_accel_residual_ms2"] = cr
+                s = ramp(cr, self.control_accel_thresh_ms2, self.control_accel_thresh_ms2 * 2.5)
+                bump(AttackType.GPS_SPOOFING, max(0.65, s))
+                evidence.append(
+                    f"ConstDet attitude-vs-acceleration mismatch {cr:.2f} m/s² > {self.control_accel_thresh_ms2:.1f} m/s²"
+                )
+
+        # ---- Optical-flow / VIO velocity vs GPS velocity cross-check ----
+        if frame.optflow_gps_speed_diff_ms is not None:
+            od = frame.optflow_gps_speed_diff_ms
+            signals["optflow_gps_speed_diff_ms"] = od
+            if od > self.optflow_speed_diff_ms:
+                s = ramp(od, self.optflow_speed_diff_ms, self.optflow_speed_diff_ms * 2.5)
+                bump(AttackType.GPS_SPOOFING, max(0.70, s))
+                evidence.append(
+                    f"optical-flow/VIO vs GPS speed divergence {od:.1f} m/s > {self.optflow_speed_diff_ms:.1f} m/s"
+                )
 
         self._receiver_rules(frame, bump, evidence, signals)
         self._mission_rule(frame, bump, evidence, signals)
