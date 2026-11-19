@@ -444,3 +444,30 @@ While Stage-1 simulations verify on-disk files via `FirmwareVerifier`, real auto
 When `protocol.require_signing: true`:
 - **Per-stream bootstrap settle (`signing_settle_s`, default 2.0 s):** each `(sysid, compid, link_id)` stream suppresses `sig_invalid` during `[t0, t0 + signing_settle_s)` only until that stream produces its first validly signed frame (emitting a score-0 coverage note while settling). Once verified or past `signing_settle_s`, the settle window never re-opens for that stream.
 - **Per-source `unsigned_allowed`:** replaces the link-wide `signed_ratio < 1.0` check on live streams with an explicit allowlist (default `[{sysid: 51, msg: RADIO_STATUS}]`), preventing SiK telemetry-radio status frames from triggering false alarms while flagging unexpected unsigned senders. Checking committed bench probe JSONs (`artifacts/hardware/*probe*.json`) confirmed `RADIO_STATUS` (`msgid 109`) was not emitted in those USB-direct probes (no SiK local radio attached).
+
+## Link-layer attribution & hierarchical reporting (#22, Decision D10)
+
+On `FeatureFrame`, several link-level attack modes overlap physically: `dos:flood` (`~100 msg/s`,
+`gap ~250`) and `mavlink_anomaly:rate_spike` (`~106 msg/s`, `gap ~250`) produce nearly identical
+feature vectors, and `dos:latency` (`median jitter 32.4 ms`) overlaps benign simulated jitter
+(`median 46.7 ms`) and `mavlink_anomaly:seq_scramble`.
+
+- **Opt-in semantic packet-loss rule (`protocol.semantic_link_attribution`, default `false`):**
+  when enabled, selective heartbeat starvation (`heartbeat_age_s > heartbeat_timeout_s` while
+  `gps_age_s <= gps_dropout_s` and `msg_rate_hz >= protocol.semantic_link_min_rate_hz`, default `5.0`)
+  votes `MAVLINK_ANOMALY` rather than `DOS`, reserving `DOS` for link-wide blackouts
+  (`msg_rate_hz < semantic_link_min_rate_hz` or GPS also stale).
+  **Strict-attribution trade-off (environment `SIM`, claim class: link-level detection):** on the
+  fresh-seed extended benchmark (`master_seed=20261119`), enabling `semantic_link_attribution`
+  raises `mavlink_anomaly:packet_loss` strict accuracy from `0.0000` to `0.9531`, while reducing
+  `dos:blackout` strict accuracy from `0.7641` to `0.6410` during partial-window transition ticks
+  where heartbeats have been stale for >3 s while residual non-heartbeat frames in the sliding
+  rate window keep `msg_rate_hz >= 5.0` and `gps_age_s <= 2.0`.
+- **Hierarchical link-layer metric (`metrics/scoring.py:hierarchical_link_summary`):**
+  groups `DOS` and `MAVLINK_ANOMALY` under `LINK_LAYER_DISRUPTION` so overlapping link-layer
+  transport faults (`rate_spike`, `latency`, `packet_loss`, `flood`) are reported as a coarse
+  link-disruption family alongside the primary strict per-class confusion matrix (note:
+  `LINK_LAYER_DISRUPTION` measures coarse link-layer vs non-link-layer attribution, not fine
+  intra-link attribution between `DOS` and `MAVLINK_ANOMALY`).
+- **Methodology disclosure:** these rules and evaluations (`scripts/eval_link_attribution.py` on
+  fresh `master_seed=20261119`) were designed with knowledge of the simulator's attack definitions.

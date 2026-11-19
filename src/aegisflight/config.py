@@ -121,6 +121,8 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "min_gnss_fix_type": 3,  # GPS_RAW_INT fix_type below this = no 3D fix
         "min_gnss_satellites": 5,
         "gnss_loss_ticks": 5,  # consecutive decisions before the fix-loss rule fires
+        "semantic_link_attribution": False,
+        "semantic_link_min_rate_hz": 5.0,  # opt-in (#22): attribute selective HB loss to MAVLINK_ANOMALY
     },
     "physics": {
         "gps_pos_residual_m": 12.0,  # predicted vs reported position gap
