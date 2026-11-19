@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import platform
 import time
 from pathlib import Path
@@ -28,7 +29,10 @@ from ..core.enums import AttackType
 from ..core.geo import haversine_m
 from ..metrics.resources import ResourceSampler
 from ..metrics.scoring import evaluate
+from ..model_integrity import model_sha256_or_none
 from .runner import run_session
+
+log = logging.getLogger(__name__)
 
 SCENARIOS = [
     "benign",
@@ -61,7 +65,10 @@ def run_benchmark(
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     if model_path and not Path(model_path).exists():
-        model_path = None  # run rule+physics-only if the model isn't trained
+        # library API keeps its old fallback (rule+physics only), but never silently; the `aegis benchmark`
+        # CLI refuses to get here without the model unless --no-model was given
+        log.warning("benchmark asked for ML but %s does not exist: running ML OFF (model_sha256=none)", model_path)
+        model_path = None
 
     all_true: list[AttackType] = []
     all_pred: list[AttackType] = []
@@ -155,6 +162,7 @@ def run_benchmark(
         "routes": ROUTES,
         "grace_s": grace_s,
         "model_used": bool(model_path),
+        "model_sha256": model_sha256_or_none(model_path),
         "decision_rate_hz": cfg.detector.get("decision_rate_hz"),
         "python": platform.python_version(),
     }
@@ -186,7 +194,8 @@ def _summary_md(r: dict) -> str:
         "",
         f"_Generated from {r['n_decisions']} scored decisions across "
         f"{len(r['config']['seeds'])} seeds × {len(SCENARIOS)} scenarios. "
-        f"Model used: {r['config']['model_used']}._",
+        f"Model used: {r['config']['model_used']}. "
+        f"model_sha256: {r['config'].get('model_sha256', 'none')}._",
         "",
         "## Binary detection (attack vs benign)",
         "",

@@ -21,17 +21,20 @@ Missing/incompatible model => the detector degrades to a no-op (score 0).
 
 from __future__ import annotations
 
+import logging
 import math
+import warnings
 from operator import attrgetter
 from pathlib import Path
 
-import joblib
 import numpy as np
 
 from ..core.enums import AttackType, DetectorName
 from ..core.types import DetectorResult
 from ..features.extractor import ML_FEATURES, FeatureFrame
 from .base import Detector
+
+log = logging.getLogger(__name__)
 
 # Which ML feature, when most anomalous, implies which attack class.
 FEATURE_ATTACK_MAP: dict[str, AttackType] = {
@@ -186,20 +189,52 @@ class AnomalyDetector(Detector):
         runs still loaded the model whenever ``models/isoforest.joblib`` existed.
         Callers that want the model pass its path explicitly.
         """
+        self.enabled = bool(cfg.get("enabled", True))
         self.threshold = float(cfg.get("score_threshold", 0.62))
         self.warmup_ticks = int(cfg.get("warmup_ticks", 20))
-        path = Path(model_path) if model_path else None
+        calibrated_override = cfg.get("calibrated_model_path")
+        if not self.enabled and calibrated_override:
+            path = Path(calibrated_override)
+        elif not self.enabled:
+            path = None
+        else:
+            path = Path(model_path) if model_path else None
         self.model_path = path
         self.bundle: dict | None = None
+        self.load_error: str | None = None
         self._ticks = 0
         self._fast: _FastScorer | None = None
         self._fast_bundle: dict | None = None
         self._get_features = attrgetter(*ML_FEATURES)
+        if path is not None and not path.exists():
+            log.warning(
+                "ML model requested but not loaded: %s does not exist; ML detector is OFF "
+                "(fetch it with `python scripts/fetch_models.py`)",
+                path,
+            )
         if path is not None and path.exists():
             try:
+                import joblib  # noqa: PLC0415 - lazy so slim ML-off onboard installs work without joblib
+
                 self.bundle = joblib.load(path)
-            except Exception:  # noqa: BLE001 - corrupt/incompatible model => degrade
+            except ImportError as exc:
                 self.bundle = None
+                self.load_error = f"ImportError: {exc}"
+                warnings.warn(
+                    f"AnomalyDetector disabled despite model file {path}: {exc} "
+                    "(install scikit-learn/joblib to enable ML)",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            except Exception as exc:  # noqa: BLE001 - corrupt/incompatible model => degrade
+                self.bundle = None
+                self.load_error = f"{type(exc).__name__}: {exc}"
+                log.warning(
+                    "ML model requested but not loaded: %s is unreadable (%s: %s); ML detector is OFF",
+                    path,
+                    type(exc).__name__,
+                    exc,
+                )
             else:
                 self._fast = _fast_scorer(path, self.bundle)
                 self._fast_bundle = self.bundle

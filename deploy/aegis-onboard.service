@@ -1,0 +1,29 @@
+# Unified AegisFlight companion service unit (#59).
+# Install:
+#   sudo cp deploy/aegis-onboard.service /etc/systemd/system/
+#   sudo cp deploy/onboard.env.example /etc/aegisflight/onboard.env
+#   sudo systemctl daemon-reload && sudo systemctl enable --now aegis-onboard
+[Unit]
+Description=AegisFlight Unified Companion Runtime
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+WatchdogSec=10
+User=aegisflight
+Group=dialout
+WorkingDirectory=/opt/aegisflight
+EnvironmentFile=-/etc/aegisflight/onboard.env
+Environment=AEGIS_ONBOARD_CONFIG=/etc/aegisflight/onboard.yaml
+ExecStart=/opt/aegisflight/.venv/bin/aegis onboard --config ${AEGIS_ONBOARD_CONFIG}
+KillSignal=SIGTERM
+TimeoutStopSec=15
+Nice=-10
+OOMScoreAdjust=-500
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

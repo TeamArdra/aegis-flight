@@ -378,6 +378,22 @@ a healthy hardware estimator, a companion computer, false-alarm rate per hour.
 | Headroom at the maximum telemetry rate | **not measured** | -- | -- |
 | Power draw and added mass | **not measured** (no companion computer) | -- | -- |
 
+**Technology stack** (issue #32; sources `pyproject.toml`, `frontend/package.json`, `THIRD_PARTY_NOTICES.md`, `AGENTS.md`; licences are the packages' declared metadata, not audited).
+
+| Layer | Choice | Source / note |
+|---|---|---|
+| Language and runtime | Python >= 3.11 (the team and CI use 3.13); Node 24 for the dashboard build | `pyproject.toml` `requires-python`; `AGENTS.md` §2 |
+| MAVLink parsing | `pymavlink` >= 2.4.40 (LGPL-3.0, used as an unmodified library); own serial and UDP transports with CRC check and resynchronisation | `pyproject.toml`; `THIRD_PARTY_NOTICES.md` §1; `src/aegisflight/sources/` |
+| Detection and numerics | numpy, scipy, pandas; scikit-learn Isolation Forest (+ Mahalanobis) for the ML detector, persisted with joblib; protocol, physics and integrity detectors are plain Python rules | `pyproject.toml`; `docs/DETECTION.md`, `docs/ML_PIPELINE.md` |
+| Configuration | PyYAML profiles in `configs/` | `pyproject.toml`; `docs/CONFIGURATION.md` |
+| Storage and tamper evidence | SQLite event store with a SHA-256 hash chain (unsigned); `alerts.jsonl` | `docs/EVENT_LOGGING.md`; `aegis verify-log` |
+| API | FastAPI + uvicorn, WebSocket `/ws`, `/api/status` | `pyproject.toml`; `docs/API.md` |
+| Dashboard | React 18, TypeScript 5, Vite 5 | `frontend/package.json`; `docs/FRONTEND.md` |
+| Simulators and test sources | Own Stage-1 flight simulator (`SIM`); PX4 SITL `v1.18.0-rc1-27-gc239c63807` with Gazebo Sim 8; ArduPilot SITL (ArduCopter 4.7.1); recorded tlog/ULog replay (`pyulog` extra) | `docs/PX4_SITL_INTEGRATION.md`, `docs/ARDUPILOT_SITL.md`; `THIRD_PARTY_NOTICES.md` §4 |
+| Serial link | `pyserial` (optional `serial` extra) | `pyproject.toml`; `docs/SERIAL_TRANSPORT.md` |
+| Test and lint | pytest, pytest-asyncio, httpx, ruff, mypy; GitHub Actions CI | `pyproject.toml` `dev` extra; `docs/TESTING.md` |
+| Hardware used | Pixhawk 6X autopilot on the bench (`BENCH`) and a ground laptop. **Target companion computer (Raspberry Pi Zero 2W / Pi 4 class): a design target, not built or measured** | `docs/HARDWARE_BENCH_PIXHAWK6X.md`; `docs/ONBOARD_DEPLOYMENT.md` |
+
 | Item | Selected Approach | Evidence |
 |---|---|---|
 | Tap point and method (passive tap, router, onboard code) | passive receive-only tap on the ground side of the telemetry link; optional raw `TapTransport` copy | §3; `docs/SERIAL_TRANSPORT.md` |
@@ -428,6 +444,40 @@ Operator-view screenshots (browser render, 2026-10-29, no coordinates on screen)
 | Alerts and logs tamper-evident? | Yes (hash chain), unsigned | §7.2 |
 | Third-party code identified and licensed? | **Partly** (§11.2; no notices file) | §11.2 |
 | Operated in flight and ready for extended flight trials? | **Not operated in flight.** Proposed for extended **receive-only** trials | below |
+
+**Top risks** (issue #32; from `docs/RISK_REGISTER.md`). L and S are the register's 1-5 scales. The register itself states that its residual
+scores are **design-intent estimates, not evidence-based**, so the residual column is shown as the register gives it and the evidence column says what
+actually backs it. Owners are not assigned in any repository document: `[TBD, team to assign]`.
+
+| ID | Risk | L x S (before) | Mitigation | Residual L x S (register) | What the evidence actually shows | Owner |
+|---|---|---|---|---|---|---|
+| RSK-01 | Accidental transmission from the IDS onto the flight controller's telemetry UART | 4 x 5 | Receive-only wiring (TX cut) and software that never writes; `run_serial_ids.py` exits 3 if a byte was sent | 1 x 5 | The software path never transmits (`bytes_sent` 0 in every physical capture). **The TX-cut harness was never built or tested**; exit 3 detects a write after the fact | [TBD] |
+| RSK-02 | Companion-computer power brownout | 4 x 4 | Dedicated BEC and read-only filesystem are proposals only | 4 x 4 (unmitigated) | Nothing built or measured; power is **not measured** (§9) | [TBD] |
+| RSK-06 | GCS masquerading and replay | 4 x 4 | Sequence-gap and MAVLink-2 signature rules | 4 x 4 | PX4 SITL: unsigned forged command flagged 10/10 once signing was bootstrapped; informed unsigned impersonator evades 0/10; one-shot replay from the expected GCS id is a known gap (`artifacts/sitl/P4_signing_summary.md`) | [TBD] |
+| RSK-05 | Slow GPS drift below single-frame thresholds | 3 x 4 | 15-fix position-vs-velocity residual | 3 x 4 | Drift of about 4 m/s or more detected on `SIM` and ArduPilot SITL; on PX4 SITL detected only at release; 0.5 and 2 m/s drift **not** flagged (`docs/VALIDATION_EVIDENCE.md` §3) | [TBD] |
+| RSK-07 | GNSS multipath or foliage mimics spoofing | 3 x 3 | Fix-loss rule only (`fix_type`, satellites; unknown count of 255 judged on `fix_type` alone) | 3 x 3 | No rule judges HDOP or separates multipath from spoofing; a spoofer can report a clean fix | [TBD] |
+| RSK-04 | False alarms and operator alert fatigue | 4 x 3 | Noisy-OR fusion, persistence gating, plaintext evidence | 2 x 2 | `SIM` FPR 0.0002; real logs give per-decision rates only and no per-hour bound is claimed; no usability trial run | [TBD] |
+| RSK-03 | Compute exhaustion from a message flood | 4 x 3 | Bounded buffers, O(1) per message | 1 x 2 | Host measurements only (`SIM`/`REPLAY`); **companion computer not measured** (issue #30 Part B is pending hardware) | [TBD] |
+| RSK-10 | Sim-to-real ML distribution shift | 4 x 3 | ML off by default on live serial streams; per-vehicle calibration required | 1 x 2 | The Stage-1 model did not transfer to ArduPilot SITL (ML-on 126/2,339 in-flight alerts vs 0 with ML off); per-vehicle retraining not done for ArduPilot | [TBD] |
+
+The full register has 12 risks; sign-offs in its section 5 are all "not signed". No risk score here was re-estimated for this table.
+
+**Report content still outstanding (issue #32).** Nothing below is estimated. Each row is either present elsewhere in this report or stated as not measured, with its source issue.
+
+| Content | Status | Reason / source |
+|---|---|---|
+| Technology stack table | Present (§9) | `pyproject.toml`, `THIRD_PARTY_NOTICES.md` |
+| Risk table | Present (above), residuals as the register states them | `docs/RISK_REGISTER.md` |
+| Dated prototype roadmap and Stage-3 acceptance targets | **Not set** | The team sets them after Stage 2 testing; the `[TBD]` cells in §3 stay until then |
+| Bill of materials with prices; use of the Stage-1 grant | **Not costed** | Human input (prices, grant accounting) |
+| Placement statement (ground tap is the Stage-2 evidence path, onboard companion is the target) | Partly: stated in §3 and §9; the formal statement is tied to #17 | #17 |
+| Usability: install time, alert interpretation by 3-5 outsiders | **Not measured** | Needs a timed human trial |
+| Restricted-visibility injection results; telemetry and firmware SITL rows | **Not measured** | #26 (needs the #24 scenarios and SITL runs) |
+| Link-stress sweep before and after the fixes | **Not measured** | #27 |
+| Walk and range test (healthy GNSS, distance, moving benign false alarms, range) | **Not measured** | #29, #27 (field work) |
+| Companion-computer measurements | **Not measured on target hardware** | #30 Part B. A host replay baseline exists (`artifacts/hardware/companion_host_20261118/`, `REPLAY`, host not target) |
+| Per-class confusion matrix, precision, recall, macro-F1; false alerts per flight hour for every benign source | **Computed but not yet transcribed into this report** | #28 is merged: `artifacts/validation/stage2_metrics_2026-11-17/metrics.md` (from `scripts/make_stage2_metrics.py`). Copy the numbers with their environment tag and claim class; do not re-derive them by hand |
+| The organisers' reply on "Distance Covered" | **Not received in the repository** | Tracker email |
 
 **Final readiness statement.** AegisFlight is a working, tested, passive IDS whose live ingestion, receive-only operation, alert explanation and tamper-evident
 logging have been exercised on PX4 and ArduPilot SITL and on a physical autopilot at the bench, and whose detectors behave as documented on the simulator and on

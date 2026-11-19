@@ -285,6 +285,8 @@ class MavlinkFrameParser:
         self._cur_gcs_side = False  # the datagram being parsed is a GcsSideDatagram: no sysid exemption
         self._unsigned_sysids = unsigned_allowed_sysids
         self._signed_src: dict[tuple[int, int], tuple[int, float]] = {}  # (sysid, compid) -> (valid signed, last t)
+        self._tick_sig_invalid: dict[tuple[int, int, int], int] = {}
+        self._tick_sig_verified: set[tuple[int, int, int]] = set()
         self.signing_lapses = 0
         self.gcs_side_vehicle_frames = 0  # GcsSideDatagram frames ingested; kept out of LiveStats on purpose (golden digests)
         # anti-replay state of verified GcsSideDatagram frames, kept apart from the vehicle's own (pymavlink's) state
@@ -308,6 +310,14 @@ class MavlinkFrameParser:
             self.signing_lapses += 1
             return True
         return False
+
+    def take_signing_events(self) -> tuple[dict[tuple[int, int, int], int], set[tuple[int, int, int]]]:
+        """Drain per-stream ``(sysid, compid, link_id)`` invalid/verified events since the previous call."""
+        inv = dict(self._tick_sig_invalid)
+        ver = set(self._tick_sig_verified)
+        self._tick_sig_invalid.clear()
+        self._tick_sig_verified.clear()
+        return inv, ver
 
     def _note_signed(self, sysid: int, compid: int, t: float) -> None:
         src = (sysid, compid)
@@ -418,11 +428,14 @@ class MavlinkFrameParser:
                         # allowlist (e.g. a garbage-MAC HEARTBEAT) is NOT a valid signature and never marks its source;
                         # a GCS-side frame never marks the vehicle as signing either
                         st.sig_valid += 1
+                        self._tick_sig_verified.add((sysid, compid, int(skey[0])))
                         if not gcs:
                             self._note_signed(sysid, compid, recv_time)
                 except self._mav_error as exc:
                     if self._verify and str(exc) == "Invalid signature":
                         st.sig_invalid += 1
+                        stream_key = (sysid, compid, int(frame[-13]) if signed else 0)
+                        self._tick_sig_invalid[stream_key] = self._tick_sig_invalid.get(stream_key, 0) + 1
                     st.bad_frames += 1  # CRC/length mismatch, or (with a key) a bad/rejected signature
                     continue
                 except Exception:  # noqa: BLE001 - any other decode failure on a known id
@@ -477,6 +490,8 @@ class _TickAssembler:
         self._pending: dict[int, list[MessageEnvelope]] = {}
         self.max_k = -1
         self._last_sig_invalid = 0  # for the per-tick delta (``stats.sig_invalid`` is cumulative)
+        self._pending_sig_invalid: dict[int, dict[tuple[int, int, int], int]] = {}
+        self._pending_sig_verified: dict[int, set[tuple[int, int, int]]] = {}
 
     def ingest(self, recv_us: int, data: bytes) -> int | None:
         """Parse and bucket one datagram; return the tick index it landed in."""
@@ -484,9 +499,17 @@ class _TickAssembler:
             self.origin_us = recv_us
         rel_us = max(0, recv_us - self.origin_us)  # frames stamped before the origin clamp to 0
         envs = self.parser.parse(data, rel_us / 1e6)
+        inv, ver = self.parser.take_signing_events()
+        k = -(-rel_us // self.dt_us)  # ceil: (k-1)dt < rel <= k*dt
+        k_ev = max(k, self.next_k)
+        if inv:
+            bucket = self._pending_sig_invalid.setdefault(k_ev, {})
+            for sk, cnt in inv.items():
+                bucket[sk] = bucket.get(sk, 0) + cnt
+        if ver:
+            self._pending_sig_verified.setdefault(k_ev, set()).update(ver)
         if not envs:
             return None
-        k = -(-rel_us // self.dt_us)  # ceil: (k-1)dt < rel <= k*dt
         if k < self.next_k:
             k = self.next_k
             self.stats.late_frames += len(envs)
@@ -506,8 +529,17 @@ class _TickAssembler:
         t = k * self.dt
         sig_invalid_delta = self.stats.sig_invalid - self._last_sig_invalid
         self._last_sig_invalid = self.stats.sig_invalid
-        return TelemetryTick(t=t, tick=k, messages=self._pending.pop(k, []), label=self.label_fn(t),
-                             sig_invalid=sig_invalid_delta)
+        inv_streams = self._pending_sig_invalid.pop(k, {})
+        ver_streams = self._pending_sig_verified.pop(k, set())
+        return TelemetryTick(
+            t=t,
+            tick=k,
+            messages=self._pending.pop(k, []),
+            label=self.label_fn(t),
+            sig_invalid=sig_invalid_delta,
+            sig_invalid_streams=inv_streams,
+            sig_verified_streams=ver_streams,
+        )
 
 
 def frame_ticks(
@@ -995,6 +1027,9 @@ class LiveMavlinkSource:
             k_done = (now_rel - self._settle_us) // dt_us
             tick = asm.pop_next(k_done, now_rel)
             if tick is not None:
+                conn = getattr(self.transport, "connected", None)
+                if isinstance(conn, bool):
+                    tick.transport_connected = conn
                 yield tick
                 continue
             wait_us = asm.next_k * dt_us + self._settle_us - now_rel

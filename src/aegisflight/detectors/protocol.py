@@ -15,6 +15,7 @@ from ..core.enums import AttackType, DetectorName
 from ..core.types import DetectorResult
 from ..features.extractor import FeatureFrame
 from ..mavlink.codec import command_name_from_id as _command_name_from_id
+from ..mitigation.semantic_firewall import DEFAULT_PROTECTED_PARAM_PREFIXES
 from .base import Detector, ramp
 
 # the MAV_CMD id -> name table is static, but the lookup scans ``dir(mavlink)`` (~0.3 ms): memoise it
@@ -40,8 +41,20 @@ class ProtocolDetector(Detector):
         self.sensitive = set(p.get("sensitive_commands", []))
         self.burst_max = int(p.get("command_burst_max", 4))
         self.require_signing = bool(p.get("require_signing", False))
+        self.signing_settle_s = float(p.get("signing_settle_s", 0.0))
+        self.unsigned_allowed = self._parse_unsigned_allowed(p.get("unsigned_allowed"))
+        self._sig_t0: float | None = None
+        self._sig_verified_streams: set[tuple[int, int, int]] = set()
+        self._signing_ctx: tuple[
+            dict[tuple[int, str], int],
+            dict[tuple[int, int, int], int] | None,
+            set[tuple[int, int, int]] | None,
+            dict[tuple[int, int], set[str]],
+        ] | None = None
         self.cadence_guard_enabled = bool(p.get("cadence_guard_enabled", False))
         self.cadence_min_interval_s = float(p.get("cadence_min_interval_s", 1.5))
+        self.semantic_link_attribution = bool(p.get("semantic_link_attribution", False))
+        self.semantic_link_min_rate_hz = float(p.get("semantic_link_min_rate_hz", 5.0))
         self._last_cmd_seen: dict[tuple[int, int], float] = {}
         # GNSS fix loss (jamming / receiver denial): fix_type < min_fix_type or
         # satellites < min_satellites for >= gnss_loss_ticks consecutive decisions.
@@ -49,9 +62,14 @@ class ProtocolDetector(Detector):
         self.min_sats = int(p.get("min_gnss_satellites", 5))
         self.gnss_loss_ticks = int(p.get("gnss_loss_ticks", 5))
         self._gnss_bad = 0
-        # Has a valid fix (the rule's own healthy condition) ever been observed? Wording only:
-        # a fix that was never acquired is not reported as "lost". Score/vote are identical.
+        # Has a valid fix (the rule's own healthy condition) ever been observed?
         self._gnss_ever_valid = False
+        gnss_policy = str(p.get("gnss_never_acquired_policy", "coverage")).lower()
+        if gnss_policy not in ("coverage", "dos"):
+            raise ValueError(
+                f"gnss_never_acquired_policy must be 'coverage' or 'dos', got {gnss_policy!r}"
+            )
+        self.gnss_never_acquired_policy = gnss_policy
         # Start-of-stream grace (default 0): for this many seconds after the first
         # decision a NEVER-received heartbeat / position stream is not a liveness fault. It
         # combines with the elapsed-time gate below as a maximum, not a sum: the later of the two
@@ -96,6 +114,48 @@ class ProtocolDetector(Detector):
         self.rate_relearn_s = float(p.get("rate_relearn_s", 30.0))
         self._plateau: list[tuple[float, float]] = []
         self._relearns = 0
+        self.semantic_firewall_enabled = bool(p.get("semantic_firewall_enabled", False))
+        self.gnss_clock_skew_enabled = bool(p.get("gnss_clock_skew_enabled", False))
+        self.gnss_clock_max_jump_s = float(p.get("gnss_clock_max_jump_s", 5.0))
+
+    @staticmethod
+    def _parse_unsigned_allowed(raw: object) -> list[tuple[int | None, str]]:
+        if raw is None:
+            return [(51, "RADIO_STATUS")]
+        out: list[tuple[int | None, str]] = []
+        if isinstance(raw, (list, tuple)):
+            for item in raw:
+                if isinstance(item, dict):
+                    sid = None if item.get("sysid") is None else int(item["sysid"])
+                    msg = str(item.get("msg", "*")).upper()
+                    out.append((sid, msg))
+                elif isinstance(item, (list, tuple)) and len(item) == 2:
+                    sid = None if item[0] is None else int(item[0])
+                    out.append((sid, str(item[1]).upper()))
+        return out
+
+    def _is_unsigned_allowed(self, sysid: int, msgname: str) -> bool:
+        m_up = msgname.upper()
+        for allow_sysid, allow_msg in self.unsigned_allowed:
+            if (allow_sysid is None or allow_sysid == sysid) and (allow_msg in ("*", m_up)):
+                return True
+        return False
+
+    def observe_signing_context(
+        self,
+        *,
+        unsigned_events: dict[tuple[int, str], int] | None = None,
+        sig_invalid_streams: dict[tuple[int, int, int], int] | None = None,
+        sig_verified_streams: set[tuple[int, int, int]] | None = None,
+        source_msgs: dict[tuple[int, int], set[str]] | None = None,
+    ) -> None:
+        """Supply per-window signing and per-source message context without changing FeatureFrame."""
+        self._signing_ctx = (
+            dict(unsigned_events or {}),
+            (dict(sig_invalid_streams) if sig_invalid_streams is not None else None),
+            (set(sig_verified_streams) if sig_verified_streams is not None else None),
+            {k: set(v) for k, v in (source_msgs or {}).items()},
+        )
 
     def _relearn_plateau(self, t: float, rate: float, spike: float) -> None:
         if self._relearns >= 2 or not (spike < rate < self._cfg_max):
@@ -181,6 +241,13 @@ class ProtocolDetector(Detector):
         return False
 
     def process(self, frame: FeatureFrame) -> DetectorResult:
+        ctx = self._signing_ctx
+        self._signing_ctx = None
+        if ctx is not None:
+            unsigned_events, sig_invalid_streams, sig_verified_streams, source_msgs = ctx
+        else:
+            unsigned_events, sig_invalid_streams, sig_verified_streams, source_msgs = {}, None, None, {}
+
         evidence: list[str] = []
         votes: dict[AttackType, float] = {}
         signals: dict[str, float] = {}
@@ -229,7 +296,10 @@ class ProtocolDetector(Detector):
         rogue_telemetry = [
             (s, c)
             for (s, c) in frame.sources
-            if s not in self.expected_sysids and s not in self.expected_gcs and (s, c) not in cmd_src
+            if s not in self.expected_sysids
+            and s not in self.expected_gcs
+            and (s, c) not in cmd_src
+            and not (source_msgs.get((s, c)) and all(self._is_unsigned_allowed(s, m) for m in source_msgs[(s, c)]))
         ]
         if rogue_telemetry:
             bump(AttackType.MAVLINK_ANOMALY, 0.9)
@@ -257,14 +327,37 @@ class ProtocolDetector(Detector):
         gps_never = (
             (not frame.gps_seen) if frame.gps_seen is not None else frame.gps_age_s >= _NEVER_SEEN_S
         )
-        hb_fault = (
-            elapsed > self.hb_timeout and not in_grace
-            if hb_never
-            else frame.heartbeat_age_s > self.hb_timeout
-        )
+        transport_fault = (frame.transport_connected is False) and (not hb_never)
+        transport_note: str | None = None
+        if transport_fault:
+            # Disconnected local serial/socket port -> silence is a local transport fault,
+            # not an RF jamming / blackout attack.
+            hb_fault = False
+            gps_fault_now = False
+            self._gnss_bad = 0
+            transport_note = "transport_fault: local telemetry port disconnected (not RF attack)"
+        else:
+            hb_fault = (
+                elapsed > self.hb_timeout and not in_grace
+                if hb_never
+                else frame.heartbeat_age_s > self.hb_timeout
+            )
+            gps_fault_now = (
+                elapsed > self.gps_dropout and not in_grace
+                if gps_never
+                else frame.gps_age_s > self.gps_dropout
+            )
         if hb_fault:
             s = ramp(frame.heartbeat_age_s, self.hb_timeout, self.hb_timeout * 2)
-            bump(AttackType.DOS, max(0.6, s))
+            # (#22) When other telemetry channels remain healthy and frames continue arriving,
+            # selective heartbeat starvation is packet loss (MAVLINK_ANOMALY) rather than blackout (DOS).
+            selective_loss = (
+                self.semantic_link_attribution
+                and not hb_never
+                and not gps_fault_now
+                and rate >= self.semantic_link_min_rate_hz
+            )
+            bump(AttackType.MAVLINK_ANOMALY if selective_loss else AttackType.DOS, max(0.6, s))
             if hb_never:
                 evidence.append(
                     "heartbeat stale (never received: no HEARTBEAT since monitoring began) "
@@ -286,11 +379,7 @@ class ProtocolDetector(Detector):
                 "inactive; not attack evidence under this profile "
                 "(protocol.require_global_position=false)"
             )
-        elif (
-            elapsed > self.gps_dropout and not in_grace
-            if gps_never
-            else frame.gps_age_s > self.gps_dropout
-        ):
+        elif gps_fault_now:
             s = max(0.5, ramp(frame.gps_age_s, self.gps_dropout, self.gps_dropout * 3))
             if gps_never:
                 bump(self.never_seen_gps_vote, min(s, self.never_seen_gps_max))
@@ -303,6 +392,7 @@ class ProtocolDetector(Detector):
                 evidence.append(f"GPS dropout {frame.gps_age_s:.1f}s > {self.gps_dropout:.1f}s")
 
         # ---- GNSS fix loss (navigation-channel denial / jamming) ----
+        gnss_coverage: str | None = None
         snap = frame.snapshot
         fix, sats = snap.gps_fix_type, snap.satellites
         # sats None with a fix report = satellite count unknown (MAVLink 255): judge the fix type alone
@@ -313,13 +403,20 @@ class ProtocolDetector(Detector):
             if fix is not None:
                 self._gnss_ever_valid = True
         if self._gnss_bad >= self.gnss_loss_ticks:
-            bump(AttackType.DOS, 0.7)
             if self._gnss_ever_valid:  # exact text parsed by scripts/sitl/make_p2n_summary.py
+                bump(AttackType.DOS, 0.7)
                 evidence.append(f"GNSS fix lost: fix_type={fix}, satellites={sats} "
                                 f"for {self._gnss_bad} decisions")
-            else:
+            elif self.gnss_never_acquired_policy == "dos":
+                bump(AttackType.DOS, 0.7)
                 evidence.append(f"GNSS fix never acquired: fix_type={fix}, satellites={sats} "
                                 f"for {self._gnss_bad} decisions (no valid fix since monitoring began)")
+            else:
+                gnss_coverage = (
+                    f"coverage: GNSS fix never acquired (fix_type={fix}, satellites={sats} "
+                    f"for {self._gnss_bad} decisions; no valid fix since monitoring began); "
+                    "not attack evidence under this profile"
+                )
         signals["gnss_bad_ticks"] = float(self._gnss_bad)
 
         # ---- command provenance (injection) ----
@@ -375,24 +472,113 @@ class ProtocolDetector(Detector):
                 seen_in_window[key] = c.recv_time
                 self._last_cmd_seen[key] = c.recv_time
 
-        # ---- signing policy ----
-        if self.require_signing and frame.signed_ratio < 1.0:
-            bump(AttackType.MAVLINK_ANOMALY, 0.5)
-            evidence.append(f"unsigned messages present (signed ratio {frame.signed_ratio:.2f})")
-        # P4, additive: a REAL cryptographic signature failure (bad/missing HMAC, or an
-        # unsigned frame for a message the signing policy does not allow unsigned -- see
-        # ``sources.mavlink_live.MavlinkFrameParser``), as opposed to the rule above (which
-        # only ever checks the claimed-signed bit, never a key). Only ever non-zero when the
-        # live source was given a signing key AND require_signing is this profile's policy;
-        # 0 for Stage-1, every current SITL profile, and any source without a key.
-        if self.require_signing and frame.sig_invalid_count > 0:
-            bump(AttackType.COMMAND_INJECTION, 0.95)
-            evidence.append(f"{frame.sig_invalid_count} frame(s) failed MAVLink-2 signature verification")
+        # ---- airborne semantic firewall (PARAM_SET / geofence mutations while armed) ----
+        if self.semantic_firewall_enabled and snap.armed:
+            for _pt, psys, _pcomp, pid, _pval in frame.param_writes_recent:
+                up = pid.upper()
+                if any(up.startswith(pref) for pref in DEFAULT_PROTECTED_PARAM_PREFIXES):
+                    bump(AttackType.COMMAND_INJECTION, 0.90)
+                    evidence.append(
+                        f"semantic firewall: protected parameter write {pid} from sys{psys} while armed"
+                    )
+            for _ft, fsys, _fcomp, fname, fcnt in frame.fence_changes_recent:
+                bump(AttackType.COMMAND_INJECTION, 0.90)
+                evidence.append(
+                    f"semantic firewall: armed geofence mutation {fname} (count={fcnt}) from sys{fsys}"
+                )
 
+        # ---- GNSS-vs-monotonic clock skew (SDR spoofing signature) ----
+        if self.gnss_clock_skew_enabled:
+            if frame.gnss_clock_backward:
+                bump(AttackType.GPS_SPOOFING, 0.90)
+                evidence.append("GNSS receiver clock stepped backward against monotonic companion clock")
+            elif frame.gnss_clock_jump_s is not None and frame.gnss_clock_jump_s >= self.gnss_clock_max_jump_s:
+                signals["gnss_clock_jump_s"] = frame.gnss_clock_jump_s
+                bump(AttackType.GPS_SPOOFING, 0.80)
+                evidence.append(
+                    f"GNSS clock-skew jump {frame.gnss_clock_jump_s:.2f}s >= {self.gnss_clock_max_jump_s:.1f}s"
+                )
+
+        # ---- signing policy (#19: per-stream bootstrap settle + per-source unsigned allowlist) ----
+        settling_note: str | None = None
+        if self.require_signing:
+            if self._sig_t0 is None:
+                self._sig_t0 = frame.t
+            if sig_verified_streams:
+                # Settle window closes permanently for verified streams; never re-opens.
+                self._sig_verified_streams.update(sig_verified_streams)
+
+            # 1) Invalid / rejected signatures (with per-stream bootstrap settle window)
+            if sig_invalid_streams is not None:
+                settled_invalid = 0
+                settling_streams: list[tuple[int, int, int]] = []
+                for skey, cnt in sorted(sig_invalid_streams.items()):
+                    if cnt <= 0:
+                        continue
+                    in_settle = (
+                        skey not in self._sig_verified_streams
+                        and (frame.t - self._sig_t0) < self.signing_settle_s
+                    )
+                    if in_settle:
+                        settling_streams.append(skey)
+                    else:
+                        settled_invalid += cnt
+                tracked_total = sum(sig_invalid_streams.values())
+                if frame.sig_invalid_count > tracked_total:
+                    if (frame.t - self._sig_t0) >= self.signing_settle_s:
+                        settled_invalid += frame.sig_invalid_count - tracked_total
+                if settling_streams:
+                    settling_note = (
+                        "coverage: signing bootstrap settling for stream(s) "
+                        + ", ".join(f"sys{a}/comp{b}/link{c}" for a, b, c in settling_streams)
+                    )
+            else:
+                # Hand-built synthetic FeatureFrame without stream tracking
+                settled_invalid = frame.sig_invalid_count
+
+            if settled_invalid > 0:
+                bump(AttackType.COMMAND_INJECTION, 0.95)
+                evidence.append(f"{settled_invalid} frame(s) failed MAVLink-2 signature verification")
+
+            # 2) Decoded unsigned messages checked per source against unsigned_allowed
+            if unsigned_events:
+                cmd_msgs = {"COMMAND_LONG", "COMMAND_INT", "SET_MODE"}
+                unexpected_uns: list[tuple[int, str, int]] = []
+                unexpected_cmd: list[tuple[int, str, int]] = []
+                for (usys, umsg), ucnt in sorted(unsigned_events.items()):
+                    if ucnt <= 0 or self._is_unsigned_allowed(usys, umsg):
+                        continue
+                    if umsg.upper() in cmd_msgs:
+                        unexpected_cmd.append((usys, umsg, ucnt))
+                    else:
+                        unexpected_uns.append((usys, umsg, ucnt))
+                if unexpected_cmd:
+                    bump(AttackType.COMMAND_INJECTION, 0.95)
+                    evidence.append(
+                        "unsigned command frame(s) rejected by signing policy: "
+                        + ", ".join(f"sys{s}:{m}(x{c})" for s, m, c in unexpected_cmd)
+                    )
+                if unexpected_uns:
+                    bump(AttackType.MAVLINK_ANOMALY, 0.5)
+                    evidence.append(
+                        "unsigned messages from unexpected source(s): "
+                        + ", ".join(f"sys{s}:{m}(x{c})" for s, m, c in unexpected_uns)
+                    )
+            elif ctx is None and frame.signed_ratio < 1.0:
+                # Hand-built synthetic FeatureFrame fallback (no per-source counts attached)
+                bump(AttackType.MAVLINK_ANOMALY, 0.5)
+                evidence.append(f"unsigned messages present (signed ratio {frame.signed_ratio:.2f})")
+
+        if settling_note is not None:
+            evidence.append(settling_note)
         if self._learn_note is not None and "rejected" in self._learn_note:
             evidence.append(f"coverage: {self._learn_note}")
         if coverage is not None:  # score-0 coverage note: always the last protocol evidence item
             evidence.append(coverage)
+        if gnss_coverage is not None:
+            evidence.append(gnss_coverage)
+        if transport_note is not None:
+            evidence.append(transport_note)
 
         return DetectorResult(
             detector=self.name,
@@ -407,6 +593,9 @@ class ProtocolDetector(Detector):
         self._gnss_bad = 0
         self._gnss_ever_valid = False
         self._t0 = None
+        self._sig_t0 = None
+        self._sig_verified_streams.clear()
+        self._signing_ctx = None
         self._last_cmd_seen.clear()
         self.nominal_rate, self.max_rate = self._cfg_nominal, self._cfg_max
         self._learn_t0 = None

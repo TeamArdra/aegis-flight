@@ -76,6 +76,15 @@ DEFAULT_MESSAGE_RATES: dict[str, int] = {
 
 DEFAULT_DETECTOR: dict[str, Any] = {
     "decision_rate_hz": 5.0,  # run fusion at this cadence
+    "features": {
+        # High-water mark reorder tolerance in MAVLink 8-bit sequence space (0..127).
+        # Late frames within `reorder_window` behind the per-source high-water mark
+        # increment `FeatureFrame.reorder_count` instead of recording a 256-k gap.
+        "reorder_window": 16,
+        # Ground-learned static baro-vs-GPS altitude bias calibration (off for Stage-1 SIM).
+        "learn_baro_offset": False,
+        "baro_offset_alpha": 0.05,
+    },
     "protocol": {
         "expected_sysids": [1],
         "expected_gcs_sysids": [255, 254],
@@ -90,6 +99,10 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "max_seq_gap": 30,  # sequence jump over window => loss/DoS
         "min_interarrival_ms": 0.4,  # bursts faster than this are abnormal
         "gps_dropout_s": 2.0,  # no GPS for this long => stale/DoS
+        # D4 policy (issue #15): when GNSS has never achieved a valid 3D fix since monitoring began,
+        # emit a score-0 coverage note ('coverage') or vote DOS ('dos'). Once a valid fix is seen,
+        # subsequent fix loss always votes DOS under either setting.
+        "gnss_never_acquired_policy": "coverage",
         "allowed_commands_in_flight": [
             "MAV_CMD_NAV_WAYPOINT",
             "MAV_CMD_DO_SET_MODE",
@@ -106,15 +119,24 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "command_burst_window_s": 2.0,
         "command_burst_max": 4,
         "require_signing": False,  # if True, unsigned msgs are flagged
+        "signing_settle_s": 0.0,  # opt-in per-stream settle window (0 = no blind window)
+        "unsigned_allowed": [],
         "min_gnss_fix_type": 3,  # GPS_RAW_INT fix_type below this = no 3D fix
         "min_gnss_satellites": 5,
         "gnss_loss_ticks": 5,  # consecutive decisions before the fix-loss rule fires
+        "semantic_link_attribution": False,
+        "semantic_link_min_rate_hz": 5.0,  # opt-in (#22): attribute selective HB loss to MAVLINK_ANOMALY
+        # Universal flight hardening rules (off in Stage-1 base, on in live profiles)
+        "semantic_firewall_enabled": False,
+        "gnss_clock_skew_enabled": False,
+        "gnss_clock_max_jump_s": 5.0,
     },
     "physics": {
         "gps_pos_residual_m": 12.0,  # predicted vs reported position gap
         "gps_pos_residual_hard_m": 30.0,
         "gps_speed_consistency_ms": 5.0,  # |gps-derived speed - VFR speed|
         "alt_consistency_m": 8.0,  # |GPS alt - baro alt| (after bias)
+        "use_learned_baro_offset": False,
         "alt_jump_ms": 25.0,  # altitude derivative implausible
         "max_accel_ms2": 20.0,  # implausible acceleration
         "max_jerk_ms3": 60.0,
@@ -122,6 +144,10 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "battery_drop_rate_v_s": 2.0,  # nor drop absurdly fast
         "attitude_rate_consistency": 1.2,  # rad/s mismatch tolerance
         "yaw_course_enabled": True,  # False for multirotors (yaw independent of track)
+        "yaw_course_auto": False,  # True adapts automatically from HEARTBEAT.type
+        "control_semantics_enabled": False,
+        "control_accel_residual_ms2": 4.5,
+        "optflow_gps_speed_diff_ms": 4.0,
         "hysteresis_ticks": 2,  # consecutive ticks before firing
         "ekf_var_warn": 0.5,  # uncalibrated engineering defaults (docs/DETECTION.md)
         "ekf_var_reject": 1.0,
@@ -133,6 +159,7 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "mission_hysteresis_ticks": 5,
     },
     "anomaly": {
+        "enabled": True,
         "model_path": "models/isoforest.joblib",
         "score_threshold": 0.62,  # normalised anomaly score => triggered
         "contamination": 0.02,
@@ -156,6 +183,7 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "alert_threshold_severity": "SUSPICIOUS",
         "cooldown_s": 4.0,  # suppress duplicate alerts of same type within
         "clear_ticks": 4,  # consecutive normal ticks before clearing state
+        "ml_require_corroboration": False,
     },
 }
 

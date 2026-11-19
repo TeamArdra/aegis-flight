@@ -368,3 +368,20 @@ frame and is fed only bytes + decoded envelope (header-first, via the existing
    `drift_rate_ms * duration_s` → tee raw bytes to a tlog (reuse the P1 teeing pattern)
    for later offline replay/validation. Ten such trials, parameters logged per §3/§4,
    constitute the P2 evidence set; no detection claim is made from them until P3.
+
+## 9. Telemetry manipulation, firmware identity, and restricted-visibility hooks (#24)
+
+Implemented in `src/aegisflight/proxy/attacks_live_telemetry.py` and driven by
+`scripts/sitl/run_p2_telemetry_trial.py` / `scripts/sitl/make_p2_telemetry_summary.py`:
+
+- **Downlink rewrites** (`AltitudeBiasAttack`, `SpeedMismatchAttack`, `BatteryJumpAttack`,
+  `FrozenAttitudeAttack`, `FirmwareIdentityAttack`): learn the vehicle `(sysid, compid)` from
+  heartbeat traffic, skip signed frames (`frames_skipped_signed`), recompute MAVLink-2 CRC on
+  modified packets, and write ground-truth deltas to `FrameLogWriter`.
+- **Restricted-visibility injection scenarios** (`build_restricted_visibility_hook`):
+  `rogue_force_disarm` (rogue sysid `66`, force disarm), `gcs_forgery_own_counter` (`sysid 255`
+  `DO_SET_MODE`, independent `seq`), `gcs_forgery_track_identity` (`sysid 255` continuing observed
+  GCS `seq`), and `benign_pilot_control` (0-injection control).
+
+All hooks are unit-tested without SITL hardware in `tests/unit/test_proxy_telemetry_and_firmware.py`;
+same-team authorship of attack hooks and detectors is disclosed here.

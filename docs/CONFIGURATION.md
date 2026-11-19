@@ -24,11 +24,20 @@ feature distribution → **retrain the ML model** (`aegis train`) and re-benchma
 ## `configs/detector.yaml`
 - `decision_rate_hz` (5) — fusion cadence. Compute budget per decision =
   1000/rate ms (200 ms at 5 Hz); we run ≪ that.
+- `features.reorder_window` (16, range `0..127`) — per-source MAVLink 8-bit sequence
+  reorder tolerance behind the high-water mark. Late frames within `1..R` steps
+  increment `FeatureFrame.reorder_count` instead of recording a `256 - k` gap.
+  Security note: replays within `R` frames are counted as reorder; MAVLink-2 signing
+  and command-cadence checks still apply.
 - `protocol.*` — expected sysids/compids, `max_msg_rate_hz` (400),
   `nominal_msg_rate_hz` (28), `msg_rate_spike_factor` (3), `max_seq_gap` (30),
   `heartbeat_timeout_s` (3), `gps_dropout_s` (2), sensitive commands, burst
-  limits, `require_signing`, `startup_grace_s` (0; optional - ignore the
-  "no heartbeat/GPS seen yet" sentinel for the first N seconds).
+  limits, `require_signing`, `signing_settle_s` (default `0.0` — immediate enforcement
+  with no unauthenticated blind settle window; opt-in `> 0` only if needed),
+  `unsigned_allowed` (default `[]` — no source exempt unless explicitly pinned),
+  `gnss_never_acquired_policy`
+  (`coverage` | `dos`; default `coverage` for D4 never-acquired GNSS policy), `startup_grace_s`
+  (0; optional - ignore the "no heartbeat/GPS seen yet" sentinel for the first N seconds).
 - `physics.*` — `gps_pos_residual_m` (12) + hard (30), `gps_speed_consistency_ms`
   (5), `alt_consistency_m` (8), `alt_jump_ms` (25), `max_accel_ms2` (20),
   `battery_rise_v` (0.4), `battery_drop_rate_v_s` (2), `hysteresis_ticks` (2),
@@ -69,7 +78,20 @@ firmware `tamper_component`). These drive the benchmark's ground-truth windows
 and the simulated attack strength; they do **not** affect the live dashboard's
 runtime-injected attacks (those activate from "now").
 
+## `configs/firmware_allowlist.yaml`
+Pinned `AUTOPILOT_VERSION` allowlist entries (`sysid`, `compid`, `flight_sw_version`,
+`flight_custom_version`, `board_version`, `vendor_id`, `product_id`, `uid`) checked
+against live/replay links (`integrity/allowlist.py`). Supports optional `hmac_sha256`
+signing verified against `AEGIS_ALLOWLIST_KEY` (fail closed on mismatch or missing key;
+unsigned files load with a warning). **Note (unsigned in this PoC):** the shipped
+`configs/firmware_allowlist.yaml` is an **unsigned, empty (`vehicles: []`) PoC template**;
+on unsigned MAVLink links, `AUTOPILOT_VERSION` remains unauthenticated telemetry until
+hardware IDs are pinned and HMAC signing (`AEGIS_ALLOWLIST_KEY`) is enabled.
+
 ## Notes
 - Config is **not** hot-reloaded: restart the process / re-run after edits.
 - Built-in defaults in `config.py` mirror the YAML exactly, so deleting a YAML
   file falls back to the documented default rather than breaking.
+- `configs/universal_flight/detector.yaml` enables hardware-agnostic online ground baro bias calibration,
+  Control Semantics (*ConstDet*), GNSS clock-skew detection, airborne semantic firewall detection,
+  and `yaw_course_auto` while leaving base `configs/detector.yaml` untouched for Stage-1 equivalence.
