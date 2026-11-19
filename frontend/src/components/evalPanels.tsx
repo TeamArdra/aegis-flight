@@ -205,7 +205,7 @@ const VAL_ROWS: Array<{ tier: ValTier; metric: string; value: string }> = [
   },
   {
     tier: "expanded",
-    metric: "Expanded v2 accuracy (SIM · artifacts/benchmarks/extended_summary.md)",
+    metric: "Expanded v2 accuracy (SIM · artifacts/benchmarks_extended/summary.md)",
     value: "97.7% (5 s grace)  ·  97.0% (no grace)  ·  link-level",
   },
   {
@@ -215,7 +215,7 @@ const VAL_ROWS: Array<{ tier: ValTier; metric: string; value: string }> = [
   },
   {
     tier: "replay",
-    metric: "ArduPilot ALFA replay (REPLAY, ML-off · artifacts/external/alfa_summary.json)",
+    metric: "ArduPilot ALFA replay (REPLAY, ML-off · artifacts/external/alfa_calibrated/results.json)",
     value: "Calibrated nominal-rate replay (physical faults only · link-level)",
   },
 ];
