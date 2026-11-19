@@ -545,10 +545,11 @@ class InlineIpsBridge:
                 # corrective commands go to the flight controller; a STATUSTEXT warning is for the pilot's GCS
                 # (the FC does not relay a STATUSTEXT it receives), so it goes to the GCS side only
                 link = self.gcs if is_txt else self.fc
+                target_link = "gcs" if link is self.gcs else "fc"
                 t = self._clock_ns()
                 ok = link.send(frame)
                 if self.archive is not None:
-                    self.archive.action(t, "counter_frame", "gcs" if link is self.gcs else "fc", frame, sent=bool(ok))
+                    self.archive.action(t, "counter_frame", target_link, frame, sent=bool(ok))
                 if ok:
                     if mode == DefenseMode.ACTIVE_IPS:
                         self.counter_frames_sent += 1
