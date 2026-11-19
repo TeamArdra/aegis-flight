@@ -25,6 +25,7 @@ from .detectors import AnomalyDetector, IntegrityDetector, PhysicsDetector, Prot
 from .detectors.crossend import CrossEndMonitor
 from .features.extractor import FeatureExtractor, FeatureFrame
 from .fusion.engine import FusionEngine
+from .integrity.allowlist import FirmwareAllowlist
 from .integrity.verifier import FirmwareVerifier
 from .sources.stream import TelemetryTick
 
@@ -38,10 +39,12 @@ class IDSPipeline:
         crossend: CrossEndMonitor | None = None,
         firmware_real: bool = False,
         firmware_recheck_every: int = 5,
+        firmware_allowlist: FirmwareAllowlist | None = None,
     ) -> None:
         self.cfg = cfg
         # optional GCS-side cross-end check (detectors/crossend.py); None = byte-identical behaviour
         self.crossend = crossend
+        self.firmware_allowlist = firmware_allowlist
         det = cfg.detector
         self.extractor = FeatureExtractor(
             cmd_window_s=det["protocol"].get("command_burst_window_s", 2.0),
@@ -59,7 +62,11 @@ class IDSPipeline:
             self.verifier = FirmwareVerifier(firmware_dir)
             if not self._firmware_real:
                 self.verifier.ensure_fixture()
-        self.integrity = IntegrityDetector(self.verifier, recheck_every=firmware_recheck_every)
+        self.integrity = IntegrityDetector(
+            self.verifier,
+            recheck_every=firmware_recheck_every,
+            allowlist=firmware_allowlist,
+        )
 
         self.fusion = FusionEngine(det["fusion"])
 
@@ -97,6 +104,7 @@ class IDSPipeline:
             self.extractor.update(m)
             if self.crossend is not None:
                 self.crossend.update(m)
+            self.integrity.observe_message(m.msgname, m.fields, m.sysid, m.compid)
         self.extractor.note_sig_invalid(tick.sig_invalid)  # P4: 0 for every non-signing source
         if tick.tick % self.decision_every != 0:
             return None

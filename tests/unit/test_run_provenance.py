@@ -91,6 +91,7 @@ def test_manifest_schema_every_field(repo: Path, tmp_path: Path) -> None:
     assert len(m["commit"]) == 40 and m["working_tree_dirty"] is False and m["dirty_paths"] == []
     assert m["detector_profile_dir"].endswith("configs") and len(m["detector_profile_sha256"]) == 64
     assert m["model_path"].endswith("m.joblib") and m["model_sha256"] == prov.sha256_file(model)
+    assert m["firmware_allowlist_sha256"] is None or len(m["firmware_allowlist_sha256"]) == 64
     assert m["ml_enabled"] is True
     assert m["px4_git_describe"] == "v1.15.0-12-gabc" and m["ardupilot_version"] == "ArduCopter V4.5.7"
     assert m["python"].count(".") == 2 and "numpy" in m["packages"] and "pymavlink" in m["packages"]
