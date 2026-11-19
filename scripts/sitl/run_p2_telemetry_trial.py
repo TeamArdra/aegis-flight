@@ -9,6 +9,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import sys
 from datetime import UTC, datetime
@@ -90,8 +91,8 @@ def main(argv: list[str] | None = None) -> int:
             warmup_s=0.0 if a.warmup_s is None else a.warmup_s,
             frame_log=frame_log,
         )
-        if a.onset_s is not None and hasattr(hook, "params") and hasattr(hook.params, "onset_s"):
-            hook.params.onset_s = float(a.onset_s)
+        if a.onset_s is not None and hasattr(hook, "params") and dataclasses.is_dataclass(hook.params):
+            hook.params = dataclasses.replace(hook.params, onset_s=float(a.onset_s))
         relay = make_udp_relay(
             a.px4_host,
             a.px4_port,
