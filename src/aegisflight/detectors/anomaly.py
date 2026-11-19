@@ -186,9 +186,16 @@ class AnomalyDetector(Detector):
         runs still loaded the model whenever ``models/isoforest.joblib`` existed.
         Callers that want the model pass its path explicitly.
         """
+        self.enabled = bool(cfg.get("enabled", True))
         self.threshold = float(cfg.get("score_threshold", 0.62))
         self.warmup_ticks = int(cfg.get("warmup_ticks", 20))
-        path = Path(model_path) if model_path else None
+        calibrated_override = cfg.get("calibrated_model_path")
+        if not self.enabled and calibrated_override:
+            path = Path(calibrated_override)
+        elif not self.enabled:
+            path = None
+        else:
+            path = Path(model_path) if model_path else None
         self.model_path = path
         self.bundle: dict | None = None
         self._ticks = 0
