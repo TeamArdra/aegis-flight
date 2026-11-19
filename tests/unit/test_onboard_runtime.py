@@ -17,8 +17,8 @@ import yaml
 from aegisflight.core.enums import AttackType, Severity
 from aegisflight.core.types import ThreatAssessment
 from aegisflight.hal.run_archive import BridgeRunArchive
-from aegisflight.logging import (
-    EventStore,
+from aegisflight.logging import EventStore
+from aegisflight.logging.rotation import (
     prune_rotated_files,
     rotate_file_series,
     rotate_sqlite_store,
