@@ -90,6 +90,10 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "max_seq_gap": 30,  # sequence jump over window => loss/DoS
         "min_interarrival_ms": 0.4,  # bursts faster than this are abnormal
         "gps_dropout_s": 2.0,  # no GPS for this long => stale/DoS
+        # D4 policy (issue #15): when GNSS has never achieved a valid 3D fix since monitoring began,
+        # emit a score-0 coverage note ('coverage') or vote DOS ('dos'). Once a valid fix is seen,
+        # subsequent fix loss always votes DOS under either setting.
+        "gnss_never_acquired_policy": "coverage",
         "allowed_commands_in_flight": [
             "MAV_CMD_NAV_WAYPOINT",
             "MAV_CMD_DO_SET_MODE",
@@ -109,10 +113,6 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "min_gnss_fix_type": 3,  # GPS_RAW_INT fix_type below this = no 3D fix
         "min_gnss_satellites": 5,
         "gnss_loss_ticks": 5,  # consecutive decisions before the fix-loss rule fires
-        # D4 policy (issue #15): when GNSS has never achieved a valid 3D fix since monitoring began,
-        # emit a score-0 coverage note ('coverage') or vote DOS ('dos'). Once a valid fix is seen,
-        # subsequent fix loss always votes DOS under either setting.
-        "gnss_never_acquired_policy": "coverage",
     },
     "physics": {
         "gps_pos_residual_m": 12.0,  # predicted vs reported position gap
