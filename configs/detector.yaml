@@ -41,6 +41,10 @@ protocol:
   # gps_dropout_s of monitoring (never_seen_gps_* knobs apply only then). GPS lost after having
   # been seen is a DOS fault either way. Stage-1 SIM streams always carry position: no effect.
   require_global_position: false
+  # D4 policy (issue #15): 'coverage' = score-0 coverage note before the first valid 3D fix;
+  # 'dos' = vote DOS 0.7 even before any valid fix was ever acquired. Once valid, loss always votes DOS.
+  # Security consequence (documented): jamming from power-on before any fix reports coverage, not attack.
+  gnss_never_acquired_policy: coverage
   allowed_commands_in_flight:
     - MAV_CMD_NAV_WAYPOINT
     - MAV_CMD_DO_SET_MODE

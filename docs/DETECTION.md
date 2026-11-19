@@ -26,7 +26,7 @@ detector score is their max); each casts a vote for the attack it implies:
 | Rogue telemetry source | sysid ∉ expected & not a command source | MAVLINK_ANOMALY |
 | Heartbeat stale | `heartbeat_age > heartbeat_timeout_s` (3); never received: elapsed monitoring time `> heartbeat_timeout_s` and past `startup_grace_s` (0 = off) | DOS |
 | GPS dropout | `gps_age > gps_dropout_s` (2); never received: coverage line only (score 0) unless `require_global_position`, then elapsed `> gps_dropout_s` and past `startup_grace_s` | DOS |
-| GNSS fix loss | `fix_type < min_gnss_fix_type` (3) or `satellites < min_gnss_satellites` (5; skipped when the count is unknown, see below) for `≥ gnss_loss_ticks` (5) consecutive decisions → 0.7 | DOS |
+| GNSS fix loss | `fix_type < min_gnss_fix_type` (3) or `satellites < min_gnss_satellites` (5; skipped when the count is unknown, see below) for `≥ gnss_loss_ticks` (5) consecutive decisions → `coverage` note (score 0) when never acquired under `gnss_never_acquired_policy: coverage` (default), or `DOS` 0.7 when `dos` or after a valid fix | DOS |
 | Command provenance | command from sysid ∉ `expected_gcs_sysids`; sensitive cmd / burst | COMMAND_INJECTION |
 | Signing | `require_signing` and unsigned present | MAVLINK_ANOMALY |
 
@@ -53,7 +53,11 @@ arrived yet.
 | GPS / heartbeat lost after being received | unchanged | unchanged: `GPS dropout 2.4s > 2.0s`, `heartbeat stale 4.2s > 3.0s` |
 | Age below threshold (stale-but-recent) | unchanged: 0, no evidence | none |
 | GNSS fix bad, a valid fix (fix ≥ 3 and sats ≥ 5) seen earlier since start/`reset()` | unchanged: DOS, 0.7 | unchanged: `GNSS fix lost: fix_type=0, satellites=0 for 5 decisions` (parsed by `scripts/sitl/make_p2n_summary.py`) |
-| GNSS fix bad, no valid fix ever seen (e.g. cold receiver, no sky view; also no receiver at all, see "fix_type 0" below) | unchanged: DOS, 0.7 | **changed text**: `GNSS fix never acquired: fix_type=0, satellites=0 for 5 decisions (no valid fix since monitoring began)` |
+| GNSS fix bad, no valid fix ever seen (e.g. cold receiver, no sky view; also no receiver at all) | **D4 default (`gnss_never_acquired_policy: coverage`)**: score 0, no vote (`dos` opt-in restores `DOS` 0.7) | `coverage: GNSS fix never acquired (fix_type=0, satellites=0 for 5 decisions; no valid fix since monitoring began); not attack evidence under this profile` (`dos` opt-in: `GNSS fix never acquired: ...`) |
+
+**Security consequence of `gnss_never_acquired_policy: coverage` (disclosed, not mitigated).** Under the default `coverage` policy, jamming from power-on *before any valid 3D fix is ever observed* is reported as a score-0 coverage condition rather than a `DOS` attack (pre-arm GPS checks outside the IDS still block flight). Once a valid 3D fix (`fix_type >= 3`, `satellites >= 5` or unknown) has been seen, subsequent loss always votes `DOS` 0.7.
+
+**First-sample physics guards (issue #15).** `PhysicsDetector` requires at least 2 fresh valid samples (`_LINK_GAP_S` freshness window) before scoring `battery_v_rise` (ignoring `0.0 V` power-on placeholders), `alt_rate_ms` (ignoring initial `0.0 m` origin placeholders), and `pos_residual_m` (and `FeatureExtractor` anchors `_last_fix` on the first valid non-null-island coordinate instead of integrating `(0, 0) -> home`).
 
 The never-received fault texts keep the `GPS dropout` / `heartbeat stale` prefixes that
 downstream scripts match; the coverage line deliberately contains neither `GPS dropout` nor

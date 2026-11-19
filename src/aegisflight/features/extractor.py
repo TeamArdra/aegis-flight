@@ -263,6 +263,7 @@ class FeatureExtractor:
         self._last_heartbeat_t = -1e9
         self._last_gps_t = -1e9
         self._gps_raw_seen = False
+        self._ever_valid_gps_fix = False
         self._expected_msgs = 0.0  # for loss estimate
         self._last_ekf_t = -1e9
         self._ekf_flags: int | None = None
@@ -420,6 +421,8 @@ class FeatureExtractor:
             # a jump counts only with a 3D fix on BOTH reports: satellites returning after a fix
             # loss (or leaving with it) is receiver recovery / jamming, handled by other rules
             valid = self.snapshot.gps_fix_type >= 3
+            if valid:
+                self._ever_valid_gps_fix = True
             if sats is None:
                 # unknown count (MAVLink 255): never a jump itself, and it never replaces the last KNOWN count, so one
                 # injected 255 frame cannot hide a real jump between two genuine reports; a fix loss still breaks the pair
@@ -491,6 +494,12 @@ class FeatureExtractor:
         )
 
     def _update_position_residual(self, t: float, lat: float, lon: float, vx: float, vy: float) -> None:
+        # Before the first valid fix (or at null-island 0,0), ArduPilot has no origin; anchor on
+        # the first valid coordinate instead of clamping a multi-thousand-km snap into _resid_n.
+        at_null_island = abs(lat) < 1e-7 and abs(lon) < 1e-7
+        fix_type = self.snapshot.gps_fix_type
+        if at_null_island or (fix_type is not None and fix_type < 3 and not self._ever_valid_gps_fix):
+            return
         gated = self._gated(t)
         # the first ungated fix after a gated one: its increment straddles the state change (an
         # estimator reset as the solution returns), so it is tagged rather than read as drift
