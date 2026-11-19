@@ -166,7 +166,8 @@ def test_restricted_visibility_injection_scenarios() -> None:
 
     for h in (h_rogue, h_naive, h_inf, h_benign):
         # Establish baseline timing and observed GCS seq before onset
-        h(_ctx(_hb(), direction="down", recv_s=0.0))
+        armed_hb = bytes(_mk(3, 1, 1).heartbeat_encode(mav2.MAV_TYPE_QUADROTOR, mav2.MAV_AUTOPILOT_PX4, 0x80, 0, 4).pack(_mk(3, 1, 1)))
+        h(_ctx(armed_hb, direction="down", recv_s=0.0))
         h(_ctx(gcs_hb, direction="up", recv_s=1.0))
         out = h(_ctx(gcs_hb_next, direction="up", recv_s=100.0))
         if isinstance(h, BenignPilotControlHook):
@@ -203,9 +204,9 @@ def test_rewrite_failure_counter_and_rogue_disarm_armed_precondition() -> None:
     assert res == [corrupt_gpi]
     assert atk.frames_rewrite_failed == 1
 
-    # R2: RogueForceDisarmAttack tracks vehicle_armed_observed from HEARTBEAT base_mode (0x80) and can auto-arm
+    # R2: RogueForceDisarmAttack builder defaults auto_arm_if_disarmed=True and arms disarmed vehicles
     h_rogue = build_restricted_visibility_hook("rogue_force_disarm", seed=1001, target_sysid=3, target_compid=1)
-    h_rogue.auto_arm_if_disarmed = True
+    assert h_rogue.auto_arm_if_disarmed is True
     disarmed_hb = bytes(_mk(3, 1, 1).heartbeat_encode(mav2.MAV_TYPE_QUADROTOR, mav2.MAV_AUTOPILOT_PX4, 0x00, 0, 4).pack(_mk(3, 1, 1)))
     armed_hb = bytes(_mk(3, 1, 2).heartbeat_encode(mav2.MAV_TYPE_QUADROTOR, mav2.MAV_AUTOPILOT_PX4, 0x80, 0, 4).pack(_mk(3, 1, 2)))
     gcs_hb = bytes(_mk(255, 190, 10).heartbeat_encode(mav2.MAV_TYPE_GCS, mav2.MAV_AUTOPILOT_INVALID, 0, 0, 4).pack(_mk(255, 190, 10)))

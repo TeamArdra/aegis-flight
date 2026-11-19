@@ -407,7 +407,7 @@ def build_restricted_visibility_hook(
             warmup_s=warmup_s,
             frame_log=frame_log,
             seq_policy="own_counter",
-            auto_arm_if_disarmed=False,
+            auto_arm_if_disarmed=True,
         )
     if scenario == "gcs_forgery_own_counter":
         return CommandInjectionAttack(
