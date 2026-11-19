@@ -116,6 +116,9 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
   - Extended 2026-10-28, additive: EKF_STATUS_REPORT variances, GPS_RAW_INT eph/vel, GPS_STATUS read by the extractor; user requested the EKF-health and receiver-signature rules in chat on 2026-10-28; ML_FEATURES unchanged.
   - See `docs/DETECTION.md` "Estimator-aware position residual".
 - **The event schema / hash-chain canonicalisation** — breaks existing logs.
+  *Extended 2026-11-18 (#21, offline maintainer approval confirmed; additive only):*
+  - `events` table columns, `_canonical`, `_hash`, `verify_chain()`, and default `aegis verify-log <db>` output are **byte-identical** (`read_only=True` verification leaves legacy fixture DBs untouched on disk).
+  - Additive `<db>.anchors.jsonl` external head anchoring (`logging/anchors.py`, optional `AEGIS_ANCHOR_KEY` HMAC-SHA256) and additive `actions` table (`EventStore.log_action`, `verify_actions_chain`) added without changing any `events` canonical bytes.
 - **The benchmark scoring policy** (warmup/grace) — changing it changes reported
   numbers; if you do, re-document it.
 - **Attack hook signatures** — many attacks depend on the base interface.

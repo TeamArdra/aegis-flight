@@ -143,6 +143,13 @@ export default function App() {
         <span className="m">
           Event log <b>{m?.event_log.count ?? 0}</b> · chain{" "}
           <b style={{ color: chainOk ? "var(--ok)" : "var(--crit)" }}>{chainOk ? "OK" : "BROKEN"}</b>
+          {m?.event_log.anchor_head_hash && (
+            <>
+              {" · anchor "}
+              <b>{m.event_log.anchor_head_hash.slice(0, 8)}</b>
+              {m.event_log.anchor_age_s != null ? ` (${m.event_log.anchor_age_s.toFixed(0)}s)` : ""}
+            </>
+          )}
         </span>
       </div>
       <div className="foot" data-testid="footer">

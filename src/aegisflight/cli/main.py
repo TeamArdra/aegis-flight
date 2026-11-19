@@ -298,13 +298,14 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
             return 2
         if args.db is None:
             args.db = str(Path(args.run_dir) / "events.sqlite")
-    store = None
+    store = anchor_writer = None
     if args.db:
-        from ..logging import EventStore
+        from ..logging import AnchorWriter, EventStore
 
         store = EventStore(args.db)
         run_id = time.strftime("ips-%Y%m%d-%H%M%S")
         store.start_run(run_id, label="ips-bridge")
+        anchor_writer = AnchorWriter(store)
     else:
         run_id = "ips-bridge"
     try:  # e.g. an unreadable / corrupt / unwritable --mgmt-state: refuse to start, never run without replay state
@@ -358,6 +359,8 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
     try:
         while end is None or time.monotonic() < end:
             time.sleep(min(args.status_interval, 0.5) if end is not None else args.status_interval)
+            if anchor_writer is not None:
+                anchor_writer.maybe_write(run_id)
             print(json.dumps(bridge.status()), flush=True)
     except KeyboardInterrupt:
         pass
@@ -365,6 +368,9 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         if status_srv is not None:
             status_srv.close()
         bridge.close()
+        if anchor_writer is not None:
+            with contextlib.suppress(Exception):
+                anchor_writer.write_now(run_id, force=True)
         if store is not None:
             store.close()
         if archive is not None and run_prov is not None:
@@ -399,13 +405,31 @@ def _cmd_fw_manifest(args: argparse.Namespace) -> int:
 
 
 def _cmd_verify_log(args: argparse.Namespace) -> int:
-    from ..logging import EventStore
+    from ..logging import EventStore, verify_anchors
 
-    store = EventStore(args.db)
-    cs = store.verify_chain()
-    print(f"events: {cs.length}  chain: {'OK' if cs.ok else 'BROKEN'}  {cs.detail}")
-    store.close()
-    return 0 if cs.ok else 2
+    store = EventStore(args.db, read_only=True)
+    try:
+        cs = store.verify_chain()
+        print(f"events: {cs.length}  chain: {'OK' if cs.ok else 'BROKEN'}  {cs.detail}")
+        ok = cs.ok
+        if getattr(args, "verify_actions", False):
+            acs = store.verify_actions_chain()
+            print(f"actions: {acs.length}  chain: {'OK' if acs.ok else 'BROKEN'}  {acs.detail}")
+            ok = ok and acs.ok
+        if getattr(args, "anchors", None):
+            av = verify_anchors(store, args.anchors)
+            for w in av.warnings:
+                print(f"anchor warning: {w}", file=sys.stderr)
+            for err in av.errors:
+                print(f"anchor error: {err}", file=sys.stderr)
+            print(
+                f"anchors: {av.anchors_checked}  signed: {av.signed_anchors}  "
+                f"unsigned: {av.unsigned_anchors}  status: {'OK' if av.ok else 'FAILED'}"
+            )
+            ok = ok and av.ok
+    finally:
+        store.close()
+    return 0 if ok else 2
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -565,6 +589,8 @@ def build_parser() -> argparse.ArgumentParser:
     fm.set_defaults(func=_cmd_fw_manifest)
     v = sub.add_parser("verify-log", help="verify a SQLite event-log hash chain")
     v.add_argument("db", help="path to the SQLite event log")
+    v.add_argument("--anchors", default=None, help="verify against an external <db>.anchors.jsonl file")
+    v.add_argument("--verify-actions", action="store_true", help="also verify the actions table hash chain")
     v.set_defaults(func=_cmd_verify_log)
 
     ver = sub.add_parser("version", help="print version")
