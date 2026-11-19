@@ -8,6 +8,7 @@ features:
   baro_offset_alpha: 0.05
 protocol:
   auto_rate_baseline: true
+  max_msg_rate_hz: 2000.0
   startup_grace_s: 3.0
   semantic_firewall_enabled: true
   gnss_clock_skew_enabled: true
