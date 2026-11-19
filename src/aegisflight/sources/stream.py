@@ -51,6 +51,8 @@ class TelemetryTick:
     # ADDITIVE (#19): per-stream (sysid, compid, link_id) signature events for settle window.
     sig_invalid_streams: dict[tuple[int, int, int], int] = field(default_factory=dict)
     sig_verified_streams: set[tuple[int, int, int]] = field(default_factory=set)
+    # ADDITIVE (Phase 1): underlying transport connection state (False during local USB/UART disconnect).
+    transport_connected: bool = True
 
 
 class SimulatedTelemetrySource:

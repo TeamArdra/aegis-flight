@@ -8,6 +8,7 @@ verifiable with ``aegis verify-log``.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 from pathlib import Path
@@ -80,6 +81,15 @@ def rotate_sqlite_store(
     if size < max_bytes:
         return store, False
 
+    with contextlib.suppress(Exception):
+        lock = getattr(store, "_lock", None)
+        if lock is not None:
+            with lock:
+                store.conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+                store.conn.commit()
+        else:
+            store.conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+            store.conn.commit()
     store.close()
     for sidecar in ("-wal", "-shm"):
         Path(f"{db_path}{sidecar}").unlink(missing_ok=True)

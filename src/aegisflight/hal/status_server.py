@@ -12,6 +12,8 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
+from ..backend.security import RateLimiter, ReplayCache, compute_request_hmac
+
 ALLOWED_ORIGINS = frozenset({
     "http://localhost:5173", "http://127.0.0.1:5173",
     "http://localhost:8000", "http://127.0.0.1:8000",
@@ -27,6 +29,8 @@ class BridgeStatusServer:
         self.control_token = (control_token or "").strip() or None
         self.signing_configured = bool(signing_configured)
         self.unsigned_acknowledged = bool(allow_unsigned) and not self.signing_configured
+        self._replay = ReplayCache()
+        self._limiter = RateLimiter()
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -39,13 +43,22 @@ class BridgeStatusServer:
                     self.send_header("Access-Control-Allow-Origin", origin)
                     self.send_header("Vary", "Origin")
 
-            def _send(self, code: int, body: bytes, ctype: str = "application/json") -> None:
+            def _send(self, code: int, body: bytes, ctype: str = "application/json", extra_headers: dict[str, str] | None = None) -> None:
                 self.send_response(code)
                 self._cors()
                 self.send_header("Content-Type", ctype)
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("X-Frame-Options", "DENY")
+                if extra_headers:
+                    for hk, hv in extra_headers.items():
+                        self.send_header(hk, hv)
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
+
+            def _json(self, code: int, obj: dict, extra_headers: dict[str, str] | None = None) -> None:
+                self._send(code, json.dumps(obj).encode(), extra_headers=extra_headers)
 
             def do_GET(self) -> None:  # noqa: N802
                 if self.path.split("?", 1)[0] != "/status":
@@ -55,9 +68,6 @@ class BridgeStatusServer:
                     self._send(200, json.dumps(outer._status()).encode())
                 except Exception:  # noqa: BLE001
                     self._send(500, b'{"error":"status unavailable"}')
-
-            def _json(self, code: int, obj: dict) -> None:
-                self._send(code, json.dumps(obj).encode())
 
             def _refuse(self) -> None:
                 self.send_response(405)
@@ -83,7 +93,10 @@ class BridgeStatusServer:
                     self.send_header("Access-Control-Allow-Origin", origin)
                     self.send_header("Vary", "Origin")
                     self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-                    self.send_header("Access-Control-Allow-Headers", "Authorization, X-Aegis-Token, Content-Type")
+                    self.send_header(
+                        "Access-Control-Allow-Headers",
+                        "Authorization, X-Aegis-Token, X-Aegis-Nonce, X-Aegis-Timestamp, X-Aegis-Signature, Content-Type",
+                    )
                     self.send_header("Access-Control-Max-Age", "600")
                 self.send_header("Content-Length", "0")
                 self.end_headers()
@@ -99,12 +112,50 @@ class BridgeStatusServer:
                 if outer.control_token is None:
                     self._json(403, {"error": "control_disabled"})
                     return
+                client_ip = str(self.client_address[0]) if self.client_address else "unknown"
+                if (retry_after := outer._limiter.check_allowed(client_ip)) is not None:
+                    self._json(429, {"ok": False, "error": "rate_limited"}, extra_headers={"Retry-After": str(retry_after)})
+                    return
                 if not self._token_ok():
-                    self._json(401, {"ok": False, "error": "unauthorized"})
+                    retry = outer._limiter.record_failure(client_ip)
+                    if retry is not None:
+                        self._json(429, {"ok": False, "error": "rate_limited"}, extra_headers={"Retry-After": str(retry)})
+                    else:
+                        self._json(401, {"ok": False, "error": "unauthorized"})
                     return
                 try:
                     n = int(self.headers.get("Content-Length") or 0)
-                    body = json.loads(self.rfile.read(n).decode("utf-8")) if 0 < n <= 4096 else None
+                    raw_body = self.rfile.read(n) if 0 < n <= 4096 else b""
+                except OSError:
+                    raw_body = b""
+                nonce = self.headers.get("X-Aegis-Nonce", "").strip()
+                ts_str = self.headers.get("X-Aegis-Timestamp", "").strip()
+                sig = self.headers.get("X-Aegis-Signature", "").strip().lower()
+                if nonce or ts_str or sig:
+                    try:
+                        ts_val = float(ts_str)
+                    except ValueError:
+                        self._json(400, {"ok": False, "error": "invalid_timestamp"})
+                        return
+                    ok_replay, detail = outer._replay.check_and_record(nonce, ts_val)
+                    if not ok_replay:
+                        self._json(401, {"ok": False, "error": detail})
+                        return
+                    expected_sig = compute_request_hmac(
+                        outer.control_token,
+                        method="POST",
+                        path="/posture",
+                        timestamp=ts_str,
+                        nonce=nonce,
+                        body=raw_body,
+                    )
+                    if not sig or not hmac.compare_digest(sig, expected_sig):
+                        outer._limiter.record_failure(client_ip)
+                        self._json(401, {"ok": False, "error": "invalid_signature"})
+                        return
+                outer._limiter.clear(client_ip)
+                try:
+                    body = json.loads(raw_body.decode("utf-8")) if raw_body else None
                 except (ValueError, UnicodeDecodeError):
                     body = None
                 if not isinstance(body, dict):

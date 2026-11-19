@@ -371,7 +371,7 @@ def _positive_finite(name: str, value: float) -> None:
 
 
 def _default_factory(port: str, baudrate: int, read_timeout_s: float,
-                     write_timeout_s: float) -> Callable[[], SerialLike]:
+                     write_timeout_s: float, *, rtscts: bool = False) -> Callable[[], SerialLike]:
     def make() -> SerialLike:
         try:
             import serial
@@ -379,7 +379,7 @@ def _default_factory(port: str, baudrate: int, read_timeout_s: float,
             raise RuntimeError(
                 "SerialMavlinkTransport needs pyserial: pip install 'aegisflight[serial]'") from exc
         opts = {"baudrate": baudrate, "timeout": read_timeout_s,
-                "write_timeout": write_timeout_s, "rtscts": False, "xonxoff": False}
+                "write_timeout": write_timeout_s, "rtscts": bool(rtscts), "xonxoff": False}
         # A plain device name goes straight to serial.Serial, so no URL handler can ever be
         # imported for it. Only a port already validated by _check_port(allow_url=True) reaches
         # serial_for_url (that is how the tests get a socket:// virtual port).
@@ -423,6 +423,7 @@ class SerialMavlinkTransport:
         extra_crc: dict[int, int] | None = None,
         accept_unverified_ids: bool = False,
         allow_url: bool = False,
+        rtscts: bool = False,
         clock_ns: Callable[[], int] = time.monotonic_ns,
         serial_factory: Callable[[], SerialLike] | None = None,
         raw_tap: Callable[[int, bytes], None] | None = None,
@@ -443,8 +444,9 @@ class SerialMavlinkTransport:
             _check_port(port, allow_url)
         self.port = port
         self.baudrate = baudrate
+        self.rtscts = bool(rtscts)
         self._factory = serial_factory or _default_factory(port, baudrate, read_timeout_s,
-                                                           write_timeout_s)
+                                                           write_timeout_s, rtscts=self.rtscts)
         self._partial_timeout_ns = int(partial_timeout_s * 1e9)
         self._max_read = max_read_bytes
         self._reconnect = reconnect

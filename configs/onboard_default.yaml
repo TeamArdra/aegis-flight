@@ -1,14 +1,19 @@
 # Default unified onboard companion configuration (safe passive defaults).
 # Load with: aegis onboard --config configs/onboard_default.yaml
-fc_port: /dev/ttyAMA0
-fc_baud: 921600
-gcs_port: /dev/ttyUSB0
-gcs_baud: 57600
+topology: inline                # inline (FC <-> companion <-> radio) or side-tap (single RX-only port)
+fc_port: /dev/ttyAMA0           # serial device, socket://..., or "auto" (receive-only discovery)
+fc_baud: 921600                 # integer baud rate or "auto" (passive autobaud)
+fc_rtscts: false                # hardware flow control on UART FC link
+gcs_port: /dev/ttyUSB0          # serial device, socket://..., or "auto" (unused in side-tap)
+gcs_baud: 57600                 # integer baud rate or "auto"
+gcs_rtscts: false
 allow_url: false
 
 # Strict mode separation (#58): passive sends 0 bytes on FC & GCS links.
 defense_mode: passive
 mgmt_enable: false
+fail_closed_uplink_commands: true
+semantic_firewall_enabled: true
 
 # Detector calibration profile (e.g. configs/ardupilot_copter or configs/px4_sitl)
 config_dir: null
@@ -31,7 +36,10 @@ signing_state: null
 signing_permissive: false
 allow_unsigned: false
 firmware_dir: null
+firmware_allowlist: null
 firmware_recheck_s: 30.0
+anchors_enabled: true
+anchor_interval_s: 30.0
 
 # Loopback status endpoint + optional dashboard UI subprocess
 status_host: 127.0.0.1

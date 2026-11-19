@@ -482,3 +482,21 @@ feature vectors, and `dos:latency` (`median jitter 32.4 ms`) overlaps benign sim
   intra-link attribution between `DOS` and `MAVLINK_ANOMALY`).
 - **Methodology disclosure:** these rules and evaluations (`scripts/eval_link_attribution.py` on
   fresh `master_seed=20261119`) were designed with knowledge of the simulator's attack definitions.
+
+## Universal Real-World Flight Hardening (`configs/universal_flight`)
+
+All new detection features default to `false` in base `configs/detector.yaml` (Stage-1 bit-exact)
+and are enabled together in `configs/universal_flight/detector.yaml`:
+
+- **Online Ground Baro–GPS Offset Learning (`features.learn_baro_offset`, `physics.use_learned_baro_offset`):**
+  While disarmed with a valid 3D GPS fix, learns the static AMSL-vs-baro bias (`alt_msl - baro_alt`) via EMA so real field barometric drift does not trigger false `TELEMETRY_MANIPULATION` alerts.
+- **Control Semantics / *ConstDet* (`physics.control_semantics_enabled`):**
+  When armed and not `nav_gated`, cross-checks tilt-implied horizontal acceleration (`g * hypot(sin(roll), sin(pitch))`) against differentiated velocity (`control_accel_residual_ms2`), flagging spoofed velocity/position shifts that disagree with attitude dynamics.
+- **Optical-Flow / VIO Cross-Check (`physics.optflow_gps_speed_diff_ms`):**
+  Inert unless fresh `OPTICAL_FLOW` or `ODOMETRY` frames are observed; detects horizontal GPS velocity spoofing when optical flow/VIO speed diverges cleanly.
+- **GNSS Clock Skew & Rollback (`protocol.gnss_clock_skew_enabled`, `gnss_clock_max_jump_s`):**
+  Compares valid Unix epoch timestamps from `SYSTEM_TIME` / `GPS_RAW_INT` against the companion monotonic clock to flag SDR replay clock rollbacks and sudden time steps.
+- **Dynamic Yaw-Course Auto-Adaptation (`physics.yaw_course_auto`):**
+  Automatically infers multirotor/VTOL/rover vs fixed-wing from `HEARTBEAT.type`, disabling the fixed-wing heading-vs-course check on rotorcraft while keeping it active on fixed-wing platforms.
+- **Transport Fault Isolation (`FeatureFrame.transport_connected`):**
+  Separates local USB/UART link disconnects (`transport_connected=False`) from RF jamming/spoofing alerts in `ProtocolDetector`.

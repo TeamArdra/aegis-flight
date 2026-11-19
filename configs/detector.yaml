@@ -17,6 +17,8 @@ features:
   # Chosen from UDP/multi-path jitter characteristics (not tuned on benchmark scores):
   # at ~28-140 msg/s over ~100-500 ms jitter, a late packet lags by 1-16 sequence steps.
   reorder_window: 16
+  learn_baro_offset: false
+  baro_offset_alpha: 0.05
 
 # ------------------------------------------------------------------ #
 # Detector A: protocol / rule engine
@@ -68,6 +70,9 @@ protocol:
   gnss_loss_ticks: 5                # consecutive decisions (1 s @5 Hz) before firing
   semantic_link_attribution: false  # opt-in (#22): selective HB loss while GPS healthy -> MAVLINK_ANOMALY
   semantic_link_min_rate_hz: 5.0    # minimum aggregate msg_rate_hz to treat HB loss as selective rather than blackout
+  semantic_firewall_enabled: false  # off in Stage-1 SIM base; on in live flight profiles
+  gnss_clock_skew_enabled: false
+  gnss_clock_max_jump_s: 5.0
 
 # ------------------------------------------------------------------ #
 # Detector B: physics / cyber-physical consistency
@@ -77,6 +82,7 @@ physics:
   gps_pos_residual_hard_m: 30.0     # hard trigger regardless of hysteresis
   gps_speed_consistency_ms: 5.0     # |GPS-derived speed - VFR groundspeed|
   alt_consistency_m: 8.0            # |GPS alt - baro alt| -- NO bias correction is applied
+  use_learned_baro_offset: false
   alt_jump_ms: 25.0                 # altitude rate-of-change ceiling (m/s)
   max_accel_ms2: 20.0               # implausible horizontal acceleration
   max_jerk_ms3: 60.0                # implausible jerk
@@ -84,6 +90,10 @@ physics:
   battery_drop_rate_v_s: 2.0        # nor collapse impossibly fast
   attitude_rate_consistency: 1.2    # attitude-vs-rate mismatch tolerance
   yaw_course_enabled: true          # false for multirotors: disables heading-vs-course (frozen-attitude) rule
+  yaw_course_auto: false            # true dynamically disables for rotorcraft/VTOL from HEARTBEAT.type
+  control_semantics_enabled: false  # ConstDet attitude-vs-accel check (live profiles enable this)
+  control_accel_residual_ms2: 4.5
+  optflow_gps_speed_diff_ms: 4.0
   hysteresis_ticks: 2               # consecutive ticks before firing (soft)
   # Estimator-aware GPS residual (2026-10-25; v2 2026-10-26). A position fix is "gated" when a fresh
   # EKF_STATUS_REPORT says no horizontal solution (CONST_POS_MODE, or no POS_HORIZ_ABS/REL bit) and
