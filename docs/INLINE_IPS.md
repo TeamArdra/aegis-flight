@@ -39,6 +39,14 @@ transports, and one run over real transports on loopback sockets).
 
 The operator chooses the posture (`--defense-mode`, or `InlineIpsBridge.set_mode`); leaving `active-ips` clears all enforcement.
 
+## Real-Flight Safety Interlocks & Hardware Fail-Open Bypass (#60)
+- **Armed-only & one-shot mode changes (`MitigationController`)**: `SAFE_HOLD` (`ALT_HOLD`) and `RESTORE_MODE` (`MAV_CMD_DO_SET_MODE`) are gated strictly on `frame.snapshot.armed is True`, preventing any disarmed mode commands (the 1,500 s bench soak bug). In flight, `SAFE_HOLD` `ALT_HOLD` is one-shot per episode (never 1 Hz hammering), and total FC counter-commands are capped per episode (default 4) and per 60 s window (default 6).
+- **Hardware fail-open bypass design**: Because a companion crash or power brownout opens an inline software bridge (`serial <-> serial`), flight hardware requires a normally-closed / de-energized-passthrough SPDT signal relay or high-speed UART analog multiplexer (e.g., dual-SPDT low-Ron switch or `SN74CB3Q3253`) wiring `FC_TELEM_TX <-> RADIO_RX` and `FC_TELEM_RX <-> RADIO_TX` by default. A dedicated companion GPIO watchdog (`FAILOPEN_EN`, >= 20 Hz kick driving an RC/555 missing-pulse detector) holds the switch in inline-bridge position only while the companion process is alive and forwarding; loss of kick or companion 5 V rail drops `FAILOPEN_EN` low within <= 150 ms and restores a passive physical wire.
+- **Physical TELEM UART & FC-side MAVLink-2 signing validation checklist** (`docs/ONBOARD_DEPLOYMENT.md` §4–§5):
+  1. Props off, disarmed: configure FC spare TELEM port (`SERIALx_PROTOCOL = 2`, `SERIALx_BAUD >= 115`, `BRx_PROTOCOL` if CAN) and save parameter backup.
+  2. Provision a 32-byte random MAVLink-2 signing key to FC (`SIGNING_KEY` / QGC or Mission Planner setup), set `SIGNING_REQUIRE = 1` (or verified reject policy) on the command-accepting FC UART, and keep companion keys strictly outside git (`AEGIS_SIGNING_KEY_FILE` / `0600` file permissions).
+  3. Verify `FAILOPEN_EN` bypass switchover with oscilloscope/UART capture (< 150 ms cutover) before any battery-connected bench or flight test; keep `may_reach_vehicle()` receive-only boundary active on serial ports until explicitly signed off by maintainers.
+
 ## What `active-ips` does to the wire
 **Static uplink rules (no detector needed):**
 - control traffic (`SET_MODE`, sensitive `COMMAND_LONG`/`COMMAND_INT`, mission and parameter writes, position-target,

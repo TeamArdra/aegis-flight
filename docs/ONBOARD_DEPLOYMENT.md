@@ -70,6 +70,13 @@ needs an explicit go-ahead; it was verified only on SITL (`six`/`groups` runs).
 * **Logging.** `events.sqlite` (hash-chained alerts; `aegis verify-log <db>` verifies), `alerts.jsonl` (≈ 301 B/alert), `health.jsonl` (≈ 1.15 kB per `--health-interval`; at the 10 s default ≈ 10 MB/day), `summary.json`. No rotation, no disk cap (B7). The hash chain detects edits, not deletion of the whole file.
 * **Rollback.** The monitor has no effect on the vehicle (receive-only; TX unconnected). To roll back: stop the service, disconnect the RX wire, and restore the saved parameter backup (the stream parameters are the **only** change made to the vehicle). Nothing is flashed.
 
+### Hardware Fail-Open Bypass & Physical TELEM Signing Validation Checklist (#60)
+- **Fail-open bypass**: any inline UART hardware between flight controller `TELEMx` and telemetry radio MUST wire through a hardware missing-pulse watchdog relay/mux (`FC_TX/RX <-> RADIO_RX/TX` closed when unpowered or un-kicked within <= 150 ms) so a companion OS hang or power loss never severs manual pilot telemetry/uplink.
+- **Physical UART & FC signing bench checks (props off, disarmed)**:
+  1. Confirm `SERIALx_PROTOCOL = 2` (MAVLink 2) and matching baud on both companion UART and FC TELEM port.
+  2. Test physical relay/mux fail-open passthrough while killing `aegis` (`SIGKILL`) and cutting companion power.
+  3. Provision independent flight and management keys (32-byte binary or 64-hex, `chmod 600`, out of repo), enable FC-side signature enforcement (`SIGNING_REQUIRE`), and verify unsigned/replayed frames are rejected cleanly while valid signed frames pass.
+
 ## 6. Cost — what was measured, and how to re-measure it where it matters
 
 | Measure | Value | Where / tag |
