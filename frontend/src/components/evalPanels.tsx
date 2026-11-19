@@ -146,14 +146,12 @@ const IMPLEMENTED = [
   "SQLite tamper-evident hash-chain log",
   "Live serial / UDP MAVLink source (receive-only unless ACTIVE IPS)",
   "MAVLink-2 signing verification",
-  "IPS state machine (SIM dashboard; report-only on live sources)",
+  "Inline IPS bridge + FrameSanitizer (SITL-verified; receive-only on serial)",
   "STATUSTEXT alerts to a loopback GCS",
 ];
 const PLANNED = [
-  "Inline FrameSanitizer relay (code exists, not wired)",
-  "Rust fast-path + Tauri desktop app (prototype, not on the decision path)",
-  "Hardware-in-the-loop (HIL)",
-  "Onboard / companion deployment",
+  "Rust fast-path prototype (not on the Python decision path)",
+  "Hardware-in-the-loop (HIL) & outdoor flight validation",
   "Multi-vehicle support",
 ];
 
@@ -192,22 +190,34 @@ function IntegrationPanelImpl() {
 /* -------------------------------------------------------------- validation
    BENCHMARK / VALIDATION evidence — clearly labelled, never presented as live
    telemetry. Figures are quoted verbatim from committed artifacts/**. */
-type ValTier = "sim" | "expanded" | "real";
+type ValTier = "sim" | "expanded" | "sitl" | "replay";
 const TIER_LABEL: Record<ValTier, string> = {
   sim: "Simulated",
   expanded: "Expanded sim",
-  real: "Real-data",
+  sitl: "SITL",
+  replay: "Replay",
 };
 const VAL_ROWS: Array<{ tier: ValTier; metric: string; value: string }> = [
-  { tier: "sim", metric: "Baseline accuracy", value: "99.7%  ·  FPR 0.02%  ·  23,430 decisions" },
-  { tier: "expanded", metric: "Expanded v2 accuracy", value: "97.7% (5 s grace)  ·  97.0% (no grace)" },
-  { tier: "real", metric: "IEEE T-ITS 2023 Dataset (54,784 rows)", value: "0.00% Benign FPR  ·  100% DoS/Replay/FDI TPR" },
-  { tier: "real", metric: "mIDS-UAV Dataset (25,275 frames)", value: "100% Deauth/GPS/Jamming Detection  ·  0B TX IDS" },
-  { tier: "real", metric: "PX4 real flight logs (24 flights)", value: "0.04% FPR held-out  ·  82.4 km path" },
-  { tier: "real", metric: "ArduPilot ALFA (calibrated, ML-off)", value: "0.2% FPR held-out  ·  100% FPR uncalibrated" },
-  { tier: "real", metric: "Autopilot EKF Baseline vs Aegis", value: "Aegis catches subtle drift in 0.4s (EKF failsafe blind)" },
-  { tier: "real", metric: "Target Hardware (Pi Zero 2W)", value: "11.4% CPU  ·  42.8 MB RAM  ·  ₹2,900 INR BOM" },
-  { tier: "sim", metric: "Decision compute (Rust fastpath)", value: "<0.08 ms Rust  ·  17.7 ms full Python ML" },
+  {
+    tier: "sim",
+    metric: "Baseline accuracy (SIM, ML-on · artifacts/benchmarks/summary.md)",
+    value: "99.7% (6535/4/16826/65)  ·  23,430 decisions  ·  link-level",
+  },
+  {
+    tier: "expanded",
+    metric: "Expanded v2 accuracy (SIM · artifacts/benchmarks_extended/summary.md)",
+    value: "97.7% (5 s grace)  ·  97.0% (no grace)  ·  link-level",
+  },
+  {
+    tier: "sitl",
+    metric: "PX4 SITL calibrated (SITL, ML-off · artifacts/sitl/calibration/evaluation_heldout.json)",
+    value: "1 / 2,805 held-out false alarms  ·  link-level detection",
+  },
+  {
+    tier: "replay",
+    metric: "ArduPilot ALFA replay (REPLAY, ML-off · artifacts/external/alfa_calibrated/results.json)",
+    value: "Calibrated nominal-rate replay (physical faults only · link-level)",
+  },
 ];
 
 function ValidationPanelImpl() {
