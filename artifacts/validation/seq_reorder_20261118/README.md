@@ -4,7 +4,7 @@
 - **Claim class:** link-level detection (simulated benign link stress & attack sessions; not hardware/flight)
 - **Commands:**
   - `PYTHONPATH=src python scripts/benchmark_extended.py --no-model --out <dir>`
-  - `PYTHONPATH=src python scripts/benchmark_extended.py --out <dir>` (with `models/isoforest.joblib` from `python scripts/train_models.py --out models/isoforest.joblib`)
+  - `PYTHONPATH=src python scripts/benchmark_extended.py --out <dir>` (with `models/isoforest.joblib`, `sha256: bafad273e5892a154fe2edf4fbc2a21721a29c180e18e7666f97133af73a31f5`, trained via `python scripts/train_models.py --out models/isoforest.joblib`; canonical Stage-1 regression verified at `6535 / 4 / 16826 / 65`)
 - **Base commit (before):** `d71b1d4` (`origin/main`)
 - **Feature:** `features.reorder_window = 16` (`FeatureFrame.reorder_count`, not in `ML_FEATURES`)
 
