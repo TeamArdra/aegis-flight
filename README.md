@@ -50,7 +50,7 @@ the flight controller). A serial-device vehicle link is receive-only in every po
 ### Key Architectural Highlights
 
 - **Dual-Topology Execution Model**:
-  - **Topology A (Sidecar Companion Actuator)**: *design, modelled in SIM only.* A companion on a secondary UART would issue corrective counter-commands; nothing transmits on a live source.
+  - **Topology A (Sidecar Companion Actuator)**: `aegis serve` on a telemetry port, beside the command path. On a serial device it is receive-only and never transmits; on a UDP or `socket://` (SITL) link, `active-ips` does transmit counter-commands (`src/aegisflight/backend/engine.py`, `_transmit`). It was run once on ArduCopter SITL against a `DO_SET_MODE(LAND)` injected on another port, in `passive` and in `active-ips`: the vehicle landed and was not recovered, with `counter_frames_sent` 0, because a sidecar does not see the command path (`docs/INLINE_IPS.md`, "SITL evidence: sidecar recovery and GPS spoofing response"; single run, no committed run artifact). Not tested on hardware.
   - **Topology B (Inline Bridge)**: `aegis ips-bridge` (`hal/inline_ips.py`, `mitigation/inline_policy.py`) sits between the flight controller port and the GCS radio port and drops hostile frames before the autopilot sees them (`docs/INLINE_IPS.md`). Tested on synthetic frames, loopback serial and ArduCopter SITL; over a real LR900 radio pair; and on the bench with a real Pixhawk 6X on a Raspberry Pi 5 (`docs/RADIO_TEST_RESULTS.md`). Not flown; one signed run over USB with the bridge as the enforcement point (the flight controller's own enforcement not tested); no hardware bypass yet. The Rust crate `rust/aegis_fastpath` is still not on the path.
   - **Topology A+B (Hybrid)**: *design only.*
   - **Topology detection**: not selectable. The software reports `A` (single-port sidecar) or `A+B` (inline bridge) from how it is connected (`GET /api/topology`, `topology_info`); SIM and replay are labelled as such.
@@ -86,7 +86,8 @@ The defense layer (`src/aegisflight/mitigation/`) is a **simulation-dashboard mo
 what a counter-action would do, using the dashboard's cyber-physical twin. **Detour, survival and watchdog time have not been measured.** Frame-level counts (dropped, blocked, rewritten) have been measured in SITL, and on the bench over the radio and with a real Pixhawk 6X (`docs/RADIO_TEST_RESULTS.md`), but not in flight. Detour, survival and watchdog time are not claimed here.
 - Posture gates transmission on every source. `PASSIVE` (the default) and `ADVISORY` send nothing to the vehicle
   (`bytes_sent = 0`); `ADVISORY` adds STATUSTEXT alerts to a GCS. `ACTIVE_IPS` encodes counter-commands (mode restore, EKF source
-  switch, optional signing) and, on a live serial or UDP link, transmits them. That transmit path is unit-tested with a recording
+  switch, optional signing) and, on a live UDP or `socket://` (SITL) link, transmits them; on a serial-device link
+  `active-ips` is refused (receive-only). That transmit path is unit-tested with a recording
   transport only; it has been exercised against ArduCopter SITL (an ALT_HOLD counter-command over the radio, 2026-10-30) but not against a real flight controller's counter-command path, and its effect in flight is unmeasured. Replay has no
   transport, so nothing is sent.
 
@@ -136,7 +137,7 @@ The `src/aegisflight/hal/` module abstracts serial communication, companion comp
 │   ├── src-tauri/                  # Tauri 2.0 Rust desktop shell
 │   └── vite.config.ts              # Vite bundler configuration
 ├── rust/                           # High-Performance Native Extensions
-│   └── aegis_fastpath/             # Sub-microsecond CRC-16 & frame sanitizer
+│   └── aegis_fastpath/             # CRC-16 & frame sanitizer (not on the runtime path; speed not measured)
 ├── configs/                        # YAML configuration profiles
 ├── data/                           # Evaluation datasets & flight manifests
 │   ├── external/manifests/         # 40 PX4 flight logs + 41 ALFA UAV flight logs
@@ -152,13 +153,16 @@ The `src/aegisflight/hal/` module abstracts serial communication, companion comp
 
 ## 6. Multi-OS Installation & Setup Guide
 
-AegisFlight is engineered for 100% native cross-platform compatibility across **Windows**, **macOS**, **Linux**, and **Onboard Companion Computers** (Raspberry Pi, NVIDIA Jetson).
+What has actually been run: Windows 11 x64 (development host), Ubuntu 24.04 with Python 3.13 (CI, `.github/workflows/ci.yml`),
+and the bridge on a Raspberry Pi 3B+ and a Raspberry Pi 5 (`docs/PERFORMANCE.md`, `docs/RADIO_TEST_RESULTS.md`). **Not tested:**
+macOS, Windows ARM64, Debian/Fedora/Arch desktops, Raspberry Pi 4 / Zero, NVIDIA Jetson. The instructions for those are
+provided as-is, with no recorded run.
 
 Choose your operating system below for turnkey setup instructions:
 
 ---
 
-### A. Windows 10 & 11 (x64 / ARM64)
+### A. Windows 10 & 11 (x64; ARM64 not tested)
 
 #### 1. Prerequisites Installation
 Install Python, Node.js, and Rust using [Winget](https://learn.microsoft.com/en-us/windows/package-manager/winget/) (or download the official installers):
@@ -196,8 +200,8 @@ pip install -e ".[dev]"
 npm --prefix frontend install
 npm --prefix frontend run build
 
-# Start AegisFlight in Active IPS mode (FastAPI + WebSocket):
-aegis serve --defense-mode active-ips --port 8000
+# Start AegisFlight (FastAPI + WebSocket on 127.0.0.1; SIM source and passive posture by default):
+aegis serve --port 8000
 ```
 Open **http://127.0.0.1:8000** in your browser.
 
@@ -210,7 +214,7 @@ cargo tauri dev
 
 ---
 
-### B. macOS (Apple Silicon M-Series & Intel)
+### B. macOS (Apple Silicon M-Series & Intel; not tested)
 
 #### 1. Prerequisites Installation
 Install Xcode Command Line Tools and dependencies via [Homebrew](https://brew.sh/):
@@ -239,8 +243,8 @@ pip install -e ".[dev]"
 npm --prefix frontend install
 npm --prefix frontend run build
 
-# Start AegisFlight backend:
-aegis serve --defense-mode active-ips --port 8000
+# Start AegisFlight backend (127.0.0.1; SIM source and passive posture by default):
+aegis serve --port 8000
 ```
 Open **http://127.0.0.1:8000** in Safari, Chrome, or Firefox.
 
@@ -249,11 +253,11 @@ Open **http://127.0.0.1:8000** in Safari, Chrome, or Firefox.
 cd frontend
 cargo tauri dev
 ```
-*Launches as a native macOS Cocoa application with Apple Silicon hardware acceleration.*
+*Not tested on macOS. The Tauri shell is a prototype and not part of the tested Python path.*
 
 ---
 
-### C. Linux (Ubuntu, Debian, Fedora, Arch)
+### C. Linux (CI: Ubuntu 24.04; Debian, Fedora, Arch not tested)
 
 #### 1. System Packages & Build Dependencies
 On **Ubuntu 22.04 / 24.04 / Debian 12**:
@@ -298,8 +302,8 @@ pip install -e ".[dev]"
 npm --prefix frontend install
 npm --prefix frontend run build
 
-# Start backend:
-aegis serve --defense-mode active-ips --port 8000
+# Start backend (127.0.0.1; SIM source and passive posture by default):
+aegis serve --port 8000
 
 # (Optional) Start native Linux desktop app:
 cd frontend && cargo tauri dev
@@ -307,11 +311,11 @@ cd frontend && cargo tauri dev
 
 ---
 
-### D. Onboard Companion Computers (Raspberry Pi 4/5/Zero & NVIDIA Jetson)
+### D. Onboard Companion Computers (Raspberry Pi; NVIDIA Jetson not tested)
 
 For deployment directly on a physical drone companion computer connected to a Pixhawk / Cube flight controller:
 
-#### 1. Raspberry Pi OS (Bookworm 64-bit)
+#### 1. Raspberry Pi OS 64-bit (bench runs used Raspberry Pi OS Lite / Debian 13 on a Pi 5 and Debian aarch64 on a Pi 3B+, `docs/RADIO_TEST_RESULTS.md`, `docs/PERFORMANCE.md`; Pi 4 and Pi Zero not tested)
 1. **Enable Hardware UART**:
    ```bash
    sudo raspi-config
@@ -339,17 +343,18 @@ For deployment directly on a physical drone companion computer connected to a Pi
    ```
    Ports are not auto-discovered by the CLI (`hal/discovery.py` is not wired in); name the port explicitly.
 
-#### 2. NVIDIA Jetson (Orin / Nano / Xavier — JetPack 5.x / 6.x)
+#### 2. NVIDIA Jetson (not tested)
 - Hardware UART `/dev/ttyTHS1` (J41 40-pin header pins 8 & 10) or USB `/dev/ttyUSB0`.
-- AegisFlight's HAL auto-detects Jetson hardware via `/etc/nv_tegra_release` and sets the dynamic latency budget to $18.0\text{ ms}$.
+- `hal/discovery.py` recognises a Jetson by `/etc/nv_tegra_release` and assigns a fixed 18 ms latency-budget constant. That constant is a
+  static heuristic, not a measurement, and `hal/discovery.py` is not wired into the pipeline. No run on any Jetson is recorded.
 
 ---
 
 ### E. Quick Verification (All Operating Systems)
 
-Run the test and audit suites to ensure your local installation is 100% operational:
+Run the test and lint suites to check your local installation:
 ```bash
-# 1. Full 8-suite Stage 2 automated audit (~40 ms):
+# 1. Demo of the 8 defense code paths on hand-built SIM inputs (not validation evidence; runtime not measured here):
 python scripts/verify_stage2.py
 
 # 2. Fast unit verification (34 tests, < 1 s):
@@ -359,14 +364,14 @@ pytest tests/unit/test_mitigation.py tests/unit/test_hal.py -q
 pytest
 
 # 4. Code quality & linting:
-ruff check src tests scripts
+ruff check src tests scripts backend
 ```
 
 ---
 
 ## 7. Interactive Demonstration Runbook
 
-1. **Nominal Flight**: Start `aegis serve --defense-mode active-ips`. The live altitude profile holds steady at $60\text{ m}$; speed is $12\text{ m/s}$; threat score is $0.0$.
+1. **Nominal Flight**: Start `aegis serve` (SIM source, `passive` by default). To show the SIM defense twin, switch the posture to `active-ips` in the dashboard; the SIM source has no transport, so nothing is sent. The live altitude profile holds steady at $60\text{ m}$; speed is $12\text{ m/s}$; threat score is $0.0$.
 2. **GPS Spoofing & Dead-Reckoning Recovery**: Inject GPS spoofing via the UI. In the SIM benchmark the median detection latency is 0.36 s and the threat state escalates to `HIGH / GPS_SPOOFING`. The dashboard twin then models the counter-action (Topology B: inline clamp; Topology A: dead-reckoning plus counter-command). These are SIM models, not measured prevention.
 3. **Command Injection & Failsafe Veto**: Trigger unauthorized land or mid-air disarm. The mitigation controller flags it (`VETO_DISARM` / `REPLAY_GUARD` action in the Defense HUD). It is reported, not blocked: nothing is transmitted to the vehicle.
 4. **Detected topology**: the Defense HUD displays the detected topology (A, A+B, SIM or replay) and what it can do; there is no selector.
@@ -374,7 +379,7 @@ ruff check src tests scripts
    ```bash
    aegis verify-log artifacts/aegisflight_live.sqlite
    ```
-   Outputs `Chain status: OK (zero mutations detected)`.
+   Prints `events: <N>  chain: OK  ...` (`_cmd_verify_log` in `src/aegisflight/cli/main.py`).
 
 ---
 
@@ -385,7 +390,7 @@ Detailed technical specifications and engineering logs:
 - [**System Architecture & Deep Dive**](docs/ARCHITECTURE.md) — Comprehensive technical architecture specification.
 - [**Stage 2 report draft**](docs/stage2_report_draft.md): withdrawn pending evidence (reasons inside).
 - [**Stage 2 Runbook**](docs/STAGE2_RUNBOOK.md) — Step-by-step SITL integration and regression procedures.
-- [**Hardware Benchmarking (Pixhawk 6X)**](docs/HARDWARE_BENCH_PIXHAWK6X.md) — Physical flight controller bench performance.
+- [**Hardware Benchmarking (Pixhawk 6X)**](docs/HARDWARE_BENCH_PIXHAWK6X.md) — passive telemetry description of a real Pixhawk 6X on a desk (USB to a Windows host, disarmed, no flight); not a performance measurement.
 - [**Threat Model Specification**](docs/THREAT_MODEL.md): threat model and attack taxonomy.
 - [**Red-team audit**](docs/REDTEAM_AUDIT_STAGE2.md): withdrawn self-assessment (reasons inside).
 - [**Inline IPS bridge**](docs/INLINE_IPS.md) — Topology B: filtering hostile frames before the autopilot.
