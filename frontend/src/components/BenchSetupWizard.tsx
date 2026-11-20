@@ -217,7 +217,7 @@ export function BenchSetupWizard({ caps }: Props) {
             <p className="panel-note">
               Probes connected UART / USB adapters in strict read-only mode (0 bytes transmitted) across 57600–921600 baud.
             </p>
-            <div className="form-grid">
+            <div className="form-grid" style={{ alignItems: "end" }}>
               <label>
                 FC Port (<code>auto</code> or device path)
                 <input value={fcPort} onChange={(e) => setFcPort(e.target.value)} placeholder="auto" />
@@ -291,7 +291,7 @@ export function BenchSetupWizard({ caps }: Props) {
         {step === 4 && (
           <div className="wizard-body">
             <h3>Generate Validated Companion Configuration &amp; Preflight</h3>
-            <div className="form-grid">
+            <div className="form-grid" style={{ alignItems: "end" }}>
               <label>
                 Detector Profile
                 <select value={configDir} onChange={(e) => setConfigDir(e.target.value)}>
