@@ -1,20 +1,23 @@
 # AegisFlight — Multi-OS Installation & Configuration Reference
 
-This guide provides concise, OS-specific installation instructions for **Windows**, **macOS**, **Linux**, and **Onboard Drone Companion Computers** (Raspberry Pi, NVIDIA Jetson).
+This guide provides OS-specific installation instructions. What has actually been run: Windows 11 x64 (development host),
+Ubuntu 24.04 with Python 3.13 (CI, `.github/workflows/ci.yml`), and the bridge on a Raspberry Pi 3B+ and a Raspberry Pi 5
+(`docs/PERFORMANCE.md`, `docs/RADIO_TEST_RESULTS.md`). macOS, Windows ARM64, Fedora/Arch, Pi 4 / Zero and NVIDIA Jetson are
+**not tested**; those instructions have no recorded run.
 
 ---
 
 ## 1. System Requirements
 
-- **Python**: $\ge 3.11$ (tested on 3.11, 3.12, and 3.13)
+- **Python**: $\ge 3.11$ (`pyproject.toml`; CI runs 3.13, development hosts 3.13 / 3.14; 3.11 and 3.12 not tested in CI)
 - **Node.js**: $\ge 18$ + npm (required for the GCS dashboard)
 - **Rust**: $\ge 1.80$ + Cargo (required for the native Tauri desktop GCS and zero-allocation frame sanitizer)
 - **Operating Systems**:
-  - **Windows 10 / 11** (x64 / ARM64)
-  - **macOS 12+** (Apple Silicon M-Series and Intel)
-  - **Linux** (Ubuntu 22.04/24.04, Debian 12, Fedora 39/40, Arch Linux)
-  - **Single-Board Computers** (Raspberry Pi OS 64-bit, JetPack 5.x/6.x)
-- **Hardware Resources**: $\ge 512\text{ MB}$ RAM, no GPU required.
+  - **Windows 10 / 11** (x64; ARM64 not tested)
+  - **macOS 12+** (not tested)
+  - **Linux** (CI: Ubuntu 24.04; others not tested)
+  - **Single-Board Computers** (Raspberry Pi 3B+ / Pi 5 bench runs; JetPack not tested)
+- **Hardware Resources**: no GPU required. Minimum RAM not measured (the Pi 3B+ used has 905 MB, `docs/PERFORMANCE.md`).
 
 ---
 
@@ -42,7 +45,7 @@ This guide provides concise, OS-specific installation instructions for **Windows
    ```powershell
    npm --prefix frontend install
    npm --prefix frontend run build
-   aegis serve --defense-mode active-ips --port 8000
+   aegis serve --port 8000   # 127.0.0.1; SIM source and passive posture by default
    ```
 
 4. **(Optional) Native Desktop Application**:
@@ -72,7 +75,7 @@ This guide provides concise, OS-specific installation instructions for **Windows
    ```bash
    npm --prefix frontend install
    npm --prefix frontend run build
-   aegis serve --defense-mode active-ips --port 8000
+   aegis serve --port 8000   # 127.0.0.1; SIM source and passive posture by default
    ```
 
 4. **Native Desktop Application**:
@@ -118,12 +121,12 @@ This guide provides concise, OS-specific installation instructions for **Windows
    ```bash
    npm --prefix frontend install
    npm --prefix frontend run build
-   aegis serve --defense-mode active-ips --port 8000
+   aegis serve --port 8000   # 127.0.0.1; SIM source and passive posture by default
    ```
 
 ---
 
-### D. Onboard Companion SBCs (Raspberry Pi / NVIDIA Jetson)
+### D. Onboard Companion SBCs (Raspberry Pi; NVIDIA Jetson not tested)
 
 1. **Raspberry Pi OS (Bookworm 64-bit)**:
    ```bash
@@ -133,16 +136,17 @@ This guide provides concise, OS-specific installation instructions for **Windows
    # Console shell: NO, Hardware enable: YES
    sudo reboot
 
-   # Install & start daemon:
+   # Install & start the receive-only monitor (a serial device is receive-only; active-ips is refused on it):
    python3 -m venv .venv
    source .venv/bin/activate
    pip install -e ".[dev]"
-   aegis serve --defense-mode active-ips --topology auto --port 8000
+   aegis serve --source serial --serial-port /dev/serial0 --baud 115200 --port 8000
    ```
 
 2. **NVIDIA Jetson (JetPack 5.x / 6.x)**:
    - Connect via hardware UART `/dev/ttyTHS1` (J41 header) or USB adapter `/dev/ttyUSB0`.
-   - HAL auto-detects Jetson hardware and tunes the latency budget to $18\text{ ms}$.
+   - `hal/discovery.py` recognises a Jetson by `/etc/nv_tegra_release` and assigns a fixed 18 ms latency-budget constant (a static
+     heuristic, not a measurement; not wired into the pipeline). No run on any Jetson is recorded.
 
 ---
 
@@ -151,15 +155,15 @@ This guide provides concise, OS-specific installation instructions for **Windows
 Confirm installation integrity across any platform:
 
 ```bash
-# 1. 8-Suite Automated Stage 2 Prevention & HAL Audit (~40 ms):
+# 1. Demo of the 8 defense code paths on hand-built SIM inputs (not validation evidence):
 python scripts/verify_stage2.py
 
-# 2. Fast unit test suite (< 1 s):
+# 2. Focused Stage-2 unit tests (34 tests):
 pytest tests/unit/test_mitigation.py tests/unit/test_hal.py -q
 
 # 3. Full test suite (`pytest -q` prints the count):
 pytest
 
 # 4. Code quality & linting:
-ruff check src tests scripts
+ruff check src tests scripts backend
 ```

@@ -46,10 +46,10 @@ aegis benchmark             # -> artifacts/benchmarks/summary.md + artifacts/fig
 
 ## 5. Automated Verification & Tests
 ```bash
-python scripts/verify_stage2.py   # runs full 8/8 Stage 2 audit suites in ~40 ms
+python scripts/verify_stage2.py   # demo of the 8 defense code paths on hand-built SIM inputs (not validation evidence)
 pytest tests/unit -q             # fast unit subset (hundreds of tests)
 pytest                           # full verification suite (`python -m pytest` prints the count)
-ruff check src tests scripts     # lint (0 errors)
+ruff check src tests scripts backend   # lint (0 errors)
 ```
 
 ## 6. Live GCS Dashboard & Desktop Application
@@ -58,19 +58,19 @@ Build the web UI once, then serve via FastAPI (or run the native desktop GCS):
 npm --prefix frontend install
 npm --prefix frontend run build
 
-# Start the Stage 2 autonomous defense backend:
-aegis serve --defense-mode active-ips   # http://127.0.0.1:8000
+# Start the backend (SIM source, passive posture by default; switch posture in the dashboard):
+aegis serve   # http://127.0.0.1:8000
 ```
 Open http://127.0.0.1:8000 — the simulation auto-starts with live cyber-physical twin, real-time MAVLink telemetry, altitude profile strip, and autonomous defense HUD.
 
 **Running the Native Tauri Desktop App:**
 ```bash
-cd frontend && cargo tauri dev    # launches native cross-platform Rust GCS
+cd frontend && cargo tauri dev    # prototype Tauri shell; not part of the tested Python path
 ```
 
 **Dev mode (hot-reload web UI):** in two terminals —
 ```bash
-aegis serve --defense-mode active-ips   # backend on :8000
+aegis serve                            # backend on :8000
 npm --prefix frontend run dev           # UI on :5173 (proxies /api and /ws to :8000)
 ```
 

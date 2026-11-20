@@ -1,7 +1,7 @@
 # AegisFlight — Stage 2 Demonstration Runbook
 
-For demonstrating the Stage 2 UAV Intrusion Detection System (passive demo; the defense layer is shown as a **simulation model**; the inline bridge was verified on ArduCopter SITL only, and no prevention
-is demonstrated on a real vehicle) for **PUSHPAK Grand Challenge 2026-27 (IIT Bombay Techfest) — Security of Drones, Objective 2**.
+For demonstrating the Stage 2 UAV Intrusion Detection System (passive demo; the defense layer is shown as a **simulation model**; the inline bridge was verified on ArduCopter SITL and on a bench with a real Pixhawk 6X, disarmed, over a real radio pair
+(`docs/RADIO_TEST_RESULTS.md`), not in flight, and no prevention is demonstrated on a flying vehicle) for **PUSHPAK Grand Challenge 2026-27 (IIT Bombay Techfest) — Security of Drones, Objective 2**.
 A teammate can run this without the original author.
 **For recording the submission video use `docs/DEMO_SCRIPT_SOFTWARE_ONLY.md`** (a narrated, step-by-step plan with environment labels
 and a limitation segment); this file is the longer feature tour.
@@ -9,7 +9,8 @@ and a limitation segment); this file is the longer feature tour.
 > **What this demo is (2026-10-29).** Segments 1–7 run on the **SIM** source: the dashboard drives a simulator and a cyber-physical
 > *twin*. Detection times, "detour" and "vehicle remains airborne" are what that model shows; they are **not measurements** of a
 > vehicle, and no prevention metric exists (`docs/VALIDATION_EVIDENCE.md`). The map panel is a local-frame track (no tiles, no
-> internet). On live and replayed sources the defense layer is report-only (`active-ips` is refused).
+> internet). On a serial-device source `active-ips` is refused (receive-only); on replay nothing is sent (no transport); on a
+> UDP or `socket://` (SITL) link `active-ips` does send counter-commands.
 >
 > **Real-data segment (REPLAY of BENCH data, receive-only, nothing is sent anywhere)** — the 2026-10-28 capture of the powered-on vehicle:
 > ```bash
@@ -36,14 +37,16 @@ pytest tests/unit/test_mitigation.py tests/unit/test_hal.py -q   # 34 tests pass
 
 ## Startup
 ```bash
-aegis serve --defense-mode active-ips         # http://127.0.0.1:8000
+aegis serve                                   # http://127.0.0.1:8000 (SIM source, passive posture)
 ```
+Then switch the posture to **ACTIVE IPS** in the dashboard to show the SIM defense twin. On the SIM source there is no
+transport, so nothing is sent anywhere. Do not start a live (UDP / `socket://`) source in `active-ips` for this demo.
 Or launch the native desktop GCS:
 ```bash
 cd frontend && cargo tauri dev
 ```
 The GCS displays:
-- **● ACTIVE IPS** (Autonomous Mitigation Enabled)
+- **● ACTIVE IPS** (after the posture switch; SIM model only)
 - **● Connected** (10 Hz WebSocket telemetry)
 - **Topology: SIM (modelled inline twin)**
 - **Live Vehicle Head Pill**: `[COPTER_MODE_GUIDED · 12.0 m/s · 60.0 m]`
@@ -58,19 +61,22 @@ The GCS displays:
 - Click **GPS Spoofing**.
 - **Detection** (SIM; the on-screen latency is not an artifact-backed figure — quote `artifacts/benchmarks/summary.md`: mean 0.361 s, p95 1.40 s): Physics + Anomaly detectors trigger (`HIGH / GPS_SPOOFING`).
 - **Autonomous Mitigation**:
-  - In **Topology B** (Inline): `aegis ips-bridge` (`docs/INLINE_IPS.md`) drops hostile uplink frames before the autopilot and corrects spoofed position on the downlink; the dashboard's SIM twin shows the effect as a model (no measured detour). Verified on ArduCopter SITL / loopback only, not on hardware.
-  - In **Topology A** (Sidecar): the controller encodes counter-commands (EKF source switch only with a declared secondary source, otherwise ALT_HOLD; mode restore for command injection) and sends them in ACTIVE_IPS only; the dashboard shows the command it would send.
+  - In **Topology B** (Inline): `aegis ips-bridge` (`docs/INLINE_IPS.md`) drops hostile uplink frames before the autopilot and corrects spoofed position on the downlink; the dashboard's SIM twin shows the effect as a model (no measured detour). Verified on ArduCopter SITL / loopback and on a bench with a real Pixhawk 6X, disarmed (`docs/RADIO_TEST_RESULTS.md`); not in flight.
+  - In **Topology A** (Sidecar): the controller encodes counter-commands (EKF source switch only with a declared secondary source, otherwise ALT_HOLD; mode restore for command injection) and sends them in ACTIVE_IPS only, and only on a UDP or `socket://` (SITL) link; the dashboard shows the command it would send. In the one ArduCopter SITL sidecar run the vehicle was not recovered from an injected LAND (`docs/INLINE_IPS.md`).
 - Notice the vehicle track continues smoothly along the planned trajectory without jumping or diverging.
 
 ## Segment 3 — Command Injection & Failsafe Veto
 - Click **Command Injection** (e.g., unauthorized land or forced disarm).
-- **Veto Execution**: Mitigation engine detects cadence/provenance violation (`AF-SEC-01`), rejects the rogue command, and notifies the GCS via `STATUSTEXT` banner: `[AEGIS-DEFENSE] Disarm vetoed: altitude > 2m in flight`.
+- **Flagged, not blocked**: the mitigation controller detects the cadence/provenance violation and records a `VETO_DISARM` action ("Flagged motor arm/disarm command burst in flight (not blocked)", `src/aegisflight/mitigation/controller.py`). The command is not rejected and no veto banner is sent.
 - In the SIM twin the vehicle remains airborne and continues the mission (a model of what a veto would do; nothing was vetoed on a vehicle).
 
 ## Segment 4 — Denial of Service & High-Rate Flood
 - Click **Denial of Service**.
 - Threat state escalates to `CRITICAL / DOS`.
-- `FloodMitigator` isolates the rogue telemetry stream; heartbeat and critical attitude frames are preserved on priority channels.
+- `MitigationController` (`src/aegisflight/mitigation/controller.py`) records a `RATE_LIMIT` action for `DOS_FLOOD` / `MAV_RATE_SPIKE` and sets the
+  sanitizer's rate-limit flag after 3 consecutive DoS ticks; `FrameSanitizer` then drops every msgid except HEARTBEAT, ATTITUDE,
+  GLOBAL_POSITION_INT and COMMAND_LONG and caps those at 120 frames/s (`mitigation/sanitizer.py`). Frames are dropped only on the
+  inline bridge; on the SIM source this is the model's view. A blackout (`DOS_BLACKOUT`) records `LINK_WATCHDOG`.
 
 ## Segment 5 — Hardware Abstraction Layer & Topology Detection
 - In the **Defense HUD**, read the **detected topology** (no selector): `A` sidecar, `A+B` inline bridge, or SIM/REPLAY. It lists what it can do (block frames, send counter-commands) from the live link and posture.
@@ -81,7 +87,7 @@ The GCS displays:
   ```bash
   aegis verify-log artifacts/aegisflight_live.sqlite
   ```
-- Terminal outputs: `Chain status: OK (N events verified, zero mutations)`.
+- Terminal prints `events: <N>  chain: OK  ...` (`_cmd_verify_log` in `src/aegisflight/cli/main.py`).
 - Explains the SHA-256 hash chain over alerts (`aegis verify-log`); no airworthiness compliance is claimed.
 
 ## Segment 7 — Automated Verification Benchmarks
