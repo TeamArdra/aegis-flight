@@ -51,13 +51,13 @@ class CusumDriftIntegrator:
 
     def update_displacement(self, inc_n_m: float, inc_e_m: float, dt: float) -> float:
         """Update 2D CUSUM state from a step displacement residual (inc_n, inc_e) over dt."""
-        if dt <= 0.0:
+        if dt <= 0.0 or not (math.isfinite(inc_n_m) and math.isfinite(inc_e_m) and math.isfinite(dt)):
             return self.magnitude_m
         un = self.s_north_m + inc_n_m
         ue = self.s_east_m + inc_e_m
         umag = math.hypot(un, ue)
         allowance = self.slack_ms * dt
-        if umag > allowance and umag > 1e-12:
+        if math.isfinite(umag) and umag > allowance and umag > 1e-12:
             scale = (umag - allowance) / umag
             self.s_north_m = un * scale
             self.s_east_m = ue * scale

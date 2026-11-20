@@ -99,6 +99,8 @@ class RateLimiter:
         """Record an authentication failure; return Retry-After seconds if lockout triggered."""
         t = time.monotonic() if now is None else float(now)
         with self._lock:
+            if key not in self._failures and len(self._failures) >= 4096:
+                self._failures.pop(next(iter(self._failures)))
             q = self._failures.setdefault(key, deque())
             cutoff = t - self.window_s
             while q and q[0] < cutoff:
@@ -106,6 +108,8 @@ class RateLimiter:
             q.append(t)
             if len(q) >= self.max_failures:
                 q.clear()
+                if key not in self._locked_until and len(self._locked_until) >= 4096:
+                    self._locked_until.pop(next(iter(self._locked_until)))
                 self._locked_until[key] = t + self.lockout_s
                 return int(self.lockout_s)
         return None

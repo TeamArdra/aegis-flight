@@ -303,9 +303,12 @@ class ProtocolDetector(Detector):
         ]
         if rogue_telemetry:
             bump(AttackType.MAVLINK_ANOMALY, 0.9)
+            shown = rogue_telemetry[:16]
+            extra = f" (+{len(rogue_telemetry) - 16} more)" if len(rogue_telemetry) > 16 else ""
             evidence.append(
                 "rogue telemetry source(s): "
-                + ", ".join(f"sys{s}/comp{c}" for s, c in rogue_telemetry)
+                + ", ".join(f"sys{s}/comp{c}" for s, c in shown)
+                + extra
             )
         signals["n_sources"] = float(frame.n_sources)
 
@@ -470,6 +473,8 @@ class ProtocolDetector(Detector):
                             f"at groundspeed={snap.groundspeed:.1f} m/s"
                         )
                 seen_in_window[key] = c.recv_time
+                if key not in self._last_cmd_seen and len(self._last_cmd_seen) >= 512:
+                    self._last_cmd_seen.pop(next(iter(self._last_cmd_seen)))
                 self._last_cmd_seen[key] = c.recv_time
 
         # ---- airborne semantic firewall (PARAM_SET / geofence mutations while armed) ----
@@ -506,7 +511,9 @@ class ProtocolDetector(Detector):
                 self._sig_t0 = frame.t
             if sig_verified_streams:
                 # Settle window closes permanently for verified streams; never re-opens.
-                self._sig_verified_streams.update(sig_verified_streams)
+                for sk in sig_verified_streams:
+                    if len(self._sig_verified_streams) < 512 or sk in self._sig_verified_streams:
+                        self._sig_verified_streams.add(sk)
 
             # 1) Invalid / rejected signatures (with per-stream bootstrap settle window)
             if sig_invalid_streams is not None:

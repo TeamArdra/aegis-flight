@@ -74,6 +74,7 @@ class MitigationController:
         self._last_cmd_t: dict[str, float] = {}
         self._last_refusal_log_t: dict[tuple[str, str], float] = {}
         self._last_cmd_name: str | None = None
+        self._last_t: float = 0.0
         self._last_observed_flight_mode: str | None = None
         self._ips_requested_mode: tuple[str, float] | None = None
         self._quarantined_sysids: set[int] = set()
@@ -129,6 +130,7 @@ class MitigationController:
         self._last_cmd_t.clear()
         self._last_refusal_log_t.clear()
         self._last_cmd_name = None
+        self._last_t = 0.0
         self._last_observed_flight_mode = None
         self._ips_requested_mode = None
         self._quarantined_sysids.clear()
@@ -182,6 +184,7 @@ class MitigationController:
     def step(self, frame: FeatureFrame, asmt: ThreatAssessment) -> MitigationAction:
         """Process one decision tick through the mitigation state machine."""
         t = asmt.t
+        self._last_t = t
         ap_id = getattr(frame, "autopilot_id", None)
         mv_type = getattr(frame, "mav_type", None)
         if ap_id is not None:
@@ -563,6 +566,7 @@ class MitigationController:
 
     def manual_override(self, action: str) -> MitigationAction:
         """Handle manual GCS operator override commands."""
+        t = self._last_t or self.golden.anchor_t or 0.0
         counter_frames: list[bytes] = []
         if action == "safe_hold":
             self.state = MitigationState.SAFE_HOLD
@@ -570,34 +574,34 @@ class MitigationController:
             if self.mode == DefenseMode.ACTIVE_IPS and safe_mode is not None and self.actuator.knows_mode(safe_mode):
                 counter_frames.append(self.actuator.encode_set_mode(safe_mode))
                 self._last_cmd_name = f"SET_MODE_{safe_mode}"
-                self._ips_requested_mode = (safe_mode, self.golden.anchor_t or 0.0)
+                self._ips_requested_mode = (safe_mode, t)
                 summary = f"[AEGIS DEF] MANUAL OVERRIDE: Engaged SAFE_HOLD ({safe_mode})"
-                self._add_action(0.0, "MANUAL_SAFE_HOLD", f"Pilot engaged manual SAFE_HOLD override ({safe_mode})")
+                self._add_action(t, "MANUAL_SAFE_HOLD", f"Pilot engaged manual SAFE_HOLD override ({safe_mode})")
             elif self.mode == DefenseMode.ACTIVE_IPS:
                 summary = "[AEGIS DEF] MANUAL OVERRIDE: SAFE_HOLD state flagged (unmapped vehicle dialect; 0 mode frames sent)"
-                self._add_action(0.0, "MANUAL_SAFE_HOLD", "Pilot engaged SAFE_HOLD state (mode unmapped for dialect)")
+                self._add_action(t, "MANUAL_SAFE_HOLD", "Pilot engaged SAFE_HOLD state (mode unmapped for dialect)")
             elif self.mode == DefenseMode.ADVISORY:
                 summary = "[AEGIS ADV] MANUAL OVERRIDE: SAFE_HOLD state flagged"
-                self._add_action(0.0, "MANUAL_SAFE_HOLD", "Pilot flagged manual SAFE_HOLD advisory")
+                self._add_action(t, "MANUAL_SAFE_HOLD", "Pilot flagged manual SAFE_HOLD advisory")
             else:
                 summary = "[AEGIS IDS] MANUAL OVERRIDE: SAFE_HOLD flagged (0 bytes sent)"
-                self._add_action(0.0, "MANUAL_SAFE_HOLD", "Operator flagged manual SAFE_HOLD state (passive)")
+                self._add_action(t, "MANUAL_SAFE_HOLD", "Operator flagged manual SAFE_HOLD state (passive)")
         elif action == "reset_quarantine":
             self._quarantined_sysids.clear()
             self.sanitizer.quarantined_sysids.clear()
             summary = "[AEGIS DEF] MANUAL OVERRIDE: Reset quarantined sysids"
-            self._add_action(0.0, "RESET_QUARANTINE", "Pilot flushed quarantined system IDs")
+            self._add_action(t, "RESET_QUARANTINE", "Pilot flushed quarantined system IDs")
         elif action == "ack_takeover":
             self._gps_cancelled = True
             self._safe_hold_alt_hold_sent = True
             self.state = MitigationState.NOMINAL
             summary = "[AEGIS DEF] MANUAL OVERRIDE: Acknowledged pilot takeover (IPS mode commands cancelled)"
-            self._add_action(0.0, "ACK_TAKEOVER", "Pilot acknowledged takeover -> Reset to nominal baseline")
+            self._add_action(t, "ACK_TAKEOVER", "Pilot acknowledged takeover -> Reset to nominal baseline")
         else:
             summary = f"[AEGIS DEF] Unknown override action '{action}'"
 
         return MitigationAction(
-            t=0.0,
+            t=t,
             mode=self.mode,
             state=self.state,
             sub_mode=AttackSubMode.NONE,

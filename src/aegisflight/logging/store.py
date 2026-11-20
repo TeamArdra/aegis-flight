@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS events (
     prev_hash TEXT NOT NULL,
     hash TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_events_run ON events(run_id);
+CREATE INDEX IF NOT EXISTS idx_events_run ON events(run_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_events_t ON events(t);
 
 CREATE TABLE IF NOT EXISTS runs (
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS actions (
     prev_hash TEXT NOT NULL,
     hash TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_actions_run ON actions(run_id);
+CREATE INDEX IF NOT EXISTS idx_actions_run ON actions(run_id, id DESC);
 """
 
 

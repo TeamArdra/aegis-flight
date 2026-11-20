@@ -519,14 +519,9 @@ class InlinePolicy:
             if ctx.sysid in self.protected_sysids:
                 # the vehicle's own telemetry may be rewritten (GPS / altitude) but a protected sysid is never
                 # quarantined and never shed by the flood gatekeeper: dropping the flight controller's telemetry
-                # on a false or soft rate alarm would blind the pilot
-                saved, san.quarantined_sysids = san.quarantined_sysids, set()
-                saved_rl, san.rate_limit_active = san.rate_limit_active, False
-                try:
-                    out = san(ctx)
-                finally:
-                    san.quarantined_sysids = saved
-                    san.rate_limit_active = saved_rl
+                # on a false or soft rate alarm would blind the pilot. Pass bypass_quarantine_and_qos=True to avoid
+                # mutating shared sanitizer attributes across threads.
+                out = san(ctx, bypass_quarantine_and_qos=True)
             else:
                 out = san(ctx)
             if not out:
@@ -826,7 +821,8 @@ class InlinePolicy:
             return
         if ctx.msgid == _MSG_HEARTBEAT:
             p = _payload(ctx.raw)
-            if p is not None and len(ctx.raw) >= 12:
+            # Ignore GCS (type=6) and non-autopilot peripheral/companion heartbeats (autopilot=8)
+            if p is not None and len(ctx.raw) >= 12 and p[4] != 6 and p[5] != 8:
                 self.armed = bool(p[6] & 0x80)  # base_mode SAFETY_ARMED
         elif ctx.msgid == _MSG_GLOBAL_POSITION_INT:
             p = _payload(ctx.raw)

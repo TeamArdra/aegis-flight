@@ -260,6 +260,8 @@ class MavlinkSignatureVerifier:
                 timestamp_10us=timestamp_10us,
             )
 
+        if stream_key not in self._last_timestamps and len(self._last_timestamps) >= 1024:
+            self._last_timestamps.pop(next(iter(self._last_timestamps)))
         self._last_timestamps[stream_key] = timestamp_10us
         self.valid_count += 1
         return SignatureCheckResult(

@@ -707,7 +707,11 @@ class InlineIpsBridge:
     # -- observability ------------------------------------------------------- #
 
     def status(self) -> dict[str, Any]:
-        lat = sorted(self._lat_us)
+        try:
+            lat_snap = list(self._lat_us)
+        except RuntimeError:
+            lat_snap = []
+        lat = sorted(lat_snap)
 
         def pct(q: float) -> float | None:
             return round(lat[min(len(lat) - 1, int(q * len(lat)))], 1) if lat else None
