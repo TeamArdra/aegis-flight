@@ -358,6 +358,13 @@ class FeatureExtractor:
         self._mav_type: int | None = None
         self._primary_vehicle_src: tuple[int, int] | None = None
         self._primary_hb_t: float = -1e9
+        # Reconnect resync: after a local port outage the heartbeat/GPS ages and the sequence
+        # counters still reflect the pre-unplug stream. Keep reporting a transport fault until a
+        # fresh heartbeat arrives (bounded), so an unplug/replug is never scored as RF DoS.
+        self._was_disconnected: bool = False
+        self._resync_pending: bool = False
+        self._resync_hb_t: float = -1e9
+        self._resync_start_t: float | None = None
         self._param_writes: deque[tuple[float, int, int, str, float]] = deque(maxlen=100)
         self._fence_changes: deque[tuple[float, int, int, str, int]] = deque(maxlen=100)
         self._optflow_speed: float | None = None
@@ -398,7 +405,30 @@ class FeatureExtractor:
 
     def note_transport_connected(self, connected: bool) -> None:
         """Record underlying link connection state (False on local serial/socket disconnect)."""
-        self._transport_connected = bool(connected)
+        connected = bool(connected)
+        if not connected:
+            self._was_disconnected = True
+            self._resync_pending = False
+        elif self._was_disconnected:
+            self._was_disconnected = False
+            self._resync_pending = True
+            self._resync_hb_t = self._last_heartbeat_t
+            self._resync_start_t = None
+            self._seq_state.clear()  # counters restart across an unplug: not a loss/flood signal
+            self._seq_gap.clear()
+        self._transport_connected = connected
+
+    _RESYNC_MAX_S = 5.0
+
+    def _resyncing(self, t: float) -> bool:
+        if not self._resync_pending:
+            return False
+        if self._resync_start_t is None:
+            self._resync_start_t = t
+        if self._last_heartbeat_t > self._resync_hb_t or t - self._resync_start_t > self._RESYNC_MAX_S:
+            self._resync_pending = False
+            return False
+        return True
 
     def update(self, msg: MessageEnvelope) -> None:
         t = msg.recv_time
@@ -915,7 +945,7 @@ class FeatureExtractor:
             mission_xtrack_m=m_xt,
             mission_wp_dist_m=m_wd,
             mission_wp_seq=m_seq,
-            transport_connected=self._transport_connected,
+            transport_connected=self._transport_connected and not self._resyncing(t),
             autopilot_id=self._autopilot_id,
             mav_type=self._mav_type,
             param_writes_recent=params_recent,
