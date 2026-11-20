@@ -110,7 +110,12 @@ AegisFlight examples: `.github/claude/review-policy.md`.
 
 **Escalation mechanism**: the reviewer sets `escalate=true` for frozen-contract, hash-chain,
 signing/key, receive-only-serial, bind-address, `.github/`, threshold/fusion, evidence-claim,
-architectural changes, any P0, or an uncertain P1. The workflow adds
+architectural changes, any P0, any SAFETY or CONTRACT_VIOLATION finding, or a Confirmed P1
+whose impact or approval status is not established (an unconfirmed risk is a Plausible P2,
+never a P1). Documented commands or defaults that enable transmission, `active-ips`, a
+non-loopback bind or arming are read in full, and an unsafe documented default is a SAFETY
+finding. A link counts as physical unless the code restricts it to loopback or local SITL
+(policy section 4.1). The workflow adds
 `claude:escalation-recommended`. A maintainer then (a) asks the human domain owner to review
 and/or (b) adds `claude:deep-review` for an Opus review. Humans always own security-sensitive
 architectural decisions.

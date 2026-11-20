@@ -159,15 +159,23 @@ added_line_patterns = ['may_reach_vehicle', 'mav\.send\(', '\.mav\.[a-z_]+_send\
 # ARM_DISARM to detect attacks are not routed by this rule. Routing only; whether it is a
 # defect is the reviewer's call (review-policy.md section 4). Calibrated on PRs #55, #67,
 # #70, #72, #76, #77. Never relaxed to unblock a feature.
+# Shapes covered (each has a positive and a negative test in
+# tests/automation/test_automation_review_classification.py):
+#   pymavlink send AND encode (`*_encode(...).pack()` + a raw write is a send path too),
+#   MAVLink_*_message construction, pymavlink mavutil helpers (`.set_mode("GUIDED")`,
+#   `.arducopter_arm()`), project command wrappers (`send_command(...)`), mission clearing,
+#   RC override and GPS injection. `artifacts/*.py` holds runnable bench/SITL scripts.
 [escalation.vehicle_command_capability]
-description = "code that sends or builds arm, mode, parameter, mission or movement commands"
+description = "code that sends or builds arm, mode, parameter, mission, movement, RC-override or GPS-injection commands"
 paths = []
-content_globs = ["src/*.py", "scripts/*.py", "backend/*.py"]
+content_globs = ["src/*.py", "scripts/*.py", "backend/*.py", "artifacts/*.py"]
 added_line_patterns = [
   '\b21196(\.0*)?\b',
   '(?i)force[_-]?arm',
-  '(command_long|command_int|set_mode|param_set|mission_item(_int)?|mission_count|set_position_target_[a-z_]+|set_attitude_target|manual_control)_send\(',
-  'MAVLink_(command_long|command_int|set_mode|param_set|mission_item(_int)?|mission_count|set_position_target_[a-z_]+|set_attitude_target|manual_control)_message\(',
+  '(command_long|command_int|set_mode|param_set|mission_item(_int)?|mission_count|mission_clear_all|mission_set_current|set_position_target_[a-z_]+|set_attitude_target|manual_control|rc_channels_override|gps_input|hil_gps|gps_inject_data|set_gps_global_origin|set_home_position)_(send|encode)\(',
+  'MAVLink_(command_long|command_int|set_mode|param_set|mission_item(_int)?|mission_count|mission_clear_all|mission_set_current|set_position_target_[a-z_]+|set_attitude_target|manual_control|rc_channels_override|gps_input|hil_gps|gps_inject_data|set_gps_global_origin|set_home_position)_message\(',
+  '\.(set_mode(_[a-z0-9]+)?|arducopter_(arm|disarm)|reboot_autopilot|set_servo|set_relay)\(',
+  '\bsend_(command|cmd)(_long|_int)?\(',
 ]
 
 [escalation.frozen_contracts]

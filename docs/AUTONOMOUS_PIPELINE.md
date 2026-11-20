@@ -120,7 +120,13 @@ its JSON schema from the PR's **base** branch with `git archive`.
 
 One JSON document per review run (`scripts/aegis_automation/review_record.py`), uploaded as
 artifact `aegis-review-record` (90-day retention) and embedded in the merge audit comment
-when a PR is merged (permanent). Schema `aegis.review-record/v2` (the gate still accepts v1 records, which have no categories):
+when a PR is merged (permanent). Schema `aegis.review-record/v2`. The gate re-validates every
+stored record before using it (`validate_record`): exact finding fields per schema, counts,
+`info_count`, the classification rules, verdict and `valid` derived from the findings, and
+forced escalation. A record that fails is ignored (G09 fails; the PR goes to a human). v1
+records (no categories) are still accepted if they have exactly the v1 shape (no `category`,
+`INFO` or `info_count`, which mark a downgraded v2 record) and every P0/P1 finding was
+escalated, because without categories a v1 P0/P1 may be a safety or contract finding:
 
 | Field | Meaning |
 |---|---|
@@ -204,7 +210,7 @@ reviewer's own `escalate` flag:
 | `automation_governance` | `.github/**` (workflows, reviewer policy, rulesets docs, CODEOWNERS, this policy), `scripts/aegis_automation/**`, `tests/automation/**`, `AGENTS.md`, `CLAUDE.md`, `.claude/**`, automation docs |
 | `secrets_and_auth` | MAVLink signing, `*signing*`, `*secret*`, `*credential*`, key files; added private keys or tokens |
 | `vehicle_link_safety` | serial/live sources, inline IPS, `mitigation/`, `proxy/`, `hal/`, SITL scripts; added `may_reach_vehicle`/MAVLink send calls |
-| `vehicle_command_capability` | added code that sends or builds arm/force-arm (`21196`), mode, parameter, mission or movement commands in any `src/`, `scripts/` or `backend/` Python file (parsing such messages to detect them does not count) |
+| `vehicle_command_capability` | added code that sends or builds arm/force-arm (`21196`), mode, parameter, mission, movement, RC-override or GPS-injection commands in any `src/`, `scripts/`, `backend/` or `artifacts/` Python file: pymavlink `*_send(`/`*_encode(`, `MAVLink_*_message(`, mavutil helpers (`.set_mode(`, `.arducopter_arm(`) and `send_command(` wrappers (parsing such messages to detect them does not count; `.set_mode(` also routes IDS defence-posture changes, by design) |
 | `frozen_contracts` | `core/`, `features/extractor.py`, `mavlink/codec.py`, `attacks/base.py`, `benchmark/`, `metrics/`, `docs/HANDOFF.md` |
 | `event_log_integrity` | `logging/`, `integrity/` |
 | `detector_metrics` | `detectors/`, `fusion/`, `features/`, `pipeline.py`, `config.py`, `configs/`, `models/`, training scripts |

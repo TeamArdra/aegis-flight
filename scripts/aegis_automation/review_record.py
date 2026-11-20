@@ -396,41 +396,120 @@ def build_record(*, output_text: str | None, outcome: str, meta: dict[str, Any])
     }
 
 
+V1_SCHEMA_ID = "aegis.review-record/v1"
+# Exact finding shapes written by each builder version. A v1 record never had `category`,
+# `INFO` or `info_count`; their presence in a record that calls itself v1 means it was not
+# written by the v1 builder (a downgrade to dodge the v2 checks), so it is rejected.
+_V1_FINDING_KEYS = frozenset({"id", "severity", "confidence", "path", "line", "title"})
+_V2_FINDING_KEYS = _V1_FINDING_KEYS | {"category"}
+# Verdicts derived from findings; ERROR/INCOMPLETE records are never valid (G09 fails them).
+_COUNTED_VERDICTS = ("READY", "NON_BLOCKING", "BLOCKING")
+
+
+def _verdict_for_counts(counts: dict[str, int]) -> str:
+    if counts["p0"] + counts["p1"] > 0:
+        return "BLOCKING"
+    return "NON_BLOCKING" if counts["p2"] > 0 else "READY"
+
+
+def legacy_forced_escalation(findings: list[dict[str, Any]]) -> list[str]:
+    """v1 findings have no category, so a SAFETY or CONTRACT_VIOLATION finding cannot be told
+    apart from any other P0/P1. Conservatively, every v1 P0/P1 must have been escalated."""
+    return [f["id"] for f in findings if f.get("severity") in ("P0", "P1")]
+
+
+def _finding_problems(findings: list[Any], schema: str) -> list[str]:
+    keys = _V2_FINDING_KEYS if schema == SCHEMA_ID else _V1_FINDING_KEYS
+    severities = FINDING_SEVERITIES if schema == SCHEMA_ID else SEVERITIES
+    errs: list[str] = []
+    seen: set[str] = set()
+    for i, f in enumerate(findings):
+        if not isinstance(f, dict):
+            errs.append(f"record finding {i} is not an object")
+            continue
+        if set(f) != keys:
+            extra, missing = sorted(set(f) - keys), sorted(keys - set(f))
+            hint = " (v2 fields in a v1 record: schema downgrade)" if schema != SCHEMA_ID and (
+                "category" in extra) else ""
+            errs.append(f"record finding {i} keys invalid for {schema}: "
+                        f"extra={extra} missing={missing}{hint}")
+            continue
+        if not isinstance(f["id"], str) or not FINDING_ID.match(f["id"]) or f["id"] in seen:
+            errs.append(f"record finding {i} id invalid or duplicated")
+        else:
+            seen.add(f["id"])
+        if f["severity"] not in severities:
+            errs.append(f"record finding {i} severity {f['severity']!r} not allowed in {schema}")
+        if f["confidence"] not in ("Confirmed", "Plausible"):
+            errs.append(f"record finding {i} confidence invalid")
+        if schema == SCHEMA_ID and f["category"] not in CATEGORIES:
+            errs.append(f"record finding {i} category invalid")
+        if not isinstance(f["path"], str) or not isinstance(f["title"], str) or _int(f["line"]) is None:
+            errs.append(f"record finding {i} location malformed")
+    return errs
+
+
 def validate_record(record: Any) -> list[str]:
-    """Validate a record downloaded by the merge gate. Empty list = structurally valid."""
+    """Validate a record downloaded by the merge gate. Empty list = valid.
+
+    Stored records are re-checked in full, never trusted as written: the gate applies the
+    same invariants the builder enforced (counts, INFO count, classification rules, verdict
+    derivation, forced escalation), so an edited record is rejected rather than obeyed.
+    Rejection fails closed: the gate treats the PR as having no valid review (G09).
+    """
     if not isinstance(record, dict):
         return ["record is not an object"]
     errs: list[str] = []
-    if record.get("schema") not in ACCEPTED_SCHEMAS:
-        errs.append(f"unknown record schema {record.get('schema')!r}")
+    schema = record.get("schema")
+    if schema not in ACCEPTED_SCHEMAS:
+        errs.append(f"unknown record schema {schema!r}")
     if not isinstance(record.get("head_sha"), str) or not SHA.match(record["head_sha"]):
         errs.append("record head_sha is not a full SHA")
     if not isinstance(record.get("pr_number"), int):
         errs.append("record pr_number missing")
-    if record.get("verdict") not in VERDICTS:
+    verdict = record.get("verdict")
+    if verdict not in VERDICTS:
         errs.append("record verdict invalid")
-    counts = record.get("counts")
-    findings = record.get("findings")
-    if not isinstance(findings, list) or not isinstance(counts, dict):
-        errs.append("record findings/counts missing")
-    else:
-        try:
-            if counts_from_findings(findings) != {k: counts.get(k) for k in ("p0", "p1", "p2", "p3")}:
-                errs.append("record counts do not match its findings")
-        except (KeyError, AttributeError, TypeError):
-            errs.append("record findings malformed")
-        else:
-            if record.get("schema") == SCHEMA_ID:
-                if any(not isinstance(f, dict) or f.get("category") not in CATEGORIES
-                       for f in findings):
-                    errs.append("record finding category invalid")
-                elif forced_escalation(findings) and record.get("escalate") is not True:
-                    errs.append("record has safety/contract/P0 findings but is not escalated")
+    if not isinstance(record.get("valid"), bool) or record["valid"] != (verdict in _COUNTED_VERDICTS):
+        errs.append("record valid flag inconsistent with its verdict")
     for key in ("previous_findings", "acceptance_criteria"):
         if not isinstance(record.get(key), list):
             errs.append(f"record {key} missing")
-    if not isinstance(record.get("escalate"), bool):
+    escalate = record.get("escalate")
+    if not isinstance(escalate, bool):
         errs.append("record escalate flag missing")
+    counts = record.get("counts")
+    findings = record.get("findings")
+    if not isinstance(findings, list) or not isinstance(counts, dict):
+        return [*errs, "record findings/counts missing"]
+    if schema not in ACCEPTED_SCHEMAS:
+        return errs
+    shape = _finding_problems(findings, schema)
+    if shape:
+        return errs + shape
+    # From here every finding has exactly the keys and enum values its schema allows.
+    real = counts_from_findings(findings)
+    if set(counts) != set(real) or any(counts[k] != real[k] for k in real):
+        errs.append("record counts do not match its findings")
+    if schema == SCHEMA_ID:
+        if record.get("info_count") != info_count(findings):
+            errs.append("record info_count does not match its findings")
+        if verdict in _COUNTED_VERDICTS:
+            # INCOMPLETE records may hold the mislabelled findings that made them incomplete.
+            errs.extend(f"record classification: {p}" for p in classification_problems(findings))
+        forced = forced_escalation(findings)
+        if forced and escalate is not True:
+            errs.append(f"record has safety/contract/P0 findings {forced} but is not escalated")
+    else:
+        if "info_count" in record:
+            errs.append("record declares v1 but carries the v2 field info_count (schema downgrade)")
+        forced = legacy_forced_escalation(findings)
+        if forced and escalate is not True:
+            errs.append(f"legacy v1 record has P0/P1 findings {forced} but is not escalated "
+                        "(categories unknown, so they may be safety or contract findings)")
+    if verdict in _COUNTED_VERDICTS and verdict != _verdict_for_counts(real):
+        errs.append(f"record verdict {verdict} does not follow from its findings "
+                    f"({_verdict_for_counts(real)})")
     return errs
 
 

@@ -71,7 +71,12 @@ safety invariant (section 4) is a SAFETY finding however intentional it is.
      simulator (`sources/`, `hal/`, `mitigation/`, `proxy/`, `mavlink/`, `gcs_notifier`,
      serial/port discovery, anything calling `send`, `write`, `*_send(`), authentication,
      signing and key handling, deserialisation (`joblib`, `pickle`, `yaml.load`), network
-     listeners and API routes, the event log and hash chain, and integrity checks.
+     listeners and API routes, the event log and hash chain, and integrity checks. Also
+     **every documented operating instruction that can make the system transmit or act on
+     a vehicle**, wherever it lives (docs, README, runbooks, quickstarts, script help text,
+     config examples): a command or default that enables transmission or `active-ips`,
+     binds a listener to a non-loopback address (`0.0.0.0`, a LAN IP), arms the vehicle,
+     changes its mode or parameters, or points a tool at a real serial or vehicle port.
    - **Tier 2, read changed functions and their tests:** detectors, features, fusion,
      pipeline wiring, configuration loading and defaults, benchmark code, worker threads
      and background tasks. Also **every claim-bearing text**, wherever it lives: docs,
@@ -99,7 +104,8 @@ safety invariant (section 4) is a SAFETY finding however intentional it is.
    unsigned, secrets logged or committed, bind addresses (nothing on `0.0.0.0` by default),
    attack tooling target restriction.
 3. **Vehicle-command paths:** for every new or changed path that can send a MAVLink message,
-   establish *which link* it can reach (serial/physical vs UDP/SITL), *which messages*
+   establish *which link* it can reach (a physical vehicle link as defined in section 4.1,
+   or a link restricted in code to local SITL), *which messages*
    (telemetry, STATUSTEXT, COMMAND_LONG, SET_MODE, PARAM_SET, mission items), *under which
    mode and default*, and whether the gate is enforced **in code** rather than by
    configuration or documentation. Apply section 4.
@@ -123,7 +129,12 @@ safety invariant (section 4) is a SAFETY finding however intentional it is.
    skipped or weakened tests; golden fixtures regenerated without explanation; changed CLI
    behaviour that scripts rely on. A regenerated fixture is not a defect by itself; an
    **unexplained or unverified** one is an `EVIDENCE_GAP`, and a demonstrably wrong one is a
-   `REGRESSION`.
+   `REGRESSION`. **Test integrity:** a test that is deleted, skipped, marked `xfail`, or has
+   its assertion loosened (wider tolerance, removed check, expected value changed to the new
+   output) so that the suite passes is a `REGRESSION`: **P1** when the test guards a
+   safety, security or frozen-contract behaviour (receive-only, signing, fail-closed gates,
+   hash chain, `ML_FEATURES`, Stage-1 counts), **P2** otherwise. A test replaced by an
+   equivalent or stronger one, with the reason stated, is not a finding.
 8. **Tests:** behaviour changes have tests that would fail without the change; tests are
    deterministic (seeds, `tmp_path`, no wall-clock races); safety gates have negative tests.
 9. **Evidence and claims:** every new number names its artifact path, environment tag
@@ -139,7 +150,17 @@ safety invariant (section 4) is a SAFETY finding however intentional it is.
    an `EVIDENCE_GAP`. A fabricated or hand-edited result is a P0 `SECURITY` (integrity)
    finding. "Already merged" or "identical to another branch" is never a reason to skip
    reviewing a file that is in the diff.
-10. **Acceptance criteria:** record each criterion of the linked issue in
+10. **Documentation in sync:** when the PR changes behaviour, a CLI flag, a default, an
+   output format or a safety property, the docs that describe it (`docs/DEVELOPMENT.md`
+   lists them; also README, runbooks and dashboard help) are updated in the same PR. Docs
+   left describing the old behaviour are an `EVIDENCE_GAP` (P2; P3 if purely cosmetic).
+   Documented operating instructions (tier 1, section 2) are checked against the code: a
+   documented command, flag or default that enables transmission or `active-ips`, binds to
+   a non-loopback address, arms, or changes mode or parameters, **without** stating that
+   it is restricted to SIM or local SITL and without the code enforcing that restriction,
+   is an **unsafe documented default**: a `SAFETY` finding (section 4.1). A documented
+   command that does not exist or has the wrong flags is a `DEFECT` (P2).
+11. **Acceptance criteria:** record each criterion of the linked issue in
    `acceptance_criteria` as met / not_met / cannot_verify. The merge gate enforces them;
    do **not** duplicate an unmet criterion as a finding unless the PR *claims* to meet it
    (then it is an `EVIDENCE_GAP`). Work beyond the issue's wording is not a finding.
@@ -152,6 +173,21 @@ frozen contracts, the migration evidence listed here. Without it, report the ite
 
 ### 4.1 Flight-safety and vehicle-control boundaries (`SAFETY`)
 
+**Physical vehicle link (definition used throughout this policy).** A link is a *physical
+vehicle link* unless the code restricts its endpoint to loopback (`127.0.0.0/8`, `::1`) or
+the local SITL network, by an address check in code (not by a default value, a config file
+or documentation). In particular:
+- a serial device (`COM*`, `/dev/tty*`, `/dev/serial/*`, USB, a telemetry radio or a
+  companion-computer UART) is **always** physical;
+- a UDP, TCP or `socket://` endpoint whose host can be set to a non-loopback address is
+  physical, because it can be bridged to a real flight controller over a telemetry radio,
+  `mavproxy`/`mavlink-router` or a companion computer;
+- only a link that cannot reach anything except loopback or local SITL, as enforced in
+  code, counts as SITL.
+A transmit path that already exists on the base branch is not re-reported because of this
+definition; a PR that widens what it can send, where it can send it, or when it is enabled
+is reviewed under the table below.
+
 | Violation | Severity |
 |---|---|
 | A serial / physical vehicle link can transmit (`may_reach_vehicle()`, `transmit_allowed`, `control_writable()` bypassed, widened, or defaulted on), or active IPS can run on a serial link | P0 |
@@ -161,6 +197,7 @@ frozen contracts, the migration evidence listed here. Without it, report the ite
 | A new kind of vehicle command on any link (e.g. extending IPS `SET_MODE` to new autopilots or firmware, guessing mode numbers, new forwarding of commands to the vehicle) | P1 `CONTRACT_VIOLATION` unless approved. If approved, review it as normal code: wrong mode numbers per dialect are a P1 `SAFETY` defect |
 | A safety gate that depends only on configuration or documentation (a default that someone can flip), where the project requires a code-level gate | P1 |
 | A claimed "receive-only" or "0-TX" path that can still assert serial control lines or write bytes, confirmed in code | P1; if only suspected, P2 Plausible with the test that would confirm it |
+| An **unsafe documented default** (section 3, item 10): docs, a runbook, a quickstart, help text or a config example instructs or defaults to transmission, `active-ips`, a non-loopback bind, arming, or a mode/parameter change, without the SIM/local-SITL restriction stated and enforced in code | P0 if following it would transmit to, arm or change the mode of a physical vehicle link; P1 otherwise |
 
 ### 4.2 Security and integrity boundaries (`SECURITY`)
 
@@ -177,7 +214,13 @@ critical impact.
 - MAVLink message field mappings (encoder and extractor must agree).
 - Event schema and hash-chain canonicalisation (`logging/`, `integrity/`).
 - Benchmark scoring policy (warm-up/grace).
-- Attack hook signatures; `TelemetryTick` and the tick-count decision cadence.
+- Attack hook signatures.
+
+This list mirrors the frozen-contract lists in `AGENTS.md` section 4 and `docs/HANDOFF.md`
+("Do NOT change casually"). Do not extend it from this policy: an item becomes frozen only
+after the project owner adds it there. A breaking change to an interface that is not on
+the list (for example `TelemetryTick`) is reviewed as a possible `REGRESSION` for its
+callers, not as a `CONTRACT_VIOLATION`.
 
 **Additive is not breaking.** A new optional field with a default, a new module beside the
 existing ones, or a new config key that defaults to the old behaviour is not a contract
@@ -209,8 +252,8 @@ Categories: `SAFETY` · `SECURITY` · `DEFECT` · `REGRESSION` · `CONTRACT_VIOL
 | Level | Meaning | Examples |
 |---|---|---|
 | **P0** Critical | Unauthorised vehicle control; force-arm or equivalent; critical security bypass; severe physical-safety risk; remote exploitation with critical impact; fabricated evidence | serial link can transmit; force-arm path; attack tool can target any host by default; secret committed; hash-chain canonicalisation broken; ground truth leaks into a detector; listener on `0.0.0.0` by default; main cannot install or import |
-| **P1** High | Authentication/authorisation bypass; unsafe deserialisation of untrusted input; integrity verification bypass; MAVLink command injection or unsafe command handling; significant data corruption; serious functional regression; insecure transport exposure; unapproved contract or decision violation | model loaded unverified on a path the project requires verified; hash chain truncation passes verification; detector silently disabled; Stage-1 counts change unintentionally |
-| **P2** Medium | Logic errors; incorrect state transitions; resource leaks; configuration errors; races; missing recovery; reliability defects; untested behaviour change; unsupported claim | blocking call on the event loop; port not closed on error; NaN in JSON output; new behaviour without a test |
+| **P1** High | Authentication/authorisation bypass; unsafe deserialisation of untrusted input; integrity verification bypass; MAVLink command injection or unsafe command handling; significant data corruption; serious functional regression; insecure transport exposure; unapproved contract or decision violation | model loaded unverified on a path the project requires verified; hash chain truncation passes verification; detector silently disabled; Stage-1 counts change unintentionally; a test guarding a safety, security or frozen-contract behaviour deleted, skipped or weakened |
+| **P2** Medium | Logic errors; incorrect state transitions; resource leaks; configuration errors; races; missing recovery; reliability defects; untested behaviour change; unsupported claim | blocking call on the event loop; port not closed on error; NaN in JSON output; new behaviour without a test; docs out of sync with changed behaviour; other tests weakened |
 | **P3** Low | Minor correctness issue; non-critical edge case; maintainability problem | misleading log message; dead code; small duplication with a bug risk |
 | **INFO** | Optional improvement, architectural suggestion, feature observation, non-blocking recommendation (category `IMPROVEMENT` only) | "could share the validator with route X"; "consider a metric for Y" |
 
@@ -328,8 +371,10 @@ agree exactly with your summary comment:
 
 Escalation routes a PR to a human. It is **not** a finding and does not mean the change is
 wrong. Set `escalate: true` (with a one-sentence `escalation_reason`) when any of these hold:
-- any P0, any `SAFETY` or `CONTRACT_VIOLATION` finding (enforced in code), or a P1 you are
-  not fully certain of;
+- any P0, any `SAFETY` or `CONTRACT_VIOLATION` finding (enforced in code), or a Confirmed
+  P1 whose impact, scope or approval status you could not fully establish (the defect is
+  confirmed; its consequences are not). An unconfirmed risk is never P1 (section 5): it is
+  a Plausible P2, and it escalates when it touches section 4.1;
 - a Plausible risk that touches section 4.1;
 - a frozen contract, the hash chain/event schema, MAVLink signing or key handling, the
   receive-only serial rule, vehicle-command code, bind addresses, or `.github/` automation
