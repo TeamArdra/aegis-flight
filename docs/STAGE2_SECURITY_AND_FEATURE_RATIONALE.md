@@ -81,3 +81,16 @@ Every feature added across the Stage-2 issues (`#10`, `#11`, `#14`, `#15`, `#19`
 - **Stage-1 frozen contracts (`ML_FEATURES`, `FlightState`, `MessageEnvelope`, hash-chain canonicalization, benchmark scoring):** Unchanged across all 4 PRs (`FeatureFrame` extended only with defaulted optional fields; Stage-1 `results.csv` non-timing cells and `6535 / 4 / 16826 / 65` confusion matrix preserved).
 - **Physical vehicle serial receive-only safety:** `may_reach_vehicle()` blocks `active-ips` and TX on every serial port in `aegis serve`, `aegis ips-bridge`, `aegis onboard`, `SideTapRunner`, and `auto_port`.
 - **Supported evidence boundary:** No real-flight hardware or outdoor vehicle validation is claimed in docs, UI labels, or PR summaries; canonical `models/isoforest.joblib` (`3fe74cdd...`) remains out-of-repo (git-ignored) and requires a maintainer host holding the canonical file only when regenerating `--ml-only` digests after the `FeatureFrame` schema additions.
+
+---
+
+## 4. Independent Audit Remediations Applied Across PRs #79–#82
+
+Following the independent Stage-2 audit, the following confirmed security, correctness, and cross-platform fixes were applied across the stack:
+
+- **Pre-deserialization model integrity (PR #79):** `AnomalyDetector.__init__` (`src/aegisflight/detectors/anomaly.py`) verifies `check_model(path)` **before** calling `joblib.load(path)`, refusing tampered (`mismatch`) and `unlisted` files without unpickling unless `allow_unverified=True` is explicitly passed through `IDSPipeline`, `run_session`, `run_benchmark`, or the CLI (`--allow-unverified-model`).
+- **Event-log anchor chain continuity (PR #79):** `src/aegisflight/logging/anchors.py` chains every anchor with monotonic `seq`, `prev_anchor_hash` (from `GENESIS_ANCHOR_HASH`), and `anchor_hash` covered by HMAC-SHA256. `verify_anchors(..., expected_min_anchors=...)` detects middle deletion, head deletion, tail truncation, reordering, sequence gaps, modified records, and invalid signatures while preserving legacy read-only DB compatibility.
+- **Explicit per-profile GNSS & ML corroboration policies (PR #79, PR #81):** SIM default `gnss_never_acquired_policy` is restored to `dos` (`configs/detector.yaml`, `src/aegisflight/config.py`, `src/aegisflight/detectors/protocol.py`), while live/SITL profiles (`configs/px4_sitl/detector.yaml`, `configs/ardupilot_copter/detector.yaml`, `configs/universal_flight/detector.yaml`) explicitly declare `gnss_never_acquired_policy: coverage`. `configs/px4_sitl/detector.yaml` explicitly enables `fusion.ml_require_corroboration: true`.
+- **Strict-JSON metrics serialization (PR #79):** `src/aegisflight/metrics/scoring.py` emits `None` instead of `float("nan")` for empty latency/macro/hierarchical-link summaries so `json.dumps(..., allow_nan=False)` succeeds deterministically.
+- **Removal of force-ARM primitive (PR #80):** `RogueForceDisarmAttack` and `auto_arm_if_disarmed` were removed completely from `src/aegisflight/proxy/attacks_live_telemetry.py` so no proxy attack helper can construct `COMMAND_LONG(400, param1=1.0, param2=21196.0)`.
+- **Windows test portability (PR #80, PR #81):** `tests/unit/test_onboard_runtime.py` uses `os.pathsep` for `PYTHONPATH`, and `tests/unit/test_onboard_watchdog_and_wal.py` guards `socket.AF_UNIX` with `@pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), ...)`.
