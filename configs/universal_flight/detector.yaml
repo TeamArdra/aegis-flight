@@ -1,0 +1,28 @@
+# Universal multi-vehicle flight-hardening profile (W1, W3, W4, W6).
+# Overrides built-in defaults (load with --config-dir configs/universal_flight).
+# Adapts heading-vs-course automatically via HEARTBEAT.type (rotorcraft vs fixed-wing),
+# learns static GPS-vs-baro offset on the ground while disarmed, enables airborne
+# semantic firewall detection, ConstDet attitude-vs-accel check, and GNSS clock-skew check.
+features:
+  learn_baro_offset: true
+  baro_offset_alpha: 0.05
+protocol:
+  auto_rate_baseline: true
+  max_msg_rate_hz: 2000.0
+  startup_grace_s: 3.0
+  semantic_firewall_enabled: true
+  gnss_clock_skew_enabled: true
+  gnss_clock_max_jump_s: 5.0
+physics:
+  yaw_course_enabled: true
+  yaw_course_auto: true
+  use_learned_baro_offset: true
+  control_semantics_enabled: true
+  control_accel_residual_ms2: 4.5
+  optflow_gps_speed_diff_ms: 4.0
+  xmsg_checks: true
+  battery_rise_v: 1.05
+anomaly:
+  enabled: false
+fusion:
+  ml_require_corroboration: true

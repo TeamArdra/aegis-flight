@@ -615,29 +615,110 @@ def build_parser() -> argparse.ArgumentParser:
     ob = sub.add_parser("onboard", help="run unified onboard companion runtime from a YAML config")
     ob.add_argument("--config", default=None, help="YAML config path (default: safe passive serial config)")
     ob.add_argument("--seconds", type=float, default=None, help="optional timed exit (default: until SIGTERM/SIGINT)")
+    ob.add_argument("--topology", choices=["inline", "side-tap"], default=None,
+                    help="override wiring topology (inline bridge or single-port receive-only side-tap)")
     ob.add_argument("--defense-mode", choices=["passive", "advisory", "active-ips"], default=None,
                     help="override configured defense posture")
     ob.add_argument("--run-dir", default=None, help="override run_root for SQLite/archive output")
     ob.add_argument("--allow-url", action="store_true", help="override allow_url=true for socket:// tests")
+    ob.add_argument("--preflight", action="store_true", help="run 0-TX onboard preflight diagnostics and exit")
+    ob.add_argument("--enroll-firmware", default=None, metavar="OUT_YAML",
+                    help="passively listen for AUTOPILOT_VERSION (0 B TX) and pin firmware allowlist YAML")
+    ob.add_argument("--vehicle-name", default="companion-fc", help="vehicle entry name used with --enroll-firmware")
+    ob.add_argument("--enroll-timeout", type=float, default=10.0, help="seconds to wait for AUTOPILOT_VERSION")
     ob.set_defaults(func=_cmd_onboard)
+
+    er = sub.add_parser("export-report", help="export cryptographically verified forensic flight report")
+    er.add_argument("--db", required=True, help="path to events.sqlite")
+    er.add_argument("--out", default=None, help="output path (.json or .html; default: stdout JSON)")
+    er.add_argument("--format", choices=["json", "html"], default="json", help="output format")
+    er.add_argument("--run-id", default=None, help="optional single run_id to verify/export")
+    er.add_argument("--anchors", default=None, help="optional external .anchors.jsonl path")
+    er.add_argument("--no-actions", action="store_true", help="skip actions hash-chain verification")
+    er.set_defaults(func=_cmd_export_report)
+
+    fd = sub.add_parser("field-drill", help="run zero-TX shadow verification drills against IPS/detectors")
+    fd.add_argument("--scenario", default="all", help="drill scenario name or 'all'")
+    fd.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    fd.set_defaults(func=_cmd_field_drill)
 
     return p
 
 
+def _cmd_export_report(args: argparse.Namespace) -> int:
+    import json
+
+    from ..reporting.forensic_report import build_forensic_report, render_forensic_html
+
+    try:
+        rep = build_forensic_report(
+            args.db,
+            run_id=args.run_id,
+            anchors_path=args.anchors,
+            verify_actions=not args.no_actions,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"aegis export-report: {exc}", file=sys.stderr)
+        return 2
+    out_text = render_forensic_html(rep) if args.format == "html" else json.dumps(rep, indent=2)
+    if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(out_text, encoding="utf-8")
+        print(f"Wrote forensic {args.format.upper()} report -> {args.out} (verified={rep['verified']})")
+    else:
+        print(out_text)
+    return 0 if rep["verified"] else 1
+
+
+def _cmd_field_drill(args: argparse.Namespace) -> int:
+    import json
+
+    from ..testing.field_drill import run_field_drill
+
+    try:
+        res = run_field_drill(args.scenario)
+    except ValueError as exc:
+        print(f"aegis field-drill: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(res, indent=2))
+    else:
+        for sc in res["scenarios"]:
+            badge = "PASS" if sc["ok"] else "FAIL"
+            print(f"[{badge}] {sc['name']} (0B FC TX, {sc['elapsed_ms']} ms)")
+        print(f"Field drill summary: {res['passed']}/{res['total']} passed (zero_real_fc_tx={res['zero_real_fc_tx']})")
+    return 0 if res["ok"] else 1
+
+
 def _cmd_onboard(args: argparse.Namespace) -> int:
-    from ..onboard import load_onboard_config, run_onboard
+    import json
+
+    from ..onboard import load_onboard_config, run_enroll_firmware, run_onboard, run_preflight
 
     try:
         cfg = load_onboard_config(args.config)
     except (OSError, ValueError) as exc:
         print(f"aegis onboard: bad --config: {exc}", file=sys.stderr)
         return 2
+    if args.topology is not None:
+        cfg.topology = args.topology
     if args.defense_mode is not None:
         cfg.defense_mode = args.defense_mode
     if args.run_dir is not None:
         cfg.run_root = args.run_dir
     if args.allow_url:
         cfg.allow_url = True
+    if args.preflight:
+        report = run_preflight(cfg)
+        print(json.dumps(report, indent=2))
+        return 0 if report["ok"] else 2
+    if args.enroll_firmware:
+        return run_enroll_firmware(
+            cfg,
+            out_path=args.enroll_firmware,
+            vehicle_name=args.vehicle_name,
+            timeout_s=args.enroll_timeout,
+        )
     return run_onboard(cfg, seconds=args.seconds)
 
 

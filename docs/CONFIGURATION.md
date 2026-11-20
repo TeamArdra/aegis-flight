@@ -92,3 +92,6 @@ hardware IDs are pinned and HMAC signing (`AEGIS_ALLOWLIST_KEY`) is enabled.
 - Config is **not** hot-reloaded: restart the process / re-run after edits.
 - Built-in defaults in `config.py` mirror the YAML exactly, so deleting a YAML
   file falls back to the documented default rather than breaking.
+- `configs/universal_flight/detector.yaml` enables hardware-agnostic online ground baro bias calibration,
+  Control Semantics (*ConstDet*), GNSS clock-skew detection, airborne semantic firewall detection,
+  and `yaw_course_auto` while leaving base `configs/detector.yaml` untouched for Stage-1 equivalence.

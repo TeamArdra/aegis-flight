@@ -36,6 +36,7 @@ def _free_port() -> int:
 
 def test_default_config_is_safe_passive_and_blocks_active_on_serial() -> None:
     cfg = load_onboard_config(REPO_ROOT / "configs" / "onboard_default.yaml")
+    assert cfg.topology == "side-tap"
     assert cfg.defense_mode == "passive"
     assert cfg.mgmt_enable is False
     assert cfg.allow_url is False
@@ -43,7 +44,7 @@ def test_default_config_is_safe_passive_and_blocks_active_on_serial() -> None:
     assert cfg.retention.max_db_bytes > 0
     assert cfg.retention.max_total_disk_bytes > 0
 
-    bad = OnboardConfig(fc_port="/dev/ttyAMA0", gcs_port="/dev/ttyUSB0", defense_mode="active-ips")
+    bad = OnboardConfig(topology="inline", fc_port="/dev/ttyAMA0", gcs_port="/dev/ttyUSB0", defense_mode="active-ips")
     with pytest.raises(ValueError, match="receive-only"):
         _validate_onboard(bad)
 

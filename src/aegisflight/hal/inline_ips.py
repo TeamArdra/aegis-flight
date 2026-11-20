@@ -55,7 +55,7 @@ from ..detectors.crossend import (
 )
 from ..mitigation.actuator import MavlinkActuator
 from ..mitigation.controller import MitigationController
-from ..mitigation.inline_policy import InlinePolicy
+from ..mitigation.inline_policy import _COMMAND_MSGIDS, CONTROL_MSGIDS, InlinePolicy
 from ..mitigation.types import DefenseMode
 from ..pipeline import IDSPipeline
 from ..proxy.hooks import FrameContext
@@ -63,6 +63,8 @@ from ..proxy.transport import split_frames
 from ..sources.mavlink_live import GcsSideDatagram, LiveMavlinkSource
 from ..sources.mavlink_serial import may_reach_vehicle
 from .mgmt_channel import MAX_CMD_AGE_S, FrameSender, MgmtChannel, drop_label, is_mgmt_command
+
+UPLINK_FAIL_CLOSED_MSGIDS = CONTROL_MSGIDS | _COMMAND_MSGIDS
 
 
 class BridgeTransport(Protocol):
@@ -152,6 +154,11 @@ class InlineIpsBridge:
         mgmt_clock: Callable[[], float] = time.monotonic,
         mgmt_max_cmd_age_s: float | None = MAX_CMD_AGE_S,
         mgmt_enable: bool = False,
+        firmware_allowlist: Any | None = None,
+        anchor_writer: Any | None = None,
+        fail_closed_uplink_commands: bool = True,
+        semantic_firewall_enabled: bool = True,
+        actuator_ts_state_path: str | None = None,
     ) -> None:
         self.fc, self.gcs = fc, gcs
         self._mgmt_in_passive = bool(mgmt_enable)
@@ -179,8 +186,12 @@ class InlineIpsBridge:
         # firmware_recheck_s; without one the integrity verdict stays UNKNOWN (nothing is checked)
         recheck = max(1, int(firmware_recheck_s * float(self.cfg.detector.get("decision_rate_hz", 5.0))))
         self.pipeline = IDSPipeline(self.cfg, model_path=None, firmware_dir=firmware_dir, firmware_real=firmware_dir is not None,
-                                    firmware_recheck_every=recheck)
-        self.controller = MitigationController(mode=DefenseMode(mode), secret_key=secret_key)
+                                    firmware_recheck_every=recheck, firmware_allowlist=firmware_allowlist)
+        self.firmware_allowlist = firmware_allowlist
+        self.anchor_writer = anchor_writer
+        self.fail_closed_uplink_commands = bool(fail_closed_uplink_commands)
+        ts_state = actuator_ts_state_path or (f"{signing_state_path}.tx_ts" if signing_state_path else None)
+        self.controller = MitigationController(mode=DefenseMode(mode), secret_key=secret_key, ts_state_path=ts_state)
         self.controller.set_capabilities(ekf_secondary=ekf_secondary)
         self.policy = InlinePolicy(
             self.controller.sanitizer,
@@ -189,6 +200,7 @@ class InlineIpsBridge:
             signing_key=secret_key, allow_unsigned_from_trusted=allow_unsigned_from_trusted,
             max_age_s=signing_max_age_s, state_path=signing_state_path,
             contested_policy=contested_policy, replay_memory=replay_memory,
+            semantic_firewall_enabled=semantic_firewall_enabled,
         )
         # the bridge's own signed commands (counter-commands to the FC) are stamped from the signed traffic it has seen, not from
         # its wall clock: a companion computer without RTC / internet has an arbitrary clock and the FC rejects stale timestamps
@@ -244,6 +256,7 @@ class InlineIpsBridge:
         self.forwarded_up = 0
         self.dropped_down = 0
         self.dropped_up = 0
+        self.uplink_fail_closed_drops = 0
         self.send_failures = 0
         # signed link: unsigned frames claiming a vehicle sysid that arrived from the GCS side (report-only; see _handle)
         self.forged_vehicle_up = 0
@@ -263,6 +276,10 @@ class InlineIpsBridge:
             self._threads.append(th)
         return self
 
+    def threads_healthy(self) -> bool:
+        """Return True iff every launched worker thread is still alive."""
+        return bool(self._threads) and all(th.is_alive() for th in self._threads)
+
     def close(self) -> None:
         self._stop.set()
         if self._source is not None:
@@ -271,6 +288,10 @@ class InlineIpsBridge:
             if th is not threading.current_thread():
                 th.join(timeout=2.0)
         self.policy.flush()
+        self.controller.actuator.flush_state()
+        if self.anchor_writer is not None and self.store is not None:
+            with self._store_lock, contextlib.suppress(Exception):
+                self.anchor_writer.write_now(self.run_id, force=True)
         if self.archive is not None:
             with contextlib.suppress(Exception):  # an archive error must never keep the links open
                 self.archive.close()
@@ -287,6 +308,9 @@ class InlineIpsBridge:
         with self._store_lock:
             if self.store is None:
                 return False
+            if self.anchor_writer is not None:
+                with contextlib.suppress(Exception):
+                    self.anchor_writer.write_now(self.run_id, force=True)
             new_run_id = time.strftime(f"{run_id_prefix}-%Y%m%d-%H%M%S")
             fresh, rotated = rotate_sqlite_store(
                 self.store,
@@ -298,6 +322,8 @@ class InlineIpsBridge:
             if rotated:
                 self.store = fresh
                 self.run_id = new_run_id
+                if self.anchor_writer is not None:
+                    self.anchor_writer.store = fresh
             return rotated
 
     def __enter__(self) -> InlineIpsBridge:
@@ -461,11 +487,17 @@ class InlineIpsBridge:
             else:
                 tap_push(stamp, fr.raw)  # the detectors always see the original
             ctx = FrameContext(direction, fr.raw, stamp, fr.sysid, fr.compid, fr.seq, fr.msgid, fr.signed)  # type: ignore[arg-type]
+            fail_closed_exc: Exception | None = None
             try:
                 out = hook(ctx)
-            except Exception:  # noqa: BLE001 - never stop forwarding
+            except Exception as exc:  # noqa: BLE001 - asymmetric fail-safe: fail-open down / fail-closed control up
                 policy.hook_errors += 1
-                out = [fr.raw]
+                if (not down and self.controller.mode == DefenseMode.ACTIVE_IPS
+                        and self.fail_closed_uplink_commands and fr.msgid in UPLINK_FAIL_CLOSED_MSGIDS):
+                    out = []
+                    fail_closed_exc = exc
+                else:
+                    out = [fr.raw]
             if down:
                 self.frames_down += 1
             else:
@@ -475,12 +507,21 @@ class InlineIpsBridge:
                     self.dropped_down += 1
                 else:
                     self.dropped_up += 1
-                lbl = drop_label(fr.raw, fr.sysid, fr.msgid, direction)
-                with contextlib.suppress(Exception):
-                    self.mgmt.note_drop(lbl)
-                if self.store is not None:
+                if fail_closed_exc is not None:
+                    self.uplink_fail_closed_drops += 1
+                    lbl = f"fail_closed:msgid={fr.msgid}:{type(fail_closed_exc).__name__}"
+                    action_name = "fail_closed_drop"
+                else:
+                    lbl = drop_label(fr.raw, fr.sysid, fr.msgid, direction)
+                    action_name = "drop_frame"
+                if self._mgmt_active():
                     with contextlib.suppress(Exception):
-                        self.store.log_action(self.run_id, stamp / 1e9, "inline_ips", "drop_frame", direction, lbl)
+                        self.mgmt.note_drop(lbl)
+                if self.store is not None:
+                    with self._store_lock, contextlib.suppress(Exception):
+                        self.store.log_action(self.run_id, stamp / 1e9, "inline_ips", action_name, direction, lbl)
+                        if self.anchor_writer is not None:
+                            self.anchor_writer.maybe_write(self.run_id)
             if policy._observed_pending:
                 with contextlib.suppress(Exception):
                     for verdict, oraw, osys, omsg in policy.take_observed():
@@ -565,6 +606,8 @@ class InlineIpsBridge:
             if self.store is not None:
                 with self._store_lock, contextlib.suppress(Exception):
                     self.store.log_event(assessment, self.run_id)
+                    if self.anchor_writer is not None:
+                        self.anchor_writer.maybe_write(self.run_id)
         mode = self.controller.mode
         if mode == DefenseMode.ACTIVE_IPS or (mode == DefenseMode.ADVISORY and not self._mgmt_active()):
             for frame in act.counter_frames:
@@ -675,15 +718,19 @@ class InlineIpsBridge:
             "frames": {"down": self.frames_down, "up": self.frames_up,
                        "forwarded_down": self.forwarded_down, "forwarded_up": self.forwarded_up,
                        "dropped_down": self.dropped_down, "dropped_up": self.dropped_up,
+                       "uplink_fail_closed_drops": self.uplink_fail_closed_drops,
                        "send_failures": self.send_failures, "tap_overflow": self.tap.dropped_overflow,
                        "forged_vehicle_up": self.forged_vehicle_up},
             "latency_us": {"p50": pct(0.50), "p95": pct(0.95), "max": round(lat[-1], 1) if lat else None,
                            "samples": len(lat)},
             "policy": self.policy.stats(),
+            "semantic_firewall": self.policy.semantic_stats(),
             "signing_observed": self.policy.observed_stats(),
             "analyser": {"decisions": self.decisions, "alerts": self.alerts, "errors": self.analyser_errors,
                          "counter_frames_sent": self.counter_frames_sent, "alarms_sent": self.alarms_sent, "crossend_sent": self.crossend_sent, "summary": self.last_summary,
                          "ekf_secondary": self.controller.ekf_secondary_available},
+            "firmware_allowlist_sha256": getattr(self.firmware_allowlist, "sha256", None),
+            "anchors": self.anchor_writer.snapshot() if self.anchor_writer is not None else None,
             "last_error": self.last_error,
             "mgmt_active": self._mgmt_active(),
             "mgmt": self.mgmt.stats(),

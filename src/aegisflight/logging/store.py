@@ -94,6 +94,10 @@ class EventStore:
         else:
             self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self.conn.row_factory = sqlite3.Row
+            if self.db_path != ":memory:":
+                self.conn.execute("PRAGMA journal_mode=WAL;")
+                self.conn.execute("PRAGMA synchronous=NORMAL;")
+                self.conn.execute("PRAGMA busy_timeout=5000;")
             self.conn.executescript(_SCHEMA)
             self.conn.commit()
 
