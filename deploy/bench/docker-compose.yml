@@ -1,0 +1,57 @@
+# CPU/RAM-constrained zero-hardware software HIL bench for AegisFlight.
+# Replicates companion-computer resource limits (2 vCPU / 512 MiB RAM) plus
+# Linux kernel `tc netem` telemetry-radio impairments against ArduPilot/PX4 SITL.
+#
+# Quick run (standalone soak inside constrained Linux companion container):
+#   docker compose -f deploy/bench/docker-compose.yml run --rm aegis-companion \
+#     python scripts/hardware/hw_readiness_soak.py --cycles 10 --flood-frames 5000
+#
+# Full live SITL + impaired RF link + loopback dashboard:
+#   docker compose -f deploy/bench/docker-compose.yml --profile sitl up --build
+services:
+  sitl-vehicle:
+    profiles: ["sitl"]
+    image: radarku/ardupilot-sitl:latest
+    environment:
+      - VEHICLE=ArduCopter
+      - LAT=47.397742
+      - LON=8.545594
+      - ALT=488
+      - DIR=0
+      - SIM_SPEEDUP=1
+    networks:
+      bench_rf:
+        ipv4_address: 172.30.0.10
+
+  aegis-companion:
+    build:
+      context: ../..
+      dockerfile: deploy/bench/Dockerfile.aegis
+    cpus: "2.0"
+    mem_limit: "512m"
+    memswap_limit: "512m"
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - AEGIS_API_TOKEN=${AEGIS_API_TOKEN:-aegis-bench-dev-token-change-me}
+      - AEGIS_ANCHOR_KEY=${AEGIS_ANCHOR_KEY:-aegis-bench-anchor-key-change-me}
+      - AEGIS_CONFIG_DIR=/app/configs/universal_flight
+    command:
+      - bash
+      - -lc
+      - |
+        /app/deploy/bench/apply_netem.sh eth0 || true
+        python -m aegisflight.cli.main field-drill
+        python scripts/hardware/hw_readiness_soak.py --cycles 5 --flood-frames 3000
+    networks:
+      bench_rf:
+        ipv4_address: 172.30.0.20
+
+networks:
+  bench_rf:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
