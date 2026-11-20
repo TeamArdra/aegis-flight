@@ -20,12 +20,15 @@ PATTERN = (
     r"|EKF failsafe blind|92/100|729\+"
 )
 FILE_GLOBS = ("*.md", "*.tsx", "*.ts", "*.py")
-# Audit documents that discuss the withdrawn claims on purpose (issue #10's list).
+# Audit documents that discuss the withdrawn claims on purpose (issue #10's list), plus the
+# guard's own definition and tests, which must spell out the strings they look for.
 ALLOWLIST = (
     "docs/STAGE2_*",
     "docs/SUBMISSION_READINESS_AUDIT.md",
     "docs/REDTEAM_AUDIT_STAGE2.md",
     "docs/GPS_WORKSTREAM_PROGRESS.md",
+    "scripts/claims_guard.py",
+    "tests/unit/test_claims_guard.py",
 )
 
 
@@ -44,6 +47,10 @@ def find_claims(cwd: str | None = None) -> list[str]:
 
 
 def main() -> int:
+    # Hits can contain non-ASCII (e.g. the rupee sign); never crash while reporting them.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     try:
         hits = find_claims()
     except (OSError, RuntimeError) as exc:
