@@ -74,7 +74,7 @@
 ## 5. Verification & Test Metrics
 - Unit & Integration: `pytest -q` prints the current count; the last integration-candidate run is recorded in `docs/GPS_WORKSTREAM_PROGRESS.md`.
 - `scripts/verify_stage2.py`: a demo on hand-built inputs (SIM); not validation evidence.
-- Benchmarks and external replays: see `docs/VALIDATION_EVIDENCE.md` (no IEEE T-ITS or mIDS-UAV results exist in this repository).
+- Benchmarks and external replays: see `docs/VALIDATION_EVIDENCE.md` (no results on the IEEE T-ITS 2023 dataset or any other third-party UAV intrusion dataset exist in this repository; the dashboard rows that quoted them were removed under issue #10).
 - Static & Build Analysis: `ruff check src tests scripts` 0 errors; `npm --prefix frontend run build` 0 TypeScript errors (259 ms); `cargo check` 0 errors.
 
 ## 6. Third-party agent skills
