@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { BenchSetupWizard } from "./components/BenchSetupWizard";
+import { ForensicExportPanel } from "./components/ForensicExportPanel";
+import { ModeBanner } from "./components/ModeBanner";
 import { SettingsModal } from "./components/SettingsModal";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ControlPanel } from "./components/ControlPanel";
@@ -15,16 +18,23 @@ import {
 } from "./components/evalPanels";
 import { useLiveData } from "./hooks/useLiveData";
 import { ChecksPanel, BridgePanel, useBridge } from "./components/liveChecks";
+import { computeCapabilities, type ConsoleMode, type FlightOpsTab } from "./lib/consoleMode";
 import { envView, linkView } from "./lib/source";
 
 export default function App() {
   const live = useLiveData();
   const bridge = useBridge();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [modeOverride, setModeOverride] = useState<ConsoleMode | null>(null);
+  const [activeTab, setActiveTab] = useState<FlightOpsTab>("monitor");
   const m = live.metrics;
   const chainOk = m?.event_log.chain_ok !== false;
   // every source label below comes from the backend's own report (environment + link state)
   const env = envView(live.environment);
+  const caps = useMemo(
+    () => computeCapabilities(live.environment, modeOverride, live.telemetry?.armed),
+    [live.environment, modeOverride, live.telemetry?.armed],
+  );
   const lv = useMemo(
     () => linkView(live.link, live.connected, live.updateAgeS, live.environment),
     [live.link, live.connected, live.updateAgeS, live.environment],
@@ -53,83 +63,99 @@ export default function App() {
         runId={live.runId}
         eventsCount={live.eventsCount}
       />
+      <ModeBanner
+        env={live.environment}
+        mode={caps.mode}
+        caps={caps}
+        activeTab={activeTab}
+        onModeChange={setModeOverride}
+        onTabChange={setActiveTab}
+      />
 
       <main className="console">
-        {/* 1. primary: threat assessment · flight track · incidents */}
-        <section className="ops">
-          <div className="stack">
-            <ThreatPanel threat={live.threat} telemetry={live.telemetry} />
-            <DetectorPanel threat={live.threat} />
-          </div>
-          <MapPanel
-            track={live.track}
-            trackThreat={live.trackThreat}
-            rawTrack={live.rawTrack}
-            scoreHistory={live.scoreHistory}
-            altHistory={live.altHistory}
-            threat={live.threat}
-            telemetry={live.telemetry}
-            sanitizedTelemetry={live.sanitizedTelemetry}
-            defenseMode={live.defenseMode}
-            mitigation={live.mitigation}
-            attackActive={live.attackActive}
-            origin={live.origin}
-            environment={live.environment}
-            note={env.trackNote}
-          />
-          <AlertsPanel
-            alerts={live.alerts}
-            emptyText={env.emptyAlerts}
-            count={live.eventsCount}
-            environment={env.badge}
-          />
-          <ErrorBoundary fallbackTitle="Defense & Recovery Panel Unavailable">
-            <DefensePanel
-              mode={live.defenseMode}
+        {activeTab === "bench-setup" && <BenchSetupWizard caps={caps} />}
+        {activeTab === "forensics" && <ForensicExportPanel />}
+        {activeTab === "monitor" && (
+          <>
+            {/* 1. primary: threat assessment · flight track · incidents */}
+            <section className="ops">
+              <div className="stack">
+                <ThreatPanel threat={live.threat} telemetry={live.telemetry} />
+                <DetectorPanel threat={live.threat} />
+              </div>
+              <MapPanel
+                track={live.track}
+                trackThreat={live.trackThreat}
+                rawTrack={live.rawTrack}
+                scoreHistory={live.scoreHistory}
+                altHistory={live.altHistory}
+                threat={live.threat}
+                telemetry={live.telemetry}
+                sanitizedTelemetry={live.sanitizedTelemetry}
+                defenseMode={live.defenseMode}
+                mitigation={live.mitigation}
+                attackActive={live.attackActive}
+                origin={live.origin}
+                environment={live.environment}
+                note={env.trackNote}
+              />
+              <AlertsPanel
+                alerts={live.alerts}
+                emptyText={env.emptyAlerts}
+                count={live.eventsCount}
+                environment={env.badge}
+              />
+              <ErrorBoundary fallbackTitle="Defense & Recovery Panel Unavailable">
+                <DefensePanel
+                  mode={live.defenseMode}
+                  mitigation={live.mitigation}
+                  threat={live.threat}
+                  telemetry={live.telemetry}
+                  topologyInfo={live.topologyInfo}
+                  bridgeTopology={bridge.st?.topology ?? null}
+                  environment={live.environment}
+                  signing={live.signing}
+                />
+              </ErrorBoundary>
+            </section>
+
+            {live.environment && live.environment !== "SIM" && <ChecksPanel checks={live.checks} />}
+            <BridgePanel remote={live.bridgeRemote} url={bridge.url} st={bridge.st} bad={bridge.bad} setSt={bridge.setSt} />
+
+            {/* 2. secondary: runtime performance · attack-vector coverage */}
+            <section className="secondary">
+              <RuntimePanel metrics={m} distance={live.distance} distanceNote={env.distanceNote} />
+              {caps.mode === "demo" && <CoveragePanel activeAttack={live.attackActive} />}
+            </section>
+
+            {/* 3. telemetry */}
+            <TelemetryPanel
+              tele={live.telemetry}
+              sanitized={live.sanitizedTelemetry}
+              note={env.telemetryNote}
+              defenseMode={live.defenseMode}
               mitigation={live.mitigation}
-              threat={live.threat}
-              telemetry={live.telemetry}
-              topologyInfo={live.topologyInfo}
-              bridgeTopology={bridge.st?.topology ?? null}
-              environment={live.environment}
-              signing={live.signing}
             />
-          </ErrorBoundary>
-        </section>
 
-        {live.environment && live.environment !== "SIM" && <ChecksPanel checks={live.checks} />}
-        <BridgePanel remote={live.bridgeRemote} url={bridge.url} st={bridge.st} bad={bridge.bad} setSt={bridge.setSt} />
+            {/* 4. evidence · controls */}
+            <section className="lower">
+              <EvidencePanel threat={live.threat} />
+              <ControlPanel
+                activeAttack={live.attackActive}
+                controls={caps.simInjectAllowed}
+                environment={env.badge}
+              />
+            </section>
 
-        {/* 2. secondary: runtime performance · attack-vector coverage */}
-        <section className="secondary">
-          <RuntimePanel metrics={m} distance={live.distance} distanceNote={env.distanceNote} />
-          <CoveragePanel activeAttack={live.attackActive} />
-        </section>
-
-        {/* 3. telemetry */}
-        <TelemetryPanel
-          tele={live.telemetry}
-          sanitized={live.sanitizedTelemetry}
-          note={env.telemetryNote}
-          defenseMode={live.defenseMode}
-          mitigation={live.mitigation}
-        />
-
-        {/* 4. evidence · controls */}
-        <section className="lower">
-          <EvidencePanel threat={live.threat} />
-          <ControlPanel
-            activeAttack={live.attackActive}
-            controls={env.controls}
-            environment={env.badge}
-          />
-        </section>
-
-        {/* 5. reference: integration · validation evidence */}
-        <section className="reference">
-          <IntegrationPanel />
-          <ValidationPanel />
-        </section>
+            {/* 5. reference: integration · validation evidence */}
+            {caps.mode === "demo" && (
+              <section className="reference">
+                <IntegrationPanel />
+                <ValidationPanel />
+              </section>
+            )}
+          </>
+        )}
       </main>
 
       <div className="metrics-bar">
