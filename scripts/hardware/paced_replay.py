@@ -227,7 +227,9 @@ def paced_run(frames: Sequence[tuple[float, bytes]], pipe, *, factor: float, rat
     stop = threading.Event()
     wall0 = 0.0  # set just before the feeder starts, after all setup work
 
-    def feeder() -> None:
+    feeder_errors: list[BaseException] = []
+
+    def feed() -> None:
         next_rss = time.perf_counter()
         for i, (ts, fb) in enumerate(frames):
             if stop.is_set():
@@ -250,7 +252,22 @@ def paced_run(frames: Sequence[tuple[float, bytes]], pipe, *, factor: float, rat
             if now >= next_rss:
                 acct.rss_max = max(acct.rss_max, proc.memory_info().rss)
                 next_rss = now + rss_sample_s
-        q.put(None)  # blocking: the end marker is never dropped
+
+    def feeder() -> None:
+        try:
+            feed()
+        except BaseException as exc:  # noqa: BLE001 - surfaced to the caller after the run
+            feeder_errors.append(exc)
+        finally:
+            # The end marker is never dropped. A consumer that is still waiting always drains the
+            # queue, so the retry loop only gives up once ``stop`` says nobody will read it.
+            while True:
+                try:
+                    q.put(None, timeout=0.1)
+                    break
+                except queue.Full:
+                    if stop.is_set():
+                        break
 
     def consume() -> Iterator[tuple[float, bytes]]:
         while True:
@@ -295,6 +312,8 @@ def paced_run(frames: Sequence[tuple[float, bytes]], pipe, *, factor: float, rat
     finally:
         stop.set()
         th.join(timeout=10)
+    if feeder_errors:
+        raise RuntimeError(f"paced replay feeder failed: {feeder_errors[0]!r}") from feeder_errors[0]
     wall = time.perf_counter() - t_start
     cpu = sum(proc.cpu_times()[:2]) - cpu0
     acct.rss_max = max(acct.rss_max, proc.memory_info().rss)

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import struct
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -164,6 +165,36 @@ def test_fast_consumer_has_no_drops_with_a_tiny_queue(tmp_path, cfg):
     r = pr.paced_run(frames, _pipe(cfg), factor=1.0, rate_hz=10.0, queue_frames=4)
     assert r["frames"]["dropped"] == 0
     assert r["ticks"]["emitted"] == r["ticks"]["expected"]
+
+
+class _FailingProc:
+    """A psutil.Process stand-in whose RSS probe (called only by the feeder thread) raises."""
+
+    def cpu_times(self):
+        return (0.0, 0.0, 0.0, 0.0)
+
+    def memory_info(self):
+        raise PermissionError("rss probe denied")
+
+
+def test_feeder_failure_fails_loudly_instead_of_hanging(tmp_path, cfg):
+    frames = pr.read_tlog(write_tlog(tmp_path / "x.tlog", 0.6, 60.0))
+    outcome: dict = {}
+
+    def run() -> None:
+        try:
+            outcome["result"] = pr.paced_run(frames, _pipe(cfg), factor=1.0, rate_hz=10.0, proc=_FailingProc())
+        except BaseException as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    t.join(timeout=15)
+    assert not t.is_alive(), "paced_run hung after the feeder thread failed"
+    assert "result" not in outcome  # no complete-looking result for a failed feed
+    err = outcome["error"]
+    assert isinstance(err, RuntimeError) and "feeder failed" in str(err)
+    assert isinstance(err.__cause__, PermissionError)
 
 
 def test_paced_run_rejects_bad_arguments(cfg):
