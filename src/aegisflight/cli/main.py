@@ -27,9 +27,11 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
     from ..config import load_config
     from ..logging import EventStore
     from ..metrics import evaluate
+    from ..model_integrity import resolve_model_or_exit
 
     cfg = load_config()
-    model = None if args.no_model else args.model
+    model = resolve_model_or_exit(args.model, no_model=args.no_model,
+                                  allow_unverified=args.allow_unverified_model)
     print(f"Simulating scenario='{args.attack}' seed={args.seed} route={args.route or 'default'} "
           f"model={'off' if model is None else model}")
     res = run_session(cfg, args.attack, seed=args.seed, route=args.route, model_path=model)
@@ -67,9 +69,11 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
 def _cmd_benchmark(args: argparse.Namespace) -> int:
     from ..benchmark.harness import run_benchmark
     from ..config import load_config
+    from ..model_integrity import resolve_model_or_exit
 
     cfg = load_config()
-    model = None if args.no_model else args.model
+    model = resolve_model_or_exit(args.model, no_model=args.no_model,
+                                  allow_unverified=args.allow_unverified_model)
     result = run_benchmark(cfg, seeds=args.seeds, model_path=model, out_dir=args.out)
     b = result["binary"]
     print(f"accuracy={b['accuracy']} recall={b['recall_tpr']} FPR={b['fpr']} F1={b['f1']}")
@@ -294,13 +298,14 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
             return 2
         if args.db is None:
             args.db = str(Path(args.run_dir) / "events.sqlite")
-    store = None
+    store = anchor_writer = None
     if args.db:
-        from ..logging import EventStore
+        from ..logging import AnchorWriter, EventStore
 
         store = EventStore(args.db)
         run_id = time.strftime("ips-%Y%m%d-%H%M%S")
         store.start_run(run_id, label="ips-bridge")
+        anchor_writer = AnchorWriter(store)
     else:
         run_id = "ips-bridge"
     try:  # e.g. an unreadable / corrupt / unwritable --mgmt-state: refuse to start, never run without replay state
@@ -354,6 +359,8 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
     try:
         while end is None or time.monotonic() < end:
             time.sleep(min(args.status_interval, 0.5) if end is not None else args.status_interval)
+            if anchor_writer is not None:
+                anchor_writer.maybe_write(run_id)
             print(json.dumps(bridge.status()), flush=True)
     except KeyboardInterrupt:
         pass
@@ -361,6 +368,9 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         if status_srv is not None:
             status_srv.close()
         bridge.close()
+        if anchor_writer is not None:
+            with contextlib.suppress(Exception):
+                anchor_writer.write_now(run_id, force=True)
         if store is not None:
             store.close()
         if archive is not None and run_prov is not None:
@@ -395,13 +405,31 @@ def _cmd_fw_manifest(args: argparse.Namespace) -> int:
 
 
 def _cmd_verify_log(args: argparse.Namespace) -> int:
-    from ..logging import EventStore
+    from ..logging import EventStore, verify_anchors
 
-    store = EventStore(args.db)
-    cs = store.verify_chain()
-    print(f"events: {cs.length}  chain: {'OK' if cs.ok else 'BROKEN'}  {cs.detail}")
-    store.close()
-    return 0 if cs.ok else 2
+    store = EventStore(args.db, read_only=True)
+    try:
+        cs = store.verify_chain()
+        print(f"events: {cs.length}  chain: {'OK' if cs.ok else 'BROKEN'}  {cs.detail}")
+        ok = cs.ok
+        if getattr(args, "verify_actions", False):
+            acs = store.verify_actions_chain()
+            print(f"actions: {acs.length}  chain: {'OK' if acs.ok else 'BROKEN'}  {acs.detail}")
+            ok = ok and acs.ok
+        if getattr(args, "anchors", None):
+            av = verify_anchors(store, args.anchors)
+            for w in av.warnings:
+                print(f"anchor warning: {w}", file=sys.stderr)
+            for err in av.errors:
+                print(f"anchor error: {err}", file=sys.stderr)
+            print(
+                f"anchors: {av.anchors_checked}  signed: {av.signed_anchors}  "
+                f"unsigned: {av.unsigned_anchors}  status: {'OK' if av.ok else 'FAILED'}"
+            )
+            ok = ok and av.ok
+    finally:
+        store.close()
+    return 0 if ok else 2
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -415,7 +443,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--seed", type=int, default=42)
     s.add_argument("--route", default=None, help="survey_box|out_and_back|perimeter")
     s.add_argument("--model", default="models/isoforest.joblib")
-    s.add_argument("--no-model", action="store_true")
+    s.add_argument("--no-model", action="store_true", help="explicit ML-off run (rule + physics only)")
+    s.add_argument("--allow-unverified-model", action="store_true",
+                   help="use a model whose SHA-256 differs from models/MODELS.sha256 (e.g. `aegis train` output)")
     s.add_argument("--db", default=None, help="log alerts to this SQLite path")
     s.set_defaults(func=_cmd_simulate)
 
@@ -423,7 +453,9 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3, 4, 5, 6])
     b.add_argument("--out", default="artifacts/benchmarks")
     b.add_argument("--model", default="models/isoforest.joblib")
-    b.add_argument("--no-model", action="store_true")
+    b.add_argument("--no-model", action="store_true", help="explicit ML-off run (rule + physics only)")
+    b.add_argument("--allow-unverified-model", action="store_true",
+                   help="use a model whose SHA-256 differs from models/MODELS.sha256 (e.g. `aegis train` output)")
     b.add_argument("--no-figures", action="store_true")
     b.set_defaults(func=_cmd_benchmark)
 
@@ -557,6 +589,8 @@ def build_parser() -> argparse.ArgumentParser:
     fm.set_defaults(func=_cmd_fw_manifest)
     v = sub.add_parser("verify-log", help="verify a SQLite event-log hash chain")
     v.add_argument("db", help="path to the SQLite event log")
+    v.add_argument("--anchors", default=None, help="verify against an external <db>.anchors.jsonl file")
+    v.add_argument("--verify-actions", action="store_true", help="also verify the actions table hash chain")
     v.set_defaults(func=_cmd_verify_log)
 
     ver = sub.add_parser("version", help="print version")

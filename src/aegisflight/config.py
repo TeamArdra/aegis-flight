@@ -76,6 +76,12 @@ DEFAULT_MESSAGE_RATES: dict[str, int] = {
 
 DEFAULT_DETECTOR: dict[str, Any] = {
     "decision_rate_hz": 5.0,  # run fusion at this cadence
+    "features": {
+        # High-water mark reorder tolerance in MAVLink 8-bit sequence space (0..127).
+        # Late frames within `reorder_window` behind the per-source high-water mark
+        # increment `FeatureFrame.reorder_count` instead of recording a 256-k gap.
+        "reorder_window": 16,
+    },
     "protocol": {
         "expected_sysids": [1],
         "expected_gcs_sysids": [255, 254],
@@ -90,6 +96,10 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "max_seq_gap": 30,  # sequence jump over window => loss/DoS
         "min_interarrival_ms": 0.4,  # bursts faster than this are abnormal
         "gps_dropout_s": 2.0,  # no GPS for this long => stale/DoS
+        # D4 policy (issue #15): when GNSS has never achieved a valid 3D fix since monitoring began,
+        # emit a score-0 coverage note ('coverage') or vote DOS ('dos'). Once a valid fix is seen,
+        # subsequent fix loss always votes DOS under either setting.
+        "gnss_never_acquired_policy": "coverage",
         "allowed_commands_in_flight": [
             "MAV_CMD_NAV_WAYPOINT",
             "MAV_CMD_DO_SET_MODE",
@@ -106,9 +116,13 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "command_burst_window_s": 2.0,
         "command_burst_max": 4,
         "require_signing": False,  # if True, unsigned msgs are flagged
+        "signing_settle_s": 0.0,  # opt-in per-stream settle window (0 = no blind window)
+        "unsigned_allowed": [],
         "min_gnss_fix_type": 3,  # GPS_RAW_INT fix_type below this = no 3D fix
         "min_gnss_satellites": 5,
         "gnss_loss_ticks": 5,  # consecutive decisions before the fix-loss rule fires
+        "semantic_link_attribution": False,
+        "semantic_link_min_rate_hz": 5.0,  # opt-in (#22): attribute selective HB loss to MAVLINK_ANOMALY
     },
     "physics": {
         "gps_pos_residual_m": 12.0,  # predicted vs reported position gap
@@ -133,6 +147,7 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "mission_hysteresis_ticks": 5,
     },
     "anomaly": {
+        "enabled": True,
         "model_path": "models/isoforest.joblib",
         "score_threshold": 0.62,  # normalised anomaly score => triggered
         "contamination": 0.02,
@@ -156,6 +171,7 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "alert_threshold_severity": "SUSPICIOUS",
         "cooldown_s": 4.0,  # suppress duplicate alerts of same type within
         "clear_ticks": 4,  # consecutive normal ticks before clearing state
+        "ml_require_corroboration": False,
     },
 }
 

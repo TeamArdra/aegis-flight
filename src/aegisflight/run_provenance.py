@@ -41,7 +41,8 @@ PACKAGES = ("aegisflight", "pymavlink", "numpy", "scikit-learn", "joblib", "scip
 #: Every key a manifest from :func:`collect_run_provenance` carries (the schema test pins this).
 MANIFEST_FIELDS = (
     "schema", "status", "reproducible", "commit", "working_tree_dirty", "dirty_paths",
-    "detector_profile_dir", "detector_profile_sha256", "model_path", "model_sha256", "ml_enabled",
+    "detector_profile_dir", "detector_profile_sha256", "firmware_allowlist_sha256",
+    "model_path", "model_sha256", "ml_enabled",
     "px4_git_describe", "ardupilot_version", "python", "packages", "command_line", "started_utc", "ended_utc",
     "not_reproducible_reason",
 )
@@ -198,6 +199,7 @@ def collect_run_provenance(
     ml_enabled: bool | None = None, px4_git_describe: str | None = None, ardupilot_version: str | None = None,
     command_line: str | None = None, started_utc: str | None = None, repo: str | Path | None = None,
     extra: dict[str, Any] | None = None, start_state: dict[str, Any] | None = None,
+    allowlist_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Manifest dict (schema ``aegisflight.run_manifest/1``). Raises ``DirtyTreeError`` on a dirty tree
     unless ``allow_dirty``. ``profile_dir`` ``None``/empty means the built-in ``configs/`` profile.
@@ -211,6 +213,10 @@ def collect_run_provenance(
     else:
         state = end = require_clean_tree(allow_dirty, repo)
     profile = Path(profile_dir) if profile_dir else Path("configs")
+    allowlist = Path(allowlist_path) if allowlist_path else (profile / "firmware_allowlist.yaml")
+    if not allowlist.is_file():
+        fallback_al = Path("configs") / "firmware_allowlist.yaml"
+        allowlist = fallback_al if fallback_al.is_file() else allowlist
     has_model = bool(model_path) and str(model_path).lower() != "none"
     model = Path(model_path) if has_model else None
     reproducible = True  # _apply_drift below clears it for a dirty or changed tree, with the reason
@@ -223,6 +229,7 @@ def collect_run_provenance(
         "dirty_paths": state["dirty_paths"],
         "detector_profile_dir": str(profile).replace("\\", "/"),
         "detector_profile_sha256": sha256_dir(profile),
+        "firmware_allowlist_sha256": sha256_file(allowlist) if allowlist.is_file() else None,
         "model_path": str(model).replace("\\", "/") if model else "none",
         "model_sha256": sha256_file(model) if model and model.exists() else None,
         "ml_enabled": has_model if ml_enabled is None else bool(ml_enabled),

@@ -50,7 +50,7 @@ the flight controller). A serial-device vehicle link is receive-only in every po
 ### Key Architectural Highlights
 
 - **Dual-Topology Execution Model**:
-  - **Topology A (Sidecar Companion Actuator)**: *design, modelled in SIM only.* A companion on a secondary UART would issue corrective counter-commands; nothing transmits on a live source.
+  - **Topology A (Sidecar Companion Actuator)**: *design, modelled in SIM. A SITL sidecar run is reported to have failed (the vehicle still landed), but no artifact for it is committed in this repo, so it is not measured here; physical/bench actuation not measured.* A live serial device is strictly receive-only (`bytes_sent = 0`); `aegis serve` only sends counter-frames on SITL UDP/`socket://` links in `active-ips` (plus loopback UDP `STATUSTEXT` when `--gcs-notify` is set, or signed management commands when `--mgmt-key-file` is set).
   - **Topology B (Inline Bridge)**: `aegis ips-bridge` (`hal/inline_ips.py`, `mitigation/inline_policy.py`) sits between the flight controller port and the GCS radio port and drops hostile frames before the autopilot sees them (`docs/INLINE_IPS.md`). Tested on synthetic frames, loopback serial and ArduCopter SITL; over a real LR900 radio pair; and on the bench with a real Pixhawk 6X on a Raspberry Pi 5 (`docs/RADIO_TEST_RESULTS.md`). Not flown; one signed run over USB with the bridge as the enforcement point (the flight controller's own enforcement not tested); no hardware bypass yet. The Rust crate `rust/aegis_fastpath` is still not on the path.
   - **Topology A+B (Hybrid)**: *design only.*
   - **Topology detection**: not selectable. The software reports `A` (single-port sidecar) or `A+B` (inline bridge) from how it is connected (`GET /api/topology`, `topology_info`); SIM and replay are labelled as such.
@@ -86,7 +86,7 @@ The defense layer (`src/aegisflight/mitigation/`) is a **simulation-dashboard mo
 what a counter-action would do, using the dashboard's cyber-physical twin. **Detour, survival and watchdog time have not been measured.** Frame-level counts (dropped, blocked, rewritten) have been measured in SITL, and on the bench over the radio and with a real Pixhawk 6X (`docs/RADIO_TEST_RESULTS.md`), but not in flight. Detour, survival and watchdog time are not claimed here.
 - Posture gates transmission on every source. `PASSIVE` (the default) and `ADVISORY` send nothing to the vehicle
   (`bytes_sent = 0`); `ADVISORY` adds STATUSTEXT alerts to a GCS. `ACTIVE_IPS` encodes counter-commands (mode restore, EKF source
-  switch, optional signing) and, on a live serial or UDP link, transmits them. That transmit path is unit-tested with a recording
+  switch, optional signing) and transmits them only on live UDP / `socket://` SITL links (a physical serial-device vehicle link stays receive-only in every posture). That transmit path is unit-tested with a recording
   transport only; it has been exercised against ArduCopter SITL (an ALT_HOLD counter-command over the radio, 2026-10-30) but not against a real flight controller's counter-command path, and its effect in flight is unmeasured. Replay has no
   transport, so nothing is sent.
 
@@ -152,7 +152,7 @@ The `src/aegisflight/hal/` module abstracts serial communication, companion comp
 
 ## 6. Multi-OS Installation & Setup Guide
 
-AegisFlight is engineered for 100% native cross-platform compatibility across **Windows**, **macOS**, **Linux**, and **Onboard Companion Computers** (Raspberry Pi, NVIDIA Jetson).
+AegisFlight targets **Windows**, **macOS**, **Linux**, and **ARM64 companion computers** (bench-tested on Raspberry Pi 3B+/5; NVIDIA Jetson performance not measured).
 
 Choose your operating system below for turnkey setup instructions:
 
@@ -341,7 +341,7 @@ For deployment directly on a physical drone companion computer connected to a Pi
 
 #### 2. NVIDIA Jetson (Orin / Nano / Xavier — JetPack 5.x / 6.x)
 - Hardware UART `/dev/ttyTHS1` (J41 40-pin header pins 8 & 10) or USB `/dev/ttyUSB0`.
-- AegisFlight's HAL auto-detects Jetson hardware via `/etc/nv_tegra_release` and sets the dynamic latency budget to $18.0\text{ ms}$.
+- `hal/discovery.py` (not wired into the detection pipeline) checks `/etc/nv_tegra_release` for Jetson metadata and proposes a heuristic latency budget (not measured on Jetson hardware).
 
 ---
 

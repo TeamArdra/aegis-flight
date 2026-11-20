@@ -1,0 +1,8 @@
+# SHA-256 of the exact trained models used for the committed evidence (sha256sum format).
+# models/*.joblib is git-ignored; scripts/fetch_models.py downloads these files and verifies them.
+# Sources (committed artifacts that record the hash of the model each run used):
+#   isoforest.joblib      artifacts/ardupilot/ap_attack_drift_001/manifest.json (and 144 more manifests)
+#   isoforest_px4.joblib  artifacts/sitl/calibration/isoforest_px4_training.json (config.model_sha256)
+# `aegis train` does NOT reproduce these files (different bytes); use the fetch script.
+3fe74cddf3689e169610ffd783b109b6539cc6c03629bd1e4bb8b1d3842939c4  isoforest.joblib
+df540999dc6b43c3981d6ac6ecb91369b56ce1ba8cfdb894b76b195951260c7c  isoforest_px4.joblib

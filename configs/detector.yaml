@@ -10,6 +10,15 @@
 decision_rate_hz: 5.0          # fusion/decision cadence
 
 # ------------------------------------------------------------------ #
+# Feature extraction
+# ------------------------------------------------------------------ #
+features:
+  # Per-source MAVLink 8-bit sequence reorder tolerance (frames behind high-water mark).
+  # Chosen from UDP/multi-path jitter characteristics (not tuned on benchmark scores):
+  # at ~28-140 msg/s over ~100-500 ms jitter, a late packet lags by 1-16 sequence steps.
+  reorder_window: 16
+
+# ------------------------------------------------------------------ #
 # Detector A: protocol / rule engine
 # ------------------------------------------------------------------ #
 protocol:
@@ -32,6 +41,10 @@ protocol:
   # gps_dropout_s of monitoring (never_seen_gps_* knobs apply only then). GPS lost after having
   # been seen is a DOS fault either way. Stage-1 SIM streams always carry position: no effect.
   require_global_position: false
+  # D4 policy (issue #15): 'coverage' = score-0 coverage note before the first valid 3D fix;
+  # 'dos' = vote DOS 0.7 even before any valid fix was ever acquired. Once valid, loss always votes DOS.
+  # Security consequence (documented): jamming from power-on before any fix reports coverage, not attack.
+  gnss_never_acquired_policy: coverage
   allowed_commands_in_flight:
     - MAV_CMD_NAV_WAYPOINT
     - MAV_CMD_DO_SET_MODE
@@ -46,9 +59,13 @@ protocol:
   command_burst_window_s: 2.0
   command_burst_max: 4
   require_signing: false            # if true, unsigned msgs are flagged
+  signing_settle_s: 0.0             # opt-in per-stream bootstrap window (0 = no blind window)
+  unsigned_allowed: []              # explicit opt-in unsigned exemptions when require_signing is true
   min_gnss_fix_type: 3              # GPS_RAW_INT fix_type below this = no 3D fix
   min_gnss_satellites: 5            # fewer satellites than this = degraded fix
   gnss_loss_ticks: 5                # consecutive decisions (1 s @5 Hz) before firing
+  semantic_link_attribution: false  # opt-in (#22): selective HB loss while GPS healthy -> MAVLINK_ANOMALY
+  semantic_link_min_rate_hz: 5.0    # minimum aggregate msg_rate_hz to treat HB loss as selective rather than blackout
 
 # ------------------------------------------------------------------ #
 # Detector B: physics / cyber-physical consistency

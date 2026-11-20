@@ -1373,10 +1373,10 @@
    "attack_types": [],
    "digests": {
     "assess": "b1a7d751ef54c28ffdb4f1d306a5f06bd6b87378ee6351fffb54b2b541c8003d",
-    "detectors": "411734c25cec2e777975d9f0e5034e0642443e71d95c107d1c3f0a120cf18b99",
+    "detectors": "005bc24eb37a47618185698268b3f9c87f09e1816fec1688b12512ebf6db74f1",
     "detectors_r": "2642e8af2fa0aea03b5764923f8f1f0f39bd5268ccee6acb81c8c452b46c8103",
-    "frame": "d77c4eb0f8dde0f56997a0f2eab07f65960169e0aae85ea65b7dbcb52382321b",
-    "frame_r": "fae949fba0a41b6e5eac905a2a25c1bf13484c1dadf1d36f5888f8a5f6cf0f46",
+    "frame": "fae77708b114b523d201a9bfceeff5ce1457a2e33bdb9cdf0e55891af9342107",
+    "frame_r": "d57ad448d31d234e8e9ec8c56eb8aaf472ddaeb2770795f1c52d04e55c24cacb",
     "parse": "293c494377fced48f315ec239f23ece5f036abe112894f9ebc773b7c8f365625",
     "stats": "5ebc6b70fd261614c1aac9012487bd61c8a04ad80e5b0ca60a8920a10f489a8f"
    },
@@ -1396,10 +1396,10 @@
    "attack_types": [],
    "digests": {
     "assess": "3a100c43650d0ee17c3c4e83e71c6bfb6268995af76811aad6b8b8e75d610194",
-    "detectors": "a1a9e179515e17339c6e9318379a598bfc02002bfc34973ca5fca088d38c3867",
+    "detectors": "9dd3a9f57d72de5623e2e147ad439802a8f65b2b4b69ad034fd850585130a00e",
     "detectors_r": "0c3456d5d50c52b8f9127c5273844b36588a023e7f961d9593d7c79dd58c5cf9",
-    "frame": "d77c4eb0f8dde0f56997a0f2eab07f65960169e0aae85ea65b7dbcb52382321b",
-    "frame_r": "fae949fba0a41b6e5eac905a2a25c1bf13484c1dadf1d36f5888f8a5f6cf0f46",
+    "frame": "fae77708b114b523d201a9bfceeff5ce1457a2e33bdb9cdf0e55891af9342107",
+    "frame_r": "d57ad448d31d234e8e9ec8c56eb8aaf472ddaeb2770795f1c52d04e55c24cacb",
     "parse": "293c494377fced48f315ec239f23ece5f036abe112894f9ebc773b7c8f365625",
     "stats": "5ebc6b70fd261614c1aac9012487bd61c8a04ad80e5b0ca60a8920a10f489a8f"
    },
@@ -1421,10 +1421,10 @@
    ],
    "digests": {
     "assess": "a559240061184f646a965c1527293e3adb1eaf22768d8bdc74f92b81136b712a",
-    "detectors": "0fc4233ab51497d11f4accd33a603169617b06217191796d7e017153e98f2a4b",
+    "detectors": "46dd77eb5a11e96b347836b9023bc6db69904a30ce4f256739b53793dfb41061",
     "detectors_r": "7297b01dc1f235535e2533876d6bc15483140dff2d4400304e6b09724d8fe1c1",
-    "frame": "f6dfd104dfb7618cea07d2ecf3d35698de5e1f072af3cb0e1c457f1eb4812014",
-    "frame_r": "bfb4ed1d720d3e0fac1c52ad61bb484fbb9e20f2c633be42e7c32fb02c6287c6",
+    "frame": "a8ec47c87f476e235d99c8ea4be70867aaf7936ad6b09ccd4af09ba1543a3dfb",
+    "frame_r": "438a0e8ae6b7b8388b5a59d637e6d892b3faf3aba3ee255a841e728657cb2551",
     "parse": "2ae78d9afb058867633f482e3eebbc1423cb20f581161309d8e04839c58c37c8",
     "stats": "bb70ac6c2492efa268d122df619d3036d2eaa6144ae321ab52b9f720d7150674"
    },
@@ -1446,10 +1446,10 @@
    ],
    "digests": {
     "assess": "224329133a2d9a0e33cc40909da29729f0170db0832329a6de54132e820379ca",
-    "detectors": "307b9b0fa2b43c317b8a3443b76c674c45f4c5149b6f54922fbe5e56ad380c88",
+    "detectors": "97198d11ca1707c26753fe91df749ed3a9ab27147cec5035684a7b8cb9d8bb1f",
     "detectors_r": "538d1315d8681dbb779454283dae6e79eccda13cf389def361c21d88d2f30e9a",
-    "frame": "f6dfd104dfb7618cea07d2ecf3d35698de5e1f072af3cb0e1c457f1eb4812014",
-    "frame_r": "bfb4ed1d720d3e0fac1c52ad61bb484fbb9e20f2c633be42e7c32fb02c6287c6",
+    "frame": "a8ec47c87f476e235d99c8ea4be70867aaf7936ad6b09ccd4af09ba1543a3dfb",
+    "frame_r": "438a0e8ae6b7b8388b5a59d637e6d892b3faf3aba3ee255a841e728657cb2551",
     "parse": "2ae78d9afb058867633f482e3eebbc1423cb20f581161309d8e04839c58c37c8",
     "stats": "bb70ac6c2492efa268d122df619d3036d2eaa6144ae321ab52b9f720d7150674"
    },
@@ -1472,10 +1472,10 @@
    ],
    "digests": {
     "assess": "9ed6252a5822eca3f9135e2a61f02d4b61350c11e09f2aa81b25d8b1003095ab",
-    "detectors": "a260926420a98fef065dc5627a0bbc10821afa165ac7686805f5d3e8cccbe47f",
+    "detectors": "2972957a0488b68855706d980b6ae5c79564e2b40d5734f81f3b389921f11c04",
     "detectors_r": "34d3cc4dc470c50e2be43adfd3b47710517925854b3e10868e5352b473d648e9",
-    "frame": "70b670e3beb7c55f6d1c806becef3bf4ccb60e659be8e747912c446e41a23a34",
-    "frame_r": "556ce200ce185c04f8605a4d4e491ce4d52f1541627c17b6f59853b745e6acc2",
+    "frame": "e6f9ec21ffd53e82c3315522724d93b532a06d9029478978f7de69dea1a20e51",
+    "frame_r": "a2a7e6d61480b423e3afe99b31c463c18ddb638e4764188040adabd9acf9df6f",
     "parse": "a937b23421c3f00b6528126288ae35f889d32bd0ad52bc7ddc46f78cb20e7e65",
     "stats": "d3d8e460730fa26ea2f8b93fbad7b0b3dc1e6f8eb65703bbcd17244cdc8f66ff"
    },
@@ -1498,10 +1498,10 @@
    ],
    "digests": {
     "assess": "7446d6b7560c8a7fda4168b848e8ab8d9948b00ceea6467b6955c7730e22f55f",
-    "detectors": "0b1b9db63f8a096a043f002b2ee2e9d6993a0a91be62febae3447d1440c47607",
+    "detectors": "fcc376025caed9563c4e36bca098121d60d43420e9c75341387085f2b4bed6e8",
     "detectors_r": "e547bfda4eff74c855caff84ece9c1754c479ebec7ffa51ac561c01a363de3ef",
-    "frame": "70b670e3beb7c55f6d1c806becef3bf4ccb60e659be8e747912c446e41a23a34",
-    "frame_r": "556ce200ce185c04f8605a4d4e491ce4d52f1541627c17b6f59853b745e6acc2",
+    "frame": "e6f9ec21ffd53e82c3315522724d93b532a06d9029478978f7de69dea1a20e51",
+    "frame_r": "a2a7e6d61480b423e3afe99b31c463c18ddb638e4764188040adabd9acf9df6f",
     "parse": "a937b23421c3f00b6528126288ae35f889d32bd0ad52bc7ddc46f78cb20e7e65",
     "stats": "d3d8e460730fa26ea2f8b93fbad7b0b3dc1e6f8eb65703bbcd17244cdc8f66ff"
    },
@@ -1523,10 +1523,10 @@
    ],
    "digests": {
     "assess": "64a76d012886be41cbfb1023a7fe7e634ec9bca760f48aef0a6381a36e7be174",
-    "detectors": "13eac06e4c9f03763514efbe0073ac6d8026afdfbbdb64c8e11220605a298ecc",
+    "detectors": "4873666c5d5de38a9943759db137e4018e010605850551eff041a410f1220138",
     "detectors_r": "cec179738efe79d8101554fce3b5ac73391599973e92eb4f09e22eab24217114",
-    "frame": "70b670e3beb7c55f6d1c806becef3bf4ccb60e659be8e747912c446e41a23a34",
-    "frame_r": "556ce200ce185c04f8605a4d4e491ce4d52f1541627c17b6f59853b745e6acc2",
+    "frame": "e6f9ec21ffd53e82c3315522724d93b532a06d9029478978f7de69dea1a20e51",
+    "frame_r": "a2a7e6d61480b423e3afe99b31c463c18ddb638e4764188040adabd9acf9df6f",
     "parse": "a53b2c03b6780b283d3af0bcd863d354ca62181e71a842fa0f86d4e776d19f0d",
     "stats": "b272b788fe653b24e9e0f6d038bfa146f20f4fb4d3fd87d9b66dbbecfd49e544"
    },
@@ -1548,10 +1548,10 @@
    ],
    "digests": {
     "assess": "ce08fa58517652ced8ab29f4d8a7f8241675f057f24b09436509f04b69b4a04e",
-    "detectors": "e75566f0bb61c535a0d41094dd1adeb982dd0165986c032c2f9a72b675d58d59",
+    "detectors": "2621e0486c53373f8e875a05d0155c3623b8775394010590ae4850a1c731317e",
     "detectors_r": "f6201b58e5374d58663fee94491af71b009571153b7759051dc744ec1eaab5ea",
-    "frame": "70b670e3beb7c55f6d1c806becef3bf4ccb60e659be8e747912c446e41a23a34",
-    "frame_r": "556ce200ce185c04f8605a4d4e491ce4d52f1541627c17b6f59853b745e6acc2",
+    "frame": "e6f9ec21ffd53e82c3315522724d93b532a06d9029478978f7de69dea1a20e51",
+    "frame_r": "a2a7e6d61480b423e3afe99b31c463c18ddb638e4764188040adabd9acf9df6f",
     "parse": "a53b2c03b6780b283d3af0bcd863d354ca62181e71a842fa0f86d4e776d19f0d",
     "stats": "b272b788fe653b24e9e0f6d038bfa146f20f4fb4d3fd87d9b66dbbecfd49e544"
    },
@@ -1573,10 +1573,10 @@
    ],
    "digests": {
     "assess": "c3e31d0f83f4aa2f6588a2188314f42e45096191af150ad0d4292eb8e5291b3b",
-    "detectors": "c840cb9e0142433913405d395e0b8a6f4f88b2a5168806e7b683f728fbc06c76",
+    "detectors": "67ef265454719d9489ef09a28c9ade5f7657f44fa55bb40ddadeab7f0fa08cf9",
     "detectors_r": "c9ba6a85c7f938d97dece62feb78fc4ee94d2d1cf9fac7d6515cfb21d032d7cf",
-    "frame": "424aa74e1b9b548b80ad05a7afd4e197465825f046c9086549045685ea8c1e99",
-    "frame_r": "d9ff5982ddf0f7d35f3c116d9ef2e0585bba0fef548c14f43ef396f7b3afb37d",
+    "frame": "2df03b600a49938151b85c0665a0aa978cf06da47866aa413fe97a73d4babadf",
+    "frame_r": "bc19393e3c2f76cc2cade85999157d4e53174226329eccdad3c69bc4cb1c2a0d",
     "parse": "ec61e9e457d6e77497e6ac5d04f1f40f68e29efa21af1392d133617cd5abda0d",
     "stats": "7c0a0031877beb7c3599c933b5a86761e6bc4320e900bcd0e44fc0e5b456d615"
    },
@@ -1598,10 +1598,10 @@
    ],
    "digests": {
     "assess": "d31a1cea6f34e657da2e22607f3c53796049869528e27ad5568564cda437d901",
-    "detectors": "c2837bdfac49ea9e52aa87bb9df9465be166d6ad6fa08c79ec47ee9fc3cf89b8",
+    "detectors": "25e87c35cd16953d4aec302dd23eedf0ecffd82ee44b3ff0800a3c63457a465a",
     "detectors_r": "9fbdc103a47930883cbe685526c895bac25d3b95c498c3f6d5505e47b905b03e",
-    "frame": "424aa74e1b9b548b80ad05a7afd4e197465825f046c9086549045685ea8c1e99",
-    "frame_r": "d9ff5982ddf0f7d35f3c116d9ef2e0585bba0fef548c14f43ef396f7b3afb37d",
+    "frame": "2df03b600a49938151b85c0665a0aa978cf06da47866aa413fe97a73d4babadf",
+    "frame_r": "bc19393e3c2f76cc2cade85999157d4e53174226329eccdad3c69bc4cb1c2a0d",
     "parse": "ec61e9e457d6e77497e6ac5d04f1f40f68e29efa21af1392d133617cd5abda0d",
     "stats": "7c0a0031877beb7c3599c933b5a86761e6bc4320e900bcd0e44fc0e5b456d615"
    },
@@ -1623,10 +1623,10 @@
    ],
    "digests": {
     "assess": "8f0c864d72bf31725455ed2dfffdbb038c1f3432d9494ffe64fb341cebd2794e",
-    "detectors": "84bf912e15abf19fa73e7a149f33cb51e3b163ff8ab3ad60f31a38874cfd9726",
+    "detectors": "42073e0bc93a8639e1a6a9a6c50b4a075fc3ed4b0503a0bcd362f777709c4149",
     "detectors_r": "35a03501dafbf3154dbf60cac08b32100aa3624ddba8d64c2e7015a17b2d13f3",
-    "frame": "aee45cb0efe0dc513ce25a9f23efbd0dabf3f1665a557a0c0ffe94d5b8d2ff51",
-    "frame_r": "a6a45870901962a859ed6d8d6a5e958974974fb18e3e4c0bf82a3078823bb6b5",
+    "frame": "671cd7559053ff584b4c9e2dbc65384f0376418f631a4a34d8a874d0b9772bfd",
+    "frame_r": "e41f1d9af5115e0e4ca2297ae56ae0b9ae29519775ef171b348254050f994437",
     "parse": "fca8bbc579e4d16bc4dda68ab27191e1a6bc1f4023934f1f9618714d7bb18b80",
     "stats": "5ebc6b70fd261614c1aac9012487bd61c8a04ad80e5b0ca60a8920a10f489a8f"
    },
@@ -1648,10 +1648,10 @@
    ],
    "digests": {
     "assess": "2afa3a05450945e88d148516eec0529d5d89ab084d22a99b40d9beedec262e67",
-    "detectors": "3310ee0bb79d24aa0ee89f95e0c24319ff8cb177f9acda6793b135a2c6732795",
+    "detectors": "55bd7b8964e7a015d244d3694736825fafa011ca6fb5bd97a735d9e924c5e223",
     "detectors_r": "a4253963f6237cf511d146eb2d645136c50c5b206afc91384f42401f645d704e",
-    "frame": "aee45cb0efe0dc513ce25a9f23efbd0dabf3f1665a557a0c0ffe94d5b8d2ff51",
-    "frame_r": "a6a45870901962a859ed6d8d6a5e958974974fb18e3e4c0bf82a3078823bb6b5",
+    "frame": "671cd7559053ff584b4c9e2dbc65384f0376418f631a4a34d8a874d0b9772bfd",
+    "frame_r": "e41f1d9af5115e0e4ca2297ae56ae0b9ae29519775ef171b348254050f994437",
     "parse": "fca8bbc579e4d16bc4dda68ab27191e1a6bc1f4023934f1f9618714d7bb18b80",
     "stats": "5ebc6b70fd261614c1aac9012487bd61c8a04ad80e5b0ca60a8920a10f489a8f"
    },
@@ -1673,10 +1673,10 @@
    ],
    "digests": {
     "assess": "9f3cccb708027d47d1c1a5ab090ecb9cf66b36d8a65af6a9b06ad695031e54f6",
-    "detectors": "1a5a94db856897c9d88dea5b93efeee5f4336344c0feeb2142ccd97112e31277",
+    "detectors": "fccb19098963b3c7836edef39ece3a8878f0bab15765ae238a942eaabea8698e",
     "detectors_r": "19a4365ba3a23e9d54da75efd0ccaf8f37ea82b87e669049d70496bafb0956d5",
-    "frame": "3e4d4e2c274616b424c4badf614b683cac36b28bade08f51bfe63d07aad5aa59",
-    "frame_r": "051b3a2a01c241531b03bfd56eb5e0fd7cec5de454f171cca12ab2839eb05d9e",
+    "frame": "22364f9ba0e23f24d919394696f4f5237b113f9be7176f9456e364715c70fd16",
+    "frame_r": "0be4383cd16fb988bfb4a83eee9df901d76fbbd45fef3942733afd6460342b72",
     "parse": "f0faec3535b337384ee04aa19baab2fba10cd0a5254b14b49b020589a01b7f4a",
     "stats": "fbcb4854011350826852127eb19ade0e460bc2a72c4189defd86aa12c8b6847b"
    },
@@ -1699,10 +1699,10 @@
    ],
    "digests": {
     "assess": "ebdb2cd3862211094b8bd19aaa34ec275e510d8cbe804849b85f90123ca553d6",
-    "detectors": "50006530805efa3c03277833cab87bc331f3edb8baeab4afa57dad0cdfe6076a",
+    "detectors": "8143fc16b08bf12ad10d60653d930d1dcf086b249f4537880b5a25d2454d3bcf",
     "detectors_r": "e1bc91f8ef44139831c36ae9ae29067b9548a24dc9300767bce62b44fa07d47b",
-    "frame": "3e4d4e2c274616b424c4badf614b683cac36b28bade08f51bfe63d07aad5aa59",
-    "frame_r": "051b3a2a01c241531b03bfd56eb5e0fd7cec5de454f171cca12ab2839eb05d9e",
+    "frame": "22364f9ba0e23f24d919394696f4f5237b113f9be7176f9456e364715c70fd16",
+    "frame_r": "0be4383cd16fb988bfb4a83eee9df901d76fbbd45fef3942733afd6460342b72",
     "parse": "f0faec3535b337384ee04aa19baab2fba10cd0a5254b14b49b020589a01b7f4a",
     "stats": "fbcb4854011350826852127eb19ade0e460bc2a72c4189defd86aa12c8b6847b"
    },
@@ -1724,10 +1724,10 @@
    ],
    "digests": {
     "assess": "5ba09448d5f1c17ffbf32fb9ec7c84b2166d6abdb1bf33b3937f73327f116127",
-    "detectors": "39cab68dc43a7ea5365c7af02e0811e89f5732614e0d69384c903c290d0b364b",
+    "detectors": "0bea5231a8860f53f8f54b560af9f407a53b0f884c20ca3fe1fd6492ce92a404",
     "detectors_r": "61b7869b92f3e964c9e1155b36fbc610697d77316bfcca3946d31efcf41e139a",
-    "frame": "93264e4b0ca50de16a20095696ff567ad55258e32c3af509a5a5ffd8cfb40375",
-    "frame_r": "ed7e1ba000c4adad2ff97439887e5695d43e027bec3a476b6af022cf56086543",
+    "frame": "93fceed3064a9184e7b644dfe9f8dfc11842a52698a43744d082b8b86769c1ff",
+    "frame_r": "15bb7de8903248afebe7a76e0df0de72f9d98d29faf87a4e5c249296722d2930",
     "parse": "a9f46e35e541be3970a547c26dbddd34f39a886123ea684251995c91c633cafa",
     "stats": "3712d599c44a1efd0ec51ea0fcb602606558c26e903068db72f800d434b4ba9d"
    },
@@ -1749,10 +1749,10 @@
    ],
    "digests": {
     "assess": "088f2face4ff7b7a7f35dcda2bdd29680b280789cd7a5862b02e0a127ac8940a",
-    "detectors": "d1b233334e7a1cff38210f375de6d3c8cfdeacdab1750f83b0c224b0f19490fe",
+    "detectors": "841fb82f7170624ce9d9bda14b305a091ed0dd7743e33bd7dd5cf58d7bfead72",
     "detectors_r": "c660ef6f4c111cea6c014b97952171c6280d29d40ddd353957f914f12ef7901c",
-    "frame": "93264e4b0ca50de16a20095696ff567ad55258e32c3af509a5a5ffd8cfb40375",
-    "frame_r": "ed7e1ba000c4adad2ff97439887e5695d43e027bec3a476b6af022cf56086543",
+    "frame": "93fceed3064a9184e7b644dfe9f8dfc11842a52698a43744d082b8b86769c1ff",
+    "frame_r": "15bb7de8903248afebe7a76e0df0de72f9d98d29faf87a4e5c249296722d2930",
     "parse": "a9f46e35e541be3970a547c26dbddd34f39a886123ea684251995c91c633cafa",
     "stats": "3712d599c44a1efd0ec51ea0fcb602606558c26e903068db72f800d434b4ba9d"
    },
@@ -1775,10 +1775,10 @@
    ],
    "digests": {
     "assess": "bf927fc71ed2952fc3807b9de7a4a0c79b32cfc8a02decdf889dfbda2aeadb68",
-    "detectors": "b5ef3beb17fa08eef656fc71ebcd09e00d0f26c6e102fbcfed876eac770710e3",
+    "detectors": "d90f3f58c1c4457046f1be04cd8bf149aa440594562fa50808cb81f52c566219",
     "detectors_r": "1b237ec84a48a0716e7433de83eccd13f3f211f90ddad55671c1268fa2f80973",
-    "frame": "c27f8fc77125ae9afbe8e351fdf839d95e16f4ec795c83f090e0112aeaa0a27f",
-    "frame_r": "485bd570a3162f500aad41e921a421c9db2152ae45d352668bfdbdd95654a2ae",
+    "frame": "4bbe5eab565ce524a0a58bbb3ff9d1b4982176e956eed31f16ac6af5880ef04a",
+    "frame_r": "48df1fac5319a753acf26e1663f6e48850d260d8d741b4e8e22035ecf4e76f90",
     "parse": "32c5e1af594e060b3306df5d8d6257c0e24e2162091f6e06ce614d9a37b087b6",
     "stats": "5ebc6b70fd261614c1aac9012487bd61c8a04ad80e5b0ca60a8920a10f489a8f"
    },
@@ -1801,10 +1801,10 @@
    ],
    "digests": {
     "assess": "a3f9558ca4ae92e3e71953ac4156fa3df46647cb4620ee565ee67f46d042abc4",
-    "detectors": "869857911d22919d7cd2dbf556bd54971becda65e5f1cafef58e449af8f58ce9",
+    "detectors": "2512e817880365eb7a85b7004f3eb76e8a72d981c1d0fc792548f582ec16466d",
     "detectors_r": "cc2ac058111a047ef55f02249f808db24d76b09e151977c500773afb07453283",
-    "frame": "c27f8fc77125ae9afbe8e351fdf839d95e16f4ec795c83f090e0112aeaa0a27f",
-    "frame_r": "485bd570a3162f500aad41e921a421c9db2152ae45d352668bfdbdd95654a2ae",
+    "frame": "4bbe5eab565ce524a0a58bbb3ff9d1b4982176e956eed31f16ac6af5880ef04a",
+    "frame_r": "48df1fac5319a753acf26e1663f6e48850d260d8d741b4e8e22035ecf4e76f90",
     "parse": "32c5e1af594e060b3306df5d8d6257c0e24e2162091f6e06ce614d9a37b087b6",
     "stats": "5ebc6b70fd261614c1aac9012487bd61c8a04ad80e5b0ca60a8920a10f489a8f"
    },
@@ -1824,10 +1824,10 @@
    "attack_types": [],
    "digests": {
     "assess": "05cb90c7534bbcc35cbabefcbc9e2acaf3ce11670c68feb5f177c640264a13d3",
-    "detectors": "480bed78d4a184701e6de583593774a87babead2d5f41dbc40c9cbfdd67be56f",
+    "detectors": "df1e4458c824af773345d2838da57b0b93714681da305a1d000b532076bf14de",
     "detectors_r": "879b430d4d0d9becd705e1103e0d909f82070a3bb99083c741577630328864ec",
-    "frame": "1c5c6545f2df54aa6ae59715751e7eae6f4c51e6850edc80ea0a3efde463dc09",
-    "frame_r": "caa01257755e721b8f9054f5df923dac2ceede60dbfe9dcdfab81a12ace91023",
+    "frame": "3aef18b05a7186fe9c178b2ee39839b5c53c9bc28a7a6c7499dc80ebe140d9a2",
+    "frame_r": "ae024e1285da138c83986e2f7c7e777bd011cccef6ed218f99cd0c4e27007fec",
     "parse": "8ee0f30d4c7e3674200b0872f37a280389faba94d7783e2163fdfc003658dbfe",
     "stats": "81ca52fb9c0184fa70d8ba0674cbeeac22b660f1c05fc31ca61dfa6a19d80cca"
    },
@@ -1847,10 +1847,10 @@
    "attack_types": [],
    "digests": {
     "assess": "42cc1f9ca30796ed054fccddbf228095c52cc6b18f519664c2debeee53f23124",
-    "detectors": "07734d2fa0957c2486e2a48a960917cca537406189624c8d9a3f3f1b79554401",
+    "detectors": "56f256bcaefc16ffdf32d31faa02107651a031288d6ba221fdf27429710a3a67",
     "detectors_r": "3a2d0a5b285c3b6e45e8807379c33096a79dce13d41a382a9b88a083dbcd2bb4",
-    "frame": "1c5c6545f2df54aa6ae59715751e7eae6f4c51e6850edc80ea0a3efde463dc09",
-    "frame_r": "caa01257755e721b8f9054f5df923dac2ceede60dbfe9dcdfab81a12ace91023",
+    "frame": "3aef18b05a7186fe9c178b2ee39839b5c53c9bc28a7a6c7499dc80ebe140d9a2",
+    "frame_r": "ae024e1285da138c83986e2f7c7e777bd011cccef6ed218f99cd0c4e27007fec",
     "parse": "8ee0f30d4c7e3674200b0872f37a280389faba94d7783e2163fdfc003658dbfe",
     "stats": "81ca52fb9c0184fa70d8ba0674cbeeac22b660f1c05fc31ca61dfa6a19d80cca"
    },
@@ -1872,10 +1872,10 @@
    ],
    "digests": {
     "assess": "ef5c9a49809fdc5021050212fd432a36bfe8c558be661dcc977195799cdae760",
-    "detectors": "e506dcd8dd40bbcc71e907e5aec6af9ebd77b2b755f2a7e878722d44a56e273c",
+    "detectors": "012dbb3c6855f48f383b2f594c550d5c033ddeaffa41fcb75f9b50f318f10bde",
     "detectors_r": "71e22c83a052c75a529779deb3f22e91c3874cf88aa75a468f946fab5fa301d0",
-    "frame": "eda619097070d7add74827b5bd66a08382ca48f9c32363479b905be82d48a795",
-    "frame_r": "e6697eafb06e91a15ed973f676d8efa51a41f92c39f980ced62193a37c634ef9",
+    "frame": "6f7bfc6fe96246d653cd9b60d5ac318801c102804b000e64d7859ba647ac4906",
+    "frame_r": "45188b33791bf6fecd9ab582821af59598d82bc0fd0816cdfab43ff39ba8bdb5",
     "parse": "9edf5ca69118ba5cf0cf12d53be980a9964f8004077399fcc6386e865f6a8011",
     "stats": "dc84e9b73f58a4047b49be188679093531cde7ec9953ed0a723ee419f109f32b"
    },
@@ -1897,10 +1897,10 @@
    ],
    "digests": {
     "assess": "f8cac853d6d5ef1c2b915e22e2c5c059892445d2d5047909d90722850d8fc946",
-    "detectors": "8dd7bfe14258c83aea48f8927fc95a53632ea9ae5ff5f9e870cac2c17e55ca84",
+    "detectors": "cd3d89002e0b09434c600232c30ae289f8b44656c942ad416659c80faa44c080",
     "detectors_r": "554292100b3f185f8f9ea130d87d1e24304bd5bb1b87ca1255f5b2579ce1259d",
-    "frame": "eda619097070d7add74827b5bd66a08382ca48f9c32363479b905be82d48a795",
-    "frame_r": "e6697eafb06e91a15ed973f676d8efa51a41f92c39f980ced62193a37c634ef9",
+    "frame": "6f7bfc6fe96246d653cd9b60d5ac318801c102804b000e64d7859ba647ac4906",
+    "frame_r": "45188b33791bf6fecd9ab582821af59598d82bc0fd0816cdfab43ff39ba8bdb5",
     "parse": "9edf5ca69118ba5cf0cf12d53be980a9964f8004077399fcc6386e865f6a8011",
     "stats": "dc84e9b73f58a4047b49be188679093531cde7ec9953ed0a723ee419f109f32b"
    },
@@ -1916,16 +1916,16 @@
    "threat_decisions": 96
   },
   "live/seq/default": {
-   "alerts": 2,
+   "alerts": 1,
    "attack_types": [
     "MAVLINK_ANOMALY"
    ],
    "digests": {
-    "assess": "e747c4c99a5e5e9a94c2e9ffb2755c32967d59bb0f3c292ac1be25916620c251",
-    "detectors": "145303cedc63e87b74ea83e8bb735208cabde73dd4c325688bf353352917e9bd",
-    "detectors_r": "f9bd1247e62286c46270bcc1ec624867b46b7eb7f2ed10cbcc1c472e41e2ebfa",
-    "frame": "e97b91ba546ae01d9efbe2949762f92c66b131ff4ef637ef44b2bf6866a61783",
-    "frame_r": "122fafa956237af15b9f6f3b174ee910cc00088783c002c9ce513e6ed69aecf8",
+    "assess": "6402c4bd4a9280cda26b310ee2b9eff8547bcf76309bb8de4da4ed323ec4eab4",
+    "detectors": "a103e26c1d8addd09727f160b41bb1a9af306df7f0f4d39e5b2a2ce5c5b1d51a",
+    "detectors_r": "67ab5c97576b8255106da76a7e7aa1129930b2a89a1e24f287503e619d0d984a",
+    "frame": "10cbd229ebfbfd50136699aee85a2c150184384d1bcbdbe7a624d34d97a50b86",
+    "frame_r": "32d1962bc282a5cddcc1afb7334dfd7a7f849f705178efe729d6298577822a3f",
     "parse": "0ae1c62aac6c7b42e42c5383e977e687195fc2ef30b64069f0fa098f81f31107",
     "stats": "3832682bf6be2440afc2620f8cc4e0a38ffbe82b1a26691e96fcfd86f9d449be"
    },
@@ -1938,19 +1938,19 @@
    },
    "n_decisions": 350,
    "n_messages": 1891,
-   "threat_decisions": 2
+   "threat_decisions": 1
   },
   "live/seq/profile": {
-   "alerts": 2,
+   "alerts": 1,
    "attack_types": [
     "MAVLINK_ANOMALY"
    ],
    "digests": {
-    "assess": "4bf31f9c3dc234cd91cb974abc26e1667c36507672cd2a2ad6b494dd4eb6b373",
-    "detectors": "7ab50167051ba0510cc905b2afe0a0c0f5861bfab1aa865d05599db288e5c498",
-    "detectors_r": "fcc4c6db6b06d629586db4a49353eafdd936ae0e5de4c39e7f3d4054b2cf8afb",
-    "frame": "e97b91ba546ae01d9efbe2949762f92c66b131ff4ef637ef44b2bf6866a61783",
-    "frame_r": "122fafa956237af15b9f6f3b174ee910cc00088783c002c9ce513e6ed69aecf8",
+    "assess": "5473719444b596fe9ccf19ba7e64f5f1ddb8fab4eb75d334a775975e4d7a3fb1",
+    "detectors": "61ad33792db6a2c44241aa551e64f430da3dc21dbd34d510738866fe859d948b",
+    "detectors_r": "5bdb6b4c52b27ddd2c42726c08d66a95c85073a27a1725238b81f7660391ea34",
+    "frame": "10cbd229ebfbfd50136699aee85a2c150184384d1bcbdbe7a624d34d97a50b86",
+    "frame_r": "32d1962bc282a5cddcc1afb7334dfd7a7f849f705178efe729d6298577822a3f",
     "parse": "0ae1c62aac6c7b42e42c5383e977e687195fc2ef30b64069f0fa098f81f31107",
     "stats": "3832682bf6be2440afc2620f8cc4e0a38ffbe82b1a26691e96fcfd86f9d449be"
    },
@@ -1963,19 +1963,19 @@
    },
    "n_decisions": 350,
    "n_messages": 1891,
-   "threat_decisions": 2
+   "threat_decisions": 1
   },
   "live/signed/default": {
-   "alerts": 21,
+   "alerts": 17,
    "attack_types": [
     "MAVLINK_ANOMALY"
    ],
    "digests": {
-    "assess": "10264d02c55746f8137e5607c7a9633f25a8a8a079ce8ef1f2e85ed5c5479dd2",
-    "detectors": "6408a8297f0a149a9eb90b970ce09e7ebad6e9102fe1b37f11c7cd604e48a001",
-    "detectors_r": "6999898c37f44883891849fcdf3125b1f55241971d5972f27530bd3e4ba7fce3",
-    "frame": "319d5b6d9d8ccc5da8f5e3f9866a88fc1c41ddf989b4554702c05d7b54161bdc",
-    "frame_r": "d54cfdac17d42080d227aa3cb30bc9f17350083641732fcf0988716e881c1d8d",
+    "assess": "0b22d87939fc755aaebc8d24b5566df9324b1b06881ae21b2bac904c73b5c6fa",
+    "detectors": "6e7b0dbf9e92db6c51c712d635da57dcff4098b1523c83a52a7cdbc5c8e1359f",
+    "detectors_r": "d64e191e70f7c3f4e9bf8aee938a1ec82f044ee82a2097a95618bb2289343123",
+    "frame": "edb37fd5649dc61226d52c7a7ed62ed8438b99dbe25669ab86c443a850ac3f90",
+    "frame_r": "fe97f0e746b599494c5058bb36f6a209875a54715fd42883ed28fe108f764804",
     "parse": "540a003520c1da3e453f2d5859baf8771e87cb37fc807ee738495b0dbb3d9286",
     "stats": "0a43a0533ae1ec4bbc48ad2db466633d524d8522849cae72e03a613caf933dfb"
    },
@@ -1988,19 +1988,19 @@
    },
    "n_decisions": 348,
    "n_messages": 140,
-   "threat_decisions": 121
+   "threat_decisions": 113
   },
   "live/signed/profile": {
-   "alerts": 21,
+   "alerts": 17,
    "attack_types": [
     "MAVLINK_ANOMALY"
    ],
    "digests": {
-    "assess": "e1f110e2d4cc9a045b7ef79798a0518e01fa247ad1724fa15ffc93ed5d18fb7d",
-    "detectors": "391580c78850a0a80f247e430c46057aab18f2b7c32526289278276f175664d4",
-    "detectors_r": "aeb11d115fdccaa8186057d9a3f6f40eba8724073d5cdcbd667df1860cb4cae3",
-    "frame": "319d5b6d9d8ccc5da8f5e3f9866a88fc1c41ddf989b4554702c05d7b54161bdc",
-    "frame_r": "d54cfdac17d42080d227aa3cb30bc9f17350083641732fcf0988716e881c1d8d",
+    "assess": "653e60046de6de86f4e32c5b4fc18bf97ffd6fc9e2c3c213c54ca166c41d842a",
+    "detectors": "b1f0463f5e904fd22eb5636cf7840c85e91ca6a4a280c974e3f4e98644b61266",
+    "detectors_r": "4740f3a07bcd8d32954b4f977ede7147997e3447e3811670d355e71d8850a167",
+    "frame": "edb37fd5649dc61226d52c7a7ed62ed8438b99dbe25669ab86c443a850ac3f90",
+    "frame_r": "fe97f0e746b599494c5058bb36f6a209875a54715fd42883ed28fe108f764804",
     "parse": "540a003520c1da3e453f2d5859baf8771e87cb37fc807ee738495b0dbb3d9286",
     "stats": "0a43a0533ae1ec4bbc48ad2db466633d524d8522849cae72e03a613caf933dfb"
    },
@@ -2013,7 +2013,7 @@
    },
    "n_decisions": 348,
    "n_messages": 140,
-   "threat_decisions": 121
+   "threat_decisions": 113
   },
   "live/spoof_drift/default": {
    "alerts": 1,
@@ -2022,10 +2022,10 @@
    ],
    "digests": {
     "assess": "de01844c90886a99d824b95793c4c0fb805b8ce6ee839fde8707cf7bde17b794",
-    "detectors": "fb29b2dd1641d579d694b70b1781aea79c58c972215445125bb1321277f168ee",
+    "detectors": "251c2f9aa40fc3f45a76719431d4398a7db29421dfec496eb62c130479cf38c3",
     "detectors_r": "0e97fc69e5ca0382a0b19906550380aa39f4ab4e150d251d5af7e0210a8710db",
-    "frame": "8dead002bd9f5ab62615246891d7873b40cce439ca596cabb9a9519af2164aba",
-    "frame_r": "093a114cee5d75945ca2679fb7646213482d65ee93c08b550fb43a0098fe24ad",
+    "frame": "49fd569ceda95e9f23ba29e404e2a44cdd09238be2f82a07a538dd740e8fb5b4",
+    "frame_r": "5ad8df57b68bf1158efa8bcb6d47bce0c8b2373032d28c74d24fa8bfab1d64c0",
     "parse": "a8866eab66f28df340a41d7b8415a66b3b8b77c9d559742c77fd12aa268ef7fa",
     "stats": "5ebc6b70fd261614c1aac9012487bd61c8a04ad80e5b0ca60a8920a10f489a8f"
    },
@@ -2047,10 +2047,10 @@
    ],
    "digests": {
     "assess": "b1d4fc59b857a1988c3ddc30bee3c52f99032b7766342e75012177c53cf04921",
-    "detectors": "ec063719e7e899769d606b3de9dd2df9a6619ff89561f2cb262f2c565ba085d0",
+    "detectors": "fc8ddef3b302c1e4d21163a38444d2fbb35caa6324c850c0c20c9e511a4b2e25",
     "detectors_r": "d77de769a8fe2245e0859a4d962e9f07704e5e022aee085fb80dfd2e90fe76b0",
-    "frame": "8dead002bd9f5ab62615246891d7873b40cce439ca596cabb9a9519af2164aba",
-    "frame_r": "093a114cee5d75945ca2679fb7646213482d65ee93c08b550fb43a0098fe24ad",
+    "frame": "49fd569ceda95e9f23ba29e404e2a44cdd09238be2f82a07a538dd740e8fb5b4",
+    "frame_r": "5ad8df57b68bf1158efa8bcb6d47bce0c8b2373032d28c74d24fa8bfab1d64c0",
     "parse": "a8866eab66f28df340a41d7b8415a66b3b8b77c9d559742c77fd12aa268ef7fa",
     "stats": "5ebc6b70fd261614c1aac9012487bd61c8a04ad80e5b0ca60a8920a10f489a8f"
    },
@@ -2072,8 +2072,8 @@
     "assess": "7b74bb395ec2ccc5216eb087e1867b133f679a660fe61810e0db18f8cae6827d",
     "detectors": "504f654bca6de22290a3eeadd189a2fc273cb7e220367ec6cc6623dbfbcccf52",
     "detectors_r": "b5cc0e72485c10ab691617ce92599e05731bc07c17bfa35eca5cbb41e6ce5396",
-    "frame": "0dd86a8ef6c2853a06326822a3508452603424a4a73f8d9f49a50976a85dbd47",
-    "frame_r": "0637b1bad4e50a19ee27052aac39cf190bc0e044530bbc37b4f8d4117bb7eae7",
+    "frame": "661583d9736b4086af95f4616d8323c99535c71b650aac5d91b9beed52f045bc",
+    "frame_r": "85917cd16332b8a0f6a94b99abebfe5bbc2ca02256a28794ab2658f26314facb",
     "parse": "f8ecee17a305459bbbf6fae9b1e4601dde28e9f0ccd27c2f19b721f07cbf2664"
    },
    "last": {
@@ -2094,8 +2094,8 @@
     "assess": "eb9c61b90ae6e9a8177abe1f0acc490a6b1a0d15b9f42846fce7b8a957643e18",
     "detectors": "ab5b1a8aa3fcb70eb4279d61fa75f94fee50553ea6330573d8ce59b34579251b",
     "detectors_r": "02bba9b97b1f0c2573a478bea33eeb9733be6c80e44bfdba6b2b3ea989d8d8cf",
-    "frame": "a0c275bacf12d056412f06723160a90b77ef0bb940892bc0cda988be778f10d5",
-    "frame_r": "0316811c0ff812f696fca2be1abb66c4f2cb8d64815ec33b6c1929148242133e",
+    "frame": "09ceb033c3c48cd196125a48d815ae27b005f0e1ce4a5073a44bc113df3cd484",
+    "frame_r": "bf103971192d5c143a4deb527a1ca58b6baeeabf138eb4abbc436bcdea32c39b",
     "parse": "c4c7901fdc4326aa5b943e5d0bcadfc6a09dad61b3f145a0255c8ac8dbc39296"
    },
    "last": {
@@ -2116,11 +2116,11 @@
     "TELEMETRY_MANIPULATION"
    ],
    "digests": {
-    "assess": "9216c7c236f494df6f5e03f7d842855b0bd425b90899ed7df0862304e73e91b5",
-    "detectors": "8c5aaee8b53ef82288b287ce01f2db800d6ab3f8d5111890fb614b6bd29bcab3",
-    "detectors_r": "b56750a65b12b765ad36b38ad0a536ab881ddf3b463cea5b2664096fabb63283",
-    "frame": "e9c476446c189aca17d36ca9f58ec4308cf73c7434902d066028610247120f92",
-    "frame_r": "d18daf4fe7025cd5b28521bbe88cf72bad71e73ea39f2761daaf8f83987c9975",
+    "assess": "9b578a3c492fb9b1408d27b4914c2e914669703b51c1758562a6a678520bbe5d",
+    "detectors": "cdec70e1a39e488c3bfd523c3debd8aabf198eb8af2e982d2ec3dded73435d92",
+    "detectors_r": "096fa0dc0f40fe6a86917717cfb493fca00105340e5805a4f2657f5589128bac",
+    "frame": "adf161bf557b8803249b470a735253b5743e32beb311f324b786a7bca8dee937",
+    "frame_r": "fc3f0e6649a11c6db9db35af2e34318ca2dec85fd7c0de50d9d4ac5c54f80c7b",
     "parse": "52920be478cdccbd8551cf4f10a80ee934c300249f561c3463d85169ec7dc03c"
    },
    "last": {
@@ -2144,8 +2144,8 @@
     "assess": "8d0762d91bac4c998c8bb1904a04227c43574d6a07876092b50a8f1a3037c951",
     "detectors": "7bd87a2609e1a971601fdc58801b9711a558b7f04ec9273a76df5c0f055813a7",
     "detectors_r": "7e6d9b26958bc8371a4e861ed75f902fff86e124cd5e81f251ab9fbc229dfb06",
-    "frame": "07f71f0c2a392875f1e6fb4ccdad2206d56d6be4aed21a1db5e2a016d442c218",
-    "frame_r": "35bbc9a5d5312aed2d6200d0698727708d851798a770052f970c16cd8f441112",
+    "frame": "e7d41a357d42ee83928d9a26615ed298474b9ae795736f67694b0b74f8ed662f",
+    "frame_r": "4a76aa45511260d65cf7704d4d462f7ea3ae2150b2dd48eedbd7a8a6a2839008",
     "parse": "b35ba1a01d2d55c7a171bb284bf4a73d12237fb5ab6701f173bdc96087349419"
    },
    "last": {
@@ -2169,8 +2169,8 @@
     "assess": "b8f29212318cb475fb87a74d22944953fa4369f953b5a258f070b9dcc3924965",
     "detectors": "8bfe48baeb1cc86d4ff98753092fbde91e47598676b9c696dd8be34712f9ae2c",
     "detectors_r": "15f0be2b34393af636d373ccf4a22354d3e50791e9be7930ac5b77af584b6a58",
-    "frame": "4fabae5c1f4bd9c0cc5d0396a15ecb6d7413d59f88a849d09fe6526575c15b9c",
-    "frame_r": "8aedb45992a9be9d2c146a31b7a303574ab73e07905677e521b34005a67540c6",
+    "frame": "fd55a5947dbca3bb5b37d2ab32b1ede362fed4a19deada6164bbdccd769a147e",
+    "frame_r": "2b4403173294fb7ef249c42a1677c0399fec5958bef7299a336b7fd289678b2a",
     "parse": "3499a2f07ad2aa59f07b7b1537b9635cbe1ebec991c5d932c322d207d5d79822"
    },
    "last": {
@@ -2194,8 +2194,8 @@
     "assess": "d904bf0f59820b811df34d68364abe7d02fd268f4500769ed927f1658e8edab6",
     "detectors": "e6d9b626122dded5b0c26be6679d7a5c1b4f1db361434b57dd700e8d6979508c",
     "detectors_r": "883091e48d750ea16860667352efcd5347e8aa32a6dfd66d78b4c54e4c7f9eb8",
-    "frame": "d35cbd313309048f4919ede5c28dcb2aa04e2fcda245a63e87333577a76081a0",
-    "frame_r": "23256708254de353700bafeefedd152070e5febb62cd76223fd2dec3df39bb54",
+    "frame": "c0c2d671cb1c20c679a595cc48d34919eca6003b384c629411301eaa6e3e5e7a",
+    "frame_r": "1d549624c60fd506223855eeddd70c364b23c28e9af82a4d7642bd2de9309235",
     "parse": "26301f52a189612b7f2006681704767befdc86373f40de9c819606a21d6210b7"
    },
    "last": {
@@ -2218,8 +2218,8 @@
     "assess": "4f9169a9772feb38c8da5ac4f11642c89c06ef7127d02d0386654d16d68a149b",
     "detectors": "8ee8f9bc3af94322d2af15a02b93ec94693a99d5d7150d72fd04ff4e977e27ea",
     "detectors_r": "7f0e78ced979b258dcb2e39d9179f2e691677a304198856117b818ab88fdd6e0",
-    "frame": "5437f0148531c3120f20e9dc734da3cfa5bf902f4b5c1b5b2431d50a9bfa2151",
-    "frame_r": "7b2ada15597466e76115574c172a6b1d9a6eda9f79ba34ecbf6d6e8f8eff5075",
+    "frame": "4c059a009b2c9af09db64526ece309e1ba9757deb125ca6a12813ccb4ad899ba",
+    "frame_r": "1fb7e679dbec4027a97f0f768988ff1790f2245fba7318bb343cbc5c404cbd48",
     "parse": "854078a8505d5a6b379f2c22884672c080ac41c936d4cf818508315c5da6d3d6"
    },
    "last": {
@@ -2242,8 +2242,8 @@
     "assess": "a4cff5033722924829f15563ffa1f9cc8018e66c5cee727b48cd9102e8c188b4",
     "detectors": "9124995d86860cc9101d8ec40d9023b0136926f176ca203bf4393a1890cb64bb",
     "detectors_r": "1d8b291489eaa7ad803eb6ea5958cfbadba844cb3a0a9c230497669ad69d64dd",
-    "frame": "a553e10e4310008702e0621c25085cb1434c864f09253ca75aff42e63ce73cec",
-    "frame_r": "d4fc0ec8e7a49b6d7127bdcd9bb69c33e19c13996df82522e5bde306d96994dc",
+    "frame": "00c180914115857a8c530fddaea7c62613dd0d8ece54bb1dd0301da7ffd7ecb3",
+    "frame_r": "0ffe95457456c9c5d524f9863eed821cf5d48293be79ee55c6b94d4d13bc1061",
     "parse": "3eab3d4e0a87b553542e2251881aec4b7c5cc084513aa66faa0170625d934b11"
    },
    "last": {
@@ -2264,8 +2264,8 @@
     "assess": "7b74bb395ec2ccc5216eb087e1867b133f679a660fe61810e0db18f8cae6827d",
     "detectors": "962bee1f9617b304f98207e2751561d0a705c7148b704ecec37f85e04b4dfa33",
     "detectors_r": "6e2827e11a4aae628e38677c05f7453f63610e35f81fa322ce004fbbe6660d81",
-    "frame": "0db1dff20d368ca4a371feb7b8f8dbcde63b63e24b92eb3e354612299ce33b71",
-    "frame_r": "d56b34ac570710812736c0f220f527d08a4cf60cbad555a04b9e123467287622",
+    "frame": "cf8e8f8c14bf84cdea34bb7774483502b04c76a3b531a93772a14100455befb2",
+    "frame_r": "d199961f861260a51892b20942fc3ad484065082d478c41b31901896551a0475",
     "parse": "c7b6de8306302cba881d1e9bebf1c13055733c57bd9f9388319a340d5d356ee6"
    },
    "last": {
@@ -2286,8 +2286,8 @@
     "assess": "eb9c61b90ae6e9a8177abe1f0acc490a6b1a0d15b9f42846fce7b8a957643e18",
     "detectors": "5fe332b3453fb75b2ee0c5fa23ea68520965dab9c192fe64699874474c332d45",
     "detectors_r": "21b041b54aa8195a19fcb0f65a9cf0efd361ad1441b252b12071ba64a6454756",
-    "frame": "56a253b8a9198c53e973d7ef5e0769b1a94c3784a181161dcc56f4c5ee26b548",
-    "frame_r": "d3ba42b636a203e497888637df6904b1bd18164a166ca58430a120ef910d966e",
+    "frame": "37faf6c60c80a36d4e452e153be23890afd53eb6bbf189190665aa14578f52e0",
+    "frame_r": "9af2456b75e7f6a37e5b394d4f50606f326286bc38817fb31569fd809d9f7722",
     "parse": "64db9a010177d64b8bf1232adda6573175cd7e50574667c325032153a87d479e"
    },
    "last": {
@@ -2310,8 +2310,8 @@
     "assess": "35757d3a1c6ebe1becbb39e3543d1f71b41d4c1bd67e1349cd90664e64aa3a98",
     "detectors": "986fdd4234fa444aec27cd5ae0efddd48fcf9ec79118675882178e28ecbb6153",
     "detectors_r": "79f4e83d570c659b0af8378fa534c3b404a6a2e03bda6f6bb78f6c1b47bb740a",
-    "frame": "d0586888a7b6d315db11bb9394d41146ddda290fe0fac1138a923ef0c431aca0",
-    "frame_r": "9bc293b868b80c22dbffae9bad368d5d7cad18f455cf9b965c1b80fd0a6e8654",
+    "frame": "e0336071181fef198d3c01091355c06cd5df488ab008becf5211397891efe065",
+    "frame_r": "48b14688111f1c77afc00599398a3689ac4ea10555d751d9e4eeaea004f4f2b1",
     "parse": "a810d74f8ff2c63a1466f56489a6e3e9e06a1effb5674625feddb10a327d8af8"
    },
    "last": {
@@ -2334,8 +2334,8 @@
     "assess": "46e7c1cdf7f5fdf73da68cb850e9403a31d396e55c418b4043725bd2a0f71efc",
     "detectors": "cd162f8b23e184a47d5afd8a32a6923886d4ec8455b4b693188d58dea3d952e7",
     "detectors_r": "25ed3c82725ee37c4d8d0492ed4fe2862ada1c5f9325f0e49199c81ab4941697",
-    "frame": "21f3b83ac9f76206706139c114bb0de08182aa0f1da69171c660f4c021c18223",
-    "frame_r": "3f85ffcf85da9d6979350a8ad5e6c088e337c86706753fdbba2b08eada170188",
+    "frame": "23978822363edab1427b55e6eb2f46f47aec7f457817460f81dc84ae34e32746",
+    "frame_r": "00e6a5032f81fcb2f87af66bda47cd492649f220abacfb56429755873846f153",
     "parse": "d2f343811cfe439e10729311195c21544d81d86704873170fe47b79fac015a1f"
    },
    "last": {
@@ -2358,8 +2358,8 @@
     "assess": "47cfaaff1fa4a10251c27df80d017cf2e60baa38c6fa33f7f55544b845c62aa0",
     "detectors": "a38007a8adcdd1baf30243f5382dc67597c86000d57d714151c47eb8f102f178",
     "detectors_r": "c771e5aeab75583ace9ba7802cf7d86b9f32487c6695fd4e3e1dd5de99b9c04b",
-    "frame": "0a71b73e860c0e41f6c712530b72c294bdcde9b986a0f7ae0f94bc1c85cfa660",
-    "frame_r": "34aeaf2b81eac12087843a6cb940c9175d038f38534284dc2f917062fa962ca1",
+    "frame": "3fda122d1d760b05e732bbdb89aa7f3c1ef7c61cb3db2571f7dff24d2bc90d26",
+    "frame_r": "7da2da9dc402602aa74d279a10dba6a5029cf47fd4a0b2ec9a491596be011e27",
     "parse": "f56b7fdb190ae5426a216ecf2774b8b09dd0c019f1b4597807ec9c336d2cf185"
    },
    "last": {
@@ -2382,8 +2382,8 @@
     "assess": "39db1ab08a9cafd8332c13a6ecc5ae732bf79e2ac3ba55d3392095f5df530013",
     "detectors": "c22db9312429086bfca24794d5cd92822850a90f8f5984ed6c467bbc4778a4ac",
     "detectors_r": "16d50298b0d9306a720931cac1a20bfacb30f83a3cc671f3604bf68d7cbae0cb",
-    "frame": "2545a4f229b242e05f99b73e94d3e3afb19c30dfccb66bfcf34a1eadb4b67cc0",
-    "frame_r": "f2f166fca2c80843679de85db2f309e2547006b57e5e1d1ebfd35cd1f966a8b9",
+    "frame": "e627a237df18a7ed546b4d530084d4d9e36d106b31fafec7adfa41132c2ecb73",
+    "frame_r": "6f798987a2e2e9c910f4a34430f00675808a983db3ac778a4a4034e67e86ea9d",
     "parse": "d600015aab203ceb3d25200e3d7c7280316bb68f8d6e10c49d987dc221764ba9"
    },
    "last": {
@@ -2407,8 +2407,8 @@
     "assess": "385c74327def9b1b4c00fbb91e7fbcb25acfe1275d1b5426b989f5c5a4e3eb25",
     "detectors": "b1cb05d05bfdac5f7a53254c3bdadee214c07ed62f3a315809f408f514a4905c",
     "detectors_r": "3ffe2ab1d136becfeeb123abee686cb3832a8724ccd994e9ffffe2f693594097",
-    "frame": "b33aebbae959bea987de259217d124e8e1509d079a957238aca298f091898a9e",
-    "frame_r": "fc3e52957fcaeaa5b32d4eadea2c3e39806507e23008c7edccb2700e4bb48a8e",
+    "frame": "c28df3be0325190771152c0b1ef4a25b60b3087d8a746a3e5ac1ff8fce9ee8ac",
+    "frame_r": "32ca011441c5dd98cc949826e210335914298faa2fe4f5f794af7dbe71e7ef31",
     "parse": "e72398800b89e1f3eaab8b80663d27133d9fdf93019f29d23051f63cbf739ffa"
    },
    "last": {
@@ -2432,8 +2432,8 @@
     "assess": "bcbba1f70f4f0fd4d0d3353c447fc9eb2342064465f797d5057c3f823db3d4b4",
     "detectors": "cf7dc1dca637920a28d20ae74b751f8c106cec686be83122414ac2694f9fd9b8",
     "detectors_r": "5da13e71cba96cdc53f133a7402c00d375f385c2ecd9054f0c0ad10009b24c34",
-    "frame": "7dce88e5d1dcf04349725d41506fe76571eb9a6a1cfe2925abf5c44b311cb1c5",
-    "frame_r": "50c63e7f1d6d971e3774c6d43d155e1093a54d857278ac6972ee86711c719073",
+    "frame": "299c9027107d0cbde91ac4367d91a28bfa0b198235a2a004d918d3f294e4e3c4",
+    "frame_r": "39c95d3988eeee3093cc121ef6bc262872a0ac4f1be6b055327a977d8aab4630",
     "parse": "0a4964a69e12d4eb22316248b6aa0d83beee8962eed7b03c1071de4adcd2131b"
    },
    "last": {
@@ -2453,11 +2453,11 @@
     "DOS"
    ],
    "digests": {
-    "assess": "54c9981e53ecf41455892731380b4e2726b09e277fbb235ac97b8f33bbd20031",
-    "detectors": "4af794965a3de43bb37c5bf886c8d0cefb3c84b99361228cecafef61ad5b023f",
-    "detectors_r": "d7a043fe19e374a0f5c282ce8e8b0188b069fae9dbf2c2eaef3e3fe4b2d4f9fd",
-    "frame": "d6d6249fdc304ab00401480a1376c492a177c9e986c9b5e6ab325e010675d5d2",
-    "frame_r": "98cfb24d7908be30395bf49caee7431db6da12aca3b99dacd354df4223ff6a9a",
+    "assess": "2a5ebc8d5647a0bde02813e9367b3e796a60621fbd3fb4f9b37f672ae3e9046a",
+    "detectors": "5363fdfda6198fc85a367fa724b10f2d14f868562e12d1632bd0a4184273f470",
+    "detectors_r": "e9cd1be4848b4bf6dc2b329ea9bafe310c7b6c84e1edf6f35f9425a33f769882",
+    "frame": "b8b47e9a7bd5c694cb54c5a72ed2b0b5a55baad749f66765b8563aa3eff38ce1",
+    "frame_r": "de80643ed3d730c0a4545bc9486f6e9f820bdb661a1b61b1405c11dc510745a2",
     "parse": "50e57a96ab668ef5a4b1c7bb61456c594c8377e4eb99d7bd0ebe32a937f61bdf"
    },
    "last": {
@@ -2477,11 +2477,11 @@
     "DOS"
    ],
    "digests": {
-    "assess": "e008bcecf6003499f343fffeeec6c43dc3e589d005b18aea9342d1c2c6fee712",
-    "detectors": "ee607d6d096974b5002cf6d6600ef0fc0e5e8d73a860e101599bc01d78b4b26f",
-    "detectors_r": "0fa1e4974b9f58f2e01fc3f0a63da3644a4dc2193b6edf596065514a2f4576a6",
-    "frame": "6633d2c44d6b4ffd47b75bf9a5d4c14cdb7560fa46e3a385ea147e6a0eacf141",
-    "frame_r": "2cc23faad9274e37c6f10604a314a8314b1f1e910bb8d215dd79a7bd9f0481b3",
+    "assess": "6f8c9aba1b985c57080eefa7498dd98daa0c860f993394dbd249ec963a41e0a0",
+    "detectors": "d067c6f6550c66dcb8e09cf3fad66a387b8b2eeac497ff7775d52f00a8d67c87",
+    "detectors_r": "84a4287c892accbfdccfa5a5919154eb774a8131d9466d8b8d21e05f9cc05268",
+    "frame": "7b62eb951dcf66319b6078b674032274239414f8d6449131a800fc2edc2a6ff9",
+    "frame_r": "dd9365adc548015485210eddc20484a402154fac18399ac8780a8e1d5b29b991",
     "parse": "22fa77a1cf5f1f4fe98c1ebb051da2543e5357df55e0f2e349b385244ca872e2"
    },
    "last": {
@@ -2504,8 +2504,8 @@
     "assess": "c17d39caac6d83c316af988a7c4be3e330b0e3668caf3a9066f1f85a9abd996f",
     "detectors": "3a73795ca87d601528b5f1b4f7e917640b493557b068502a7f841ee85eea22a8",
     "detectors_r": "0ca24a1fb57e48e9b802a333fbacde1edd1c9bc28f786e492bf72d788fd13fd8",
-    "frame": "4f7e49b0352630246ff902e0c8a6318102bdfa6d4bc221b6080f6fa3b7ae7a98",
-    "frame_r": "dcdc68667dbf66c23fee14470707d01a9ed4aa6256362dd928668ca47177e763",
+    "frame": "36a433c596a31db1d71270a47dd4b7f103bf5cc16bc59521b6521d7434a675d7",
+    "frame_r": "c37fbe5b60e923d32a708d5ef0286d86cfde784cd3509dc8aa45c3078f7db542",
     "parse": "9d1b6a79f749a970a4a1487415ea988705a8c8039db7a0a5bb3c0475d97ff65a"
    },
    "last": {
@@ -2528,8 +2528,8 @@
     "assess": "53d6ae6097606d90c234ca0791135897a8999350c6139afd1854d78f26a489f8",
     "detectors": "cb921726b33bd64c1660187daa4e0622087bf6ddf315b691a75dad65cc9411c9",
     "detectors_r": "2dd3cb57f69cd1583b5fb4d252275959b5bf3ce5e361895876fcce90f31c121e",
-    "frame": "d60a972a1997b634062993fe863e1ad112dcdcb5d541937383d952b44412f504",
-    "frame_r": "7f3e913a4d200cee4ea042c3c07a28158d5cd1b0b1424e4fec907bda0d4abfe5",
+    "frame": "d584f2ad321c737b8d9d1132d96a1bdaec119e284fded51797c79a4875374f0f",
+    "frame_r": "74954af38aab89b7daeb31d6478b6eec0d684ad574a2885a689fe62be8e0b0b7",
     "parse": "e68ae2c1c7fb9070a70d8f4045010eef1ecd3ebbcace4e95dc20bbc503a82961"
    },
    "last": {
@@ -2544,17 +2544,14 @@
    "threat_decisions": 66
   },
   "sim/dos:latency/s11": {
-   "alerts": 5,
-   "attack_types": [
-    "GPS_SPOOFING",
-    "MAVLINK_ANOMALY"
-   ],
+   "alerts": 0,
+   "attack_types": [],
    "digests": {
-    "assess": "e3b4b5ccba72c67adcfa3d7cc42a2a065aaf726ef4a98c38ac9ad3e92c83b818",
-    "detectors": "899cfff985b88b872ffdc4a8f1b9dd7a7f7d31e9cb9a86095a2e013229e3517b",
-    "detectors_r": "2f83a184867dec8dc33470e0325bef73fe919237179fcb84c978ef74cb5fbb2c",
-    "frame": "6961663cbd45d09b91115c92c5628b914bd0bb2f09477d01e154114f009b59c9",
-    "frame_r": "d94d4c2dd6a7bf64bc73adb774edb14740188300b035a088d30df4dc640a0fb6",
+    "assess": "20427e905becba8ccb00ef9d32c8d4f97873500f9eb78ab462a1b1fcc0190fc4",
+    "detectors": "26424fe52eddc6de17c91939c64cab4194fd391ca5fa36210e96c6c47df1358a",
+    "detectors_r": "de45003df66416bd5b6cbe2aca1bebe7cbf40e5509ef969376dd291485eb6820",
+    "frame": "82e2f07793938739605ea8e0a26752b95441fbf96cb5ee2263d95f6ca570b66e",
+    "frame_r": "31eaad0a6ec5a1aa50a92e5ac42b367a5eeb40a41e7e3bfb8c18b7639e36c118",
     "parse": "602d6ea60baa7b0b8d223e57e2859e6a447de74c627e974fc6e404341c890a66"
    },
    "last": {
@@ -2566,19 +2563,17 @@
    },
    "n_decisions": 225,
    "n_messages": 1260,
-   "threat_decisions": 70
+   "threat_decisions": 0
   },
   "sim/dos:latency/s3": {
-   "alerts": 4,
-   "attack_types": [
-    "MAVLINK_ANOMALY"
-   ],
+   "alerts": 0,
+   "attack_types": [],
    "digests": {
-    "assess": "547db1a41bfe30e5fe6d574509a2527db229fcadc8f616eaa630b90f35631848",
-    "detectors": "6d8ac68ff394c433822f6fc85579891e9bcbcb6b7297af203fc6137efca480d0",
-    "detectors_r": "839bac176aebe7292079d2f77523debe3d6faaff4334fb8c68cfa027060494dc",
-    "frame": "30044920ddfca2616c4a021836aca16c2326e75394d8b13d7d5c69475323bb2a",
-    "frame_r": "e235471cc89d43324b32cc2779afc3f6600ada364d8401cdc588fc06d8eb1de3",
+    "assess": "b7e62a952ec7c65545258773891a671b75e0fb711e89adfb3ed33b4d63781d45",
+    "detectors": "01fc7bfbadc5d8eb18f12ec82065cdef998e3f0fe25dd82209feb408e478a581",
+    "detectors_r": "c97ae66dce97846c1d1cd16676e3333aa630111776cba19c0ef5ef613756e80e",
+    "frame": "c6247eb5a432381707343885e63eca53ff91d115d52f3f107cebff9fd0047d38",
+    "frame_r": "7f7dca5c5d59919e16df9091dd7cdb281dd931c42325a5448184cabf282b3cfb",
     "parse": "adfd9b4dab5870e2c26b1a6403652b7d63753f86804ef0be7ba824af018f3bf1"
    },
    "last": {
@@ -2590,7 +2585,7 @@
    },
    "n_decisions": 225,
    "n_messages": 1260,
-   "threat_decisions": 67
+   "threat_decisions": 0
   },
   "sim/firmware_integrity:default/s11": {
    "alerts": 8,
@@ -2601,8 +2596,8 @@
     "assess": "f7d2d419bc164dea903bcc03802eed64355623bf5d5244319731d4241de0657f",
     "detectors": "32801327f5246d6e17d447023b92d12310d4bb88812497cfc92808c1939f9e26",
     "detectors_r": "868d6600ca08b0e95a0c58f788f213817302fb613fc64f17f619c3aa1867a3f5",
-    "frame": "0dd86a8ef6c2853a06326822a3508452603424a4a73f8d9f49a50976a85dbd47",
-    "frame_r": "0637b1bad4e50a19ee27052aac39cf190bc0e044530bbc37b4f8d4117bb7eae7",
+    "frame": "661583d9736b4086af95f4616d8323c99535c71b650aac5d91b9beed52f045bc",
+    "frame_r": "85917cd16332b8a0f6a94b99abebfe5bbc2ca02256a28794ab2658f26314facb",
     "parse": "f8ecee17a305459bbbf6fae9b1e4601dde28e9f0ccd27c2f19b721f07cbf2664"
    },
    "last": {
@@ -2625,8 +2620,8 @@
     "assess": "56a9aec0f09fb2e324a4d627f7f72cceefdb1f6682ae1574f777ee9ec1f6aee6",
     "detectors": "c1530f796861da7fa937afb4f61312a913c36cf800b319384ffa2e4db0250f1b",
     "detectors_r": "79dd1f69ddd955f7a652ddf11bbb3319e45a8ca66a8dd4495778f3f7d9bb8d0c",
-    "frame": "a0c275bacf12d056412f06723160a90b77ef0bb940892bc0cda988be778f10d5",
-    "frame_r": "0316811c0ff812f696fca2be1abb66c4f2cb8d64815ec33b6c1929148242133e",
+    "frame": "09ceb033c3c48cd196125a48d815ae27b005f0e1ce4a5073a44bc113df3cd484",
+    "frame_r": "bf103971192d5c143a4deb527a1ca58b6baeeabf138eb4abbc436bcdea32c39b",
     "parse": "c4c7901fdc4326aa5b943e5d0bcadfc6a09dad61b3f145a0255c8ac8dbc39296"
    },
    "last": {
@@ -2649,8 +2644,8 @@
     "assess": "243db4a379523db4aa8b3da7b3c6ad164ef499225474f27a59424afc66a11e77",
     "detectors": "d4f4d716fcfe97bd0f5f837d9313c675ee78952ec34ff137e5b949fae67939f0",
     "detectors_r": "62d76ffa9900a5e61651043ab4a95d95dcf803337fdf3c643372a7455256821c",
-    "frame": "46305d90c57a158d811fdbb6aea339f69ed988e88fbda1e8eee3ef3ae3fb549b",
-    "frame_r": "309466b2de0d78bc6d46108a282232e16dec77b7343dd6df3b29acfc5639a8c2",
+    "frame": "40a5109b6d37c94ff064732354cf7cac6c2cdd30bd9a87f7c9c25a5ec8685965",
+    "frame_r": "5b5e3e6690b4de04254fa9859248ad2a55dd3df5e5228876922b69838d7648eb",
     "parse": "23524e8a86e0e5ff006f19d63ec4603cb9a2833dd24c510b2ea0a1764babbae3"
    },
    "last": {
@@ -2673,8 +2668,8 @@
     "assess": "47d53ada853d5da36b7cc8527a4ad18d4cbba7d3f2d7398e7b2e766742ea1ef8",
     "detectors": "78a6fc1ed32f6cb1b22a0ea32e896eadd52f30483d9b0488c81d86ec838664cf",
     "detectors_r": "77140c0c10b64053f7414cd3374c494e2aba3d28a63b84e96eb8faedde1c4ddb",
-    "frame": "d60d9296335d89ad1edc36c9bd8d300014c1b3184f1ac635c87f84ce204a2a25",
-    "frame_r": "4196faa32bcb54ee0408aaedced8eb6fcafc42428926c4e19b4e6bc00860f92f",
+    "frame": "e0d8df448b1ec6024549846db1a9f6e5f76a2371efc7d90fd7517a5e4e46c123",
+    "frame_r": "8c0047f2b7460422379feccc15519f78debd34aee41047772e924963e113a638",
     "parse": "01e1d41403f7cce1c79fcfac2453373a942dd0f03357820f98db9dcdaed0b6f1"
    },
    "last": {
@@ -2695,8 +2690,8 @@
     "assess": "9ab1c99535d0a8b447a99c23b107f0ada0c6b3e499b4177558be3689ebf6654e",
     "detectors": "422913457f7acad9b739b02313e7fd94ed07c2072baa73f859f439a3a40d511a",
     "detectors_r": "abcf77c6665b6cd045d17a49369ccde93160e81ff51fa2748e64a67f6f57d273",
-    "frame": "6b50da36c5e7f7a3c478a884a0fb5e001b9d95b5174eb9c6c2dbe1eb8ca7af95",
-    "frame_r": "1a088c6912f4820bdd111942406d46f55ad046202ca19b468111e9b801efda29",
+    "frame": "435ed79289ea9d91a5a53e9735d593eb7831634f7ae207362d8276ad7d04b742",
+    "frame_r": "5bb423936c5f6fe857bbd38b74750a9e5baca30b84321c33ea269fa327bac0d3",
     "parse": "0c607e2d6c16a4393931160ee70c67d17d541af1b3bbdd9cd7acda726cc1b565"
    },
    "last": {
@@ -2717,8 +2712,8 @@
     "assess": "2eaebb2fbbdb35b3a794aa4d523dd8a88ede371a0a1a61951e54edd7b5d394c8",
     "detectors": "e7350c74063647c8cff8f187226da3aa94bd52f2fe802c1ef6bc21f35c94e97f",
     "detectors_r": "bd162251c264fc7cb8594b85f79321b7723a9fb804f3f381617c5eefc72c4059",
-    "frame": "1a61c315ccaf5fc49896559c1e2d304c1f0ec45bf1b354a56fad879c586a3cad",
-    "frame_r": "1676b20edafc79742f2b8917ddc198d668bff4bf32af706befc0024c930b3eeb",
+    "frame": "2c14c8033f03a947027aaf29b98a47864feb0536bab1ca65fd7a9f02c65bd841",
+    "frame_r": "159ee74c79e950fd2ea2a123066abdac05ff33cea6dedd6b1c60a625c83f83c7",
     "parse": "57a8df7be1edc543fe2580d1e2c6203d057d5b348f043d7c1746f372bfe98119"
    },
    "last": {
@@ -2741,8 +2736,8 @@
     "assess": "f8df78cf2d1e7972f8fb54a759f0dc9b7228b24892670114a71f38b67d4462be",
     "detectors": "87e952100915d9bac269f75e2c05b2015cef861a6fb3ede66d88897ed70d5998",
     "detectors_r": "3f0ae3a182b02d1dadf1ace9aefb6e910992677440ae47bc004531afbabbf44b",
-    "frame": "75dc634ee245f69451a32d50866ff27b8835c427329361c06da5739eeb2503bf",
-    "frame_r": "a90c6bf32ba31b8342929d68e4c2b97acb0976e5b6c20b312612ea770e3e5c87",
+    "frame": "997534e76440b5e87c93d62af9714589811c1c111624a80b8bf77057f9f8761b",
+    "frame_r": "80391c4a31a5b99b2ac19e02eb6c2be4e2e31316d4c969a493d0ef9357470d29",
     "parse": "075885693bb64cf5bdd1ca38932d25da1333cd9b22e03393cd32e43a99c3c5a9"
    },
    "last": {
@@ -2765,8 +2760,8 @@
     "assess": "39d9ccb78529a07db16c797f71f20cfac27afc6e655f489e43add5e94ce693d1",
     "detectors": "88f676f27a7894770e4d12dc012d7c5f2f53b2c334f736d9fb97631b2a5b546c",
     "detectors_r": "5729c34233b1b1c3f399eb9cd8144217fc11a85e14a3b69695d2974a496dc978",
-    "frame": "178b746912e491610dc1fd501f04e597ec8ef703094fb87bac3276a8b66eaa24",
-    "frame_r": "7a0e1ea01cfdbaacbd45ea07fd5314a4bcd044f3a9603ccfc52e24d63d15b3fb",
+    "frame": "06e8167fce6f80ee05d11db744e6836d9b6d80ec48ebc57b5760832a8ed9f9cb",
+    "frame_r": "6ab60d705a19ea990fc8ca23de470a1e995dc769feb514c62a3060ca1bf6fa69",
     "parse": "975f0e408b7cd46274c4c27d6d8508f5602f30f55042010e6053704183083f0a"
    },
    "last": {
@@ -2787,8 +2782,8 @@
     "assess": "3eb61877749cc9b3e778ca55ed42c55fa9d623b3746bf9788ca1ef3d8b31b8ba",
     "detectors": "cdf2f46980382b182310f302be1b0373493c42d2938d09cf00664e9d3385b00e",
     "detectors_r": "f0c9ea58464b0654b637ff7dfd8ab0e6321c6856cb52f1e5342cd4c12caabe0d",
-    "frame": "6f24c20757db87fcb04c37169b1fcdf9e8d5cf832a24e710c7b268a520c1d200",
-    "frame_r": "76266dd5442ac2368b46930d98c0bdbc9192f571f22ee54b7b57d835d7db2344",
+    "frame": "9e573d8f542dc69b4592c0bcf7912c1b6716faee8dfc7ae415147650e4b916be",
+    "frame_r": "c7cd8c346e64f686ddba76aa2d960da55dcde18fa5d77868beae5a0b76df0faf",
     "parse": "e4d569d40f8b9b46df2926442e67711b62f4b9f776cd03cddebe225cd0e4acf2"
    },
    "last": {
@@ -2803,28 +2798,26 @@
    "threat_decisions": 0
   },
   "sim/link_reorder_benign/s7": {
-   "alerts": 12,
-   "attack_types": [
-    "MAVLINK_ANOMALY"
-   ],
+   "alerts": 0,
+   "attack_types": [],
    "digests": {
-    "assess": "0f89bb07c149ddeab8427bda5ce014e113b7001f7d6590315b010cf0b6f29b0f",
-    "detectors": "c9b9cbf5eb5b5dfda2048751094208a9d2074822516c6ec0240ba29d0a8f3cae",
-    "detectors_r": "f96db0b5c4718d9be4c17f417c6d46c7a35d545de514db7ddaeaba85cab496b5",
-    "frame": "6b76de033e104aa60ac50fcdb146f026ed5d537d9d3a1f48680ac19a74f28882",
-    "frame_r": "fa5ff37b56843e38068d7fb8f3ecdf3560b85ca88c7566e7a1720bde0de414af",
+    "assess": "3eb61877749cc9b3e778ca55ed42c55fa9d623b3746bf9788ca1ef3d8b31b8ba",
+    "detectors": "88a2a276e386ed16e32c2fa731a2a851737a08af7fc806868002f61a52f8cf82",
+    "detectors_r": "5fe8574267e49b61c28ba9ffdd74c4edcf6500ebe643932ff8cf51430df31b4e",
+    "frame": "647bcb425a7cc75d9185825a8746935e00349fbcdd1c1685f0ca6bbaa683744f",
+    "frame_r": "7027cee5bfe52df75207209cfef43c28e950c4f388ad0a6f4c68d7b134bca220",
     "parse": "c8b5d736417f69e0392c7c26a6bfdbc0f5258f4ba5029a21656c69c99fa6c9ae"
    },
    "last": {
-    "attack_type": "MAVLINK_ANOMALY",
-    "confidence": "0.8824",
-    "severity": "CRITICAL",
+    "attack_type": "BENIGN",
+    "confidence": "0.0",
+    "severity": "NORMAL",
     "t": 44.800000000000004,
-    "threat_score": "0.8824"
+    "threat_score": "0.0"
    },
    "n_decisions": 225,
    "n_messages": 1225,
-   "threat_decisions": 219
+   "threat_decisions": 0
   },
   "sim/mavlink_anomaly:packet_loss/s11": {
    "alerts": 1,
@@ -2835,8 +2828,8 @@
     "assess": "531906ca578b0118f8c83351b0dbaff3cca3094e10509ed9125ce8b2acf93e1e",
     "detectors": "907462aad386dadd4a29177c3d50c3ac70ef9e08ffaa907bcb48ce3041821d79",
     "detectors_r": "87ff013d6a4511822350b8b8f48ab78a4c303e13bcd9ad1e62b79807cf370cdb",
-    "frame": "84ff69fa3cb7f21a0a2a196dae78d696a1d623182d522ce08786b9e42dc6e60c",
-    "frame_r": "538c63553cea2e26e94ee9973344a434d13f836576b00061dde21c48a745c21b",
+    "frame": "d985721ac8361ecace56d232d792d56c3c3e46621785a7ac063d93c34cb93321",
+    "frame_r": "99feb0133e85d10c8bf00e72f3546e5683478eac550933616ff166ce7797dd3c",
     "parse": "8b5cc7d70986aa37150e662069980436ab511a5eab60fbe66e1158ef889e7dfe"
    },
    "last": {
@@ -2859,8 +2852,8 @@
     "assess": "a4a8250f631abcbe33c627871948b02d1b73685d9358101496e08a2843603122",
     "detectors": "b2eeeaa2f5ec4a6e8e7841f2aada21786a975a4c33ea7a3f31e592f70b7369e0",
     "detectors_r": "9b75ada773060b26011945bf83ea1018d7034a810a1a9525956257aa81ad570a",
-    "frame": "b0b69426776269b52fd716878a503dd11091d4045fc69b489a5222124b2c6377",
-    "frame_r": "0494a3b0228ca115d8029444a8b78cb06fda7f9ebc6d389e4ec09425e683fee7",
+    "frame": "e7205ef3a64ed9a3f6ebbbcba3d64eee32dad2dfadf01afd93951d0c30344516",
+    "frame_r": "2dbdc0edcf3cd2fb3e728e0300c8b6f028312cba0e84f1a9979ffaf0b6d69cd6",
     "parse": "8fc59333fcaf65eb42e0031ae9558a8299b8959de53f92ac323e5137c21f54b9"
    },
    "last": {
@@ -2875,17 +2868,16 @@
    "threat_decisions": 9
   },
   "sim/mavlink_anomaly:rate_spike/s11": {
-   "alerts": 5,
+   "alerts": 4,
    "attack_types": [
-    "DOS",
-    "MAVLINK_ANOMALY"
+    "DOS"
    ],
    "digests": {
-    "assess": "845418b4314cba90fae88df6ec149bf0e61f9fdf7d4568997e5edbfaf8462172",
-    "detectors": "948274499d8fd54043e2bad5d5c0fe864ce80d9aec510027afabaf9fee59b418",
-    "detectors_r": "9c72e9f7c1b8cece0e1772a6fb7f9f668e0e13a23e9840f2b8e514321bc033b4",
-    "frame": "f86f0d007939f380d086a3ebd16fdc0a8c6a5bc785658c56f0c1c322da4260cf",
-    "frame_r": "48e90d27d6a141e2638b9db33ef5517826c39cd585f211a14b384d40fe957d90",
+    "assess": "325023cc6c2d5c415e8827c96039162dffb41fcaaba3e670da21ddf7be78d76a",
+    "detectors": "4eefa15732cb14d176da5ebb7055c115ce321b5b8bab0bafd9bb6cf4f082e584",
+    "detectors_r": "ddc605ca862460f4e40c34a39272277cfec0bdd7ff95cfa4fada14e06d7a790f",
+    "frame": "cc833c8ea9baaf2a7092ae313e047d8e656a100506f8e9015c6472771b57d398",
+    "frame_r": "d5dc9838bf4f7e89a3a16edabda18acd6046dfcd0d6fa4b756378a01a3c1a28f",
     "parse": "403945c404aafa00ee9d34d66566fdd63108fe971f1a0ec934373068b987212a"
    },
    "last": {
@@ -2897,20 +2889,19 @@
    },
    "n_decisions": 225,
    "n_messages": 2828,
-   "threat_decisions": 73
+   "threat_decisions": 71
   },
   "sim/mavlink_anomaly:rate_spike/s3": {
-   "alerts": 5,
+   "alerts": 4,
    "attack_types": [
-    "DOS",
-    "MAVLINK_ANOMALY"
+    "DOS"
    ],
    "digests": {
-    "assess": "14903995003f1c0ad6a6c95630c35d0cc3ac2acc53af0dc4eaf2e597f475c340",
-    "detectors": "57f7c07ffa2364110b7a7a0b3b72438a91cc341f26c53e8cab90607af3075b76",
-    "detectors_r": "4c20cb9d114c4b9c0b827d818729aaa7e8b7423a4c15c0354c580e4c0c380b91",
-    "frame": "707a088cdaa32c9932d13a1d0a1c19ae40110c0263376468df879ab887d36bf0",
-    "frame_r": "408bc9ad4a81285bbb1f7470efd7ff4641a8df8c84360a4f202929be70a6e440",
+    "assess": "f37b3e9e4b8312fe67cd250adf294c2fe9f120759c5ebf7ce7bb2aa8065dc703",
+    "detectors": "b3c6c9ab8c42adce044d844cad7c1aace267c95f55cf29493bf51dc541722a21",
+    "detectors_r": "131193f97d608b18f7c860e0af7d1eeb2b696f7e9f19dd05cd5a3ee7de3b1e14",
+    "frame": "935a9be4a0ddaba8304227999a464174cef6fd96f307ec0d50934685e7445c50",
+    "frame_r": "81b55bb207f2e3492ed6b557ed92adbb9b4e0cf3b01aac7773589be764f7642d",
     "parse": "af1c1856e8383de5dd5c73eee89ff9577a41190f877ef50d906d1386a274a23c"
    },
    "last": {
@@ -2922,7 +2913,7 @@
    },
    "n_decisions": 225,
    "n_messages": 2828,
-   "threat_decisions": 73
+   "threat_decisions": 71
   },
   "sim/mavlink_anomaly:rogue_sysid/s11": {
    "alerts": 4,
@@ -2933,8 +2924,8 @@
     "assess": "f54c96af562b41fd659cd34e0de5fd0c989e4d81d993f5db84ff5ec99ee18f19",
     "detectors": "0fed2edfdcc843f95cd56f5d13352d7fbd26ffe7f6215b2a81e701bf07c8245e",
     "detectors_r": "62d7917cdbcbf80c0f374a96276a1d42133a41e6a066796a36ef3f4c5f685466",
-    "frame": "f5b508029b1ff667dca1c26649716ea54dc6c0171844b4676beced7871255471",
-    "frame_r": "670687bc944d30556e70f17a81be08e19bde37797dc7f836836e1044724851f7",
+    "frame": "66d4037d81712765900386dee0c26d1f43905af1c838e5ed8ee07b27af3071e7",
+    "frame_r": "26b54e252217dffd681352fb52b5cc9b56526d3ec56cc4cbfa9884c9c8601e3c",
     "parse": "a991e3b341e82a0992f46dd8adcefded7e1381226d774d5aa62ad2e61550185b"
    },
    "last": {
@@ -2957,8 +2948,8 @@
     "assess": "551e9693f32cc304a4e12734c59e4b93c459fa5d3f1d4dbe6d5db27d17d80d5a",
     "detectors": "da3d7a7cc41f274452decdc79cef5a58b3f55ad18b120b4e5599e4936e777f48",
     "detectors_r": "a946e4baef590f5e56263c78b9622ac33857b3b645e2f008d48b0daf7e51542d",
-    "frame": "7f16a22525794d8cdb6abe351648306e017333fa0788e0c9f7cbec799c97c4ce",
-    "frame_r": "595f51c4ca6635411fa5666b57389c15a2e31a1ee3cc9ac9aa959473d93257d8",
+    "frame": "d626a96b5f913cc418f08d3f524d7420577fd175bc73f078b931e904aa0a5353",
+    "frame_r": "414fcd7f9d15692fbc452f51762e30b7538be6477bab5839834882cd49e303cd",
     "parse": "604c8a602f0208b678df40325ce248330453c89f3c5853dfa2b85063170e8375"
    },
    "last": {
@@ -2978,11 +2969,11 @@
     "MAVLINK_ANOMALY"
    ],
    "digests": {
-    "assess": "5c6254dfa3ef738785e3351eed7ede66a47306e7fcc956d7f1755a6527f0e082",
-    "detectors": "763f4023629659111550b1839ac93a4e3a89ab5572013108709461320041d66d",
-    "detectors_r": "7ed3bed2a22f75f32d21daacd5a668934f1e03ba69edfdb1b6684bb921ce5fc2",
-    "frame": "8988c5a2d643d8ff295e094c755006390d429ee220bb954d8adeb39924a567f6",
-    "frame_r": "1780c8ef68a1876e6388797f06dc4636e23ec7a8ba7419734c7eff185930c751",
+    "assess": "7db3eeca566494e6c6c814ee585504fa1796a8c4f5d9f8cca13ed8f1a35bda7d",
+    "detectors": "7def3215b55bd04720d21ce03d2085e35290f9134e7113fec9b1185b4a19bb92",
+    "detectors_r": "a920fbc19086cd9fff25cc7f959ff164f9f2a1a8e7015860bca027df01c23216",
+    "frame": "e654061a32401b1cc76ca6f1b1685e230b5be67dcc26ed9480932e23a298fbd0",
+    "frame_r": "dd3442c6476c7d1475c13b09b2ff4501451f66a7617be111adec087eb9e62cb0",
     "parse": "593ad34edb3249667969ba9e995b15635479464ef194ca76dafe324e0e2e8c32"
    },
    "last": {
@@ -2994,7 +2985,7 @@
    },
    "n_decisions": 225,
    "n_messages": 1260,
-   "threat_decisions": 70
+   "threat_decisions": 69
   },
   "sim/mavlink_anomaly:seq_scramble/s3": {
    "alerts": 4,
@@ -3002,11 +2993,11 @@
     "MAVLINK_ANOMALY"
    ],
    "digests": {
-    "assess": "ef61cca923aaf7b10cf05f7d4352a941df2dced85823fd03e439b74d4489790c",
-    "detectors": "e4252e9922a21364c8082ba9f216ac80024a98f4cf4bb26b596b3e8a967d1ed3",
-    "detectors_r": "edb371d5edfb0d7adf1b2fc39714ab86a40f6cf3c609f58f300eaed6b6598e9b",
-    "frame": "3028890ea2e68c985a20069a00861009670ec5d7fe2ce3cf2afbb6012d4d1fe5",
-    "frame_r": "3b35dcce7eb4921a5e8632243c04a6a54df9bc38708dbe419742388e5ed604bd",
+    "assess": "fdd7526da7e79819b9b7afa8817363739bc8fea66418c8b1e075b073f215819b",
+    "detectors": "8d4cfd04bdeb2964a09d36c5cb18f5be6d1ca1c3ff0045d3f106bd1b69bb222f",
+    "detectors_r": "e65d41143c09f6aca03da750aa1a3bba20ec103f47c419bb3fa4de5fe3dd990d",
+    "frame": "6dc8f1c9495a5fbf199572a7c7811e37517a4d9d58e48ce915b9aa3dd3cbae71",
+    "frame_r": "d820a72b6b2bcdc4161f7b407360ca6be064d6c5525c0ab15db0ed9cb0733761",
     "parse": "ec59fc32fa9dd563c6a756fa45faa5d1f6843d9adeaf8a2f6d4b47b4f966eaa3"
    },
    "last": {
@@ -3029,8 +3020,8 @@
     "assess": "43b4d7eec9f4e7c79f4046adc208a6c062fa80b9f5617e5ce2ea58631b2d28bd",
     "detectors": "22f6a346cdbe1055c76ea817b0cebfc5383799e6d6ad8ec3ef92a1e6fadf240a",
     "detectors_r": "a614117834f5a8595f237da7cf0111ab2d40f91ba511a36919730cab510864cd",
-    "frame": "5deef66fb83ddc1cccba38c2387763147ac276bf42e94d5156e2e44af63dcaa9",
-    "frame_r": "53473e22bd40d4fa1191456e5b3cc5ec8820857f44432c75e1698e13e63179f8",
+    "frame": "a948ae22085de71ee181749d72a40f9034795fa60f5c78ee0c1dfdecb81f5f66",
+    "frame_r": "12d94c617f7b26ab409c6cdaab7eb73026633a903a58abaf63c8889a7484539e",
     "parse": "1b07fb8453dc05ad8a650ebb95fedb5261fba847cdae33c5889b64cf8b638826"
    },
    "last": {
@@ -3053,8 +3044,8 @@
     "assess": "86f878b819acbd6c33ac1642c9f9528f1c6e5923b7f0e879c0e6fbb154f36936",
     "detectors": "e6068a768fdab0cba9a4ce66cdc4c15eb20a7d978394b8ec8dfea42be2514772",
     "detectors_r": "3646781608f984fd80272de403030c1864635262ebcd39c12ebce8c3bc95e89a",
-    "frame": "283be3adcc5f0d3e0e95c36223d8f6c886e17eed5dfc62be6f1b977a98d5c5d2",
-    "frame_r": "6f1e82262e15d1ad6fc432c66954bde63bfe83ff422896ffa0da63d04c490341",
+    "frame": "299e6ed27d683807f7f859d9e3ab3672341af5046eaf9055972dc17f26ae2697",
+    "frame_r": "3f47ce3264b0eccb19a4c9a6e022b42c662388bc69c809df8862c0b7c81612a2",
     "parse": "b35ad5e0eab943e1e5f5af878eb942bfe075461942f2f33dd8945507c4ea3f91"
    },
    "last": {
@@ -3077,8 +3068,8 @@
     "assess": "dd5edc1be7e90388bc024856f06d1ecdc241c9294d5d5a73ea211ed03fabe818",
     "detectors": "76a178086e0d1a981c65bff4b9d3f3dfe4ffc45d4b5bff2ff1ce9e00ad3253e7",
     "detectors_r": "58a12ed60994764cb27cced24f54bb142b6b5089980d0736f4eaa0e953a816ac",
-    "frame": "4c3bec74c4c7a36db102da861c1bdaaeeea5a659ebf70e5d964341d0826482d7",
-    "frame_r": "dea7e457523338ebb13bcc1d7fb96a887e70a2eb9648f2691ff8e03a103c22ab",
+    "frame": "a94e3c71b3811a2c1c5c17979eb767bd634f9fc7d682545d4393278e26a7e83b",
+    "frame_r": "fad23ded9e3cc5b02b78808194d2517070e7ee3a0ab82ba040d5a95d8ea07166",
     "parse": "6a57d0c8daf7575e8889b294f34280aca345ad4bc9a77be17182cac7ed767059"
    },
    "last": {
@@ -3101,8 +3092,8 @@
     "assess": "1a300d4c3a0ec5a49547eeced089f4a1fa7ed897928e68ae8675491be4fb8917",
     "detectors": "fcce3620c3dde00d437acf4fe4a2cf9969f3bbd56aa23b9e86f439c156ec10f8",
     "detectors_r": "3dda329498daf18fae0dd0e7a9d2799cb0b2a801d503365b069022e25fec9902",
-    "frame": "b0369a917823fab0fc50944f47711c8a29d0db42c8b65f0114f7ffa1f54155ba",
-    "frame_r": "d7c1ec174e549ae593df569ef2421a25b263348f4e9cee55edd274f21f9db752",
+    "frame": "83227eb23688d3fcc38e1b6dbc334759ee193dd46c4082846b9f28d0017911e1",
+    "frame_r": "a0bb255c307d0857176e066c89846993ad2077e1a5a9ded4e4cb1b8c27779c05",
     "parse": "477f5e08a19012b051212581be1d745fecfc343faebf48156408d76d1d152198"
    },
    "last": {
@@ -3123,8 +3114,8 @@
     "assess": "7b74bb395ec2ccc5216eb087e1867b133f679a660fe61810e0db18f8cae6827d",
     "detectors": "504f654bca6de22290a3eeadd189a2fc273cb7e220367ec6cc6623dbfbcccf52",
     "detectors_r": "b5cc0e72485c10ab691617ce92599e05731bc07c17bfa35eca5cbb41e6ce5396",
-    "frame": "61cca05ef9a82c7a49e0fb179f2f0ccc44886a63def8424e4837cb1bd5ed2d07",
-    "frame_r": "f56914f951c7d3fb11070ef5967ef0f55db603dedd5bc6c6570ee55d65fc83a6",
+    "frame": "ee8847e897dd636717afad1b0878e5dd58b75d28890218ebf77cd07545049e32",
+    "frame_r": "e334819a1f0092352e2e14129d37af8bf03c7e6461a5f2164297f86478d4aab2",
     "parse": "9b8ec8b160775d65f590a839681474d3451cb3c40865440814c181d5060b396f"
    },
    "last": {
@@ -3145,8 +3136,8 @@
     "assess": "eb9c61b90ae6e9a8177abe1f0acc490a6b1a0d15b9f42846fce7b8a957643e18",
     "detectors": "ab5b1a8aa3fcb70eb4279d61fa75f94fee50553ea6330573d8ce59b34579251b",
     "detectors_r": "02bba9b97b1f0c2573a478bea33eeb9733be6c80e44bfdba6b2b3ea989d8d8cf",
-    "frame": "107b5b09cdee3c151ec47bb9a11675c605638d0ed32539b3fd36df55c40e97b4",
-    "frame_r": "ac4c7e0f3e3a5a3d53f91da4dc839a96d1a4df875a0addd51af56d1a0f8e7968",
+    "frame": "aee52029d0a3d0ca1278d7558ccd1799a600cabb295ee3e98e933440b6749e98",
+    "frame_r": "8b1fd0e1ecec4e8be83f5b50cbbb6498e019274d14cc27b2c4f57de4a46810ad",
     "parse": "cc68a84291d9237db458c2c3d4ac55fdbe2d897aea015961a7cb0a84095ae2f2"
    },
    "last": {
@@ -3169,8 +3160,8 @@
     "assess": "53ac98a70f2846f73508835ab393e5bf56c905f003bd78e0792f5a6381884ed6",
     "detectors": "9ee1ab061ca6bf01158db354460b82fe29138d4c1628b30f9a570ef9db574bd7",
     "detectors_r": "9dbebcccb7385cf10a06a5649add243a5082a20747f7a989db23b78cf4a597f7",
-    "frame": "ca59305677f12696f87673210df894b2a6c456dade363e4b2c6e02bf59261ac9",
-    "frame_r": "944f87d0d6c0a9fdf3553b6f8cabb22b15c87b4fec80d1ea9162891ebc0a7fc0",
+    "frame": "2e163ed294dafbb8b7e8041244db73b536c0441b8025a9855d80e1b43b6a5776",
+    "frame_r": "24f8ceb9f29492b997b75ce27a3a380d91a9a56456771743d0bf45161bdecba1",
     "parse": "7bf3e1289b309c2c550b7a199a38008329cd405072915bd8e96ff8bc8c2b58a8"
    },
    "last": {
@@ -3193,8 +3184,8 @@
     "assess": "3eea7ff7a4859de9bd95f7922cf2757caa112758261b331be860f264422fc700",
     "detectors": "4706eea4db79658d84d944a4a15ca963a9de49f115f10645f39f68fbd4c61f6b",
     "detectors_r": "ee26472b4e6ae17b16a1fd9917432476c4d21322a146700bba1141c89c4aceda",
-    "frame": "2908503143511d0d51f63fc0ab8cde9821ddb7454e1c9e9d0a2810b03cc2ee99",
-    "frame_r": "8eaa1c42b3ca5ec6cdf69739734370a28e2b30dd442c28d0b8bd11c06cb44fec",
+    "frame": "b2ce7ee1c17c3f91f63a340f378a033bd730823957a32995d293dc1349cf10a3",
+    "frame_r": "a4b67f6f9edf77a54ee86948914b1e22ee0a2f09da575d870b5a4a86e5c2f8d0",
     "parse": "269b9bc9a67d7d87703c49d787514c70c4d4098661684f408701bdfd050cfb1e"
    },
    "last": {
@@ -3227,12 +3218,16 @@
    "scipy": "1.18.1"
   },
   "no_ml": {
-   "format1_strict_tags": [
-    "Windows-amd64-py3.12",
-    "Windows-amd64-py3.13"
-   ],
-   "note": "format-1 fixture: the Python patch and other library versions were not recorded",
-   "numpy": "2.5.4"
+   "PyYAML": "6.0.3",
+   "arch": "arm64",
+   "joblib": "1.6.0",
+   "numpy": "2.5.5",
+   "os": "Darwin",
+   "os_release": "27.0.0",
+   "pymavlink": "2.4.50",
+   "python": "CPython 3.13.13",
+   "scikit-learn": "1.9.1",
+   "scipy": "1.18.1"
   }
  }
 }

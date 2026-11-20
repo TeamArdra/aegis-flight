@@ -113,9 +113,7 @@ Automatically scans local serial interfaces and matches hardware signatures agai
   - Silicon Labs CP210x (ExpressLRS / TBS Crossfire) (`0x10C4`)
   - Winchiphead CH340 (`0x1A86`)
 - **Companion Compute Fingerprinting**:
-  - Inspects `/proc/device-tree/model` to identify Raspberry Pi models (Pi 4, Pi 5, Pi Zero 2W).
-  - Inspects `/etc/nv_tegra_release` for NVIDIA Jetson platforms (Nano, Xavier, Orin).
-  - Calculates real-time CPU headroom and sets a dynamic latency budget ($< 18\text{ ms}$ on Pi 4/5; $< 24\text{ ms}$ on Pi Zero/3).
+  - Reads `/proc/device-tree/model` or `/etc/nv_tegra_release` when present and returns a static heuristic latency budget (`hal/discovery.py`, not wired into the pipeline; unmeasured on Pi Zero / Pi 4 / Jetson).
 
 ### 3.2 Endpoint Identification (`identify.py`)
 Monitors MAVLink streams to identify node topologies without requiring user configuration:

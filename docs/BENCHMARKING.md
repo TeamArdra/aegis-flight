@@ -182,3 +182,6 @@ those sources stay decision level instead of being estimated. Definitions (code:
   the no-grace numbers so the effect is visible.
 - Absolute recall depends on attack magnitudes in `configs/attacks.yaml`; weaker
   attacks lower recall and raise latency (re-run to measure).
+- Extended v2 (`benchmark/extended.py`) also records `hierarchical_link_layer_{grace5,grace0}` and
+  per-mode `hierarchical_attribution_accuracy` grouping `DOS` + `MAVLINK_ANOMALY` per Decision D10
+  (`scripts/eval_link_attribution.py --seed 20261119`, authored with knowledge of simulator attack definitions).
