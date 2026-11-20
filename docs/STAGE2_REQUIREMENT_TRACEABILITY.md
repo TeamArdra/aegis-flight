@@ -1,8 +1,9 @@
 # Stage 2 requirement traceability
 
-**Official sources found.** The only official Stage 2 document in the repository is
-`docs/Stage 2_Security of Drones, Objective 2_Report Template.pdf` (25 pages, sha256 `e9f35838574b72a7…`, an uncommitted working-tree
-file). Page numbers below refer to it. It contains the report structure, the marks, the rubric (p. 23-24) and the evaluation
+**Official sources found.** The only official Stage 2 document used is the PUSHPAK Stage 2 report template PDF
+(25 pages, sha256 `e9f35838574b72a7…`). That PDF is **not in this repository** (decision D2, see #31): the committed file
+`docs/Stage 2_Security of Drones, Objective 2_Report Template.pdf` is a 23 KB text placeholder with a different hash. Page
+numbers below refer to the official PDF. It contains the report structure, the marks, the rubric (p. 23-24) and the evaluation
 philosophy (p. 25).
 
 **Not found anywhere in the repository:**
