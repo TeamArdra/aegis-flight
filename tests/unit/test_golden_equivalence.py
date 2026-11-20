@@ -37,14 +37,18 @@ from pathlib import Path
 
 import pytest
 
+from aegisflight.model_integrity import parse_manifest
+
 REPO = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location("make_golden", REPO / "scripts" / "make_golden.py")
 mg = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(mg)  # type: ignore[union-attr]
 
 GOLD = json.loads(mg.GOLDEN_PATH.read_text(encoding="utf-8"))
-_MODEL_OK = (mg.MODEL_PATH.exists()
-             and hashlib.sha256(mg.MODEL_PATH.read_bytes()).hexdigest() == GOLD.get("ml_model_sha256"))
+CANONICAL_ML_SHA256 = parse_manifest(REPO / "models" / "MODELS.sha256")["isoforest.joblib"]
+_MODEL_PRESENT = mg.MODEL_PATH.exists()
+_MODEL_ACTUAL_SHA = hashlib.sha256(mg.MODEL_PATH.read_bytes()).hexdigest() if _MODEL_PRESENT else None
+_MODEL_OK = bool(_MODEL_PRESENT and _MODEL_ACTUAL_SHA == GOLD.get("ml_model_sha256") == CANONICAL_ML_SHA256)
 _SIM = dict(mg.sim_cases())
 _LIVE = {n: (s, v) for n, s, v in mg.live_cases()}
 
@@ -120,6 +124,79 @@ def test_bit_exact_layers_compared_here(section):
                     f"{', '.join(_default_layers(section == 'ml'))} and the decision summary. "
                     f"Recording environment vs here: {_env_diff(section)}.")
     assert GOLD[section], "strict mode on an empty section"
+
+
+def test_golden_ml_sha_matches_canonical_manifest() -> None:
+    """Guard against committing a retrained non-canonical SHA into golden.json (never skip silently)."""
+    assert GOLD.get("ml_model_sha256") == CANONICAL_ML_SHA256, (
+        f"tests/golden/golden.json ml_model_sha256={GOLD.get('ml_model_sha256')!r} "
+        f"does not match canonical models/MODELS.sha256={CANONICAL_ML_SHA256!r}"
+    )
+    if _MODEL_PRESENT:
+        assert _MODEL_ACTUAL_SHA == CANONICAL_ML_SHA256, (
+            f"models/isoforest.joblib has sha256 {_MODEL_ACTUAL_SHA}, expected canonical {CANONICAL_ML_SHA256}"
+        )
+
+
+def test_seeded_ml_exercises_all_55_golden_cases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise all 55 ML golden scenarios with the deterministic seed-100 bundle even when canonical binary is absent."""
+    import joblib
+    import numpy as np
+    from sklearn.ensemble import IsolationForest
+    from sklearn.preprocessing import StandardScaler
+
+    from aegisflight.benchmark.dataset import collect_benign_dataset
+    from aegisflight.config import load_config
+    from aegisflight.detectors.anomaly import combined_anomaly_raw
+    from aegisflight.features.extractor import ML_FEATURES
+
+    cfg = load_config()
+    acfg = cfg.detector["anomaly"]
+    ds = collect_benign_dataset(cfg, n_sessions=24, seed=100)
+    split = ds.split_by_session(train_frac=0.6, val_frac=0.2, seed=100)
+    Xtr, Xva = split["train"], split["val"]
+    scaler = StandardScaler().fit(Xtr)
+    Xtr_s = scaler.transform(Xtr)
+    model = IsolationForest(
+        n_estimators=int(acfg.get("n_estimators", 200)),
+        contamination=float(acfg.get("contamination", 0.02)),
+        random_state=100,
+        n_jobs=-1,
+    ).fit(Xtr_s)
+    iso_tr = -model.score_samples(Xtr_s)
+    maha_tr = np.linalg.norm(Xtr_s, axis=1)
+    bundle = {
+        "model": model,
+        "scaler": scaler,
+        "feature_names": list(ML_FEATURES),
+        "iso_mean": float(iso_tr.mean()),
+        "iso_std": float(iso_tr.std() or 1e-3),
+        "maha_mean": float(maha_tr.mean()),
+        "maha_std": float(maha_tr.std() or 1e-3),
+    }
+    va_raw = combined_anomaly_raw(bundle, Xva)
+    bundle["score_thr"] = float(va_raw.mean() + 3.0 * va_raw.std())
+    bundle["score_scale"] = float(max(va_raw.std(), 1e-3))
+
+    model_file = tmp_path / "seeded_isoforest.joblib"
+    joblib.dump(bundle, model_file)
+    monkeypatch.setattr(mg, "MODEL_PATH", model_file)
+
+    ml_cases = sorted(GOLD["ml"])
+    assert len(ml_cases) == 55
+    for name in ml_cases:
+        got = _run(name, True)
+        assert got["n_decisions"] > 0, name
+        want_no_ml = GOLD["no_ml"][name]
+        # Adding ML must never alter message parsing/stats or drop decisions.
+        assert got["n_decisions"] == want_no_ml["n_decisions"], name
+        assert got["n_messages"] == want_no_ml["n_messages"], name
+        for k in ("parse", "stats"):
+            if k in want_no_ml["digests"]:
+                assert got["digests"].get(k) == want_no_ml["digests"][k], (name, k)
+        assert got["digests"]["frame_r"] == want_no_ml["digests"]["frame_r"], name
+        if not name.endswith("/profile"):
+            assert got["digests"]["detectors_r"] != want_no_ml["digests"]["detectors_r"], name
 
 
 def test_fixture_covers_every_attack_mode_and_live_scenario():
