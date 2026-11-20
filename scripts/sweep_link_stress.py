@@ -8,15 +8,15 @@ extended benchmark's link model (mean delay 25 ms; ``fifo`` = in-order delivery,
 Nothing is tuned here. Session ``i`` has the same route / speed / altitude / noise scale / seed in every cell, so cells
 are paired and differ only in loss, ordering, ML and profile.
 
-ML model per profile (the pairing the repository documents; nothing is cross-paired):
-  stage1    -> models/isoforest.joblib        (docs/ML_PIPELINE.md)
-  px4       -> models/isoforest_px4.joblib    (docs/CALIBRATION_PX4.md; Stage-1 model + PX4 profile is the diagnostic-only
-                                               "B2" cross-pairing and is deliberately not the default)
-  ardupilot -> none: no ArduPilot-benign model exists, and the Stage-1 model is documented not to transfer
-               (docs/ARDUPILOT_SITL.md). ML-on cells for this profile are reported "n/a" unless ``--model-ardupilot`` is
-               given explicitly.
-The px4 / ardupilot profiles are detector-threshold overrides calibrated on real SITL traffic; here they are applied to the
-*simulator's* traffic (sysid 1, ~28 msg/s), so a px4 cell measures that profile on SIM traffic, not on a PX4 link.
+Per-profile handling (nothing is cross-paired):
+  stage1    -> ML on uses models/isoforest.joblib (docs/ML_PIPELINE.md).
+  px4       -> NEVER executed: every px4 cell (ML off and on) is reported ``n/a``. The px4_sitl profile is calibrated for PX4
+               SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so "rogue telemetry source"
+               fires on every decision and such a cell would measure the mismatch, not the profile. Measure that profile on
+               PX4 SITL replays (#27 items 3-4). There is deliberately no opt-in.
+  ardupilot -> ML off runs on the simulator's traffic (a threshold override, not a link model). ML on is ``n/a``: no
+               ArduPilot-benign model exists and the Stage-1 model is documented not to transfer (docs/ARDUPILOT_SITL.md),
+               unless ``--model-ardupilot`` is given explicitly.
 
 Definitions (also written into ``sweep_table.md``):
   decision       one fusion decision (``decision_rate_hz``, default 5 Hz); only scored decisions count (t >= 5 s warm-up).
@@ -73,7 +73,10 @@ DEFAULT_LOSS = (0.0, 1.0, 2.0, 5.0, 10.0)  # percent
 ORDERINGS = ("fifo", "reorder")
 ML_MODES = ("off", "on")
 PROFILES = {"stage1": None, "px4": "configs/px4_sitl", "ardupilot": "configs/ardupilot_copter"}
-DEFAULT_MODELS = {"stage1": "models/isoforest.joblib", "px4": "models/isoforest_px4.joblib", "ardupilot": None}
+DEFAULT_MODELS = {"stage1": "models/isoforest.joblib", "ardupilot": None}  # px4: never executed (NA_PX4_ON_SIM)
+NA_PX4_ON_SIM = ("the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 "
+                 "at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, "
+                 "not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4).")
 NA_NO_MODEL = ("no ArduPilot-benign ML model exists; the Stage-1 model is documented not to transfer to ArduPilot "
                "(docs/ARDUPILOT_SITL.md) - pass --model-ardupilot to force a model")
 
@@ -107,7 +110,10 @@ def expand_grid(losses, orderings, ml_modes, profiles) -> list[Cell]:
 
 
 def resolve_model(cell: Cell, models: dict[str, str | None]) -> tuple[str | None, str | None]:
-    """``(model_path, None)`` for ML-on / ``(None, None)`` for ML-off, or ``(None, reason)`` when ML-on is undefined."""
+    """``(model_path, None)`` for ML-on / ``(None, None)`` for ML-off, or ``(None, reason)`` when the cell is not run
+    (every px4 cell, and ML-on without a model)."""
+    if cell.profile == "px4":
+        return None, NA_PX4_ON_SIM
     if cell.ml == "off":
         return None, None
     path = models.get(cell.profile)
@@ -269,7 +275,7 @@ def main(argv: list[str] | None = None) -> int:
     a = build_parser().parse_args(argv)
     start_state = prov.require_clean_tree(a.allow_dirty)  # refuses (exit 2) before any output unless --allow-dirty
     cells = expand_grid(a.loss, a.ordering, a.ml, a.profiles)
-    models = {p: getattr(a, f"model_{p}") for p in PROFILES}
+    models = {p: getattr(a, f"model_{p}") for p in DEFAULT_MODELS}
     models = {p: (m if not m or Path(m).is_absolute() else str(REPO / m)) for p, m in models.items()}
 
     plan: list[tuple[Cell, str | None, str | None]] = []  # (cell, model, na_reason)

@@ -45,12 +45,13 @@ def test_grid_order_is_independent_of_argv_order_and_deduplicated() -> None:
 
 
 def test_ml_on_without_a_model_is_na_with_a_reason() -> None:
-    models = {"stage1": "s.joblib", "px4": "p.joblib", "ardupilot": None}
+    models = {"stage1": "s.joblib", "ardupilot": None}
     assert sw.resolve_model(sw.Cell("ardupilot", "fifo", 0.0, "on"), models) == (None, sw.NA_NO_MODEL)
     assert sw.resolve_model(sw.Cell("ardupilot", "fifo", 0.0, "off"), models) == (None, None)
-    assert sw.resolve_model(sw.Cell("px4", "fifo", 0.0, "on"), models) == ("p.joblib", None)
+    for ml in sw.ML_MODES:  # px4 is never run, with or without ML (edited: this used to assert px4 ML-on got a model)
+        assert sw.resolve_model(sw.Cell("px4", "fifo", 0.0, ml), models) == (None, sw.NA_PX4_ON_SIM)
     assert sw.resolve_model(sw.Cell("stage1", "fifo", 0.0, "on"), models) == ("s.joblib", None)
-    assert sw.DEFAULT_MODELS["px4"] == "models/isoforest_px4.joblib"  # never the Stage-1 model (B2 cross-pairing)
+    assert "px4" not in sw.DEFAULT_MODELS and not hasattr(sw.build_parser().parse_args([]), "model_px4")
 
 
 def test_alert_events_are_maximal_runs() -> None:
@@ -182,3 +183,29 @@ def test_unloadable_model_for_ml_on_fails_closed_with_no_output(tmp_path: Path) 
                   "--duration-s", "12", "--allow-dirty", "--model-stage1", str(bad), "--out", str(out)])
     assert rc == 2
     assert not out.exists()  # no output, so no ml=on row with ML-off numbers
+
+
+def test_default_grid_reports_every_px4_cell_na_and_runs_no_px4_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    ran: list[dict] = []
+
+    def fake(task: dict) -> dict:
+        ran.append(task)
+        return {"cell": task["cell"], "session": task["session"], "seed": task["params"]["seed"],
+                "rows": [{"scored": True, "alarm": False, "evidence_key": "", "detectors": ""}] * 3,
+                "decision_period_s": 0.2}
+
+    monkeypatch.setattr(sw, "_run_task", fake)
+    monkeypatch.setattr(sw, "model_loads", lambda path: True)
+    fake_model = tmp_path / "m.joblib"  # the real model is gitignored; model_loads is patched
+    fake_model.write_bytes(b"x")
+    out = tmp_path / "o"
+    assert sw.main(["--sessions", "1", "--allow-dirty", "--model-stage1", str(fake_model), "--out", str(out)]) == 0
+    assert ran and all(not t["cell"].startswith("px4/") and t["profile_dir"] != str(ROOT / "configs/px4_sitl") for t in ran)
+    px4 = [r for r in _summary(out) if r["profile"] == "px4"]
+    assert len(px4) == 5 * 2 * 2 == 20
+    assert all(r["status"] == "n/a" and r["note"] == sw.NA_PX4_ON_SIM and r["decision_fpr"] == "" for r in px4)
+    table = (out / "sweep_table.md").read_text(encoding="utf-8")
+    assert "sysid 3" in table and "| px4 |" in table and "| px4 | fifo | 0 | off | 1.0000" not in table
+    m = json.loads((out / "run_manifest.json").read_text(encoding="utf-8"))
+    assert sum(k.startswith("px4/") for k in m["na_cells"]) == 20 and set(m["na_cells"].values()) >= {sw.NA_PX4_ON_SIM}
+    assert not any(c.startswith("px4/") for c in m["grid"] if c not in m["na_cells"])
