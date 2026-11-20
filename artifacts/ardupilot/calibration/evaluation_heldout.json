@@ -1,0 +1,513 @@
+{
+  "schema": "aegisflight.ardupilot_calibration_eval/1",
+  "set": "heldout",
+  "environment": "SITL",
+  "claim_class": "none (benign false-alarm held-out evaluation; link-level detection)",
+  "held_out_burned": false,
+  "frozen_inputs": {
+    "ardupilot_profile_yaml_sha256": "c5cfd220b3acb0bb638e00a103099b5cb1693d5c9faab397303a5d7518915c58",
+    "px4_profile_yaml_sha256": "94a60c9b39991b45539fc8b92f0514acb516046209d6356aada5f053a59b21a2",
+    "stage1_detector_yaml_sha256": "12948921a230df3c5e26090581540d821491f244d34d4fcb2ab9aaf66f7c37be",
+    "anomaly_py_sha256": "f5d55dc0dc98c5ae3d9ca7406b19f6265817e4c26277149908d26709d0738ca4",
+    "fusion_engine_py_sha256": "8f15785161fc44f431e5cdd71db1974eeed864aa43d68c87829d998b644ed663"
+  },
+  "before_stage1_ml_on": {
+    "runs": [
+      "ap_benign_six_003",
+      "ap_benign_six_004",
+      "ap_benign_groups_001"
+    ],
+    "profile": "configs (Stage-1 default)",
+    "per_run": {
+      "ap_benign_six_003": {
+        "in_link_span": {
+          "decisions": 702,
+          "exposure_s": 140.4,
+          "exposure_h": 0.039,
+          "threat_decisions": 622,
+          "decision_fpr": 0.88604,
+          "alert_events": 41,
+          "fa_per_hour": 1051.28,
+          "fa_per_hour_poisson95_upper": 1364.04,
+          "detector_attribution": {
+            "protocol_rule": 1,
+            "physics_consistency": 1,
+            "ml_anomaly+protocol_rule": 2,
+            "ml_anomaly+physics_consistency": 2,
+            "ml_anomaly": 35
+          },
+          "alert_types": {
+            "DOS": 38,
+            "TELEMETRY_MANIPULATION": 2,
+            "GPS_SPOOFING": 1
+          },
+          "artifact": "artifacts/ardupilot/ap_benign_six_003/decisions.jsonl"
+        },
+        "from_arm_phase": {
+          "decisions": 646,
+          "exposure_s": 129.2,
+          "exposure_h": 0.03589,
+          "threat_decisions": 569,
+          "decision_fpr": 0.8808,
+          "alert_events": 35,
+          "fa_per_hour": 975.23,
+          "fa_per_hour_poisson95_upper": 1292.99,
+          "detector_attribution": {
+            "ml_anomaly": 35
+          },
+          "alert_types": {
+            "DOS": 35
+          },
+          "artifact": "artifacts/ardupilot/ap_benign_six_003/decisions.jsonl"
+        },
+        "airborne_only": {
+          "decisions": 445,
+          "exposure_s": 89.0,
+          "exposure_h": 0.02472,
+          "threat_decisions": 409,
+          "decision_fpr": 0.9191,
+          "alert_events": 25,
+          "fa_per_hour": 1011.24,
+          "fa_per_hour_poisson95_upper": 1412.34,
+          "detector_attribution": {
+            "ml_anomaly": 25
+          },
+          "alert_types": {
+            "DOS": 25
+          },
+          "artifact": "artifacts/ardupilot/ap_benign_six_003/decisions.jsonl"
+        }
+      },
+      "ap_benign_six_004": {
+        "in_link_span": {
+          "decisions": 702,
+          "exposure_s": 140.4,
+          "exposure_h": 0.039,
+          "threat_decisions": 621,
+          "decision_fpr": 0.88462,
+          "alert_events": 40,
+          "fa_per_hour": 1025.64,
+          "fa_per_hour_poisson95_upper": 1335.11,
+          "detector_attribution": {
+            "protocol_rule": 1,
+            "physics_consistency": 1,
+            "ml_anomaly+protocol_rule": 2,
+            "ml_anomaly+physics_consistency": 2,
+            "ml_anomaly": 34
+          },
+          "alert_types": {
+            "DOS": 37,
+            "TELEMETRY_MANIPULATION": 2,
+            "GPS_SPOOFING": 1
+          },
+          "artifact": "artifacts/ardupilot/ap_benign_six_004/decisions.jsonl"
+        },
+        "from_arm_phase": {
+          "decisions": 648,
+          "exposure_s": 129.6,
+          "exposure_h": 0.036,
+          "threat_decisions": 570,
+          "decision_fpr": 0.87963,
+          "alert_events": 34,
+          "fa_per_hour": 944.44,
+          "fa_per_hour_poisson95_upper": 1257.38,
+          "detector_attribution": {
+            "ml_anomaly": 34
+          },
+          "alert_types": {
+            "DOS": 34
+          },
+          "artifact": "artifacts/ardupilot/ap_benign_six_004/decisions.jsonl"
+        },
+        "airborne_only": {
+          "decisions": 444,
+          "exposure_s": 88.8,
+          "exposure_h": 0.02467,
+          "threat_decisions": 405,
+          "decision_fpr": 0.91216,
+          "alert_events": 24,
+          "fa_per_hour": 972.97,
+          "fa_per_hour_poisson95_upper": 1368.34,
+          "detector_attribution": {
+            "ml_anomaly": 24
+          },
+          "alert_types": {
+            "DOS": 24
+          },
+          "artifact": "artifacts/ardupilot/ap_benign_six_004/decisions.jsonl"
+        }
+      },
+      "ap_benign_groups_001": {
+        "in_link_span": {
+          "decisions": 702,
+          "exposure_s": 140.4,
+          "exposure_h": 0.039,
+          "threat_decisions": 699,
+          "decision_fpr": 0.99573,
+          "alert_events": 38,
+          "fa_per_hour": 974.36,
+          "fa_per_hour_poisson95_upper": 1277.14,
+          "detector_attribution": {
+            "protocol_rule": 1,
+            "physics_consistency": 1,
+            "ml_anomaly+protocol_rule": 2,
+            "ml_anomaly+physics_consistency": 2,
+            "ml_anomaly": 32
+          },
+          "alert_types": {
+            "DOS": 35,
+            "TELEMETRY_MANIPULATION": 2,
+            "GPS_SPOOFING": 1
+          },
+          "artifact": "artifacts/ardupilot/ap_benign_groups_001/decisions.jsonl"
+        },
+        "from_arm_phase": {
+          "decisions": 650,
+          "exposure_s": 130.0,
+          "exposure_h": 0.03611,
+          "threat_decisions": 650,
+          "decision_fpr": 1.0,
+          "alert_events": 32,
+          "fa_per_hour": 886.15,
+          "fa_per_hour_poisson95_upper": 1190.28,
+          "detector_attribution": {
+            "ml_anomaly": 32
+          },
+          "alert_types": {
+            "DOS": 32
+          },
+          "artifact": "artifacts/ardupilot/ap_benign_groups_001/decisions.jsonl"
+        },
+        "airborne_only": {
+          "decisions": 443,
+          "exposure_s": 88.6,
+          "exposure_h": 0.02461,
+          "threat_decisions": 443,
+          "decision_fpr": 1.0,
+          "alert_events": 22,
+          "fa_per_hour": 893.91,
+          "fa_per_hour_poisson95_upper": 1276.45,
+          "detector_attribution": {
+            "ml_anomaly": 22
+          },
+          "alert_types": {
+            "DOS": 22
+          },
+          "artifact": "artifacts/ardupilot/ap_benign_groups_001/decisions.jsonl"
+        }
+      }
+    },
+    "pooled": {
+      "in_link_span": {
+        "decisions": 2106,
+        "exposure_s": 421.2,
+        "exposure_h": 0.117,
+        "threat_decisions": 1942,
+        "decision_fpr": 0.92213,
+        "alert_events": 119,
+        "fa_per_hour": 1017.09,
+        "fa_per_hour_poisson95_upper": 1184.35,
+        "detector_attribution": {
+          "protocol_rule": 3,
+          "physics_consistency": 3,
+          "ml_anomaly+protocol_rule": 6,
+          "ml_anomaly+physics_consistency": 6,
+          "ml_anomaly": 101
+        },
+        "alert_types": {
+          "DOS": 110,
+          "TELEMETRY_MANIPULATION": 6,
+          "GPS_SPOOFING": 3
+        },
+        "artifact": "artifacts/ardupilot/{ap_benign_six_003,ap_benign_six_004,ap_benign_groups_001}/decisions.jsonl"
+      },
+      "from_arm_phase": {
+        "decisions": 1944,
+        "exposure_s": 388.8,
+        "exposure_h": 0.108,
+        "threat_decisions": 1789,
+        "decision_fpr": 0.92027,
+        "alert_events": 101,
+        "fa_per_hour": 935.19,
+        "fa_per_hour_poisson95_upper": 1103.34,
+        "detector_attribution": {
+          "ml_anomaly": 101
+        },
+        "alert_types": {
+          "DOS": 101
+        },
+        "artifact": "artifacts/ardupilot/{ap_benign_six_003,ap_benign_six_004,ap_benign_groups_001}/decisions.jsonl"
+      },
+      "airborne_only": {
+        "decisions": 1332,
+        "exposure_s": 266.4,
+        "exposure_h": 0.074,
+        "threat_decisions": 1257,
+        "decision_fpr": 0.94369,
+        "alert_events": 71,
+        "fa_per_hour": 959.46,
+        "fa_per_hour_poisson95_upper": 1168.95,
+        "detector_attribution": {
+          "ml_anomaly": 71
+        },
+        "alert_types": {
+          "DOS": 71
+        },
+        "artifact": "artifacts/ardupilot/{ap_benign_six_003,ap_benign_six_004,ap_benign_groups_001}/decisions.jsonl"
+      }
+    }
+  },
+  "after_ardupilot_profile": {
+    "runs": [
+      "ap_benign_six_003",
+      "ap_benign_six_004",
+      "ap_benign_groups_001",
+      "ap_benign_final_noml_002"
+    ],
+    "profile": "configs/ardupilot_copter",
+    "per_run": {
+      "ap_benign_six_003": {
+        "in_link_span": {
+          "decisions": 702,
+          "exposure_s": 140.4,
+          "exposure_h": 0.039,
+          "threat_decisions": 54,
+          "decision_fpr": 0.07692,
+          "alert_events": 5,
+          "fa_per_hour": 128.21,
+          "fa_per_hour_poisson95_upper": 269.56,
+          "detector_attribution": {
+            "physics_consistency": 3,
+            "protocol_rule": 2
+          },
+          "alert_types": {
+            "TELEMETRY_MANIPULATION": 2,
+            "DOS": 2,
+            "GPS_SPOOFING": 1
+          },
+          "artifact": "artifacts/ardupilot/ap_benign_six_003/decisions.jsonl"
+        },
+        "from_arm_phase": {
+          "decisions": 646,
+          "exposure_s": 129.2,
+          "exposure_h": 0.03589,
+          "threat_decisions": 10,
+          "decision_fpr": 0.01548,
+          "alert_events": 0,
+          "fa_per_hour": 0.0,
+          "fa_per_hour_poisson95_upper": 83.47,
+          "detector_attribution": {},
+          "alert_types": {},
+          "artifact": "artifacts/ardupilot/ap_benign_six_003/decisions.jsonl"
+        },
+        "airborne_only": {
+          "decisions": 445,
+          "exposure_s": 89.0,
+          "exposure_h": 0.02472,
+          "threat_decisions": 0,
+          "decision_fpr": 0.0,
+          "alert_events": 0,
+          "fa_per_hour": 0.0,
+          "fa_per_hour_poisson95_upper": 121.18,
+          "detector_attribution": {},
+          "alert_types": {},
+          "artifact": "artifacts/ardupilot/ap_benign_six_003/decisions.jsonl"
+        }
+      },
+      "ap_benign_six_004": {
+        "in_link_span": {
+          "decisions": 702,
+          "exposure_s": 140.4,
+          "exposure_h": 0.039,
+          "threat_decisions": 55,
+          "decision_fpr": 0.07835,
+          "alert_events": 5,
+          "fa_per_hour": 128.21,
+          "fa_per_hour_poisson95_upper": 269.56,
+          "detector_attribution": {
+            "physics_consistency": 3,
+            "protocol_rule": 2
+          },
+          "alert_types": {
+            "TELEMETRY_MANIPULATION": 2,
+            "DOS": 2,
+            "GPS_SPOOFING": 1
+          },
+          "artifact": "artifacts/ardupilot/ap_benign_six_004/decisions.jsonl"
+        },
+        "from_arm_phase": {
+          "decisions": 648,
+          "exposure_s": 129.6,
+          "exposure_h": 0.036,
+          "threat_decisions": 13,
+          "decision_fpr": 0.02006,
+          "alert_events": 0,
+          "fa_per_hour": 0.0,
+          "fa_per_hour_poisson95_upper": 83.21,
+          "detector_attribution": {},
+          "alert_types": {},
+          "artifact": "artifacts/ardupilot/ap_benign_six_004/decisions.jsonl"
+        },
+        "airborne_only": {
+          "decisions": 444,
+          "exposure_s": 88.8,
+          "exposure_h": 0.02467,
+          "threat_decisions": 0,
+          "decision_fpr": 0.0,
+          "alert_events": 0,
+          "fa_per_hour": 0.0,
+          "fa_per_hour_poisson95_upper": 121.45,
+          "detector_attribution": {},
+          "alert_types": {},
+          "artifact": "artifacts/ardupilot/ap_benign_six_004/decisions.jsonl"
+        }
+      },
+      "ap_benign_groups_001": {
+        "in_link_span": {
+          "decisions": 702,
+          "exposure_s": 140.4,
+          "exposure_h": 0.039,
+          "threat_decisions": 53,
+          "decision_fpr": 0.0755,
+          "alert_events": 5,
+          "fa_per_hour": 128.21,
+          "fa_per_hour_poisson95_upper": 269.56,
+          "detector_attribution": {
+            "physics_consistency": 3,
+            "protocol_rule": 2
+          },
+          "alert_types": {
+            "TELEMETRY_MANIPULATION": 2,
+            "DOS": 2,
+            "GPS_SPOOFING": 1
+          },
+          "artifact": "artifacts/ardupilot/ap_benign_groups_001/decisions.jsonl"
+        },
+        "from_arm_phase": {
+          "decisions": 650,
+          "exposure_s": 130.0,
+          "exposure_h": 0.03611,
+          "threat_decisions": 14,
+          "decision_fpr": 0.02154,
+          "alert_events": 0,
+          "fa_per_hour": 0.0,
+          "fa_per_hour_poisson95_upper": 82.96,
+          "detector_attribution": {},
+          "alert_types": {},
+          "artifact": "artifacts/ardupilot/ap_benign_groups_001/decisions.jsonl"
+        },
+        "airborne_only": {
+          "decisions": 443,
+          "exposure_s": 88.6,
+          "exposure_h": 0.02461,
+          "threat_decisions": 0,
+          "decision_fpr": 0.0,
+          "alert_events": 0,
+          "fa_per_hour": 0.0,
+          "fa_per_hour_poisson95_upper": 121.72,
+          "detector_attribution": {},
+          "alert_types": {},
+          "artifact": "artifacts/ardupilot/ap_benign_groups_001/decisions.jsonl"
+        }
+      },
+      "ap_benign_final_noml_002": {
+        "in_link_span": {
+          "decisions": 644,
+          "exposure_s": 128.8,
+          "exposure_h": 0.03578,
+          "threat_decisions": 49,
+          "decision_fpr": 0.07609,
+          "alert_events": 4,
+          "fa_per_hour": 111.8,
+          "fa_per_hour_poisson95_upper": 255.84,
+          "detector_attribution": {
+            "physics_consistency+protocol_rule": 1,
+            "protocol_rule": 2,
+            "physics_consistency": 1
+          },
+          "alert_types": {
+            "TELEMETRY_MANIPULATION": 1,
+            "DOS": 2,
+            "GPS_SPOOFING": 1
+          },
+          "artifact": "artifacts/ardupilot/ap_benign_final_noml_002/decisions.jsonl"
+        },
+        "from_arm_phase": {
+          "decisions": 592,
+          "exposure_s": 118.4,
+          "exposure_h": 0.03289,
+          "threat_decisions": 9,
+          "decision_fpr": 0.0152,
+          "alert_events": 0,
+          "fa_per_hour": 0.0,
+          "fa_per_hour_poisson95_upper": 91.09,
+          "detector_attribution": {},
+          "alert_types": {},
+          "artifact": "artifacts/ardupilot/ap_benign_final_noml_002/decisions.jsonl"
+        },
+        "airborne_only": {
+          "decisions": 400,
+          "exposure_s": 80.0,
+          "exposure_h": 0.02222,
+          "threat_decisions": 0,
+          "decision_fpr": 0.0,
+          "alert_events": 0,
+          "fa_per_hour": 0.0,
+          "fa_per_hour_poisson95_upper": 134.81,
+          "detector_attribution": {},
+          "alert_types": {},
+          "artifact": "artifacts/ardupilot/ap_benign_final_noml_002/decisions.jsonl"
+        }
+      }
+    },
+    "pooled": {
+      "in_link_span": {
+        "decisions": 2750,
+        "exposure_s": 550.0,
+        "exposure_h": 0.15278,
+        "threat_decisions": 211,
+        "decision_fpr": 0.07673,
+        "alert_events": 19,
+        "fa_per_hour": 124.36,
+        "fa_per_hour_poisson95_upper": 182.48,
+        "detector_attribution": {
+          "physics_consistency": 10,
+          "protocol_rule": 8,
+          "physics_consistency+protocol_rule": 1
+        },
+        "alert_types": {
+          "TELEMETRY_MANIPULATION": 7,
+          "DOS": 8,
+          "GPS_SPOOFING": 4
+        },
+        "artifact": "artifacts/ardupilot/{ap_benign_six_003,ap_benign_six_004,ap_benign_groups_001,ap_benign_final_noml_002}/decisions.jsonl"
+      },
+      "from_arm_phase": {
+        "decisions": 2536,
+        "exposure_s": 507.2,
+        "exposure_h": 0.14089,
+        "threat_decisions": 46,
+        "decision_fpr": 0.01814,
+        "alert_events": 0,
+        "fa_per_hour": 0.0,
+        "fa_per_hour_poisson95_upper": 21.26,
+        "detector_attribution": {},
+        "alert_types": {},
+        "artifact": "artifacts/ardupilot/{ap_benign_six_003,ap_benign_six_004,ap_benign_groups_001,ap_benign_final_noml_002}/decisions.jsonl"
+      },
+      "airborne_only": {
+        "decisions": 1732,
+        "exposure_s": 346.4,
+        "exposure_h": 0.09622,
+        "threat_decisions": 0,
+        "decision_fpr": 0.0,
+        "alert_events": 0,
+        "fa_per_hour": 0.0,
+        "fa_per_hour_poisson95_upper": 31.13,
+        "detector_attribution": {},
+        "alert_types": {},
+        "artifact": "artifacts/ardupilot/{ap_benign_six_003,ap_benign_six_004,ap_benign_groups_001,ap_benign_final_noml_002}/decisions.jsonl"
+      }
+    }
+  }
+}

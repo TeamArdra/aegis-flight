@@ -27,9 +27,11 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
     from ..config import load_config
     from ..logging import EventStore
     from ..metrics import evaluate
+    from ..model_integrity import resolve_model_or_exit
 
     cfg = load_config()
-    model = None if args.no_model else args.model
+    model = resolve_model_or_exit(args.model, no_model=args.no_model,
+                                  allow_unverified=args.allow_unverified_model)
     print(f"Simulating scenario='{args.attack}' seed={args.seed} route={args.route or 'default'} "
           f"model={'off' if model is None else model}")
     res = run_session(cfg, args.attack, seed=args.seed, route=args.route, model_path=model)
@@ -67,9 +69,11 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
 def _cmd_benchmark(args: argparse.Namespace) -> int:
     from ..benchmark.harness import run_benchmark
     from ..config import load_config
+    from ..model_integrity import resolve_model_or_exit
 
     cfg = load_config()
-    model = None if args.no_model else args.model
+    model = resolve_model_or_exit(args.model, no_model=args.no_model,
+                                  allow_unverified=args.allow_unverified_model)
     result = run_benchmark(cfg, seeds=args.seeds, model_path=model, out_dir=args.out)
     b = result["binary"]
     print(f"accuracy={b['accuracy']} recall={b['recall_tpr']} FPR={b['fpr']} F1={b['f1']}")
@@ -294,13 +298,14 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
             return 2
         if args.db is None:
             args.db = str(Path(args.run_dir) / "events.sqlite")
-    store = None
+    store = anchor_writer = None
     if args.db:
-        from ..logging import EventStore
+        from ..logging import AnchorWriter, EventStore
 
         store = EventStore(args.db)
         run_id = time.strftime("ips-%Y%m%d-%H%M%S")
         store.start_run(run_id, label="ips-bridge")
+        anchor_writer = AnchorWriter(store)
     else:
         run_id = "ips-bridge"
     try:  # e.g. an unreadable / corrupt / unwritable --mgmt-state: refuse to start, never run without replay state
@@ -318,6 +323,7 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                                  mgmt_state_path=args.mgmt_state, lock_posture_file=args.lock_posture_file,
                                  mgmt_max_cmd_age_s=args.mgmt_max_age_s,
                                  audit_log_path=args.audit_log,
+                                 mgmt_enable=bool(args.mgmt_enable),
                                  unsigned_acknowledged=args.allow_unsigned and key is None and args.defense_mode == "active-ips",
                                  vehicle_filter=args.vehicle_uplink_filter, filter_override_file=args.filter_override_file,
                                  filter_lockout_failopen_s=args.filter_lockout_failopen_s,
@@ -354,6 +360,8 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
     try:
         while end is None or time.monotonic() < end:
             time.sleep(min(args.status_interval, 0.5) if end is not None else args.status_interval)
+            if anchor_writer is not None:
+                anchor_writer.maybe_write(run_id)
             print(json.dumps(bridge.status()), flush=True)
     except KeyboardInterrupt:
         pass
@@ -361,6 +369,9 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         if status_srv is not None:
             status_srv.close()
         bridge.close()
+        if anchor_writer is not None:
+            with contextlib.suppress(Exception):
+                anchor_writer.write_now(run_id, force=True)
         if store is not None:
             store.close()
         if archive is not None and run_prov is not None:
@@ -395,13 +406,31 @@ def _cmd_fw_manifest(args: argparse.Namespace) -> int:
 
 
 def _cmd_verify_log(args: argparse.Namespace) -> int:
-    from ..logging import EventStore
+    from ..logging import EventStore, verify_anchors
 
-    store = EventStore(args.db)
-    cs = store.verify_chain()
-    print(f"events: {cs.length}  chain: {'OK' if cs.ok else 'BROKEN'}  {cs.detail}")
-    store.close()
-    return 0 if cs.ok else 2
+    store = EventStore(args.db, read_only=True)
+    try:
+        cs = store.verify_chain()
+        print(f"events: {cs.length}  chain: {'OK' if cs.ok else 'BROKEN'}  {cs.detail}")
+        ok = cs.ok
+        if getattr(args, "verify_actions", False):
+            acs = store.verify_actions_chain()
+            print(f"actions: {acs.length}  chain: {'OK' if acs.ok else 'BROKEN'}  {acs.detail}")
+            ok = ok and acs.ok
+        if getattr(args, "anchors", None):
+            av = verify_anchors(store, args.anchors)
+            for w in av.warnings:
+                print(f"anchor warning: {w}", file=sys.stderr)
+            for err in av.errors:
+                print(f"anchor error: {err}", file=sys.stderr)
+            print(
+                f"anchors: {av.anchors_checked}  signed: {av.signed_anchors}  "
+                f"unsigned: {av.unsigned_anchors}  status: {'OK' if av.ok else 'FAILED'}"
+            )
+            ok = ok and av.ok
+    finally:
+        store.close()
+    return 0 if ok else 2
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -415,7 +444,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--seed", type=int, default=42)
     s.add_argument("--route", default=None, help="survey_box|out_and_back|perimeter")
     s.add_argument("--model", default="models/isoforest.joblib")
-    s.add_argument("--no-model", action="store_true")
+    s.add_argument("--no-model", action="store_true", help="explicit ML-off run (rule + physics only)")
+    s.add_argument("--allow-unverified-model", action="store_true",
+                   help="use a model whose SHA-256 differs from models/MODELS.sha256 (e.g. `aegis train` output)")
     s.add_argument("--db", default=None, help="log alerts to this SQLite path")
     s.set_defaults(func=_cmd_simulate)
 
@@ -423,7 +454,9 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3, 4, 5, 6])
     b.add_argument("--out", default="artifacts/benchmarks")
     b.add_argument("--model", default="models/isoforest.joblib")
-    b.add_argument("--no-model", action="store_true")
+    b.add_argument("--no-model", action="store_true", help="explicit ML-off run (rule + physics only)")
+    b.add_argument("--allow-unverified-model", action="store_true",
+                   help="use a model whose SHA-256 differs from models/MODELS.sha256 (e.g. `aegis train` output)")
     b.add_argument("--no-figures", action="store_true")
     b.set_defaults(func=_cmd_benchmark)
 
@@ -518,6 +551,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="unsigned link: number of forwarded sensitive frames remembered for the byte-identical replay filter")
     ib.add_argument("--gcs-alerts", choices=["on", "off"], default="on",
                     help="send IDS alerts / IPS actions as short AEGIS: STATUSTEXTs to the GCS side (never the FC)")
+    ib.add_argument("--mgmt-enable", action="store_true",
+                    help="in PASSIVE posture, opt in to in-band GCS management TX/RX and cross-end summaries (default off = 0B TX)")
     ib.add_argument("--alert-min-interval", type=float, default=2.0,
                     help="at most one alert STATUSTEXT per attack type per this many seconds (escalations bypass)")
     ib.add_argument("--mgmt-status-interval", type=float, default=2.0,
@@ -557,12 +592,121 @@ def build_parser() -> argparse.ArgumentParser:
     fm.set_defaults(func=_cmd_fw_manifest)
     v = sub.add_parser("verify-log", help="verify a SQLite event-log hash chain")
     v.add_argument("db", help="path to the SQLite event log")
+    v.add_argument("--anchors", default=None, help="verify against an external <db>.anchors.jsonl file")
+    v.add_argument("--verify-actions", action="store_true", help="also verify the actions table hash chain")
     v.set_defaults(func=_cmd_verify_log)
 
     ver = sub.add_parser("version", help="print version")
     ver.set_defaults(func=lambda a: (print(f"aegisflight {__version__}"), 0)[1])
 
+    ob = sub.add_parser("onboard", help="run unified onboard companion runtime from a YAML config")
+    ob.add_argument("--config", default=None, help="YAML config path (default: safe passive serial config)")
+    ob.add_argument("--seconds", type=float, default=None, help="optional timed exit (default: until SIGTERM/SIGINT)")
+    ob.add_argument("--topology", choices=["inline", "side-tap"], default=None,
+                    help="override wiring topology (inline bridge or single-port receive-only side-tap)")
+    ob.add_argument("--defense-mode", choices=["passive", "advisory", "active-ips"], default=None,
+                    help="override configured defense posture")
+    ob.add_argument("--run-dir", default=None, help="override run_root for SQLite/archive output")
+    ob.add_argument("--allow-url", action="store_true", help="override allow_url=true for socket:// tests")
+    ob.add_argument("--preflight", action="store_true", help="run 0-TX onboard preflight diagnostics and exit")
+    ob.add_argument("--enroll-firmware", default=None, metavar="OUT_YAML",
+                    help="passively listen for AUTOPILOT_VERSION (0 B TX) and pin firmware allowlist YAML")
+    ob.add_argument("--vehicle-name", default="companion-fc", help="vehicle entry name used with --enroll-firmware")
+    ob.add_argument("--enroll-timeout", type=float, default=10.0, help="seconds to wait for AUTOPILOT_VERSION")
+    ob.set_defaults(func=_cmd_onboard)
+
+    er = sub.add_parser("export-report", help="export cryptographically verified forensic flight report")
+    er.add_argument("--db", required=True, help="path to events.sqlite")
+    er.add_argument("--out", default=None, help="output path (.json or .html; default: stdout JSON)")
+    er.add_argument("--format", choices=["json", "html"], default="json", help="output format")
+    er.add_argument("--run-id", default=None, help="optional single run_id to verify/export")
+    er.add_argument("--anchors", default=None, help="optional external .anchors.jsonl path")
+    er.add_argument("--no-actions", action="store_true", help="skip actions hash-chain verification")
+    er.set_defaults(func=_cmd_export_report)
+
+    fd = sub.add_parser("field-drill", help="run zero-TX shadow verification drills against IPS/detectors")
+    fd.add_argument("--scenario", default="all", help="drill scenario name or 'all'")
+    fd.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    fd.set_defaults(func=_cmd_field_drill)
+
     return p
+
+
+def _cmd_export_report(args: argparse.Namespace) -> int:
+    import json
+
+    from ..reporting.forensic_report import build_forensic_report, render_forensic_html
+
+    try:
+        rep = build_forensic_report(
+            args.db,
+            run_id=args.run_id,
+            anchors_path=args.anchors,
+            verify_actions=not args.no_actions,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"aegis export-report: {exc}", file=sys.stderr)
+        return 2
+    out_text = render_forensic_html(rep) if args.format == "html" else json.dumps(rep, indent=2)
+    if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(out_text, encoding="utf-8")
+        print(f"Wrote forensic {args.format.upper()} report -> {args.out} (verified={rep['verified']})")
+    else:
+        print(out_text)
+    return 0 if rep["verified"] else 1
+
+
+def _cmd_field_drill(args: argparse.Namespace) -> int:
+    import json
+
+    from ..testing.field_drill import run_field_drill
+
+    try:
+        res = run_field_drill(args.scenario)
+    except ValueError as exc:
+        print(f"aegis field-drill: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(res, indent=2))
+    else:
+        for sc in res["scenarios"]:
+            badge = "PASS" if sc["ok"] else "FAIL"
+            print(f"[{badge}] {sc['name']} (0B FC TX, {sc['elapsed_ms']} ms)")
+        print(f"Field drill summary: {res['passed']}/{res['total']} passed (zero_real_fc_tx={res['zero_real_fc_tx']})")
+    return 0 if res["ok"] else 1
+
+
+def _cmd_onboard(args: argparse.Namespace) -> int:
+    import json
+
+    from ..onboard import load_onboard_config, run_enroll_firmware, run_onboard, run_preflight
+
+    try:
+        cfg = load_onboard_config(args.config)
+    except (OSError, ValueError) as exc:
+        print(f"aegis onboard: bad --config: {exc}", file=sys.stderr)
+        return 2
+    if args.topology is not None:
+        cfg.topology = args.topology
+    if args.defense_mode is not None:
+        cfg.defense_mode = args.defense_mode
+    if args.run_dir is not None:
+        cfg.run_root = args.run_dir
+    if args.allow_url:
+        cfg.allow_url = True
+    if args.preflight:
+        report = run_preflight(cfg)
+        print(json.dumps(report, indent=2))
+        return 0 if report["ok"] else 2
+    if args.enroll_firmware:
+        return run_enroll_firmware(
+            cfg,
+            out_path=args.enroll_firmware,
+            vehicle_name=args.vehicle_name,
+            timeout_s=args.enroll_timeout,
+        )
+    return run_onboard(cfg, seconds=args.seconds)
 
 
 def main(argv: list[str] | None = None) -> int:

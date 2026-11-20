@@ -38,6 +38,99 @@ COPTER_MODES: dict[str, int] = {
 }
 MODE_NAMES: dict[int, str] = {v: k for k, v in COPTER_MODES.items() if k != "TAKEOFF"}
 
+PLANE_MODES: dict[str, int] = {
+    "MANUAL": 0,
+    "CIRCLE": 1,
+    "STABILIZE": 2,
+    "TRAINING": 3,
+    "ACRO": 4,
+    "FBWA": 5,
+    "FBWB": 6,
+    "CRUISE": 7,
+    "AUTOTUNE": 8,
+    "AUTO": 10,
+    "RTL": 11,
+    "LOITER": 12,
+    "TAKEOFF": 13,
+    "GUIDED": 15,
+    "QSTABILIZE": 17,
+    "QHOVER": 18,
+    "QLOITER": 19,
+    "QLAND": 20,
+    "QRTL": 21,
+}
+PLANE_MODE_NAMES: dict[int, str] = {v: k for k, v in PLANE_MODES.items()}
+
+ROVER_MODES: dict[str, int] = {
+    "MANUAL": 0,
+    "ACRO": 1,
+    "STEERING": 3,
+    "HOLD": 4,
+    "LOITER": 5,
+    "AUTO": 10,
+    "RTL": 11,
+    "SMART_RTL": 12,
+    "GUIDED": 15,
+}
+ROVER_MODE_NAMES: dict[int, str] = {v: k for k, v in ROVER_MODES.items()}
+
+PX4_MAIN_MODES: dict[str, tuple[int, int]] = {
+    "MANUAL": (1, 0),
+    "ALTCTL": (2, 0),
+    "POSCTL": (3, 0),
+    "AUTO_READY": (4, 1),
+    "AUTO_TAKEOFF": (4, 2),
+    "AUTO_LOITER": (4, 3),
+    "AUTO_MISSION": (4, 4),
+    "AUTO_RTL": (4, 5),
+    "AUTO_LAND": (4, 6),
+    "ACRO": (5, 0),
+    "OFFBOARD": (6, 0),
+    "STABILIZED": (7, 0),
+    "RATTITUDE": (8, 0),
+}
+_PX4_MODE_NAMES: dict[tuple[int, int], str] = {v: k for k, v in PX4_MAIN_MODES.items()}
+
+COPTER_MAV_TYPES = frozenset({2, 3, 4, 13, 14, 15, 29})
+VTOL_MAV_TYPES = frozenset({19, 20, 21, 22, 23, 24, 25})
+ROVER_MAV_TYPES = frozenset({10, 11})
+FIXED_WING_MAV_TYPE = 1
+
+
+def decode_flight_mode(autopilot: int | None, mav_type: int | None, custom_mode: int) -> str:
+    """Decode ``HEARTBEAT.custom_mode`` according to autopilot stack and frame type."""
+    if autopilot == 12:  # MAV_AUTOPILOT_PX4
+        main_m = (custom_mode >> 16) & 0xFF
+        sub_m = (custom_mode >> 24) & 0xFF
+        if (main_m, sub_m) in _PX4_MODE_NAMES:
+            return _PX4_MODE_NAMES[(main_m, sub_m)]
+        if (main_m, 0) in _PX4_MODE_NAMES:
+            return _PX4_MODE_NAMES[(main_m, 0)]
+        return f"PX4_{main_m}_{sub_m}"
+    if autopilot == 3:  # MAV_AUTOPILOT_ARDUPILOTMEGA
+        if mav_type == FIXED_WING_MAV_TYPE or (mav_type in VTOL_MAV_TYPES):
+            return PLANE_MODE_NAMES.get(custom_mode, f"PLANE_{custom_mode}")
+        if mav_type in ROVER_MAV_TYPES:
+            return ROVER_MODE_NAMES.get(custom_mode, f"ROVER_{custom_mode}")
+        return MODE_NAMES.get(custom_mode, "UNKNOWN")
+    return MODE_NAMES.get(custom_mode, "UNKNOWN")
+
+
+def safe_gps_denied_mode(autopilot: int | None, mav_type: int | None) -> str | None:
+    """Return the safe non-GPS fallback mode for ``(autopilot, mav_type)``, or None if unknown."""
+    if autopilot == 12:
+        return "ALTCTL"
+    if autopilot == 3:
+        if mav_type == FIXED_WING_MAV_TYPE:
+            return "FBWA"
+        if mav_type in VTOL_MAV_TYPES:
+            return "QHOVER"
+        if mav_type in ROVER_MAV_TYPES:
+            return "HOLD"
+        if mav_type is None or mav_type in COPTER_MAV_TYPES:
+            return "ALT_HOLD"
+    return None
+
 
 @dataclass
 class RawPacket:

@@ -29,6 +29,21 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Minimal onboard bridge + serial transport (install with `pip install --no-deps -e .` + `pip install -e ".[onboard]"`)
+onboard = [
+    "numpy>=1.26",
+    "pymavlink>=2.4.40",
+    "psutil>=5.9",
+    "pyyaml>=6.0",
+    "pyserial>=3.5",
+]
+# Optional local dashboard API stack when serving the UI on a companion node
+dashboard = [
+    "pydantic>=2.6",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "websockets>=12.0",
+]
 # External real-flight validation (PX4 ULog parsing); see docs/EXTERNAL_DATA.md
 external = [
     "pyulog>=1.1",
@@ -36,6 +51,10 @@ external = [
 # Serial MAVLink transport (Stage-2 hardware path); imported lazily, so the core install is unaffected
 serial = [
     "pyserial>=3.5",
+]
+full = [
+    "pyserial>=3.5",
+    "pyulog>=1.1",
 ]
 dev = [
     "pyserial>=3.5",

@@ -16,7 +16,8 @@ from collections.abc import Callable
 
 from ..core.enums import AttackType, DetectorName
 from ..core.types import DetectorResult
-from ..features.extractor import FeatureFrame
+from ..features.extractor import _LINK_GAP_S, FeatureFrame
+from ..mavlink.codec import COPTER_MAV_TYPES, FIXED_WING_MAV_TYPE, ROVER_MAV_TYPES, VTOL_MAV_TYPES
 from .base import Detector, ramp
 
 
@@ -141,6 +142,70 @@ class PhysicsDetector(Detector):
         self.batt_msg_tol_v = float(p.get("batt_msg_tolerance_v", 1.5))
         self.att_repeat_n = int(p.get("attitude_repeat_n", 8))
         self.hdg_yaw_tol_deg = float(p.get("heading_yaw_tolerance_deg", 10.0))
+        self.use_learned_baro_offset = bool(p.get("use_learned_baro_offset", False))
+        self.yaw_course_auto = bool(p.get("yaw_course_auto", False))
+        self.control_semantics_enabled = bool(p.get("control_semantics_enabled", False))
+        self.control_accel_thresh_ms2 = float(p.get("control_accel_residual_ms2", 4.5))
+        self.optflow_speed_diff_ms = float(p.get("optflow_gps_speed_diff_ms", 4.0))
+        self._init_sample_guards()
+
+    def _init_sample_guards(self) -> None:
+        self._batt_valid_samples = 0
+        self._last_batt_t: float | None = None
+        self._alt_valid_samples = 0
+        self._alt_nonzero_seen = False
+        self._last_alt_t: float | None = None
+        self._pos_valid_samples = 0
+        self._last_pos_t: float | None = None
+
+    @staticmethod
+    def _advance_sample(count: int, last_t: float | None, t: float) -> tuple[int, float]:
+        if last_t is None or (t - last_t) > _LINK_GAP_S or t < last_t:
+            return 1, t
+        return count + 1, t
+
+    def _update_sample_guards(self, frame: FeatureFrame) -> tuple[bool, bool, bool]:
+        """First-sample guards (issue #15): require >= 2 fresh valid samples before scoring."""
+        snap = frame.snapshot
+        synthetic_only = frame.heartbeat_seen is None and frame.gps_seen is None
+
+        has_pos_fix = (
+            snap.lat is not None
+            and snap.lon is not None
+            and (abs(snap.lat) > 1e-7 or abs(snap.lon) > 1e-7)
+            and (snap.gps_fix_type is None or snap.gps_fix_type >= 3)
+            and frame.gps_age_s <= _LINK_GAP_S
+        )
+        if has_pos_fix:
+            self._pos_valid_samples, self._last_pos_t = self._advance_sample(
+                self._pos_valid_samples, self._last_pos_t, frame.t
+            )
+            pos_ready = self._pos_valid_samples >= 2
+        elif snap.lat is None and synthetic_only:
+            pos_ready = True
+        else:
+            pos_ready = False
+
+        if snap.baro_alt is not None:
+            if abs(snap.baro_alt) > 1e-6 or self._alt_nonzero_seen:
+                self._alt_nonzero_seen = True
+                self._alt_valid_samples, self._last_alt_t = self._advance_sample(
+                    self._alt_valid_samples, self._last_alt_t, frame.t
+                )
+            alt_ready = self._alt_valid_samples >= 2
+        else:
+            alt_ready = synthetic_only
+
+        if snap.battery_voltage is not None:
+            if snap.battery_voltage > 0.0:
+                self._batt_valid_samples, self._last_batt_t = self._advance_sample(
+                    self._batt_valid_samples, self._last_batt_t, frame.t
+                )
+            batt_ready = self._batt_valid_samples >= 2 and snap.battery_voltage > 0.0
+        else:
+            batt_ready = synthetic_only
+
+        return pos_ready, alt_ready, batt_ready
 
     def process(self, frame: FeatureFrame) -> DetectorResult:
         evidence: list[str] = []
@@ -148,6 +213,8 @@ class PhysicsDetector(Detector):
         signals: dict[str, float] = {}
         score = 0.0
         hard = False
+
+        pos_ready, alt_ready, batt_ready = self._update_sample_guards(frame)
 
         def bump(attack: AttackType, s: float, hard_hit: bool = False) -> None:
             nonlocal score, hard
@@ -160,7 +227,8 @@ class PhysicsDetector(Detector):
         nav_note: str | None = None
         if not self.estimator_gate or frame.pos_residual_nav_m is None:
             # gate off, or no EKF_STATUS_REPORT ever received: the Stage-1 rule exactly
-            self._residual_rule(frame.pos_residual_m, bump, evidence)
+            if pos_ready:
+                self._residual_rule(frame.pos_residual_m, bump, evidence)
         else:
             # Estimator-aware rule (v2). ``pos_residual_nav_m`` equals ``pos_residual_m`` exactly
             # while the window holds no gated or transition fix, and ``pos_step_max_m`` is then 0,
@@ -168,7 +236,7 @@ class PhysicsDetector(Detector):
             signals["pos_residual_nav_m"] = frame.pos_residual_nav_m
             step = frame.pos_step_max_m
             signals["pos_step_max_m"] = step
-            if step >= self.pos_resid_hard:
+            if pos_ready and step >= self.pos_resid_hard:
                 # one unclamped residual increment |dp - v*dt| >= hard at a gated or transition fix (a
                 # step the velocity does not account for; elsewhere it is clamped / left out)
                 bump(AttackType.GPS_SPOOFING, 1.0, hard_hit=True)
@@ -183,14 +251,14 @@ class PhysicsDetector(Detector):
                 # It is bounded by |sum v*dt|, so wander with a pinned (~0) velocity cannot trigger it.
                 sf = frame.pos_vel_shortfall_gated_m
                 signals["pos_vel_shortfall_gated_m"] = sf
-                if sf >= self.pos_resid_hard:
+                if pos_ready and sf >= self.pos_resid_hard:
                     bump(AttackType.GPS_SPOOFING, 1.0, hard_hit=True)
                     evidence.append(
                         "estimator reports no horizontal solution but its velocity implies "
                         f"{sf:.1f} m of movement the position does not show "
                         f"≥ hard {self.pos_resid_hard:.0f} m"
                     )
-                elif sf > self.pos_resid:
+                elif pos_ready and sf > self.pos_resid:
                     s = ramp(sf, self.pos_resid, self.pos_resid_hard)
                     bump(AttackType.GPS_SPOOFING, max(0.55, s))
                     evidence.append(
@@ -204,7 +272,7 @@ class PhysicsDetector(Detector):
                     f"{frame.pos_residual_m:.1f} m not used as spoofing evidence "
                     "(degraded navigation, not attack evidence)"
                 )
-            else:
+            elif pos_ready:
                 self._residual_rule(frame.pos_residual_nav_m, bump, evidence)
 
         # ---- 2D Page-Hinkley / CUSUM micro-drift (< 0.3 m/s) ----
@@ -218,19 +286,12 @@ class PhysicsDetector(Detector):
                 "(sustained sub-noise velocity divergence)"
             )
 
-        # ---- 2D Page-Hinkley / CUSUM micro-drift (< 0.3 m/s) ----
-        cusum_val = max(frame.cusum_drift_m, self.cusum.magnitude_m)
-        signals["cusum_drift_m"] = cusum_val
-        if (self.cusum_enabled or self.cusum.triggered) and cusum_val >= self.cusum_threshold_m:
-            s = ramp(cusum_val, self.cusum_threshold_m, self.cusum_threshold_m * 3.0)
-            bump(AttackType.GPS_SPOOFING, max(0.65, s), hard_hit=True)
-            evidence.append(
-                f"CUSUM micro-drift residual {cusum_val:.2f} m ≥ {self.cusum_threshold_m:.1f} m "
-                "(sustained sub-noise velocity divergence)"
-            )
-
         # ---- GPS altitude vs baro (telemetry manipulation / spoofing) ----
-        ad = frame.gps_baro_alt_diff_m
+        ad = (
+            frame.gps_baro_alt_bias_corrected_diff_m
+            if (self.use_learned_baro_offset and frame.gps_baro_alt_bias_corrected_diff_m is not None)
+            else frame.gps_baro_alt_diff_m
+        )
         signals["gps_baro_alt_diff_m"] = ad
         if ad > self.alt_cons:
             s = ramp(ad, self.alt_cons, self.alt_cons * 3)
@@ -278,7 +339,7 @@ class PhysicsDetector(Detector):
                     )
 
         # ---- altitude rate plausibility ----
-        if abs(frame.alt_rate_ms) > self.alt_jump:
+        if alt_ready and abs(frame.alt_rate_ms) > self.alt_jump:
             s = ramp(abs(frame.alt_rate_ms), self.alt_jump, self.alt_jump * 2)
             bump(AttackType.TELEMETRY_MANIPULATION, max(0.5, s))
             evidence.append(f"implausible altitude rate {frame.alt_rate_ms:.1f} m/s")
@@ -290,7 +351,7 @@ class PhysicsDetector(Detector):
             evidence.append(f"implausible acceleration {frame.accel_ms2:.1f} m/s²")
 
         # ---- battery dynamics (telemetry manipulation) ----
-        if frame.battery_v_rise > self.batt_rise:
+        if batt_ready and frame.battery_v_rise > self.batt_rise:
             s = ramp(frame.battery_v_rise, self.batt_rise, self.batt_rise * 4)
             bump(AttackType.TELEMETRY_MANIPULATION, max(0.5, s))
             evidence.append(f"battery voltage rose {frame.battery_v_rise:.2f} V (implausible)")
@@ -303,10 +364,43 @@ class PhysicsDetector(Detector):
         # ---- heading (attitude) vs course-over-ground (frozen attitude) ----
         yc = frame.yaw_course_diff_deg
         signals["yaw_course_diff_deg"] = yc
-        if self.yaw_course_enabled and yc > self.yaw_course_deg:
+        yc_enabled = self.yaw_course_enabled
+        if self.yaw_course_auto and frame.mav_type is not None:
+            if frame.mav_type in COPTER_MAV_TYPES or frame.mav_type in ROVER_MAV_TYPES or frame.mav_type in VTOL_MAV_TYPES:
+                yc_enabled = False
+            elif frame.mav_type == FIXED_WING_MAV_TYPE:
+                yc_enabled = True
+        if yc_enabled and yc > self.yaw_course_deg:
             s = ramp(yc, self.yaw_course_deg, 90.0)
             bump(AttackType.TELEMETRY_MANIPULATION, max(0.5, s))
             evidence.append(f"heading/course mismatch {yc:.0f}° (attitude inconsistent with track)")
+
+        # ---- ConstDet: attitude vs horizontal acceleration control semantics ----
+        if (
+            self.control_semantics_enabled
+            and frame.snapshot.armed
+            and not frame.nav_gated
+            and frame.control_accel_residual_ms2 is not None
+        ):
+            cr = frame.control_accel_residual_ms2
+            if cr > self.control_accel_thresh_ms2:
+                signals["control_accel_residual_ms2"] = cr
+                s = ramp(cr, self.control_accel_thresh_ms2, self.control_accel_thresh_ms2 * 2.5)
+                bump(AttackType.GPS_SPOOFING, max(0.65, s))
+                evidence.append(
+                    f"ConstDet attitude-vs-acceleration mismatch {cr:.2f} m/s² > {self.control_accel_thresh_ms2:.1f} m/s²"
+                )
+
+        # ---- Optical-flow / VIO velocity vs GPS velocity cross-check ----
+        if frame.optflow_gps_speed_diff_ms is not None:
+            od = frame.optflow_gps_speed_diff_ms
+            signals["optflow_gps_speed_diff_ms"] = od
+            if od > self.optflow_speed_diff_ms:
+                s = ramp(od, self.optflow_speed_diff_ms, self.optflow_speed_diff_ms * 2.5)
+                bump(AttackType.GPS_SPOOFING, max(0.70, s))
+                evidence.append(
+                    f"optical-flow/VIO vs GPS speed divergence {od:.1f} m/s > {self.optflow_speed_diff_ms:.1f} m/s"
+                )
 
         self._receiver_rules(frame, bump, evidence, signals)
         self._mission_rule(frame, bump, evidence, signals)
@@ -428,3 +522,4 @@ class PhysicsDetector(Detector):
         self._soft_streak = 0
         self._mission_streak = 0
         self.cusum.reset()
+        self._init_sample_guards()
