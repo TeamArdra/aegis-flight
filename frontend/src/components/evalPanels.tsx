@@ -144,13 +144,15 @@ const IMPLEMENTED = [
   "Modular detector interface",
   "FastAPI + WebSocket API",
   "SQLite tamper-evident hash-chain log",
-  "Live serial / UDP MAVLink source (a serial device is always receive-only)",
+  "Live serial / UDP MAVLink monitoring (the IDS monitor never transmits on a serial device)",
   "MAVLink-2 signing verification",
-  "IPS state machine (SIM dashboard; ACTIVE IPS refused on a serial device, run on SITL only)",
+  "IPS state machine (SIM dashboard)",
+  "Inline bridge `aegis ips-bridge`: relays FC ↔ GCS traffic in every mode, serial included; adds its own alerts on the GCS side",
+  "ACTIVE IPS counter-frames: refused on a serial FC port; allowed on UDP / socket:// links (not restricted to SITL in code)",
   "STATUSTEXT alerts to a loopback GCS",
 ];
 const PLANNED = [
-  "Inline bridge on real hardware (`aegis ips-bridge`: ArduCopter SITL only so far)",
+  "Inline bridge in flight: tested in ArduCopter / PX4 SITL and on a disarmed Pixhawk 6X bench only; not flown, no hardware bypass",
   "Rust fast-path + Tauri desktop app (prototype, not on the decision path)",
   "Hardware-in-the-loop (HIL)",
   "Onboard / companion deployment",
