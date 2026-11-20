@@ -49,7 +49,7 @@ One telemetry tick, traced through the real code. (Diagram:
 10. **Autonomous Mitigation & Prevention (Stage 2).**
     If posture is `ACTIVE_IPS`, `mitigation/controller.py` (`MitigationController.step`) evaluates the `ThreatAssessment`.
     - In **Topology B** (Inline): `FrameSanitizer` drops rogue frames or clamps coordinates before they reach the autopilot ($0.0\text{ m}$ detour).
-    - In **Topology A** (Sidecar): `GoldenFlightState` dead-reckoning provides trusted coordinates and `MavlinkActuator` encodes counter-commands (set mode, EKF source switch). Modelled in SIM only; nothing is transmitted on a live source.
+    - In **Topology A** (Sidecar): `GoldenFlightState` dead-reckoning provides trusted coordinates and `MavlinkActuator` encodes counter-commands (set mode, EKF source switch). On the SIM source this is a model. On a live UDP or `socket://` (SITL) link, `active-ips` transmits these counter-commands; a serial device is receive-only and `active-ips` is refused on it (`backend/engine.py`, `_transmit`).
     - Safety-critical vetoes: `AttackSubModeClassifier` flags a mid-air disarm or a command-cadence violation and the controller records it (`REPLAY_GUARD` / `VETO_DISARM`). It is reported, not blocked: no code path drops the command before the autopilot.
     - Pilot GCS notification: `gcs_notifier.py` dispatches `STATUSTEXT` alert banners.
 

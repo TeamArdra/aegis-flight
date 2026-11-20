@@ -117,9 +117,9 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
 
 ## Completed in Stage 2
 1. **MAVLink 2 message signing & cryptographic attestation**: Implemented in `src/aegisflight/mavlink/signing.py`.
-2. **Serial & UDP transports & SITL integration**: Fully verified with ArduPilot 4.7.1 and PX4 1.14 (`docs/ARDUPILOT_SITL.md`, `docs/STAGE2_RUNBOOK.md`).
-3. **Hardware Abstraction Layer (HAL)**: Auto-discovery across flight controllers, companion computers, and dynamic latency budgets (`src/aegisflight/hal/`).
-4. **Dual-Topology Autonomous Prevention**: Topology A (Sidecar Actuator) and Topology B (Inline Transparent Bridge with 150 ms fail-open watchdog).
+2. **Serial & UDP transports & SITL integration**: run against ArduCopter 4.7.1 SITL (`docs/ARDUPILOT_SITL.md`) and PX4 SITL `v1.18.0-rc1-27-gc239c63807`, a release candidate (`artifacts/sitl/P1_summary.md`). No other autopilot version has been run.
+3. **Hardware Abstraction Layer (HAL)**: Auto-discovery across flight controllers and companion computers (`src/aegisflight/hal/`). Its latency budgets are static constants, not measurements, and `hal/discovery.py` is not wired into the pipeline.
+4. **Dual-Topology Prevention**: Topology B is `aegis ips-bridge` (`docs/INLINE_IPS.md`; SITL and real-Pixhawk bench, not flown, no hardware bypass). Topology A (sidecar) did not recover the vehicle in its one ArduCopter SITL run (`docs/INLINE_IPS.md`). The 150 ms fail-open watchdog belongs to the older `InlineBridge` software model, which is not on the running path.
 5. **Cross-Platform Native Desktop GCS**: Tauri 2.0 (Rust) + React 18 + TypeScript (`frontend/src-tauri/`).
 6. **Immutable Forensic Hash Chain**: SQLite rolling block hash chain for tamper-evident audit logs.
 

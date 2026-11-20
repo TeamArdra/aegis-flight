@@ -11,7 +11,12 @@ Run with the project venv; the suite must pass in full (the count grows with new
 features — `pytest -q` prints it). The pyramid above shows the Stage-1 layout and its
 historic counts.
 
-**Latest full run (2026-10-31, consolidated `main` `eb829e9`):** host 1061 passed, 3 skipped (POSIX PTY), 0 failed, 1064 collected
+**Latest full run (2026-11-20, `origin/main` `389fc02`, Windows host):** 1883 passed, 71 skipped,
+0 failed, 1954 collected (`tests/unit` 1608, `tests/integration` 98, `tests/automation` 241, `tests/e2e` 2, `backend/tests` 5),
+259.9 s. Command: `python -m pytest -p no:cacheprovider` with `PYTHONPATH=src`. Not saved as an artifact; re-run it for the
+current count. Frontend tests and the Stage-1 benchmark regression were not re-run for this entry.
+
+**Previous full run (2026-10-31, consolidated `main` `eb829e9`):** host 1061 passed, 3 skipped (POSIX PTY), 0 failed, 1064 collected
 (`tests/unit` 962, `tests/integration` 95, `tests/e2e` 2, `backend/tests` 5); clean clone + fresh venv 1052 passed, 12 skipped (git-ignored
 captures / model absent, PTY), 0 failed; frontend 31 passed; Stage-1 regression 6535 / 4 / 16826 / 65, 378 of 378 cells equal. On `3e3d88e`
 (`origin/main` after PR #3) the capture-007 parity test failed on the host (fixed in `537a5ee`). Saved in `artifacts/validation/consolidation_20261031/`.
@@ -42,11 +47,11 @@ The suite covers raw serial framing and MAVLink parsing up to the SIM-only defen
 |---|---|---|
 | `python scripts/verify_stage2.py` | Demo of the 8 defense code paths on hand-built inputs (SIM; not validation evidence) | seconds |
 | `pytest tests/unit/test_mitigation.py tests/unit/test_hal.py` | Core Stage 2 autonomous defense and HAL tests | < 2 s |
-| `pytest tests/unit -q` | Fast unit test suite (600+ tests) | ~15 s |
+| `pytest tests/unit -q` | Unit test suite (1608 collected on 2026-11-20) | not timed |
 | `pytest tests/integration -q` | Multi-mode attack detection and pipeline tests | ~30 s |
 | `pytest tests/e2e -q` | Full end-to-end slice with SHA-256 ledger check | ~10 s |
 | `pytest` | Complete verification suite (`pytest -q` prints the count) | ~2.5 min |
-| `ruff check src tests scripts` | Code quality and linting | < 1 s |
+| `ruff check src tests scripts backend` | Code quality and linting | < 1 s |
 
 ## What Each Suite Verifies
 
@@ -59,8 +64,9 @@ The suite covers raw serial framing and MAVLink parsing up to the SIM-only defen
   - `MitigationController`: closed-loop response generation per attack sub-mode, state machine, recovery.
 - **`test_hal.py` (7 tests)**:
   - Hardware discovery across USB/serial ports (CubePilot, Pixhawk, SiK telemetry, ELRS).
-  - Platform and companion compute detection (Raspberry Pi, Jetson, Rockchip).
-  - Dynamic latency budgeting (15 ms to 65 ms).
+  - Platform and companion compute detection (Raspberry Pi, Jetson; no Rockchip support exists in the code).
+  - Latency-budget constants from `hal/discovery.py` (18 ms; 24 ms for a Pi Zero / Pi 3): static heuristics, not measurements;
+    the test only checks the value is at least 10 ms.
   - Dual-topology routing: auto-selection of Topology B vs Topology A vs A+B.
   - `InlineBridge` packet processing and 150 ms fail-open watchdog timer.
 - **`test_gcs_notifier.py` (4 tests)**:
