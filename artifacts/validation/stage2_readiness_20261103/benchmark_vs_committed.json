@@ -1,0 +1,22 @@
+{
+  "committed": "artifacts/benchmarks/results.csv",
+  "rerun": "<scratch>",
+  "committed_sha256": "1521a30997fdf5dc235f921110fb8f608eb54178994686c35544e9acd1e4cb25",
+  "rerun_sha256": "3ec69bb52b906071f5b255ea4e8cf8e9c1f1cd8ab03448fe760bab490ff66152",
+  "shape_committed": [
+    42,
+    11
+  ],
+  "shape_rerun": [
+    42,
+    11
+  ],
+  "comparable": true,
+  "excluded_timing_columns": [
+    "throughput_msgs_per_s",
+    "mean_compute_latency_ms"
+  ],
+  "cells_compared": 378,
+  "cells_equal": 378,
+  "columns_that_differ": []
+}

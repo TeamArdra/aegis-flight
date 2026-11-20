@@ -1,0 +1,166 @@
+{
+ "environment": "REPLAY",
+ "source": {
+  "kind": "serial",
+  "environment": "REPLAY",
+  "physical": false,
+  "label": "Replay (recorded / virtual link)",
+  "detail": {
+   "port": "socket://127.0.0.1:18781",
+   "baud": 115200,
+   "virtual": true,
+   "reconnect": false
+  },
+  "ml": false,
+  "gcs_notify": false,
+  "defense_mode": "passive",
+  "config_dir": "configs (Stage-1 default)"
+ },
+ "link": {
+  "state": "live",
+  "frames": 1452,
+  "last_frame_age_s": 0.0,
+  "stale_after_s": 3.0,
+  "messages": {
+   "AHRS": {
+    "count": 50,
+    "age_s": 0.4
+   },
+   "AHRS2": {
+    "count": 102,
+    "age_s": 0.1
+   },
+   "ATTITUDE": {
+    "count": 102,
+    "age_s": 0.1
+   },
+   "BATTERY_STATUS": {
+    "count": 51,
+    "age_s": 0.2
+   },
+   "EKF_STATUS_REPORT": {
+    "count": 51,
+    "age_s": 0.2
+   },
+   "GLOBAL_POSITION_INT": {
+    "count": 51,
+    "age_s": 0.3
+   },
+   "GPS_RAW_INT": {
+    "count": 51,
+    "age_s": 0.2
+   },
+   "HEARTBEAT": {
+    "count": 25,
+    "age_s": 0.4
+   },
+   "MEMINFO": {
+    "count": 51,
+    "age_s": 0.3
+   },
+   "MISSION_CURRENT": {
+    "count": 51,
+    "age_s": 0.3
+   },
+   "NAV_CONTROLLER_OUTPUT": {
+    "count": 51,
+    "age_s": 0.3
+   },
+   "POWER_STATUS": {
+    "count": 51,
+    "age_s": 0.3
+   },
+   "RANGEFINDER": {
+    "count": 51,
+    "age_s": 0.2
+   },
+   "RAW_IMU": {
+    "count": 51,
+    "age_s": 0.3
+   },
+   "RC_CHANNELS": {
+    "count": 51,
+    "age_s": 0.3
+   },
+   "RC_CHANNELS_RAW": {
+    "count": 51,
+    "age_s": 0.3
+   },
+   "SCALED_IMU2": {
+    "count": 51,
+    "age_s": 0.3
+   },
+   "SCALED_IMU3": {
+    "count": 51,
+    "age_s": 0.2
+   },
+   "SCALED_PRESSURE": {
+    "count": 51,
+    "age_s": 0.2
+   },
+   "SCALED_PRESSURE2": {
+    "count": 51,
+    "age_s": 0.2
+   },
+   "SERVO_OUTPUT_RAW": {
+    "count": 51,
+    "age_s": 0.3
+   },
+   "SYSTEM_TIME": {
+    "count": 51,
+    "age_s": 0.2
+   },
+   "SYS_STATUS": {
+    "count": 51,
+    "age_s": 0.3
+   },
+   "TERRAIN_REPORT": {
+    "count": 51,
+    "age_s": 0.2
+   },
+   "VFR_HUD": {
+    "count": 102,
+    "age_s": 0.0
+   },
+   "VIBRATION": {
+    "count": 51,
+    "age_s": 0.2
+   }
+  },
+  "gps": {
+   "fix_type": 3,
+   "fix_name": "3D_FIX",
+   "satellites": 7,
+   "valid_fix": true,
+   "gps_raw_age_s": 0.2,
+   "position_age_s": 0.3,
+   "position_zero": false,
+   "hdop": 8.12,
+   "ekf_flags": 167,
+   "ekf_age_s": 0.2,
+   "horizontal_solution": false,
+   "gps_healthy": false,
+   "quality_flags": [
+    "ekf_no_horizontal_solution",
+    "gps_sensor_unhealthy"
+   ]
+  },
+  "transport": {
+   "connected": true,
+   "disconnects": 0,
+   "reconnects": 0,
+   "open_failures": 0,
+   "crc_rejects": 0,
+   "garbage_bytes": 0,
+   "frames_received": 1452,
+   "bytes_received": 43127,
+   "bytes_sent": 0,
+   "write_errors": 0,
+   "last_error_history": null,
+   "bad_frames": 0
+  },
+  "error": null
+ },
+ "severity": "NORMAL",
+ "attack_type": "BENIGN"
+}

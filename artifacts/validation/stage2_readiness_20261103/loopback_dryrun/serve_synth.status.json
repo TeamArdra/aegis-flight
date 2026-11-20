@@ -1,0 +1,211 @@
+{
+ "running": true,
+ "sim": false,
+ "environment": "REPLAY",
+ "source": {
+  "kind": "replay",
+  "environment": "REPLAY",
+  "physical": false,
+  "label": "Replay (recorded / virtual link)",
+  "detail": {
+   "tlog": "SIMULATED_GPS_not_measured_v1.tlog",
+   "speed": 10.0
+  },
+  "ml": false,
+  "gcs_notify": false,
+  "defense_mode": "passive",
+  "config_dir": "configs (Stage-1 default)"
+ },
+ "defense_mode": "passive",
+ "signing": {
+  "configured": false
+ },
+ "unsigned_acknowledged": false,
+ "topology": "a+b",
+ "topology_reasons": [
+  "Simulation twin models an inline deployment; nothing is transmitted to a vehicle"
+ ],
+ "topology_info": {
+  "kind": "REPLAY",
+  "label": "Replay (no wiring)",
+  "source": "none",
+  "posture": "passive",
+  "links": {
+   "fc": {
+    "connected": null,
+    "name": null
+   },
+   "gcs": {
+    "connected": null,
+    "name": null
+   }
+  },
+  "uplink_visible": null,
+  "can_block_frames": false,
+  "can_send_counter_commands": false,
+  "reasons": [
+   "recorded log: no live link, nothing can act on a vehicle"
+  ]
+ },
+ "mitigation": {
+  "t": 140.0,
+  "mode": "passive",
+  "state": "NOMINAL",
+  "sub_mode": "none",
+  "clean_streak": 25,
+  "recovery_target_ticks": 25,
+  "recovery_progress": 1.0,
+  "counter_frames_sent": 0,
+  "quarantined_sysids": [],
+  "sanitize_gps": false,
+  "sanitize_alt": false,
+  "ekf_switched": false,
+  "last_command_sent": null,
+  "actions": [
+   {
+    "t": 52.4,
+    "tag": "DETECTED",
+    "detail": "Identified gps_spoofing:gradual_drift (score=0.55)"
+   },
+   {
+    "t": 78.0,
+    "tag": "RECOVERED",
+    "detail": "Telemetry verified clean for 5.0s -> Resumed nominal baseline"
+   },
+   {
+    "t": 85.4,
+    "tag": "DETECTED",
+    "detail": "Identified gps_spoofing:gradual_drift (score=0.97)"
+   },
+   {
+    "t": 110.0,
+    "tag": "RECOVERED",
+    "detail": "Telemetry verified clean for 5.0s -> Resumed nominal baseline"
+   }
+  ],
+  "inputs": {
+   "trusted_lat": 12.900001,
+   "trusted_lon": 77.512883,
+   "trusted_alt_m": 960.0,
+   "trusted_mode": "AUTO"
+  },
+  "outputs": {
+   "north_offset_m": 0.0,
+   "east_offset_m": 0.0,
+   "drift_rate_ms": 0.0,
+   "alt_bias_m": 0.0,
+   "speed_bias_ms": 0.0,
+   "battery_bias_v": 0.0,
+   "rogue_sysids": [],
+   "target_restore_mode": null,
+   "quarantined_sysids": [],
+   "sanitize_gps": false,
+   "sanitize_alt": false,
+   "ekf_switched": false,
+   "last_command_sent": null,
+   "counter_frames_sent": 0
+  },
+  "params": {
+   "attack_type": "BENIGN",
+   "sub_mode": "none",
+   "trusted_lat": 12.900001,
+   "trusted_lon": 77.512883,
+   "trusted_alt_m": 960.0,
+   "trusted_mode": "AUTO",
+   "lat_offset_deg": 0.0,
+   "lon_offset_deg": 0.0,
+   "north_offset_m": 0.0,
+   "east_offset_m": 0.0,
+   "drift_rate_ms": 0.0,
+   "alt_bias_m": 0.0,
+   "speed_bias_ms": 0.0,
+   "battery_bias_v": 0.0,
+   "rogue_sysids": [],
+   "target_restore_mode": null
+  },
+  "summary": "Nominal flight (IDS passive)"
+ },
+ "link": {
+  "state": "ended",
+  "frames": 4340,
+  "last_frame_age_s": 0.0,
+  "stale_after_s": 3.0,
+  "messages": {
+   "ATTITUDE": {
+    "count": 1400,
+    "age_s": 0.1
+   },
+   "EKF_STATUS_REPORT": {
+    "count": 280,
+    "age_s": 0.4
+   },
+   "GLOBAL_POSITION_INT": {
+    "count": 700,
+    "age_s": 0.2
+   },
+   "GPS_RAW_INT": {
+    "count": 280,
+    "age_s": 0.5
+   },
+   "HEARTBEAT": {
+    "count": 140,
+    "age_s": 1.0
+   },
+   "SYS_STATUS": {
+    "count": 140,
+    "age_s": 0.9
+   },
+   "VFR_HUD": {
+    "count": 1400,
+    "age_s": 0.0
+   }
+  },
+  "gps": {
+   "fix_type": 3,
+   "fix_name": "3D_FIX",
+   "satellites": 10,
+   "valid_fix": true,
+   "gps_raw_age_s": 0.5,
+   "position_age_s": 0.2,
+   "position_zero": false,
+   "hdop": 1.0,
+   "ekf_flags": 831,
+   "ekf_age_s": 0.4,
+   "horizontal_solution": true,
+   "gps_healthy": true,
+   "quality_flags": []
+  },
+  "transport": null,
+  "error": null
+ },
+ "sim_time_s": 140.0,
+ "uptime_s": 15.1,
+ "active_attack": null,
+ "ml_available": false,
+ "threat": false,
+ "severity": "NORMAL",
+ "attack_type": "BENIGN",
+ "threat_score": 0.0,
+ "integrity_status": "UNKNOWN",
+ "distance_m": 1908.5,
+ "run_id": "replay-20261103-131633-1",
+ "checks": {
+  "mission": {
+   "known": false,
+   "xtrack_m": null,
+   "wp_seq": null
+  },
+  "crossend": {
+   "active": false,
+   "matched": 0,
+   "mismatches": 0,
+   "last_summary_age_s": null
+  },
+  "receiver": {
+   "ekf_vel_var": 0.01,
+   "ekf_pos_var": 0.01,
+   "sat_jump": 0,
+   "snr_spread": null
+  }
+ }
+}

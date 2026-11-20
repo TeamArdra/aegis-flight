@@ -1,0 +1,74 @@
+{
+  "tlog": "data/hardware/raw/telemetry_radio_008.tlog",
+  "config_dir": "<scratch>",
+  "ml_enabled": false,
+  "clock_offset_s_used_for_phases": 0.0,
+  "decisions": 313,
+  "threat_decisions": 205,
+  "alert_decisions": 11,
+  "alert_rate_per_decision": 0.03514,
+  "by_phase": {
+    "boot": {
+      "decisions": 313,
+      "threat": 205,
+      "alerts": 11
+    }
+  },
+  "detector_ge_0.5": {
+    "physics_consistency": 205,
+    "protocol_rule": 138
+  },
+  "alert_types": {
+    "GPS_SPOOFING": 11
+  },
+  "alert_evidence_top": [
+    [
+      "CUSUM micro-drift residual 1.34 m \u2265 1.2 m (sustained sub-noise velocity divergen",
+      2
+    ],
+    [
+      "CUSUM micro-drift residual 2.41 m \u2265 1.2 m (sustained sub-noise velocity divergen",
+      2
+    ],
+    [
+      "CUSUM micro-drift residual 1.39 m \u2265 1.2 m (sustained sub-noise velocity divergen",
+      2
+    ],
+    [
+      "CUSUM micro-drift residual 1.71 m \u2265 1.2 m (sustained sub-noise velocity divergen",
+      2
+    ],
+    [
+      "CUSUM micro-drift residual 7.18 m \u2265 1.2 m (sustained sub-noise velocity divergen",
+      2
+    ],
+    [
+      "CUSUM micro-drift residual 9.69 m \u2265 1.2 m (sustained sub-noise velocity divergen",
+      2
+    ],
+    [
+      "CUSUM micro-drift residual 10.18 m \u2265 1.2 m (sustained sub-noise velocity diverge",
+      2
+    ],
+    [
+      "CUSUM micro-drift residual 9.07 m \u2265 1.2 m (sustained sub-noise velocity divergen",
+      2
+    ],
+    [
+      "CUSUM micro-drift residual 9.23 m \u2265 1.2 m (sustained sub-noise velocity divergen",
+      2
+    ],
+    [
+      "CUSUM micro-drift residual 8.85 m \u2265 1.2 m (sustained sub-noise velocity divergen",
+      2
+    ],
+    [
+      "CUSUM micro-drift residual 6.75 m \u2265 1.2 m (sustained sub-noise velocity divergen",
+      2
+    ],
+    [
+      "GNSS fix lost: fix_type=2, satellites=3 for 23 decisions",
+      1
+    ]
+  ]
+}

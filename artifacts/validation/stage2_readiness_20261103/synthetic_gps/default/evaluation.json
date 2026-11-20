@@ -1,0 +1,6486 @@
+{
+  "label": "SIMULATED GPS - never measured on any vehicle or receiver",
+  "environment": "SIM (synthetic fixture through the real pipeline); claim class: none",
+  "tlog_sha256": "21960b0734178bac68fe0785b56ffd192bdfe2ae1751bdba456ea3b19c6be32e",
+  "frames": 4340,
+  "config_dir": "configs (Stage-1 default)",
+  "ml_enabled": false,
+  "per_phase": {
+    "NOMINAL": {
+      "decisions": 150,
+      "threat": 0,
+      "alerts": 0,
+      "alert_types": {},
+      "first_alert_s": null,
+      "first_threat_s": null
+    },
+    "SLOW_DRIFT": {
+      "decisions": 100,
+      "threat": 0,
+      "alerts": 0,
+      "alert_types": {},
+      "first_alert_s": null,
+      "first_threat_s": null
+    },
+    "FAST_DRIFT": {
+      "decisions": 100,
+      "threat": 88,
+      "alerts": 5,
+      "alert_types": {
+        "GPS_SPOOFING": 5
+      },
+      "first_alert_s": 52.4,
+      "first_threat_s": 52.4
+    },
+    "SUDDEN_JUMP": {
+      "decisions": 75,
+      "threat": 16,
+      "alerts": 1,
+      "alert_types": {
+        "GPS_SPOOFING": 1
+      },
+      "first_alert_s": 72.4,
+      "first_threat_s": 70.0
+    },
+    "GNSS_LOSS": {
+      "decisions": 100,
+      "threat": 98,
+      "alerts": 6,
+      "alert_types": {
+        "GPS_SPOOFING": 1,
+        "DOS": 5
+      },
+      "first_alert_s": 85.4,
+      "first_threat_s": 85.4
+    },
+    "RECOVERY": {
+      "decisions": 176,
+      "threat": 1,
+      "alerts": 0,
+      "alert_types": {},
+      "first_alert_s": null,
+      "first_threat_s": 105.0
+    }
+  },
+  "alerts": [
+    {
+      "t": 52.4,
+      "phase": "FAST_DRIFT",
+      "type": "GPS_SPOOFING",
+      "score": 0.55,
+      "evidence": [
+        "position residual 15.2 m > 12 m (reported track diverges from velocity)"
+      ]
+    },
+    {
+      "t": 56.4,
+      "phase": "FAST_DRIFT",
+      "type": "GPS_SPOOFING",
+      "score": 0.55,
+      "evidence": [
+        "position residual 18.3 m > 12 m (reported track diverges from velocity)"
+      ]
+    },
+    {
+      "t": 60.4,
+      "phase": "FAST_DRIFT",
+      "type": "GPS_SPOOFING",
+      "score": 0.55,
+      "evidence": [
+        "position residual 17.2 m > 12 m (reported track diverges from velocity)"
+      ]
+    },
+    {
+      "t": 64.4,
+      "phase": "FAST_DRIFT",
+      "type": "GPS_SPOOFING",
+      "score": 0.55,
+      "evidence": [
+        "position residual 18.5 m > 12 m (reported track diverges from velocity)"
+      ]
+    },
+    {
+      "t": 68.4,
+      "phase": "FAST_DRIFT",
+      "type": "GPS_SPOOFING",
+      "score": 0.55,
+      "evidence": [
+        "position residual 18.3 m > 12 m (reported track diverges from velocity)"
+      ]
+    },
+    {
+      "t": 72.4,
+      "phase": "SUDDEN_JUMP",
+      "type": "GPS_SPOOFING",
+      "score": 0.9923,
+      "evidence": [
+        "position residual 29.9 m > 12 m (reported track diverges from velocity)"
+      ]
+    },
+    {
+      "t": 85.4,
+      "phase": "GNSS_LOSS",
+      "type": "GPS_SPOOFING",
+      "score": 0.9713,
+      "evidence": [
+        "position residual 29.5 m > 12 m (reported track diverges from velocity)"
+      ]
+    },
+    {
+      "t": 88.2,
+      "phase": "GNSS_LOSS",
+      "type": "DOS",
+      "score": 0.6176,
+      "evidence": [
+        "GNSS fix lost: fix_type=1, satellites=3 for 16 decisions"
+      ]
+    },
+    {
+      "t": 92.2,
+      "phase": "GNSS_LOSS",
+      "type": "DOS",
+      "score": 0.6176,
+      "evidence": [
+        "GNSS fix lost: fix_type=1, satellites=3 for 36 decisions"
+      ]
+    },
+    {
+      "t": 96.2,
+      "phase": "GNSS_LOSS",
+      "type": "DOS",
+      "score": 0.6176,
+      "evidence": [
+        "GNSS fix lost: fix_type=1, satellites=3 for 56 decisions"
+      ]
+    },
+    {
+      "t": 100.2,
+      "phase": "GNSS_LOSS",
+      "type": "DOS",
+      "score": 0.6176,
+      "evidence": [
+        "GNSS fix lost: fix_type=1, satellites=3 for 76 decisions"
+      ]
+    },
+    {
+      "t": 104.2,
+      "phase": "GNSS_LOSS",
+      "type": "DOS",
+      "score": 0.6176,
+      "evidence": [
+        "GNSS fix lost: fix_type=1, satellites=3 for 96 decisions"
+      ]
+    }
+  ],
+  "timeline": [
+    {
+      "t": 0.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.0,
+      "gps_fix_type": null
+    },
+    {
+      "t": 0.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.19,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 0.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.28,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 0.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.34,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 0.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.67,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 1.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.67,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 1.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.24,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 1.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.04,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 1.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.42,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 1.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.56,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 2.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.56,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 2.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.63,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 2.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.87,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 2.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.53,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 2.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.92,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 3.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.92,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 3.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.41,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 3.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.22,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 3.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.31,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 3.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.1,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 4.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.1,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 4.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.39,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 4.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.36,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 4.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.95,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 4.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.71,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 5.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.71,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 5.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.96,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 5.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.5,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 5.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.1,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 5.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.43,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 6.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.43,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 6.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.77,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 6.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.29,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 6.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.69,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 6.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.06,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 7.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.06,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 7.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.47,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 7.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.8,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 7.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.29,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 7.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.68,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 8.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.68,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 8.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.66,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 8.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.53,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 8.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.06,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 8.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.22,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 9.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.22,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 9.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.34,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 9.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.37,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 9.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.25,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 9.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.65,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 10.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.65,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 10.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.6,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 10.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.76,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 10.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.27,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 10.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.5,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 11.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.5,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 11.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.38,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 11.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.71,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 11.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.81,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 11.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.53,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 12.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.53,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 12.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.22,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 12.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.78,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 12.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.64,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 12.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.76,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 13.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.76,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 13.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.29,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 13.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.5,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 13.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.26,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 13.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.05,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 14.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.05,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 14.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.45,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 14.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.23,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 14.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.72,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 14.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.29,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 15.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.29,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 15.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.87,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 15.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.62,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 15.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.77,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 15.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.3,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 16.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.3,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 16.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.65,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 16.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.24,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 16.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.33,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 16.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.65,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 17.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.65,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 17.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.5,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 17.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.36,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 17.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.97,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 17.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.21,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 18.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.21,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 18.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.61,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 18.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.21,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 18.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.46,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 18.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.94,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 19.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.94,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 19.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.74,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 19.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.44,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 19.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.47,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 19.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.88,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 20.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.88,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 20.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.98,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 20.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.52,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 20.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.92,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 20.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.26,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 21.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.26,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 21.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.29,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 21.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.55,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 21.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.34,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 21.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.8,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 22.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.8,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 22.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.48,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 22.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.77,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 22.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.68,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 22.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.75,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 23.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.75,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 23.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.83,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 23.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.55,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 23.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.52,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 23.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.34,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 24.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.34,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 24.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.79,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 24.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.28,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 24.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.47,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 24.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.63,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 25.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.63,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 25.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.26,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 25.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.42,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 25.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.84,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 25.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.23,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 26.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.23,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 26.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.34,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 26.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.39,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 26.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.54,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 26.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.53,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 27.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.53,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 27.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.96,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 27.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.55,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 27.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.65,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 27.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.11,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 28.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.11,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 28.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.43,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 28.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.15,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 28.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.54,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 28.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.14,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 29.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.14,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 29.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.14,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 29.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.15,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 29.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.5,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 29.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.48,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 30.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.48,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 30.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.83,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 30.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.34,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 30.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.24,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 30.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.46,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 31.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.46,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 31.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.33,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 31.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.61,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 31.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.29,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 31.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.32,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 32.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.32,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 32.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.64,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 32.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.2,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 32.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.62,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 32.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.4,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 33.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.4,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 33.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.9,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 33.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.94,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 33.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.26,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 33.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.27,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 34.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.27,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 34.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.26,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 34.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.19,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 34.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.9,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 34.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.77,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 35.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.77,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 35.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.1,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 35.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.06,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 35.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.65,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 35.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.72,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 36.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.72,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 36.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.45,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 36.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.99,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 36.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.34,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 36.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.39,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 37.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.39,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 37.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.59,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 37.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.19,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 37.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.57,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 37.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.35,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 38.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.35,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 38.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.36,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 38.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.98,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 38.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.98,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 38.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.93,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 39.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.93,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 39.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.92,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 39.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.11,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 39.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.68,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 39.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.41,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 40.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.41,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 40.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.9,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 40.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.48,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 40.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.93,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 40.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.56,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 41.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.56,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 41.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.06,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 41.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.1,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 41.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.96,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 41.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.62,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 42.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.62,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 42.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.49,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 42.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.98,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 42.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.37,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 42.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.36,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 43.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.36,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 43.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.86,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 43.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.86,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 43.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.15,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 43.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.15,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 44.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.15,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 44.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.88,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 44.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.67,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 44.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.91,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 44.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.31,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 45.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.31,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 45.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.57,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 45.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.8,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 45.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.16,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 45.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.21,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 46.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.21,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 46.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 4.08,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 46.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.57,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 46.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.78,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 46.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.7,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 47.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.7,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 47.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.35,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 47.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.48,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 47.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.37,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 47.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.87,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 48.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.87,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 48.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.72,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 48.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.53,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 48.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.95,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 48.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.69,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 49.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.69,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 49.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.85,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 49.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.84,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 49.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 2.77,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 49.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.27,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 50.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 3.27,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 50.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 4.17,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 50.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 5.55,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 50.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 6.15,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 50.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 7.63,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 51.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 7.63,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 51.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 9.17,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 51.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 9.11,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 51.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 10.77,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 51.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 11.51,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 52.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 11.51,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 52.2,
+      "score": 0.1925,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 14.07,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 52.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": true,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 15.17,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 52.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 16.19,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 52.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 16.27,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 53.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 16.27,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 53.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.82,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 53.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.28,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 53.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.07,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 53.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.8,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 54.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.8,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 54.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.17,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 54.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.83,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 54.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.23,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 54.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 19.11,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 55.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 19.11,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 55.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.0,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 55.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.09,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 55.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.5,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 55.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.47,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 56.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.47,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 56.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.17,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 56.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": true,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.29,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 56.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.44,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 56.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.27,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 57.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.27,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 57.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.87,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 57.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.39,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 57.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.17,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 57.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.11,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 58.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.11,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 58.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.39,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 58.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.39,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 58.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.84,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 58.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.75,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 59.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.75,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 59.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.87,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 59.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.51,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 59.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.83,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 59.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 16.84,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 60.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 16.84,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 60.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.88,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 60.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": true,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.25,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 60.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.93,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 60.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.52,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 61.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.52,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 61.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.67,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 61.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.49,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 61.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.48,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 61.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.16,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 62.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.16,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 62.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.12,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 62.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.91,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 62.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.81,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 62.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 19.56,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 63.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 19.56,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 63.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.76,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 63.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.74,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 63.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.08,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 63.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.87,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 64.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.87,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 64.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.79,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 64.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": true,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.51,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 64.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.96,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 64.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.85,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 65.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.85,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 65.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.78,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 65.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.08,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 65.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.75,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 65.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.03,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 66.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.03,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 66.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.47,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 66.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.77,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 66.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.44,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 66.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.09,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 67.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.09,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 67.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.47,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 67.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.05,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 67.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.68,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 67.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.18,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 68.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.18,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 68.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.75,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 68.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": true,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.35,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 68.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.52,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 68.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.82,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 69.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.82,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 69.2,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.86,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 69.4,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 18.41,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 69.6,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.87,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 69.8,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.8,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 70.0,
+      "score": 0.55,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 17.8,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 70.2,
+      "score": 1.0,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 34.0,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 70.4,
+      "score": 1.0,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 34.13,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 70.6,
+      "score": 1.0,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 33.11,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 70.8,
+      "score": 1.0,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 32.68,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 71.0,
+      "score": 1.0,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 32.68,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 71.2,
+      "score": 1.0,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 31.7,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 71.4,
+      "score": 1.0,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 30.11,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 71.6,
+      "score": 1.0,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 31.38,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 71.8,
+      "score": 1.0,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 30.78,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 72.0,
+      "score": 1.0,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 30.78,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 72.2,
+      "score": 1.0,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 30.43,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 72.4,
+      "score": 0.9923,
+      "threat": true,
+      "alert": true,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 29.86,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 72.6,
+      "score": 0.9761,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 29.57,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 72.8,
+      "score": 1.0,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 30.01,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 73.0,
+      "score": 1.0,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 30.01,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 73.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.59,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 73.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.36,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 73.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.44,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 73.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.77,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 74.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.77,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 74.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.09,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 74.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.68,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 74.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.03,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 74.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.33,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 75.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.33,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 75.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.83,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 75.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.34,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 75.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.57,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 75.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.17,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 76.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.17,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 76.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.55,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 76.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.39,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 76.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.52,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 76.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.47,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 77.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.47,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 77.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.49,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 77.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.28,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 77.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.46,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 77.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.26,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 78.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.26,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 78.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.4,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 78.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.43,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 78.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.17,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 78.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.07,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 79.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.07,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 79.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.09,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 79.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.05,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 79.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.66,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 79.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.66,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 80.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.66,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 80.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.35,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 80.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.58,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 80.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.74,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 80.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.46,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 81.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.46,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 81.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.6,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 81.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.83,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 81.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.65,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 81.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.88,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 82.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.88,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 82.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.28,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 82.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.4,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 82.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.22,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 82.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.72,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 83.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.72,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 83.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.42,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 83.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.45,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 83.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.79,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 83.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.32,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 84.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.32,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 84.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.51,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 84.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.25,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 84.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.4,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 84.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.87,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 85.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.87,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 85.2,
+      "score": 0.3264,
+      "threat": false,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 28.78,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 85.4,
+      "score": 0.9713,
+      "threat": true,
+      "alert": true,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 29.48,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 85.6,
+      "score": 0.9364,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 28.86,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 85.8,
+      "score": 0.9294,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 28.73,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 86.0,
+      "score": 0.973,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 28.73,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 86.2,
+      "score": 0.9839,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 29.24,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 86.4,
+      "score": 0.9659,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 28.4,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 86.6,
+      "score": 0.9662,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 28.41,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 86.8,
+      "score": 0.9595,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 28.09,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 87.0,
+      "score": 0.9595,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 28.09,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 87.2,
+      "score": 0.9844,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 29.27,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 87.4,
+      "score": 0.9773,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 28.93,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 87.6,
+      "score": 0.9696,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 28.57,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 87.8,
+      "score": 0.9883,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 29.45,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 88.0,
+      "score": 0.9883,
+      "threat": true,
+      "alert": false,
+      "type": "GPS_SPOOFING",
+      "pos_residual_m": 29.45,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 88.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": true,
+      "type": "DOS",
+      "pos_residual_m": 0.4,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 88.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.78,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 88.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.61,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 88.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.51,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 89.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.51,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 89.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.78,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 89.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.87,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 89.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 1.02,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 89.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.65,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 90.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.65,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 90.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.67,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 90.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 1.06,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 90.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.76,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 90.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.97,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 91.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.97,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 91.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.69,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 91.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.38,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 91.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.3,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 91.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.41,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 92.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.41,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 92.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": true,
+      "type": "DOS",
+      "pos_residual_m": 0.36,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 92.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.59,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 92.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.5,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 92.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 1.47,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 93.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 1.47,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 93.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.72,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 93.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.77,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 93.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 1.02,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 93.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.03,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 94.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.03,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 94.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 1.02,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 94.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.58,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 94.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.27,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 94.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.55,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 95.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.55,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 95.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.48,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 95.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.34,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 95.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.65,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 95.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 1.57,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 96.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 1.57,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 96.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": true,
+      "type": "DOS",
+      "pos_residual_m": 0.32,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 96.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.17,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 96.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.14,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 96.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.26,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 97.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.26,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 97.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.6,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 97.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.84,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 97.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.21,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 97.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.75,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 98.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.75,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 98.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.61,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 98.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.35,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 98.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.38,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 98.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.29,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 99.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.29,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 99.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.53,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 99.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.35,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 99.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.2,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 99.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.54,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 100.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.54,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 100.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": true,
+      "type": "DOS",
+      "pos_residual_m": 0.62,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 100.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.55,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 100.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.84,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 100.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.38,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 101.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.38,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 101.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.45,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 101.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.41,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 101.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.29,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 101.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.63,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 102.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.63,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 102.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.85,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 102.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.31,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 102.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.38,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 102.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.2,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 103.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.2,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 103.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.72,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 103.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.31,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 103.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.17,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 103.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 1.46,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 104.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 1.46,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 104.2,
+      "score": 0.6176,
+      "threat": true,
+      "alert": true,
+      "type": "DOS",
+      "pos_residual_m": 0.52,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 104.4,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.86,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 104.6,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.71,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 104.8,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.2,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 105.0,
+      "score": 0.6176,
+      "threat": true,
+      "alert": false,
+      "type": "DOS",
+      "pos_residual_m": 0.2,
+      "gps_fix_type": 1
+    },
+    {
+      "t": 105.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.45,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 105.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.55,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 105.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.36,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 105.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.33,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 106.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.33,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 106.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.18,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 106.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.68,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 106.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.34,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 106.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.11,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 107.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.11,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 107.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.98,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 107.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.89,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 107.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.7,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 107.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.71,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 108.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.71,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 108.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.13,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 108.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.84,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 108.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.55,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 108.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.89,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 109.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.89,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 109.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.69,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 109.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.52,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 109.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.75,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 109.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.84,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 110.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.84,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 110.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.35,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 110.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.37,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 110.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.72,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 110.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.26,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 111.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.26,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 111.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.22,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 111.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.4,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 111.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.12,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 111.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.36,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 112.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.36,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 112.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.92,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 112.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.75,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 112.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.31,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 112.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.82,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 113.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.82,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 113.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.42,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 113.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.02,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 113.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.82,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 113.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.73,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 114.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.73,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 114.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.63,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 114.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.33,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 114.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.66,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 114.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.51,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 115.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.51,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 115.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.38,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 115.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.76,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 115.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.99,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 115.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.9,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 116.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.9,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 116.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.4,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 116.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.68,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 116.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.64,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 116.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.7,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 117.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.7,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 117.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.57,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 117.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.38,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 117.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.1,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 117.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.34,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 118.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.34,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 118.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.27,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 118.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.51,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 118.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.08,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 118.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.56,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 119.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.56,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 119.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.67,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 119.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.43,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 119.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.13,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 119.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.72,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 120.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.72,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 120.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.47,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 120.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.22,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 120.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.85,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 120.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.08,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 121.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.08,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 121.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.08,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 121.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.58,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 121.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.82,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 121.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.38,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 122.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.38,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 122.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.45,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 122.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.12,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 122.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.67,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 122.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.89,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 123.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.89,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 123.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.26,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 123.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.55,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 123.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.46,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 123.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.65,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 124.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.65,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 124.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.44,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 124.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.39,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 124.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.71,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 124.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.64,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 125.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.64,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 125.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.47,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 125.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.87,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 125.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.29,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 125.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.98,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 126.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.98,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 126.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.4,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 126.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.69,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 126.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.73,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 126.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.43,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 127.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.43,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 127.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.25,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 127.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.27,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 127.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.49,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 127.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.73,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 128.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.73,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 128.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.19,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 128.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.58,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 128.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.11,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 128.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.75,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 129.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.75,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 129.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.48,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 129.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.1,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 129.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.6,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 129.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.19,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 130.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.19,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 130.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.42,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 130.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.33,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 130.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.92,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 130.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.3,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 131.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.3,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 131.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.73,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 131.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.57,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 131.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.19,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 131.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.21,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 132.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.21,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 132.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.47,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 132.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.68,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 132.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.53,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 132.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.32,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 133.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.32,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 133.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.55,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 133.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.07,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 133.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.26,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 133.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.3,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 134.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.3,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 134.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.23,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 134.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.64,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 134.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.87,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 134.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.62,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 135.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.62,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 135.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.04,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 135.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.51,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 135.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.17,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 135.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.41,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 136.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.41,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 136.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.61,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 136.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.39,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 136.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.96,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 136.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.66,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 137.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.66,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 137.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.89,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 137.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.22,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 137.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.57,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 137.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.96,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 138.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.96,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 138.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.59,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 138.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.54,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 138.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.58,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 138.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.61,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 139.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.61,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 139.2,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.29,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 139.4,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.36,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 139.6,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 1.0,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 139.8,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.68,
+      "gps_fix_type": 3
+    },
+    {
+      "t": 140.0,
+      "score": 0.0,
+      "threat": false,
+      "alert": false,
+      "type": "BENIGN",
+      "pos_residual_m": 0.68,
+      "gps_fix_type": 3
+    }
+  ]
+}
