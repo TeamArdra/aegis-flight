@@ -86,6 +86,19 @@ def test_file_globs_match_the_issue(tmp_path, path, flagged):
     assert bool(cg.find_claims(cwd=str(tmp_path))) is flagged
 
 
+def test_the_allowlist_is_the_issue_list_plus_the_guard_itself():
+    assert cg.ALLOWLIST == ("docs/STAGE2_*", "docs/SUBMISSION_READINESS_AUDIT.md",
+                            "docs/REDTEAM_AUDIT_STAGE2.md", "docs/GPS_WORKSTREAM_PROGRESS.md",
+                            "scripts/claims_guard.py", "tests/unit/test_claims_guard.py")
+
+
+def test_hits_are_reported_without_crashing_on_non_ascii(tmp_path, monkeypatch, capsys):
+    _repo(tmp_path, {"docs/notes.md": "BOM ₹2,900"})
+    monkeypatch.chdir(tmp_path)
+    assert cg.main() == 1
+    assert "docs/notes.md:1:" in capsys.readouterr().out
+
+
 def test_the_repository_itself_is_clean():
     if not (REPO_ROOT / ".git").exists():
         pytest.skip("not a git checkout")
