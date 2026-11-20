@@ -105,6 +105,26 @@ Nothing is tuned against v2: production thresholds and the committed model are u
 After adding v2 the baseline grid was re-run and reproduced **bit-identically**
 (same TP/FP/TN/FN, confusion matrix, per-attack metrics and latencies).
 
+## Link-stress sweep (`scripts/sweep_link_stress.py`, SIM)
+
+Benign sessions only: loss {0, 1, 2, 5, 10} % x {FIFO, reorder} x {ML off, ML on} x {Stage-1, `configs/px4_sitl`,
+`configs/ardupilot_copter`}, 6 sessions per cell by default (issue #27 item 2; the tool, not a result). The full grid is
+one command on a clean, committed tree; `--allow-dirty` stamps the output NOT-REPRODUCIBLE (#25):
+
+```bash
+python scripts/sweep_link_stress.py --out artifacts/validation/final_<tag>/link_stress --workers 4
+```
+
+Flags select subsets (`--loss`, `--ordering`, `--ml`, `--profiles`, `--sessions`, `--seed`, `--duration-s`). Default `--out`
+is a temporary directory. Outputs: `decisions.csv.gz` (per-decision raw evidence, so the firing rule is attributable),
+`cell_summary.csv`, `sweep_table.md` (decision FPR, alert events/h, dominant evidence per cell, with the definitions) and
+`run_manifest.json`. An *alert event* is a maximal run of consecutive alarm decisions inside one session.
+
+ML-on model per profile: Stage-1 -> `models/isoforest.joblib`; px4 -> `models/isoforest_px4.joblib` (the Stage-1 model with
+the PX4 profile is the diagnostic-only B2 cross-pairing); ArduPilot -> no model exists and the Stage-1 model does not
+transfer, so those cells are `n/a` unless `--model-ardupilot` is given. Models are gitignored. The px4 / ardupilot profiles
+are applied to the simulator's traffic, not to a real link. A smoke run is not evidence; evidence comes from the freeze-tag run.
+
 ## Stage 2 metrics
 
 `python scripts/make_stage2_metrics.py --tag <date>` reads committed artifacts only and writes
