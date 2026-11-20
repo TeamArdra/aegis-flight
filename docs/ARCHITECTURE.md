@@ -1,8 +1,8 @@
 # AegisFlight — System Architecture & Deep Dive Specification
 
 > **Status note (integration review):** this page is a design description. What is implemented, measured or only modelled is
-> recorded in `docs/VALIDATION_EVIDENCE.md` and the README. In particular: the defense layer is report-only on every live or
-> recorded source; Topology B is implemented as `aegis ips-bridge` (`docs/INLINE_IPS.md`) and tested on synthetic frames, loopback serial and ArduCopter SITL, and on the bench with a real Pixhawk 6X over a real LR900 radio pair (not flown); the older `InlineBridge` class, its 150 ms watchdog and `rust/aegis_fastpath` are
+> recorded in `docs/VALIDATION_EVIDENCE.md` and the README. In particular: on a serial-device source the defense layer is receive-only (`active-ips` is refused); on replay
+> nothing is sent (no transport); `active-ips` counter-commands are sent only on a UDP or `socket://` (SITL) link; Topology B is implemented as `aegis ips-bridge` (`docs/INLINE_IPS.md`) and tested on synthetic frames, loopback serial and ArduCopter SITL, and on the bench with a real Pixhawk 6X over a real LR900 radio pair (not flown); the older `InlineBridge` class, its 150 ms watchdog and `rust/aegis_fastpath` are
 > not on that path, and have no measured figure; the bridge's own figures on a Raspberry Pi 3B+ and on a Raspberry Pi 5 bench (real Pixhawk over USB, disarmed) are in `docs/PERFORMANCE.md` and `docs/RADIO_TEST_RESULTS.md`; the measured decision
 > compute is 17.7 ms mean / 23.6 ms p95 with ML on (`artifacts/benchmarks/summary.md`, SIM).
 
@@ -115,7 +115,9 @@ Automatically scans local serial interfaces and matches hardware signatures agai
 - **Companion Compute Fingerprinting**:
   - Inspects `/proc/device-tree/model` to identify Raspberry Pi models (Pi 4, Pi 5, Pi Zero 2W).
   - Inspects `/etc/nv_tegra_release` for NVIDIA Jetson platforms (Nano, Xavier, Orin).
-  - Calculates real-time CPU headroom and sets a dynamic latency budget ($< 18\text{ ms}$ on Pi 4/5; $< 24\text{ ms}$ on Pi Zero/3).
+  - Assigns fixed constants, not measurements: `cpu_headroom_pct = 85.0` and a latency budget of 18 ms (24 ms when the model string
+    names a Pi Zero or Pi 3). These are static heuristics in `hal/discovery.py`, used only by `hal/topology.py`, which is not wired
+    into the pipeline; no latency budget has been measured on any board.
 
 ### 3.2 Endpoint Identification (`identify.py`)
 Monitors MAVLink streams to identify node topologies without requiring user configuration:
@@ -146,8 +148,9 @@ Evaluates the physical wiring graph, companion headroom, and flight status to ch
 3. **Headroom Step-Down**: If companion compute CPU headroom drops below $25\%$ or latency exceeds budget, the system automatically steps down `Topology B -> Topology A`.
 
 ### 3.5 Fail-Open Inline Bridge (`inline_bridge.py`)
-When operating in Topology B, all MAVLink frames flow through a bidirectional bridge backed by a hardware watchdog thread:
-- If packet processing stalls beyond **$150\text{ ms}$** (e.g. companion OS hang or pipeline crash), the bridge immediately engages **transparent fail-open hardware bypass**.
+`InlineBridge` (`hal/inline_bridge.py`) is a software model with a 150 ms fail-open watchdog: if processing stalls beyond
+150 ms, it passes frames through unaltered. It is not the bridge that runs (`aegis ips-bridge`, `hal/inline_ips.py`), and there is
+**no hardware bypass**: if the companion loses power or the process dies, the link is down (`docs/INLINE_IPS.md`).
 - Even if the companion computer loses power, the physical link between GCS and flight controller remains unbroken.
 
 ---

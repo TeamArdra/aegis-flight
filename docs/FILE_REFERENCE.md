@@ -181,25 +181,25 @@ Tested by `test_fusion_and_metrics.py`.
 - `mitigation/submode_classifier.py` — `AttackSubModeClassifier`: maps an assessment to a sub-mode; command cadence / mid-air disarm provenance check; vector CUSUM micro-drift tracker.
 - `mitigation/parameter_estimator.py` — `ParameterEstimator`: quantifies the active attack (offsets, drift rate, biases, rogue sysids).
 - `mitigation/golden_state.py` — `GoldenFlightState`: trusted-state anchor and dead-reckoning used by the dashboard twin.
-- `mitigation/sanitizer.py` — `FrameSanitizer`: coordinate / altitude clamping and rogue-sysid quarantine model. Statistics only: no relay uses it (Topology B is not wired).
-- `mitigation/actuator.py` — `MavlinkActuator`: encodes counter-commands (set mode, EKF source switch, STATUSTEXT) as MAVLink bytes; encoding only, never sent on a live source.
+- `mitigation/sanitizer.py` — `FrameSanitizer`: coordinate / altitude clamping, rogue-sysid quarantine and rate-limit shedding (non-critical msgids dropped, critical frames capped at 120/s). Used by `MitigationController` and, on the inline bridge, by `InlinePolicy` (`mitigation/inline_policy.py`).
+- `mitigation/actuator.py` — `MavlinkActuator`: encodes counter-commands (set mode, EKF source switch, STATUSTEXT) as MAVLink bytes. `aegis serve` sends them in `active-ips` only on a UDP or `socket://` (SITL) link (`backend/engine.py`, `_transmit`); never on a serial device (receive-only) or replay.
 
 ---
 
 ## `src/aegisflight/hal/` — Hardware Abstraction Layer (CORE Stage 2)
 
 - `hal/discovery.py` — Auto-discovery across serial/USB devices (CubePilot, Pixhawk 6X/4/2.4.8, SiK Telemetry, ExpressLRS, Holybro).
-- `hal/identify.py` — Host platform & companion compute detection (Raspberry Pi 4/5/Zero, NVIDIA Jetson, Rockchip) + dynamic latency budgets (15–65 ms).
+- `hal/identify.py` — MAVLink endpoint identification (`EndpointInfo`, `EndpointType`: flight controller, GCS, companion, radio). Host platform detection and the latency-budget constants (18 ms; 24 ms for a Pi Zero / Pi 3) are in `hal/discovery.py`; they are static heuristics, not measurements, and are used only by `hal/topology.py`.
 - `hal/profiles.py` — Autopilot firmware detection & parameter adaptation (ArduPilot Copter/Plane/Rover vs PX4 Autopilot).
 - `hal/link_graph.py` — Live topology graph builder (`TelemetryLinkGraph`), node identification, routing path resolution.
 - `hal/topology.py` — Topology selector: selects optimal topology (`TOPOLOGY_B`, `TOPOLOGY_A`, `TOPOLOGY_A_PLUS_B`, `IDS_ONLY`) with human-readable rationale.
-- `hal/inline_bridge.py` — `InlineBridge`: dual-port transparent serial bridge with wire-speed frame sanitization and 150 ms fail-open hardware watchdog.
+- `hal/inline_bridge.py` — `InlineBridge`: older software model of an inline bridge with a 150 ms fail-open watchdog (software pass-through, not a hardware bypass). Not the bridge that runs; that is `hal/inline_ips.py` (`aegis ips-bridge`).
 
 ---
 
 ## `rust/aegis_fastpath/` — Native Fastpath Engine (CORE Stage 2)
 
-- `rust/aegis_fastpath/src/lib.rs` — Zero-allocation MAVLink v2 CRC-16 (X.25) table lookup, in-place coordinate sanitization (`GLOBAL_POSITION_INT`), sub-microsecond frame inspection.
+- `rust/aegis_fastpath/src/lib.rs` — Zero-allocation MAVLink v2 CRC-16 (X.25) table lookup, in-place coordinate sanitization (`GLOBAL_POSITION_INT`). Not on the runtime path; its speed has not been measured.
 
 ---
 
