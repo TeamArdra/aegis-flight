@@ -194,7 +194,7 @@ def test_archive_marks_complete_false_when_segments_rotated_out_and_missing_jobl
     fake_model.write_bytes(b"placeholder")
     monkeypatch.setitem(sys.modules, "joblib", None)
     with pytest.warns(RuntimeWarning, match="AnomalyDetector disabled"):
-        det = AnomalyDetector({}, model_path=fake_model)
+        det = AnomalyDetector({}, model_path=fake_model, allow_unverified=True)
     assert det.available is False
     assert det.load_error is not None and "ImportError" in det.load_error
 
@@ -231,7 +231,7 @@ def test_sigterm_shuts_down_onboard_cleanly_with_valid_sqlite_and_manifest(tmp_p
     )
 
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO_ROOT / "src") + (f":{env['PYTHONPATH']}" if env.get("PYTHONPATH") else "")
+    env["PYTHONPATH"] = str(REPO_ROOT / "src") + (f"{os.pathsep}{env['PYTHONPATH']}" if env.get("PYTHONPATH") else "")
     proc = subprocess.Popen(
         [sys.executable, "-m", "aegisflight.cli.main", "onboard", "--config", str(cfg_path)],
         stdout=subprocess.PIPE,

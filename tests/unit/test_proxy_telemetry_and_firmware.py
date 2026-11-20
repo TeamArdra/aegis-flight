@@ -204,28 +204,18 @@ def test_rewrite_failure_counter_and_rogue_disarm_armed_precondition() -> None:
     assert res == [corrupt_gpi]
     assert atk.frames_rewrite_failed == 1
 
-    # R2: RogueForceDisarmAttack builder defaults auto_arm_if_disarmed=False; auto-arm only if explicitly opted in
+    # P0: force-ARM primitive is completely absent; rogue_force_disarm never emits arm commands
+    import pytest
+
     h_default = build_restricted_visibility_hook("rogue_force_disarm", seed=1001, target_sysid=3, target_compid=1)
-    assert h_default.auto_arm_if_disarmed is False
+    assert not hasattr(h_default, "auto_arm_if_disarmed")
+    with pytest.raises(TypeError):
+        build_restricted_visibility_hook(
+            "rogue_force_disarm", seed=1001, target_sysid=3, target_compid=1, auto_arm_if_disarmed=True  # type: ignore[call-arg]
+        )
 
-    h_rogue = build_restricted_visibility_hook(
-        "rogue_force_disarm", seed=1001, target_sysid=3, target_compid=1, auto_arm_if_disarmed=True
-    )
-    assert h_rogue.auto_arm_if_disarmed is True
     disarmed_hb = bytes(_mk(3, 1, 1).heartbeat_encode(mav2.MAV_TYPE_QUADROTOR, mav2.MAV_AUTOPILOT_PX4, 0x00, 0, 4).pack(_mk(3, 1, 1)))
-    armed_hb = bytes(_mk(3, 1, 2).heartbeat_encode(mav2.MAV_TYPE_QUADROTOR, mav2.MAV_AUTOPILOT_PX4, 0x80, 0, 4).pack(_mk(3, 1, 2)))
     gcs_hb = bytes(_mk(255, 190, 10).heartbeat_encode(mav2.MAV_TYPE_GCS, mav2.MAV_AUTOPILOT_INVALID, 0, 0, 4).pack(_mk(255, 190, 10)))
-
     h_default(_ctx(disarmed_hb, direction="down", recv_s=0.0))
     out_def = h_default(_ctx(gcs_hb, direction="up", recv_s=1.0))
-    assert h_default.pre_arm_sent is False
-    assert len(out_def) == 1
-
-    h_rogue(_ctx(disarmed_hb, direction="down", recv_s=0.0))
-    assert h_rogue.vehicle_armed_observed is False
-    out_up = h_rogue(_ctx(gcs_hb, direction="up", recv_s=1.0))
-    assert h_rogue.pre_arm_sent is True
-    assert len(out_up) == 2 and _decode(out_up[1]).command == 400 and _decode(out_up[1]).param1 == 1.0
-
-    h_rogue(_ctx(armed_hb, direction="down", recv_s=2.0))
-    assert h_rogue.vehicle_armed_observed is True
+    assert out_def == [gcs_hb]
