@@ -85,11 +85,11 @@ git grep -nE "11\.4 ?%|42\.8 MB|2,900|82\.4|4\.8 h|mIDS|0\.08 ms|EKF failsafe bl
 | Path | Why |
 |---|---|
 | `frontend/src/components/evalPanels.tsx` | Removed unsupported rows; corrected 3 stale lines. **The only tracked file changed** |
-| `scripts/demo/make_synthetic_gps_tlog.py`, `make_stage2_report_figures.py`, `render_stage2_report.py` | Fixture, figures, report rendering |
+| `scripts/demo/make_synthetic_gps_tlog.py`, `make_stage2_report_figures.py` | Fixture, figures (the report renderer stays private under D2, see #31) |
 | `tests/unit/test_synthetic_gps_demo.py` | 11 tests |
 | `demo/fixtures/`, `demo/indoor_bench_profile/`, 4 files in `demo/screenshots/` | Demo inputs and evidence |
 | `artifacts/validation/stage2_readiness_20261103/` | Today's evidence |
-| `docs/STAGE2_*.md`, `docs/stage2_report_completed_draft.*` | Deliverables |
+| `docs/STAGE2_*.md` | Deliverables (the completed report draft is private under D2, see #31) |
 
 **Not changed:** detectors, features, fusion, configs, thresholds, `src/`, the template PDF, `docs/stage2_report_draft.md`, `.gitignore`. The
 root `CLAUDE.md` says to add a Co-Authored-By line to commits, while the user's standing instruction is no Claude attribution: follow the user.

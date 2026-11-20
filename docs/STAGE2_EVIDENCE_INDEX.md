@@ -1,6 +1,6 @@
 # Stage 2 evidence index
 
-Every claim in `docs/stage2_report_completed_draft.md` mapped to what supports it. **Env** is `SIM`, `REPLAY`, `SITL` or `BENCH`. **Run today** means
+Every claim in the team's completed Stage 2 report draft mapped to what supports it. (The draft itself is kept private under decision D2, see issue #31, and is not in this repository; every evidence path below is public.) **Env** is `SIM`, `REPLAY`, `SITL` or `BENCH`. **Run today** means
 re-run on 2026-11-03 on `main` `f9945a7` (`git diff HEAD -- src configs` is empty); otherwise the date is the artifact's.
 `B/` stands for `artifacts/validation/stage2_readiness_20261103/`. Its `README.md` has provenance and regeneration commands.
 
