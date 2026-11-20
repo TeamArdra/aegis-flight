@@ -90,3 +90,30 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Issue #10: numbers no committed artifact supports must not come back (a merge once restored
+  # them silently). The pattern is the issue's claims grep; the allowlist is the issue's list of
+  # audit documents that discuss the withdrawn claims. One deliberate difference: `2,900` must
+  # not be the tail of a longer number, so "52,900 decisions" (a real count in
+  # docs/stage2_report_draft.md) does not match while "₹2,900" still does.
+  claims-guard:
+    name: claims-guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: No unsupported claims outside the audit documents
+        run: |
+          if git grep -nE '11\.4 ?%|42\.8 MB|(^|[^0-9,])2,900|82\.4 ?km|4\.8 h|mIDS|0\.08 ms|EKF failsafe blind|92/100|729\+' \
+              -- '*.md' '*.tsx' '*.ts' '*.py' \
+              ':!docs/STAGE2_*' \
+              ':!docs/SUBMISSION_READINESS_AUDIT.md' \
+              ':!docs/REDTEAM_AUDIT_STAGE2.md' \
+              ':!docs/GPS_WORKSTREAM_PROGRESS.md'; then
+            echo "::error::unsupported claim found outside the allowlisted audit documents (issue #10)"
+            exit 1
+          fi
+          echo "claims-guard: no unsupported claims found"
