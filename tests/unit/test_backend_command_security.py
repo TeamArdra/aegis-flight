@@ -67,6 +67,26 @@ def test_hmac_nonce_replay_lockout_and_security_headers(monkeypatch) -> None:
                 headers={**headers, "X-Aegis-Nonce": nonce2, "X-Aegis-Signature": sig_for_other},
             )
             assert tamper_resp.status_code == 401
+
+            # Signed POST /api/simulation/attack verifies HMAC over the actual JSON body
+            atk_body = json.dumps({"attack": "gps_spoofing", "mode": "gradual_drift"}).encode("utf-8")
+            atk_nonce = "nonce-sim-attack-1234"
+            atk_sig = compute_request_hmac(
+                token, method="POST", path="/api/simulation/attack", timestamp=ts, nonce=atk_nonce, body=atk_body
+            )
+            atk_ok = client.post(
+                "/api/simulation/attack",
+                content=atk_body,
+                headers={
+                    "X-Aegis-Token": token,
+                    "X-Aegis-Timestamp": ts,
+                    "X-Aegis-Nonce": atk_nonce,
+                    "X-Aegis-Signature": atk_sig,
+                    "Content-Type": "application/json",
+                },
+            )
+            assert atk_ok.status_code == 200 and atk_ok.json()["ok"] is True
+            assert atk_ok.json()["attack"] == "gps_spoofing"
     finally:
         GLOBAL_RATE_LIMITER.clear("testclient")
         GLOBAL_RATE_LIMITER.clear("unknown")

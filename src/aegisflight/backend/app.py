@@ -296,12 +296,22 @@ async def sim_reset(request: Request) -> dict | JSONResponse:
     return {"ok": True, "reset": True}
 
 
-@app.post("/api/simulation/attack")
-def sim_attack(payload: dict, request: Request) -> JSONResponse:
-    if (auth_err := _require_control_auth(request)) is not None:
+@app.post("/api/simulation/attack", response_model=None)
+async def sim_attack(request: Request) -> JSONResponse:
+    try:
+        raw = await read_bounded_body(request)
+    except ValueError as exc:
+        return JSONResponse(status_code=413, content={"ok": False, "error": str(exc)})
+    if (auth_err := _require_control_auth(request, body=raw)) is not None:
         return auth_err
     if (refused := _sim_only("attack injection")) is not None:
         return refused
+    try:
+        payload = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "invalid JSON body"})
+    if not isinstance(payload, dict):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "JSON object required"})
     name = (payload or {}).get("attack")
     mode = (payload or {}).get("mode")
     drift_rate_ms = (payload or {}).get("drift_rate_ms")
