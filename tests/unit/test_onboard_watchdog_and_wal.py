@@ -5,6 +5,8 @@ from __future__ import annotations
 import socket
 from pathlib import Path
 
+import pytest
+
 from aegisflight.core.enums import AttackType, Severity
 from aegisflight.core.types import ThreatAssessment
 from aegisflight.hal.watchdog import SystemdNotifier
@@ -13,6 +15,7 @@ from aegisflight.logging.store import EventStore
 from aegisflight.onboard import OnboardConfig, run_preflight
 
 
+@pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="AF_UNIX requires POSIX")
 def test_systemd_notifier_sends_datagrams_over_unix_socket(monkeypatch) -> None:
     import os
 

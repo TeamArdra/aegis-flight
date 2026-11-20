@@ -10,6 +10,7 @@ protocol:
   auto_rate_baseline: true
   max_msg_rate_hz: 2000.0
   startup_grace_s: 3.0
+  gnss_never_acquired_policy: coverage
   semantic_firewall_enabled: true
   gnss_clock_skew_enabled: true
   gnss_clock_max_jump_s: 5.0
