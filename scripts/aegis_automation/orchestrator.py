@@ -160,9 +160,16 @@ def auto_requests_for_head(comments: list[dict[str, Any]], head: str, policy: Po
             if (c.get("user") or {}).get("login") == identity_login and tag in (c.get("body") or "")]
 
 
+# Findings an agent must never "fix" on its own: they need the project owner's decision
+# (a safety boundary or an approved decision is at stake). Defence in depth: the record
+# builder already forces such PRs to escalate, which stops remediation earlier.
+_OWNER_DECISION_CATEGORIES = ("SAFETY", "CONTRACT_VIOLATION")
+
+
 def remediation_candidates(record: dict[str, Any], policy: Policy) -> list[str]:
     return [f["id"] for f in record.get("findings", [])
-            if f.get("confidence") == "Confirmed" and f.get("severity") in policy.auto_remediation_severities]
+            if f.get("confidence") == "Confirmed" and f.get("severity") in policy.auto_remediation_severities
+            and f.get("category") not in _OWNER_DECISION_CATEGORIES]
 
 
 def decide_auto_remediation(result: GateResult, policy: Policy, settings: Settings

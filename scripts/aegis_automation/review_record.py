@@ -13,7 +13,20 @@ model's own verdict word is recorded but never trusted on its own:
     INCOMPLETE   the output is malformed or inconsistent, or the model said it could not finish
     BLOCKING     at least one P0/P1 finding
     NON_BLOCKING no P0/P1, at least one P2 (needs a fix or a documented waiver)
-    READY        no P0-P2 findings (P3 suggestions allowed)
+    READY        no P0-P2 findings (P3 and INFO allowed)
+
+Every finding also carries a category (review-policy.md section 5). The categories make the
+reviewer say WHAT is wrong, so that "this is new" or "this changes existing behaviour" can
+never be a finding on its own. These classification rules are enforced here, fail-closed
+(a violation makes the record INCOMPLETE, which routes the PR to a human):
+
+    INFO severity           only for category IMPROVEMENT (optional, never blocking)
+    IMPROVEMENT category    only INFO or P3 (a suggestion can never block a merge)
+    Plausible confidence    never P0/P1 (a speculative risk is not a confirmed defect)
+    CONTRACT_VIOLATION      only P0/P1 (needs the project owner's approval to proceed)
+
+Any P0, SAFETY or CONTRACT_VIOLATION finding forces `escalate` to true, whatever the model
+said, so such a PR always goes to a human and never to automatic remediation.
 
 Usage inside the workflow (all inputs via environment variables, never interpolated):
     python3 -m aegis_automation.review_record schema          # JSON schema for --json-schema
@@ -32,10 +45,26 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA_ID = "aegis.review-record/v1"
+SCHEMA_ID = "aegis.review-record/v2"
+# v1 records (no categories, no INFO) stay readable so a PR reviewed before this change is
+# judged on its existing record instead of being silently re-classified.
+ACCEPTED_SCHEMAS = ("aegis.review-record/v1", SCHEMA_ID)
 VERDICTS = ("READY", "NON_BLOCKING", "BLOCKING", "INCOMPLETE", "ERROR")
 MODEL_VERDICTS = ("READY", "NON_BLOCKING", "BLOCKING", "INCOMPLETE")
+# Counted severities: `counts{p0..p3}` and the `P0:a P1:b P2:c P3:d` status are contracts
+# with merge_gate.py and claude-remediate.yml. INFO is recorded but never counted there.
 SEVERITIES = ("P0", "P1", "P2", "P3")
+FINDING_SEVERITIES = (*SEVERITIES, "INFO")
+CATEGORIES = (
+    "SAFETY",              # flight safety, vehicle control, receive-only / command boundaries
+    "SECURITY",            # exploitable vulnerability, auth/integrity bypass, unsafe input
+    "DEFECT",              # logic error, wrong state transition, leak, race, missing recovery
+    "REGRESSION",          # previously working behaviour, test or metric broken
+    "CONTRACT_VIOLATION",  # frozen contract or explicitly approved decision contradicted
+    "EVIDENCE_GAP",        # missing test, unsupported claim, unreproducible evidence
+    "IMPROVEMENT",         # optional suggestion or feature observation (INFO/P3 only)
+)
+ESCALATING_CATEGORIES = ("SAFETY", "CONTRACT_VIOLATION")
 FINDING_ID = re.compile(r"^R[0-9]{1,4}$")
 SHA = re.compile(r"^[0-9a-f]{40}$")
 
@@ -53,13 +82,14 @@ OUTPUT_SCHEMA: dict[str, Any] = {
                 "type": "object",
                 "properties": {
                     "id": {"type": "string", "pattern": "^R[0-9]{1,4}$"},
-                    "severity": {"type": "string", "enum": list(SEVERITIES)},
+                    "severity": {"type": "string", "enum": list(FINDING_SEVERITIES)},
+                    "category": {"type": "string", "enum": list(CATEGORIES)},
                     "confidence": {"type": "string", "enum": ["Confirmed", "Plausible"]},
                     "path": {"type": "string", "maxLength": 300},
                     "line": {"type": "integer", "minimum": 0},
                     "title": {"type": "string", "maxLength": 200},
                 },
-                "required": ["id", "severity", "confidence", "path", "line", "title"],
+                "required": ["id", "severity", "category", "confidence", "path", "line", "title"],
                 "additionalProperties": False,
             },
         },
@@ -95,9 +125,10 @@ OUTPUT_SCHEMA: dict[str, Any] = {
         "p1": {"type": "integer", "minimum": 0},
         "p2": {"type": "integer", "minimum": 0},
         "p3": {"type": "integer", "minimum": 0},
+        "info": {"type": "integer", "minimum": 0},
     },
     "required": ["verdict", "linked_issue", "findings", "previous_findings",
-                 "acceptance_criteria", "escalate", "p0", "p1", "p2", "p3"],
+                 "acceptance_criteria", "escalate", "p0", "p1", "p2", "p3", "info"],
     "additionalProperties": False,
 }
 
@@ -129,10 +160,42 @@ def now_utc() -> str:
 
 
 def counts_from_findings(findings: list[dict[str, Any]]) -> dict[str, int]:
+    """P0-P3 counts (the merge-gate contract). INFO findings are not counted here."""
     counts = {s.lower(): 0 for s in SEVERITIES}
     for f in findings:
-        counts[f["severity"].lower()] += 1
+        if f["severity"] != "INFO":
+            counts[f["severity"].lower()] += 1
     return counts
+
+
+def info_count(findings: list[dict[str, Any]]) -> int:
+    return sum(1 for f in findings if f.get("severity") == "INFO")
+
+
+def classification_problems(findings: list[dict[str, Any]]) -> list[str]:
+    """Consistency rules between severity, category and confidence (module docstring).
+
+    A violation means the reviewer mislabelled something: either a speculative or optional
+    item was made blocking, or a blocking item was hidden as optional. Both fail closed.
+    """
+    errs: list[str] = []
+    for f in findings:
+        fid, sev, cat, conf = f["id"], f["severity"], f["category"], f["confidence"]
+        if sev == "INFO" and cat != "IMPROVEMENT":
+            errs.append(f"{fid}: INFO severity is only for IMPROVEMENT findings, not {cat}")
+        if cat == "IMPROVEMENT" and sev not in ("INFO", "P3"):
+            errs.append(f"{fid}: an IMPROVEMENT is optional and must be INFO or P3, not {sev}")
+        if conf == "Plausible" and sev in ("P0", "P1"):
+            errs.append(f"{fid}: a Plausible (unconfirmed) finding cannot be {sev}")
+        if cat == "CONTRACT_VIOLATION" and sev not in ("P0", "P1"):
+            errs.append(f"{fid}: a CONTRACT_VIOLATION needs owner approval and must be P0/P1, not {sev}")
+    return errs
+
+
+def forced_escalation(findings: list[dict[str, Any]]) -> list[str]:
+    """Finding ids that must route the PR to a human regardless of the model's flag."""
+    return [f["id"] for f in findings
+            if f.get("severity") == "P0" or f.get("category") in ESCALATING_CATEGORIES]
 
 
 def _validate_output(data: Any) -> list[str]:
@@ -155,7 +218,7 @@ def _validate_output(data: Any) -> list[str]:
         errs.append("invalid linked_issue")
     if not isinstance(data["escalate"], bool):
         errs.append("invalid escalate flag")
-    for sev in ("p0", "p1", "p2", "p3"):
+    for sev in ("p0", "p1", "p2", "p3", "info"):
         if _int(data[sev]) is None:
             errs.append(f"invalid count {sev}")
     findings = data["findings"]
@@ -173,8 +236,13 @@ def _validate_output(data: Any) -> list[str]:
             errs.append(f"duplicate finding id {fid}")
         else:
             seen.add(fid)
-        if f.get("severity") not in SEVERITIES:
+        if f.get("severity") not in FINDING_SEVERITIES:
             errs.append(f"finding {i} has an invalid severity")
+        if f.get("category") not in CATEGORIES:
+            errs.append(f"finding {i} has an invalid category")
+        extra_f = set(f) - set(OUTPUT_SCHEMA["properties"]["findings"]["items"]["properties"])
+        if extra_f:
+            errs.append(f"finding {i} has unexpected keys: {sorted(extra_f)}")
         if f.get("confidence") not in ("Confirmed", "Plausible"):
             errs.append(f"finding {i} has an invalid confidence")
         if not isinstance(f.get("path"), str) or _int(f.get("line")) is None:
@@ -211,6 +279,11 @@ def compute_verdict(outcome: str, output: Any) -> tuple[str, list[str]]:
     declared = {k: output[k] for k in ("p0", "p1", "p2", "p3")}
     if counts != declared:
         return "INCOMPLETE", [f"declared counts {declared} do not match findings {counts}"]
+    if output["info"] != info_count(output["findings"]):
+        return "INCOMPLETE", [f"declared info count {output['info']} does not match findings"]
+    mislabelled = classification_problems(output["findings"])
+    if mislabelled:
+        return "INCOMPLETE", mislabelled
     if output["verdict"] == "INCOMPLETE":
         return "INCOMPLETE", ["the reviewer reported that it could not finish"]
     if counts["p0"] + counts["p1"] > 0:
@@ -264,6 +337,7 @@ def build_record(*, output_text: str | None, outcome: str, meta: dict[str, Any])
             {
                 "id": f["id"],
                 "severity": f["severity"],
+                "category": f["category"],
                 "confidence": f["confidence"],
                 "path": safe_text(f["path"], 300),
                 "line": f["line"],
@@ -277,6 +351,13 @@ def build_record(*, output_text: str | None, outcome: str, meta: dict[str, Any])
         counts = counts_from_findings(output["findings"])
         escalate = bool(output["escalate"])
         reason = safe_text(output.get("escalation_reason", ""), 300)
+        forced = forced_escalation(output["findings"])
+        if forced:
+            # Never weaker than the findings: P0, SAFETY and CONTRACT_VIOLATION go to a human.
+            if not escalate:
+                reason = safe_text(f"forced by safety/contract/P0 findings {', '.join(forced)}. "
+                                   + reason, 300)
+            escalate = True
         linked = output["linked_issue"] or None
         model_verdict = output["verdict"]
     return {
@@ -304,6 +385,7 @@ def build_record(*, output_text: str | None, outcome: str, meta: dict[str, Any])
         "model_verdict": model_verdict,
         "problems": [safe_text(p, 300) for p in problems],
         "counts": counts,
+        "info_count": info_count(findings),
         "findings": findings,
         "previous_findings": previous,
         "acceptance_criteria": acceptance,
@@ -319,7 +401,7 @@ def validate_record(record: Any) -> list[str]:
     if not isinstance(record, dict):
         return ["record is not an object"]
     errs: list[str] = []
-    if record.get("schema") != SCHEMA_ID:
+    if record.get("schema") not in ACCEPTED_SCHEMAS:
         errs.append(f"unknown record schema {record.get('schema')!r}")
     if not isinstance(record.get("head_sha"), str) or not SHA.match(record["head_sha"]):
         errs.append("record head_sha is not a full SHA")
@@ -337,6 +419,13 @@ def validate_record(record: Any) -> list[str]:
                 errs.append("record counts do not match its findings")
         except (KeyError, AttributeError, TypeError):
             errs.append("record findings malformed")
+        else:
+            if record.get("schema") == SCHEMA_ID:
+                if any(not isinstance(f, dict) or f.get("category") not in CATEGORIES
+                       for f in findings):
+                    errs.append("record finding category invalid")
+                elif forced_escalation(findings) and record.get("escalate") is not True:
+                    errs.append("record has safety/contract/P0 findings but is not escalated")
     for key in ("previous_findings", "acceptance_criteria"):
         if not isinstance(record.get(key), list):
             errs.append(f"record {key} missing")

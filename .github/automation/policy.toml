@@ -152,6 +152,24 @@ paths = [
 content_globs = ["*.py"]
 added_line_patterns = ['may_reach_vehicle', 'mav\.send\(', '\.mav\.[a-z_]+_send\(']
 
+# Path-independent: code that SENDS or BUILDS a command that can arm, force-arm, change
+# mode, change parameters, move or terminate a vehicle goes to a human wherever it is added
+# (a new module outside the vehicle_link_safety paths included). Patterns match emission
+# and message construction, not mere mentions: detectors that parse PARAM_SET or
+# ARM_DISARM to detect attacks are not routed by this rule. Routing only; whether it is a
+# defect is the reviewer's call (review-policy.md section 4). Calibrated on PRs #55, #67,
+# #70, #72, #76, #77. Never relaxed to unblock a feature.
+[escalation.vehicle_command_capability]
+description = "code that sends or builds arm, mode, parameter, mission or movement commands"
+paths = []
+content_globs = ["src/*.py", "scripts/*.py", "backend/*.py"]
+added_line_patterns = [
+  '\b21196(\.0*)?\b',
+  '(?i)force[_-]?arm',
+  '(command_long|command_int|set_mode|param_set|mission_item(_int)?|mission_count|set_position_target_[a-z_]+|set_attitude_target|manual_control)_send\(',
+  'MAVLink_(command_long|command_int|set_mode|param_set|mission_item(_int)?|mission_count|set_position_target_[a-z_]+|set_attitude_target|manual_control)_message\(',
+]
+
 [escalation.frozen_contracts]
 description = "frozen AegisFlight contracts (AGENTS.md section 4)"
 paths = [
