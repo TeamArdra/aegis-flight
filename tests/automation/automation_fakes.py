@@ -106,12 +106,16 @@ def model_output(findings: list[dict[str, Any]] | None = None, *, verdict: str |
         "acceptance_criteria": acceptance if acceptance is not None else [
             {"criterion": "A", "status": "met"}, {"criterion": "B", "status": "met"}],
         "escalate": escalate, "escalation_reason": "", **counts,
+        "info": sum(1 for f in findings if f["severity"] == "INFO"),
     }
 
 
-def finding(fid: str, sev: str, conf: str = "Confirmed", title: str = "problem") -> dict[str, Any]:
-    return {"id": fid, "severity": sev, "confidence": conf, "path": "frontend/src/x.tsx",
-            "line": 3, "title": title}
+def finding(fid: str, sev: str, conf: str = "Confirmed", title: str = "problem",
+            category: str | None = None) -> dict[str, Any]:
+    if category is None:
+        category = "IMPROVEMENT" if sev in ("P3", "INFO") else "DEFECT"
+    return {"id": fid, "severity": sev, "category": category, "confidence": conf,
+            "path": "frontend/src/x.tsx", "line": 3, "title": title}
 
 
 def make_record(output: dict[str, Any] | None = None, *, head: str = HEAD, run_id: int = 200,

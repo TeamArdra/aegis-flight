@@ -120,7 +120,13 @@ its JSON schema from the PR's **base** branch with `git archive`.
 
 One JSON document per review run (`scripts/aegis_automation/review_record.py`), uploaded as
 artifact `aegis-review-record` (90-day retention) and embedded in the merge audit comment
-when a PR is merged (permanent). Schema `aegis.review-record/v1`:
+when a PR is merged (permanent). Schema `aegis.review-record/v2`. The gate re-validates every
+stored record before using it (`validate_record`): exact finding fields per schema, counts,
+`info_count`, the classification rules, verdict and `valid` derived from the findings, and
+forced escalation. A record that fails is ignored (G09 fails; the PR goes to a human). v1
+records (no categories) are still accepted if they have exactly the v1 shape (no `category`,
+`INFO` or `info_count`, which mark a downgraded v2 record) and every P0/P1 finding was
+escalated, because without categories a v1 P0/P1 may be a safety or contract finding:
 
 | Field | Meaning |
 |---|---|
@@ -129,7 +135,7 @@ when a PR is merged (permanent). Schema `aegis.review-record/v1`:
 | `model`, `mode` (`full`/`incremental`), `previous_reviewed_sha`, `deep` | How |
 | `created_at` (UTC, `YYYY-MM-DDTHH:MM:SSZ`), `policy_sha256` | When, under which review policy |
 | `outcome`, `verdict`, `valid`, `model_verdict`, `problems[]` | Result (below) |
-| `counts{p0..p3}`, `findings[]{id,severity,confidence,path,line,title}` | Open findings with stable IDs `R<n>` |
+| `counts{p0..p3}`, `info_count`, `findings[]{id,severity,category,confidence,path,line,title}` | Open findings with stable IDs `R<n>`; INFO is recorded but not counted |
 | `previous_findings[]{id,status}` | `fixed` / `still_present` / `superseded` across commits |
 | `acceptance_criteria[]{criterion,status}` | `met` / `not_met` / `cannot_verify` per issue criterion |
 | `linked_issue`, `escalate`, `escalation_reason` | Issue binding and the reviewer's escalation |
@@ -140,10 +146,10 @@ Verdicts are computed **deterministically** from the findings, never taken from 
 | Verdict | Condition | Advisory status |
 |---|---|---|
 | `ERROR` | the review step failed / was cancelled / did not run | `error` |
-| `INCOMPLETE` | no or malformed structured output, counts ≠ findings, duplicate IDs, the model said it could not finish, or a model verdict stricter than its own findings | `error` |
+| `INCOMPLETE` | no or malformed structured output, counts ≠ findings, duplicate IDs, a mislabelled finding (INFO outside IMPROVEMENT, a blocking IMPROVEMENT, a Plausible P0/P1, a CONTRACT_VIOLATION below P1), the model said it could not finish, or a model verdict stricter than its own findings | `error` |
 | `BLOCKING` | ≥ 1 P0/P1 | `failure` "P0:a P1:b P2:c P3:d (blocking findings; advisory)" |
 | `NON_BLOCKING` | no P0/P1, ≥ 1 P2 | `success` "P0:0 P1:0 P2:c P3:d" |
-| `READY` | no P0–P2 (P3 allowed) | `success` |
+| `READY` | no P0–P2 (P3 and INFO allowed) | `success` |
 
 The status description format is unchanged from PR #36, so the remediation gate keeps working.
 
@@ -204,6 +210,7 @@ reviewer's own `escalate` flag:
 | `automation_governance` | `.github/**` (workflows, reviewer policy, rulesets docs, CODEOWNERS, this policy), `scripts/aegis_automation/**`, `tests/automation/**`, `AGENTS.md`, `CLAUDE.md`, `.claude/**`, automation docs |
 | `secrets_and_auth` | MAVLink signing, `*signing*`, `*secret*`, `*credential*`, key files; added private keys or tokens |
 | `vehicle_link_safety` | serial/live sources, inline IPS, `mitigation/`, `proxy/`, `hal/`, SITL scripts; added `may_reach_vehicle`/MAVLink send calls |
+| `vehicle_command_capability` | added code that sends or builds arm/force-arm (`21196`), mode, parameter, mission, movement, RC-override or GPS-injection commands in any `src/`, `scripts/`, `backend/` or `artifacts/` Python file: pymavlink `*_send(`/`*_encode(`, `MAVLink_*_message(`, mavutil helpers (`.set_mode(`, `.arducopter_arm(`) and `send_command(` wrappers (parsing such messages to detect them does not count; `.set_mode(` also routes IDS defence-posture changes, by design) |
 | `frozen_contracts` | `core/`, `features/extractor.py`, `mavlink/codec.py`, `attacks/base.py`, `benchmark/`, `metrics/`, `docs/HANDOFF.md` |
 | `event_log_integrity` | `logging/`, `integrity/` |
 | `detector_metrics` | `detectors/`, `fusion/`, `features/`, `pipeline.py`, `config.py`, `configs/`, `models/`, training scripts |

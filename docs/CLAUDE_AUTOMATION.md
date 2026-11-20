@@ -84,19 +84,38 @@ comments. Explicitly denied: `Edit`, `Write`, web access, `gh pr review|merge|ed
 
 **Outputs**:
 - Inline comments for P0–P2 findings and one summary comment (template in the policy).
-- Structured result (`--json-schema`): verdict, P0–P3 counts, escalation flag.
+- Structured result (`--json-schema`): verdict, findings with category, P0–P3 and INFO counts,
+  escalation flag.
 - Commit status `claude-review` on the reviewed head SHA, set by the workflow token from the
   structured result: `success` (no P0/P1), `failure` (P0/P1 present; advisory), `error`
   (incomplete/cancelled/skipped), `pending` (running).
 - Label `claude:escalation-recommended` when the reviewer escalates.
 
-**Severity**: P0 critical security/integrity/system-breaking · P1 significant correctness or
-regression · P2 moderate · P3 minor. Confidence: *Confirmed* (only these may be P0/P1) or
-*Plausible* (≤ P2). Full definitions and AegisFlight examples: `.github/claude/review-policy.md`.
+**What the reviewer looks for**: bugs, vulnerabilities, regressions, flight-safety violations
+and violations of frozen contracts or recorded owner decisions. A change is not a finding
+because it is new, adds files or modifies existing behaviour; intentional feature work that
+is sound is listed under "Feature changes reviewed". Vehicle-command, auth, deserialisation,
+listener and integrity code is always read in full ("tier 1"), or the review is `INCOMPLETE`.
+
+**Classification**: every finding has a category (`SAFETY`, `SECURITY`, `DEFECT`,
+`REGRESSION`, `CONTRACT_VIOLATION`, `EVIDENCE_GAP`, `IMPROVEMENT`), a severity (P0 critical:
+unauthorised vehicle control, force-arm, critical bypass · P1 high: auth/integrity bypass,
+unsafe deserialisation, unsafe command handling, serious regression, unapproved contract or
+decision change · P2 medium: logic, state, leaks, races, recovery, untested change ·
+P3 low · INFO optional, never counted or blocking) and a confidence (*Confirmed*, only these
+may be P0/P1, or *Plausible*, ≤ P2). `review_record.py` enforces the consistency rules
+(INFO only for IMPROVEMENT; IMPROVEMENT only INFO/P3; CONTRACT_VIOLATION only P0/P1) and
+forces escalation for any P0, SAFETY or CONTRACT_VIOLATION finding. Full definitions and
+AegisFlight examples: `.github/claude/review-policy.md`.
 
 **Escalation mechanism**: the reviewer sets `escalate=true` for frozen-contract, hash-chain,
 signing/key, receive-only-serial, bind-address, `.github/`, threshold/fusion, evidence-claim,
-architectural changes, any P0, or an uncertain P1. The workflow adds
+architectural changes, any P0, any SAFETY or CONTRACT_VIOLATION finding, or a Confirmed P1
+whose impact or approval status is not established (an unconfirmed risk is a Plausible P2,
+never a P1). Documented commands or defaults that enable transmission, `active-ips`, a
+non-loopback bind or arming are read in full, and an unsafe documented default is a SAFETY
+finding. A link counts as physical unless the code restricts it to loopback or local SITL
+(policy section 4.1). The workflow adds
 `claude:escalation-recommended`. A maintainer then (a) asks the human domain owner to review
 and/or (b) adds `claude:deep-review` for an Opus review. Humans always own security-sensitive
 architectural decisions.
