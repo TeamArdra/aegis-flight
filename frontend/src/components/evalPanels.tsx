@@ -144,13 +144,13 @@ const IMPLEMENTED = [
   "Modular detector interface",
   "FastAPI + WebSocket API",
   "SQLite tamper-evident hash-chain log",
-  "Live serial / UDP MAVLink source (receive-only unless ACTIVE IPS)",
+  "Live serial / UDP MAVLink source (a serial device is always receive-only)",
   "MAVLink-2 signing verification",
-  "IPS state machine (SIM dashboard; report-only on live sources)",
+  "IPS state machine (SIM dashboard; ACTIVE IPS refused on a serial device, run on SITL only)",
   "STATUSTEXT alerts to a loopback GCS",
 ];
 const PLANNED = [
-  "Inline FrameSanitizer relay (code exists, not wired)",
+  "Inline bridge on real hardware (`aegis ips-bridge`: ArduCopter SITL only so far)",
   "Rust fast-path + Tauri desktop app (prototype, not on the decision path)",
   "Hardware-in-the-loop (HIL)",
   "Onboard / companion deployment",
@@ -201,13 +201,9 @@ const TIER_LABEL: Record<ValTier, string> = {
 const VAL_ROWS: Array<{ tier: ValTier; metric: string; value: string }> = [
   { tier: "sim", metric: "Baseline accuracy", value: "99.7%  ·  FPR 0.02%  ·  23,430 decisions" },
   { tier: "expanded", metric: "Expanded v2 accuracy", value: "97.7% (5 s grace)  ·  97.0% (no grace)" },
-  { tier: "real", metric: "IEEE T-ITS 2023 Dataset (54,784 rows)", value: "0.00% Benign FPR  ·  100% DoS/Replay/FDI TPR" },
-  { tier: "real", metric: "mIDS-UAV Dataset (25,275 frames)", value: "100% Deauth/GPS/Jamming Detection  ·  0B TX IDS" },
-  { tier: "real", metric: "PX4 real flight logs (24 flights)", value: "0.04% FPR held-out  ·  82.4 km path" },
   { tier: "real", metric: "ArduPilot ALFA (calibrated, ML-off)", value: "0.2% FPR held-out  ·  100% FPR uncalibrated" },
-  { tier: "real", metric: "Autopilot EKF Baseline vs Aegis", value: "Aegis catches subtle drift in 0.4s (EKF failsafe blind)" },
-  { tier: "real", metric: "Target Hardware (Pi Zero 2W)", value: "11.4% CPU  ·  42.8 MB RAM  ·  ₹2,900 INR BOM" },
-  { tier: "sim", metric: "Decision compute (Rust fastpath)", value: "<0.08 ms Rust  ·  17.7 ms full Python ML" },
+  { tier: "sim", metric: "Time to detect", value: "0.36 s mean  ·  1.4 s p95" },
+  { tier: "sim", metric: "Decision compute", value: "17.7 ms mean  ·  23.6 ms p95 (ML on)" },
 ];
 
 function ValidationPanelImpl() {
