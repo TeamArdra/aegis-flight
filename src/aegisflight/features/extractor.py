@@ -107,6 +107,9 @@ class FeatureFrame:
     interarrival_mean_ms: float = 0.0
     interarrival_jitter_ms: float = 0.0
     max_seq_gap: int = 0
+    # ADDITIVE (issue #14): out-of-order frames received within ``features.reorder_window`` behind
+    # the per-source sequence high-water mark during this decision window. NOT in ML_FEATURES.
+    reorder_count: int = 0
     n_sources: int = 0
     heartbeat_age_s: float = 0.0
     gps_age_s: float = 0.0
@@ -222,9 +225,17 @@ class FeatureFrame:
 class FeatureExtractor:
     """Stateful, online telemetry reconstruction + feature computation."""
 
-    def __init__(self, rate_window_s: float = 1.0, cmd_window_s: float = 2.0) -> None:
+    def __init__(
+        self,
+        rate_window_s: float = 1.0,
+        cmd_window_s: float = 2.0,
+        reorder_window: int = 16,
+    ) -> None:
+        if not 0 <= reorder_window <= 127:
+            raise ValueError(f"reorder_window must be in [0, 127], got {reorder_window}")
         self.rate_window_s = rate_window_s
         self.cmd_window_s = cmd_window_s
+        self.reorder_window = int(reorder_window)
         self.reset()
 
     def reset(self) -> None:
@@ -245,12 +256,14 @@ class FeatureExtractor:
         self._recv_dec_n = -(2**62)
         self._seq_state: dict[tuple[int, int], int] = {}
         self._seq_gap: dict[tuple[int, int], int] = {}
+        self._reorder_count = 0
         self._sources: dict[tuple[int, int], int] = {}
         self._signed = 0
         self._unsigned = 0
         self._last_heartbeat_t = -1e9
         self._last_gps_t = -1e9
         self._gps_raw_seen = False
+        self._ever_valid_gps_fix = False
         self._expected_msgs = 0.0  # for loss estimate
         self._last_ekf_t = -1e9
         self._ekf_flags: int | None = None
@@ -299,6 +312,11 @@ class FeatureExtractor:
         # command log
         self._commands: deque[CommandEvent] = deque(maxlen=200)
         self._sig_invalid_window = 0  # P4: reset each decision, see note_sig_invalid()
+        self._unsigned_window: dict[tuple[int, str], int] = {}
+        self._source_msgs_window: dict[tuple[int, int], set[str]] = {}
+        self._sig_streams_tracked = False
+        self._sig_invalid_streams_window: dict[tuple[int, int, int], int] = {}
+        self._sig_verified_streams_window: set[tuple[int, int, int]] = set()
 
     # -- ingestion ---------------------------------------------------------- #
 
@@ -309,6 +327,19 @@ class FeatureExtractor:
         live source."""
         self._sig_invalid_window += n
 
+    def note_signing_streams(
+        self,
+        invalid_streams: dict[tuple[int, int, int], int] | None = None,
+        verified_streams: set[tuple[int, int, int]] | None = None,
+    ) -> None:
+        """Accumulate per-stream ``(sysid, compid, link_id)`` signing events into this window."""
+        self._sig_streams_tracked = True
+        if invalid_streams:
+            for k, v in invalid_streams.items():
+                self._sig_invalid_streams_window[k] = self._sig_invalid_streams_window.get(k, 0) + int(v)
+        if verified_streams:
+            self._sig_verified_streams_window.update(verified_streams)
+
     def update(self, msg: MessageEnvelope) -> None:
         t = msg.recv_time
         src = (msg.sysid, msg.compid)
@@ -318,19 +349,30 @@ class FeatureExtractor:
         self._recv_n += 1
         rts.append(t)
         self._sources[src] = self._sources.get(src, 0) + 1
+        self._source_msgs_window.setdefault(src, set()).add(msg.msgname.upper())
         if msg.signed:
             self._signed += 1
         else:
             self._unsigned += 1
+            uk = (msg.sysid, msg.msgname)
+            self._unsigned_window[uk] = self._unsigned_window.get(uk, 0) + 1
 
-        # per-source sequence gap tracking (single link => +1 expected)
+        # per-source sequence gap tracking against high-water mark with reorder tolerance
         prev = self._seq_state.get(src)
-        if prev is not None:
-            gap = (msg.seq - prev) % 256
-            # gap of 1 is normal; larger => loss/scramble; 0 => duplicate
-            if gap > 1:
-                self._seq_gap[src] = max(self._seq_gap.get(src, 0), gap - 1)
-        self._seq_state[src] = msg.seq
+        if prev is None:
+            self._seq_state[src] = msg.seq
+        else:
+            d = (msg.seq - prev) % 256
+            if d == 1:
+                self._seq_state[src] = msg.seq
+            elif d == 0:
+                pass  # duplicate; keep high-water mark
+            elif self.reorder_window > 0 and (256 - self.reorder_window) <= d <= 255:
+                # Late (out-of-order) packet inside reorder_window: count it, keep HWM, no gap
+                self._reorder_count += 1
+            else:
+                self._seq_gap[src] = max(self._seq_gap.get(src, 0), d - 1)
+                self._seq_state[src] = msg.seq
 
         name = msg.msgname
         f = msg.fields
@@ -400,6 +442,8 @@ class FeatureExtractor:
             # a jump counts only with a 3D fix on BOTH reports: satellites returning after a fix
             # loss (or leaving with it) is receiver recovery / jamming, handled by other rules
             valid = self.snapshot.gps_fix_type >= 3
+            if valid:
+                self._ever_valid_gps_fix = True
             if sats is None:
                 # unknown count (MAVLink 255): never a jump itself, and it never replaces the last KNOWN count, so one
                 # injected 255 frame cannot hide a real jump between two genuine reports; a fix loss still breaks the pair
@@ -471,6 +515,12 @@ class FeatureExtractor:
         )
 
     def _update_position_residual(self, t: float, lat: float, lon: float, vx: float, vy: float) -> None:
+        # Before the first valid fix (or at null-island 0,0), ArduPilot has no origin; anchor on
+        # the first valid coordinate instead of clamping a multi-thousand-km snap into _resid_n.
+        at_null_island = abs(lat) < 1e-7 and abs(lon) < 1e-7
+        fix_type = self.snapshot.gps_fix_type
+        if at_null_island or (fix_type is not None and fix_type < 3 and not self._ever_valid_gps_fix):
+            return
         gated = self._gated(t)
         # the first ungated fix after a gated one: its increment straddles the state change (an
         # estimator reset as the solution returns), so it is tagged rather than read as drift
@@ -667,6 +717,7 @@ class FeatureExtractor:
             interarrival_mean_ms=ia_mean,
             interarrival_jitter_ms=ia_jit,
             max_seq_gap=max_gap,
+            reorder_count=self._reorder_count,
             n_sources=len(self._sources),
             heartbeat_age_s=hb_age,
             gps_age_s=snap.gps_age,
@@ -743,4 +794,9 @@ class FeatureExtractor:
         """Reset per-window source counts (called by the pipeline each decision)."""
         self._sources = {}
         self._seq_gap = {}
+        self._reorder_count = 0
         self._sig_invalid_window = 0
+        self._unsigned_window = {}
+        self._source_msgs_window = {}
+        self._sig_invalid_streams_window = {}
+        self._sig_verified_streams_window = set()

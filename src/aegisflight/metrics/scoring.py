@@ -9,12 +9,35 @@ class?). Latency is measured per attack session as time-to-first-detection.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 
 from ..core.enums import AttackType
 
 ALL_CLASSES: list[AttackType] = list(AttackType)
+LINK_LAYER_DISRUPTION: frozenset[AttackType] = frozenset({AttackType.DOS, AttackType.MAVLINK_ANOMALY})
+
+
+def link_layer_label(attack: AttackType) -> str:
+    """Group ``DOS`` and ``MAVLINK_ANOMALY`` under ``LINK_LAYER_DISRUPTION`` (Decision D10)."""
+    return "LINK_LAYER_DISRUPTION" if attack in LINK_LAYER_DISRUPTION else attack.value
+
+
+def hierarchical_link_summary(y_true: list[AttackType], y_pred: list[AttackType]) -> dict[str, Any]:
+    """Compute attribution accuracy when grouping link-layer DoS and MAVLink anomaly together."""
+    link_total = 0
+    link_correct = 0
+    for yt, yp in zip(y_true, y_pred, strict=True):
+        if yt in LINK_LAYER_DISRUPTION:
+            link_total += 1
+            if yp in LINK_LAYER_DISRUPTION:
+                link_correct += 1
+    return {
+        "link_layer_support": link_total,
+        "link_layer_matched": link_correct,
+        "link_layer_accuracy": round(link_correct / link_total, 4) if link_total else float("nan"),
+    }
 
 
 @dataclass

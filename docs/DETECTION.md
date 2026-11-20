@@ -22,11 +22,11 @@ detector score is their max); each casts a vote for the attack it implies:
 | Rule | Threshold (config `protocol.*`) | Votes |
 |---|---|---|
 | Message flood | `msg_rate ≥ max_msg_rate_hz` (400) → 1.0; `> spike_factor×nominal` (84) → ramp | DOS |
-| Sequence gaps | `max_seq_gap > max_seq_gap` (30) | DOS if rate high, else MAVLINK_ANOMALY |
+| Sequence gaps | `max_seq_gap > max_seq_gap` (30); late frames within `features.reorder_window` (default 16) behind the per-source high-water mark are counted in `reorder_count` rather than as `256 - k` gaps | DOS if rate high, else MAVLINK_ANOMALY |
 | Rogue telemetry source | sysid ∉ expected & not a command source | MAVLINK_ANOMALY |
 | Heartbeat stale | `heartbeat_age > heartbeat_timeout_s` (3); never received: elapsed monitoring time `> heartbeat_timeout_s` and past `startup_grace_s` (0 = off) | DOS |
 | GPS dropout | `gps_age > gps_dropout_s` (2); never received: coverage line only (score 0) unless `require_global_position`, then elapsed `> gps_dropout_s` and past `startup_grace_s` | DOS |
-| GNSS fix loss | `fix_type < min_gnss_fix_type` (3) or `satellites < min_gnss_satellites` (5; skipped when the count is unknown, see below) for `≥ gnss_loss_ticks` (5) consecutive decisions → 0.7 | DOS |
+| GNSS fix loss | `fix_type < min_gnss_fix_type` (3) or `satellites < min_gnss_satellites` (5; skipped when the count is unknown, see below) for `≥ gnss_loss_ticks` (5) consecutive decisions → `coverage` note (score 0) when never acquired under `gnss_never_acquired_policy: coverage` (default), or `DOS` 0.7 when `dos` or after a valid fix | DOS |
 | Command provenance | command from sysid ∉ `expected_gcs_sysids`; sensitive cmd / burst | COMMAND_INJECTION |
 | Signing | `require_signing` and unsigned present | MAVLINK_ANOMALY |
 
@@ -53,7 +53,11 @@ arrived yet.
 | GPS / heartbeat lost after being received | unchanged | unchanged: `GPS dropout 2.4s > 2.0s`, `heartbeat stale 4.2s > 3.0s` |
 | Age below threshold (stale-but-recent) | unchanged: 0, no evidence | none |
 | GNSS fix bad, a valid fix (fix ≥ 3 and sats ≥ 5) seen earlier since start/`reset()` | unchanged: DOS, 0.7 | unchanged: `GNSS fix lost: fix_type=0, satellites=0 for 5 decisions` (parsed by `scripts/sitl/make_p2n_summary.py`) |
-| GNSS fix bad, no valid fix ever seen (e.g. cold receiver, no sky view; also no receiver at all, see "fix_type 0" below) | unchanged: DOS, 0.7 | **changed text**: `GNSS fix never acquired: fix_type=0, satellites=0 for 5 decisions (no valid fix since monitoring began)` |
+| GNSS fix bad, no valid fix ever seen (e.g. cold receiver, no sky view; also no receiver at all) | **D4 default (`gnss_never_acquired_policy: coverage`)**: score 0, no vote (`dos` opt-in restores `DOS` 0.7) | `coverage: GNSS fix never acquired (fix_type=0, satellites=0 for 5 decisions; no valid fix since monitoring began); not attack evidence under this profile` (`dos` opt-in: `GNSS fix never acquired: ...`) |
+
+**Security consequence of `gnss_never_acquired_policy: coverage` (disclosed, not mitigated).** Under the default `coverage` policy, jamming from power-on *before any valid 3D fix is ever observed* is reported as a score-0 coverage condition rather than a `DOS` attack (pre-arm GPS checks outside the IDS still block flight). Once a valid 3D fix (`fix_type >= 3`, `satellites >= 5` or unknown) has been seen, subsequent loss always votes `DOS` 0.7.
+
+**First-sample physics guards (issue #15).** `PhysicsDetector` requires at least 2 fresh valid samples (`_LINK_GAP_S` freshness window) before scoring `battery_v_rise` (ignoring `0.0 V` power-on placeholders), `alt_rate_ms` (ignoring initial `0.0 m` origin placeholders), and `pos_residual_m` (and `FeatureExtractor` anchors `_last_fix` on the first valid non-null-island coordinate instead of integrating `(0, 0) -> home`).
 
 The never-received fault texts keep the `GPS dropout` / `heartbeat stale` prefixes that
 downstream scripts match; the coverage line deliberately contains neither `GPS dropout` nor
@@ -415,12 +419,23 @@ baseline benchmark every false positive is of this kind (compare the ML-off abla
 Every alert carries the concatenated evidence from all firing detectors — there
 are no unexplained black-box alerts.
 
-## Per-vehicle calibration (PX4 SITL)
+## Per-vehicle calibration (PX4 SITL & ArduCopter SITL)
 Thresholds above are the **Stage-1 simulator** values and are the reference condition. A
 separate, generated PX4-SITL profile (`configs/px4_sitl/detector.yaml`) and a separate
 PX4-benign anomaly model (`models/isoforest_px4.joblib`) exist for false-alarm reduction on
 that stack only; methodology, held-out evaluation and the cost side (what the loosened
-rules may no longer catch) are in `docs/CALIBRATION_PX4.md`. It is not attack detection.
+rules may no longer catch) are in `docs/CALIBRATION_PX4.md`.
+
+For ArduCopter SITL (`configs/ardupilot_copter/detector.yaml`, issue #49), the profile sets
+`anomaly.enabled: false` (disabling the Stage-1 simulator-trained Isolation Forest unless a
+vehicle-calibrated model is passed via `anomaly.calibrated_model_path`) and
+`fusion.ml_require_corroboration: true` (requiring any lone `ml_anomaly` vote to be
+corroborated by `protocol_rule`, `physics_consistency`, or `firmware_integrity` before
+crossing `fusion.threat_threshold`). Per-hour false-alert rates (`FA/hr` with one-sided 95%
+Poisson upper bounds) and per-detector attribution across calibration and held-out sets
+(`artifacts/ardupilot/calibration/heldout_lock.json`) are committed in
+`artifacts/validation/inflight_fa_per_hour_20261119/summary.md` (`python scripts/evaluate_inflight_fa_per_hour.py`,
+environment `SITL`, claim class: link-level detection).
 
 **Unknown satellite count (MAVLink 255).** `GPS_RAW_INT.satellites_visible = 255` means "unknown", not 255
 satellites. It is stored as `None` (API `gps.satellites: null`, dashboard "unknown"). The GNSS-loss rule then judges
@@ -428,3 +443,42 @@ satellites. It is stored as `None` (API `gps.satellites: null`, dashboard "unkno
 Trade-off: a forger who can replace the vehicle's `GPS_RAW_INT` stream could keep reporting 255 with a 3D fix and so
 suppress the low-satellite and jump signals; those signals were never authentication. An injected 255 frame between two
 genuine reports cannot hide a jump: the jump is measured against the last known count.
+
+## Live Firmware Identity Allowlist (`integrity/allowlist.py`) {#firmware-allowlist}
+While Stage-1 simulations verify on-disk files via `FirmwareVerifier`, real autopilots and SITL links do not expose firmware files to the IDS. When `configs/firmware_allowlist.yaml` is loaded for a non-simulated link:
+- Observed `AUTOPILOT_VERSION` frames are compared against the matching `(sysid, compid)` entry across `flight_sw_version`, `flight_custom_version`, `board_version`, `vendor_id`, `product_id`, and `uid` (where pinned).
+- Any field mismatch raises `FIRMWARE_INTEGRITY` (score `1.0`) naming the mismatched field(s); if `AUTOPILOT_VERSION` has not been observed yet or no entry is pinned for that endpoint, a score-0 coverage note is emitted instead of alerting.
+- Allowlist integrity supports optional HMAC-SHA256 verification via `hmac_sha256` and env `AEGIS_ALLOWLIST_KEY` (never committed): signed files with a missing key or invalid signature fail closed (`AllowlistError`), while unsigned files load with an explicit warning.
+- Run provenance and live run metadata record `firmware_allowlist_sha256`.
+
+## MAVLink-2 Signing Bootstrap & Per-Source Allowlist (#19)
+When `protocol.require_signing: true`:
+- **Per-stream bootstrap settle (`signing_settle_s`, default 2.0 s):** each `(sysid, compid, link_id)` stream suppresses `sig_invalid` during `[t0, t0 + signing_settle_s)` only until that stream produces its first validly signed frame (emitting a score-0 coverage note while settling). Once verified or past `signing_settle_s`, the settle window never re-opens for that stream.
+- **Per-source `unsigned_allowed`:** replaces the link-wide `signed_ratio < 1.0` check on live streams with an explicit allowlist (default `[{sysid: 51, msg: RADIO_STATUS}]`), preventing SiK telemetry-radio status frames from triggering false alarms while flagging unexpected unsigned senders. Checking committed bench probe JSONs (`artifacts/hardware/*probe*.json`) confirmed `RADIO_STATUS` (`msgid 109`) was not emitted in those USB-direct probes (no SiK local radio attached).
+
+## Link-layer attribution & hierarchical reporting (#22, Decision D10)
+
+On `FeatureFrame`, several link-level attack modes overlap physically: `dos:flood` (`~100 msg/s`,
+`gap ~250`) and `mavlink_anomaly:rate_spike` (`~106 msg/s`, `gap ~250`) produce nearly identical
+feature vectors, and `dos:latency` (`median jitter 32.4 ms`) overlaps benign simulated jitter
+(`median 46.7 ms`) and `mavlink_anomaly:seq_scramble`.
+
+- **Opt-in semantic packet-loss rule (`protocol.semantic_link_attribution`, default `false`):**
+  when enabled, selective heartbeat starvation (`heartbeat_age_s > heartbeat_timeout_s` while
+  `gps_age_s <= gps_dropout_s` and `msg_rate_hz >= protocol.semantic_link_min_rate_hz`, default `5.0`)
+  votes `MAVLINK_ANOMALY` rather than `DOS`, reserving `DOS` for link-wide blackouts
+  (`msg_rate_hz < semantic_link_min_rate_hz` or GPS also stale).
+  **Strict-attribution trade-off (environment `SIM`, claim class: link-level detection):** on the
+  fresh-seed extended benchmark (`master_seed=20261119`), enabling `semantic_link_attribution`
+  raises `mavlink_anomaly:packet_loss` strict accuracy from `0.0000` to `0.9531`, while reducing
+  `dos:blackout` strict accuracy from `0.7641` to `0.6410` during partial-window transition ticks
+  where heartbeats have been stale for >3 s while residual non-heartbeat frames in the sliding
+  rate window keep `msg_rate_hz >= 5.0` and `gps_age_s <= 2.0`.
+- **Hierarchical link-layer metric (`metrics/scoring.py:hierarchical_link_summary`):**
+  groups `DOS` and `MAVLINK_ANOMALY` under `LINK_LAYER_DISRUPTION` so overlapping link-layer
+  transport faults (`rate_spike`, `latency`, `packet_loss`, `flood`) are reported as a coarse
+  link-disruption family alongside the primary strict per-class confusion matrix (note:
+  `LINK_LAYER_DISRUPTION` measures coarse link-layer vs non-link-layer attribution, not fine
+  intra-link attribution between `DOS` and `MAVLINK_ANOMALY`).
+- **Methodology disclosure:** these rules and evaluations (`scripts/eval_link_attribution.py` on
+  fresh `master_seed=20261119`) were designed with knowledge of the simulator's attack definitions.

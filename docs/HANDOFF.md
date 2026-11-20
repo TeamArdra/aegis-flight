@@ -84,6 +84,16 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
 ## Do NOT change casually
 - **`ML_FEATURES` order/content** (`features/extractor.py`) — the saved model
   depends on it exactly; changing it silently breaks inference. Retrain.
+  *Frozen-contract migration note (issue #14, 2026-11-18):* `ML_FEATURES` order and
+  content are unchanged (`len == 11`). `FeatureExtractor` now tracks per-source
+  sequence numbers against a high-water mark with `features.reorder_window` (default
+  `16`), counting late packets within `1..R` steps in the new additive `FeatureFrame.reorder_count`
+  field (not in `ML_FEATURES`) instead of recording a `256 - k` `max_seq_gap`.
+  In-order and Stage-1 SIM benign/attack streams behave identically; `dos:latency`
+  jitter-induced reorders no longer masquerade as 254-frame sequence gaps.
+  Security consequence: an unauthenticated replay within `R` sequence steps of the
+  high-water mark is counted as `reorder_count` rather than `max_seq_gap`; MAVLink-2
+  signing and command-cadence checks still apply.
 - **`FlightState` / `MessageEnvelope` fields** — codec + extractor contract.
 - **Enum `.value` strings** — API/DB/JSON contract.
 - **The MAVLink message field mappings** — encoder and extractor must agree.
@@ -106,6 +116,9 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
   - Extended 2026-10-28, additive: EKF_STATUS_REPORT variances, GPS_RAW_INT eph/vel, GPS_STATUS read by the extractor; user requested the EKF-health and receiver-signature rules in chat on 2026-10-28; ML_FEATURES unchanged.
   - See `docs/DETECTION.md` "Estimator-aware position residual".
 - **The event schema / hash-chain canonicalisation** — breaks existing logs.
+  *Extended 2026-11-18 (#21, offline maintainer approval confirmed; additive only):*
+  - `events` table columns, `_canonical`, `_hash`, `verify_chain()`, and default `aegis verify-log <db>` output are **byte-identical** (`read_only=True` verification leaves legacy fixture DBs untouched on disk).
+  - Additive `<db>.anchors.jsonl` external head anchoring (`logging/anchors.py`, optional `AEGIS_ANCHOR_KEY` HMAC-SHA256) and additive `actions` table (`EventStore.log_action`, `verify_actions_chain`) added without changing any `events` canonical bytes.
 - **The benchmark scoring policy** (warmup/grace) — changing it changes reported
   numbers; if you do, re-document it.
 - **Attack hook signatures** — many attacks depend on the base interface.
@@ -118,6 +131,7 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
 ## Completed in Stage 2
 1. **MAVLink 2 message signing & cryptographic attestation**: Implemented in `src/aegisflight/mavlink/signing.py`.
 2. **Serial & UDP transports & SITL integration**: Fully verified with ArduPilot 4.7.1 and PX4 1.14 (`docs/ARDUPILOT_SITL.md`, `docs/STAGE2_RUNBOOK.md`).
+3. **Strict 3-mode separation (`#58`)**: Default `passive` posture on `InlineIpsBridge` is now strictly zero-TX on both `fc` and `gcs` links and forwards `compid 191` frames transparently; keyed deployments that require in-band `passive -> advisory` remote promotion must pass `--mgmt-enable`.
 3. **Hardware Abstraction Layer (HAL)**: Auto-discovery across flight controllers, companion computers, and dynamic latency budgets (`src/aegisflight/hal/`).
 4. **Dual-Topology Autonomous Prevention**: Topology A (Sidecar Actuator) and Topology B (Inline Transparent Bridge with 150 ms fail-open watchdog).
 5. **Cross-Platform Native Desktop GCS**: Tauri 2.0 (Rust) + React 18 + TypeScript (`frontend/src-tauri/`).

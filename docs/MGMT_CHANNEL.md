@@ -7,14 +7,13 @@ that same radio using only standard MAVLink 2 messages (no dialect change). Code
 (synthetic frames and in-memory links; the later runs over the real LR900 radio pair and on a Pi are in `docs/RADIO_TEST_RESULTS.md`).
 
 All bridge frames are sent from **sysid 1 / compid 191** to the **GCS side only**: never to the flight controller,
-never to the bridge's tap/detectors, in every posture (passive / advisory / active-ips). The channel is **on by default**
-(`--gcs-alerts on`, status every 2 s), so even in `passive` the bridge transmits on the GCS side and is not a byte-transparent
-link there; and every uplink COMMAND_LONG `MAV_CMD_USER_1` addressed to component 191 is consumed by the bridge (never
-forwarded to the flight controller), signed or not, with or without a management key. Component 191 is the standard
-`MAV_COMP_ID_ONBOARD_COMPUTER`, so such a command meant for a real companion computer behind the bridge would not reach it. The ground IDS already treats
-sysid 1 as the vehicle (the cross-end summary uses the same sender); a test runs the ground pipeline over a stream with
-these frames and expects no alert and no sequence gap (the cross-end summary and this channel share ONE sequence
-counter and signer for the 1/191 stream).
+never to the bridge's tap/detectors. Starting with #58, posture modes are strictly separated by default:
+- **`passive`**: strict **0-byte TX** on both FC and GCS links (no `STATUSTEXT`, no `MEMORY_VECT`, no `crossend`,
+  no `COMMAND_ACK`, and no compid-191 command consumption). Opt in only if `--mgmt-enable` is explicitly passed.
+- **`advisory`**: zero FC-link writes or drops; sends GCS-side management alerts, status, cross-end summaries, and
+  advisory `STATUSTEXT` frames.
+- **`active-ips`**: GCS-side management/alerts plus inline drops, sanitization, and FC counter-commands (refused on
+  physical serial devices by `may_reach_vehicle()`).
 
 ## Messages
 
