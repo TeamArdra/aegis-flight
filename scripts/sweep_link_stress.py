@@ -62,6 +62,7 @@ from aegisflight import run_provenance as prov
 from aegisflight.benchmark.extended import LINK_STRESS, ROUTES
 from aegisflight.benchmark.runner import run_session
 from aegisflight.config import load_config
+from aegisflight.detectors.anomaly import AnomalyDetector
 
 REPO = Path(__file__).resolve().parents[1]
 ENVIRONMENT = "SIM"
@@ -111,6 +112,15 @@ def resolve_model(cell: Cell, models: dict[str, str | None]) -> tuple[str | None
         return None, None
     path = models.get(cell.profile)
     return (path, None) if path else (None, NA_NO_MODEL)
+
+
+def model_loads(path: str) -> bool:
+    """True only if the anomaly detector can actually load ``path``.
+
+    ``AnomalyDetector`` degrades to ML off when ``joblib.load`` fails (corrupt, truncated or sklearn-incompatible file), so
+    a file that merely exists would yield cells labelled ``ml=on`` with ML-off numbers.
+    """
+    return AnomalyDetector({}, path).available
 
 
 def session_params(seed0: int, i: int) -> dict[str, Any]:
@@ -269,6 +279,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ERROR: model for ML-on cell {c.cid} not found: {m}", file=sys.stderr)
             return 2
         plan.append((c, m, na))
+    for m in sorted({m for _, m, _ in plan if m}):  # fail closed before any output exists
+        if not model_loads(m):
+            print(f"ERROR: ML model could not be loaded (corrupt or incompatible): {m}", file=sys.stderr)
+            return 2
 
     out = Path(a.out) if a.out else Path(tempfile.mkdtemp(prefix="aegis_link_stress_"))
     out.mkdir(parents=True, exist_ok=True)

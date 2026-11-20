@@ -171,3 +171,14 @@ def test_missing_model_for_ml_on_is_an_error_not_a_silent_ml_off(tmp_path: Path)
     rc = sw.main(["--loss", "0", "--ordering", "fifo", "--ml", "on", "--profiles", "stage1", "--sessions", "1",
                   "--allow-dirty", "--model-stage1", str(tmp_path / "nope.joblib"), "--out", str(tmp_path / "o")])
     assert rc == 2
+
+
+def test_unloadable_model_for_ml_on_fails_closed_with_no_output(tmp_path: Path) -> None:
+    bad = tmp_path / "garbage.joblib"
+    bad.write_bytes(b"not a joblib pickle")
+    out = tmp_path / "o"
+    assert not sw.model_loads(str(bad))
+    rc = sw.main(["--loss", "0", "--ordering", "fifo", "--ml", "on", "--profiles", "stage1", "--sessions", "1",
+                  "--duration-s", "12", "--allow-dirty", "--model-stage1", str(bad), "--out", str(out)])
+    assert rc == 2
+    assert not out.exists()  # no output, so no ml=on row with ML-off numbers
