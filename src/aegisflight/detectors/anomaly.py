@@ -181,13 +181,23 @@ def _fast_scorer(path: Path | None, bundle: dict) -> _FastScorer | None:
 class AnomalyDetector(Detector):
     name = DetectorName.ANOMALY
 
-    def __init__(self, cfg: dict, model_path: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        cfg: dict,
+        model_path: str | Path | None = None,
+        *,
+        allow_unverified: bool = False,
+    ) -> None:
         """``model_path=None`` means **ML off** (detector is a no-op).
 
         Previously ``None`` silently fell back to ``cfg["model_path"]``, so the
         documented ``--no-model`` / ``model_path=None`` "rule + physics only"
         runs still loaded the model whenever ``models/isoforest.joblib`` existed.
         Callers that want the model pass its path explicitly.
+
+        Security boundary (#11 / D4): every model file is checked against ``MODELS.sha256``
+        BEFORE ``joblib.load()`` deserialization; tampered (``mismatch``) or ``unlisted``
+        files are refused without unpickling unless ``allow_unverified=True``.
         """
         self.enabled = bool(cfg.get("enabled", True))
         self.threshold = float(cfg.get("score_threshold", 0.62))
@@ -213,6 +223,19 @@ class AnomalyDetector(Detector):
                 path,
             )
         if path is not None and path.exists():
+            from ..model_integrity import OK as _MODEL_OK  # noqa: PLC0415
+            from ..model_integrity import check_model as _check_model  # noqa: PLC0415
+
+            chk = _check_model(path)
+            if chk.status != _MODEL_OK and not allow_unverified:
+                self.bundle = None
+                self.load_error = f"ModelIntegrityError ({chk.status}): {chk.message()}"
+                log.warning(
+                    "ML model refused before deserialization (%s): %s; ML detector is OFF",
+                    chk.status,
+                    chk.message(),
+                )
+                return
             try:
                 import joblib  # noqa: PLC0415 - lazy so slim ML-off onboard installs work without joblib
 

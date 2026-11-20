@@ -132,12 +132,12 @@ def test_anomaly_detector_load_failure_paths(
     assert det_missing.available is False
     assert any("does not exist" in rec.message for rec in caplog.records)
 
-    # 2. Corrupt model file sets load_error and logs a warning
+    # 2. Corrupt model file sets load_error and logs a warning (allow_unverified=True to reach joblib.load)
     caplog.clear()
     corrupt = tmp_path / "corrupt.joblib"
     corrupt.write_bytes(b"not-a-joblib-pickle")
     with caplog.at_level(logging.WARNING, logger="aegisflight.detectors.anomaly"):
-        det_corrupt = AnomalyDetector(cfg, model_path=corrupt)
+        det_corrupt = AnomalyDetector(cfg, model_path=corrupt, allow_unverified=True)
     assert det_corrupt.available is False
     assert det_corrupt.load_error is not None
     assert any("is unreadable" in rec.message for rec in caplog.records)
@@ -146,7 +146,16 @@ def test_anomaly_detector_load_failure_paths(
     monkeypatch.setitem(sys.modules, "joblib", None)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        det_no_joblib = AnomalyDetector(cfg, model_path=corrupt)
+        det_no_joblib = AnomalyDetector(cfg, model_path=corrupt, allow_unverified=True)
     assert det_no_joblib.available is False
     assert det_no_joblib.load_error is not None and det_no_joblib.load_error.startswith("ImportError:")
     assert any(issubclass(w.category, RuntimeWarning) for w in caught)
+
+
+def test_px4_and_ardupilot_profiles_require_ml_corroboration_and_explicit_gnss_policy() -> None:
+    px4_cfg = load_config("configs/px4_sitl")
+    ap_cfg = load_config("configs/ardupilot_copter")
+    assert px4_cfg.detector["fusion"]["ml_require_corroboration"] is True
+    assert ap_cfg.detector["fusion"]["ml_require_corroboration"] is True
+    assert px4_cfg.detector["protocol"]["gnss_never_acquired_policy"] == "coverage"
+    assert ap_cfg.detector["protocol"]["gnss_never_acquired_policy"] == "coverage"

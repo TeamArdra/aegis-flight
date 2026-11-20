@@ -16,6 +16,7 @@ from .store import GENESIS_HASH, EventStore
 
 ANCHOR_KEY_ENV = "AEGIS_ANCHOR_KEY"
 DEFAULT_ANCHOR_INTERVAL_S = 5.0
+GENESIS_ANCHOR_HASH = "0" * 64
 
 
 def default_anchors_path(db_path: str | Path) -> Path:
@@ -34,15 +35,24 @@ def _coerce_key(key: bytes | str | None) -> bytes | None:
 
 
 def canonical_anchor_bytes(record: dict[str, Any]) -> bytes:
-    """Canonical JSON bytes over anchor fields ``{run_id, last_id, row_count, head_hash, wall_time}``."""
-    core = {
+    """Canonical JSON bytes over anchor fields including chain linkage ``seq`` and ``prev_anchor_hash``."""
+    core: dict[str, Any] = {
         "run_id": str(record["run_id"]),
         "last_id": int(record["last_id"]),
         "row_count": int(record["row_count"]),
         "head_hash": str(record["head_hash"]),
         "wall_time": float(record["wall_time"]),
     }
+    if "seq" in record:
+        core["seq"] = int(record["seq"])
+    if "prev_anchor_hash" in record:
+        core["prev_anchor_hash"] = str(record["prev_anchor_hash"])
     return json.dumps(core, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+
+
+def anchor_record_hash(record: dict[str, Any]) -> str:
+    """Compute SHA-256 hex digest of :func:`canonical_anchor_bytes`."""
+    return hashlib.sha256(canonical_anchor_bytes(record)).hexdigest()
 
 
 def compute_anchor_hmac(record: dict[str, Any], key: bytes | str) -> str:
@@ -59,8 +69,10 @@ def build_anchor_record(
     *,
     key: bytes | str | None = None,
     warn_unsigned: bool = True,
+    seq: int = 0,
+    prev_anchor_hash: str = GENESIS_ANCHOR_HASH,
 ) -> dict[str, Any]:
-    """Snapshot ``run_id``'s current head into an anchor record."""
+    """Snapshot ``run_id``'s current head into a hash-chained anchor record."""
     row = store.conn.execute(
         "SELECT id, hash FROM events WHERE run_id=? ORDER BY id DESC LIMIT 1",
         (run_id,),
@@ -73,12 +85,15 @@ def build_anchor_record(
     last_id = int(row["id"]) if row is not None else 0
     head_hash = str(row["hash"]) if row is not None else GENESIS_HASH
     rec: dict[str, Any] = {
+        "seq": int(seq),
+        "prev_anchor_hash": str(prev_anchor_hash),
         "run_id": run_id,
         "last_id": last_id,
         "row_count": row_count,
         "head_hash": head_hash,
         "wall_time": time.time(),
     }
+    rec["anchor_hash"] = anchor_record_hash(rec)
     raw_key = _coerce_key(key)
     if raw_key is not None:
         rec["hmac_sha256"] = compute_anchor_hmac(rec, raw_key)
@@ -124,8 +139,10 @@ def verify_anchors(
     anchor_path: str | Path,
     *,
     key: bytes | str | None = None,
+    expected_min_anchors: int | None = None,
 ) -> AnchorVerification:
-    """Verify anchor signatures and check ``store`` for truncation or deleted runs."""
+    """Verify anchor signatures, anchor-chain continuity (``seq`` & ``prev_anchor_hash``),
+    and check ``store`` for truncation or deleted runs."""
     p = Path(anchor_path)
     if not p.is_file():
         return AnchorVerification(ok=False, errors=[f"anchor file not found: {p}"])
@@ -136,6 +153,8 @@ def verify_anchors(
     warns: list[str] = []
     signed_n = 0
     unsigned_n = 0
+    expected_seq = 0
+    expected_prev_hash = GENESIS_ANCHOR_HASH
 
     for lineno, raw_line in enumerate(p.read_text(encoding="utf-8").splitlines(), start=1):
         s = raw_line.strip()
@@ -149,22 +168,58 @@ def verify_anchors(
         if not isinstance(rec, dict):
             errors.append(f"anchor line {lineno}: expected JSON object")
             continue
+
+        # Enforce sequence and prev_anchor_hash continuity across the anchor log (#21 / D6)
+        if "seq" not in rec or "prev_anchor_hash" not in rec:
+            errors.append(f"anchor line {lineno}: missing chain-continuity fields (seq / prev_anchor_hash)")
+            continue
+        try:
+            rec_seq = int(rec["seq"])
+        except (TypeError, ValueError):
+            errors.append(f"anchor line {lineno}: invalid seq {rec.get('seq')!r}")
+            continue
+        rec_prev = str(rec["prev_anchor_hash"])
+        if rec_seq != expected_seq:
+            errors.append(
+                f"anchor line {lineno}: sequence discontinuity (got seq={rec_seq}, expected {expected_seq})"
+            )
+        if rec_prev != expected_prev_hash:
+            errors.append(
+                f"anchor line {lineno}: prev_anchor_hash mismatch (broken anchor chain / deletion or reordering)"
+            )
+
+        try:
+            computed_hash = anchor_record_hash(rec)
+        except (KeyError, TypeError, ValueError) as exc:
+            errors.append(f"anchor line {lineno}: malformed anchor fields ({exc})")
+            continue
+        if "anchor_hash" in rec and str(rec["anchor_hash"]).lower() != computed_hash.lower():
+            errors.append(f"anchor line {lineno}: anchor_hash mismatch (record modified)")
+
         sig = rec.get("hmac_sha256")
         if sig is not None:
             signed_n += 1
             if raw_key is None:
                 errors.append(f"anchor line {lineno}: signed anchor cannot be verified without {ANCHOR_KEY_ENV}")
+                expected_seq = rec_seq + 1
+                expected_prev_hash = computed_hash
                 continue
             if rec.get("signed") is False:
                 errors.append(f"anchor line {lineno}: anchor carries hmac_sha256 with signed=false")
+                expected_seq = rec_seq + 1
+                expected_prev_hash = computed_hash
                 continue
             try:
                 expect = compute_anchor_hmac(rec, raw_key)
             except (KeyError, TypeError, ValueError) as exc:
                 errors.append(f"anchor line {lineno}: malformed anchor fields ({exc})")
+                expected_seq = rec_seq + 1
+                expected_prev_hash = computed_hash
                 continue
             if not hmac.compare_digest(expect.lower(), str(sig).strip().lower()):
                 errors.append(f"anchor line {lineno} (run {rec.get('run_id')}): HMAC-SHA256 verification failed")
+                expected_seq = rec_seq + 1
+                expected_prev_hash = computed_hash
                 continue
         else:
             unsigned_n += 1
@@ -173,8 +228,18 @@ def verify_anchors(
                     f"anchor line {lineno} (run {rec.get('run_id')}): "
                     "unsigned anchor rejected when HMAC key is configured or after signed anchors"
                 )
+                expected_seq = rec_seq + 1
+                expected_prev_hash = computed_hash
                 continue
+
+        expected_seq = rec_seq + 1
+        expected_prev_hash = computed_hash
         records.append(rec)
+
+    if expected_min_anchors is not None and len(records) < int(expected_min_anchors):
+        errors.append(
+            f"anchor log truncated: found {len(records)} anchor(s), expected >= {int(expected_min_anchors)}"
+        )
 
     if unsigned_n and raw_key is None:
         warns.append(f"{unsigned_n} unsigned anchor(s) in {p.name} ({ANCHOR_KEY_ENV} unset)")
@@ -257,16 +322,42 @@ class AnchorWriter:
         self.latest_anchor: dict[str, Any] | None = None
         self.last_anchor_mono: float | None = None
         self._warned_unsigned = False
+        self._seq: int = 0
+        self._prev_anchor_hash: str = GENESIS_ANCHOR_HASH
+        self._resume_chain_state()
+
+    def _resume_chain_state(self) -> None:
+        if not self.anchor_path.is_file():
+            return
+        lines = [ln.strip() for ln in self.anchor_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        if not lines:
+            return
+        try:
+            last = json.loads(lines[-1])
+            if isinstance(last, dict) and "seq" in last:
+                self._seq = int(last["seq"]) + 1
+                self._prev_anchor_hash = str(last.get("anchor_hash") or anchor_record_hash(last))
+        except Exception:  # noqa: BLE001
+            pass
 
     def write_now(self, run_id: str, *, force: bool = False) -> dict[str, Any] | None:
         """Write an anchor record for ``run_id`` now (unless unchanged and not forced)."""
         warn = not self._warned_unsigned
-        rec = build_anchor_record(self.store, run_id, key=self.key, warn_unsigned=warn)
+        rec = build_anchor_record(
+            self.store,
+            run_id,
+            key=self.key,
+            warn_unsigned=warn,
+            seq=self._seq,
+            prev_anchor_hash=self._prev_anchor_hash,
+        )
         if not rec["signed"]:
             self._warned_unsigned = True
         if not force and self._last_anchored_count.get(run_id) == rec["row_count"] and self.latest_anchor is not None:
             return None
         append_anchor(self.anchor_path, rec)
+        self._seq += 1
+        self._prev_anchor_hash = str(rec["anchor_hash"])
         now_mono = time.monotonic()
         self._last_write_mono = now_mono
         self.last_anchor_mono = now_mono

@@ -324,23 +324,32 @@ def test_socket_serial_source_makes_decisions_and_is_labelled_replay(tmp_path):
 # --------------------------------------------------------------------------- #
 
 def _bad_fix_tlog(tmp_path: Path) -> Path:
-    # SYNTHETIC: valid 3D fix for 3 s followed by loss -> genuine "GNSS fix lost" DOS alerts
-    frames = synthetic_stream(20.0, fix_fn=lambda t: (3, 10) if t < 3.0 else (0, 0))
-    return write_tlog(tmp_path / "synthetic_bad_fix.tlog", frames)
+    # SYNTHETIC: position streams, receiver reports fix 0 / 0 satellites -> SIM default GNSS "never acquired" DOS alerts
+    return write_tlog(tmp_path / "synthetic_bad_fix.tlog", synthetic_stream(20.0, fix=(0, 0)))
 
 
-def test_gnss_never_acquired_produces_zero_alerts(tmp_path):
+def test_gnss_never_acquired_produces_zero_dos_alerts_under_live_profile(tmp_path):
+    from aegisflight.config import load_config
+
+    cfg = load_config("configs/ardupilot_copter")
+    assert cfg.detector["protocol"]["gnss_never_acquired_policy"] == "coverage"
     tlog = write_tlog(tmp_path / "synthetic_never_fix.tlog", synthetic_stream(20.0, fix=(0, 0)))
-    eng = make_engine(tmp_path, replay_spec(tlog))
+    eng = LiveEngine(
+        cfg=cfg,
+        db_path=str(tmp_path / "live.sqlite"),
+        spec=replay_spec(tlog),
+    )
     with serve(eng) as client:
         st, _ = poll(client, lambda s: link(s)["state"] == "ended", timeout_s=30)
         api = client.get("/api/events?limit=200").json()
     assert link(st)["state"] == "ended", link(st)
-    assert api["events"] == [], api["events"]
+    dos_events = [e for e in api["events"] if e.get("attack_type") == "DOS"]
+    assert dos_events == [], dos_events
 
 
-def test_alerts_reach_event_store_and_api_events(tmp_path):
-    tlog = _bad_fix_tlog(tmp_path)
+@pytest.mark.parametrize("which", ["synthetic_bad_fix", pytest.param("capture_007", marks=needs_007)])
+def test_alerts_reach_event_store_and_api_events(tmp_path, which):
+    tlog = _bad_fix_tlog(tmp_path) if which == "synthetic_bad_fix" else TLOG_007
     eng = make_engine(tmp_path, replay_spec(tlog))
     with serve(eng) as client:
         st, hist = poll(client, lambda s: link(s)["state"] == "ended", timeout_s=30)
@@ -353,7 +362,7 @@ def test_alerts_reach_event_store_and_api_events(tmp_path):
     assert events, "the stream should have produced GNSS-rule alerts"
     for e in events:
         assert e["run_id"] == run_id and e["environment"] == "REPLAY"
-        assert any("GNSS fix lost" in x for x in e["evidence"]), e["evidence"]
+        assert any("GNSS fix never acquired" in x for x in e["evidence"]), e["evidence"]
         assert e["attack_type"] == "DOS"
     store = EventStore(tmp_path / "live.sqlite")
     try:

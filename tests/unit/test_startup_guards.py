@@ -68,8 +68,8 @@ def _gpi(
 
 
 def test_gnss_never_acquired_default_coverage_and_lost_regained_resets() -> None:
-    cfg = dict(DEFAULT_DETECTOR["protocol"])
-    assert cfg["gnss_never_acquired_policy"] == "coverage"
+    assert DEFAULT_DETECTOR["protocol"]["gnss_never_acquired_policy"] == "dos"
+    cfg = {**DEFAULT_DETECTOR["protocol"], "gnss_never_acquired_policy": "coverage"}
     det = ProtocolDetector(cfg)
     ex = FeatureExtractor()
 
@@ -237,7 +237,7 @@ def test_ardupilot_boot_sequence_produces_zero_startup_alerts() -> None:
     - t=9.4..12.0: nominal settled telemetry
     Must produce 0 alerts across the entire boot sequence.
     """
-    cfg = load_config()
+    cfg = load_config("configs/ardupilot_copter")
     pipe = IDSPipeline(cfg, model_path=None)
     seq = 0
     alerts = []

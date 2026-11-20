@@ -40,6 +40,7 @@ class IDSPipeline:
         firmware_real: bool = False,
         firmware_recheck_every: int = 5,
         firmware_allowlist: FirmwareAllowlist | None = None,
+        allow_unverified_model: bool = False,
     ) -> None:
         self.cfg = cfg
         # optional GCS-side cross-end check (detectors/crossend.py); None = byte-identical behaviour
@@ -52,7 +53,7 @@ class IDSPipeline:
         )
         self.protocol = ProtocolDetector(det["protocol"])
         self.physics = PhysicsDetector(det["physics"])
-        self.anomaly = AnomalyDetector(det["anomaly"], model_path)
+        self.anomaly = AnomalyDetector(det["anomaly"], model_path, allow_unverified=allow_unverified_model)
 
         # firmware_real: the directory holds REAL files with a trusted manifest (``aegis fw-manifest``); the simulated
         # fixture is never written into it and a reset never overwrites it

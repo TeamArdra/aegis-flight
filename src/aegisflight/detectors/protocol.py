@@ -63,7 +63,7 @@ class ProtocolDetector(Detector):
         self._gnss_bad = 0
         # Has a valid fix (the rule's own healthy condition) ever been observed?
         self._gnss_ever_valid = False
-        gnss_policy = str(p.get("gnss_never_acquired_policy", "coverage")).lower()
+        gnss_policy = str(p.get("gnss_never_acquired_policy", "dos")).lower()
         if gnss_policy not in ("coverage", "dos"):
             raise ValueError(
                 f"gnss_never_acquired_policy must be 'coverage' or 'dos', got {gnss_policy!r}"

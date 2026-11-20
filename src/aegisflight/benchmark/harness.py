@@ -60,6 +60,7 @@ def run_benchmark(
     model_path: str | None = "models/isoforest.joblib",
     out_dir: str | Path = "artifacts/benchmarks",
     grace_s: float = 5.0,
+    allow_unverified_model: bool = False,
 ) -> dict:
     seeds = seeds or [1, 2, 3, 4, 5, 6]
     out = Path(out_dir)
@@ -89,7 +90,8 @@ def run_benchmark(
         for i, seed in enumerate(seeds):
             route = ROUTES[i % len(ROUTES)]
             res = run_session(cfg, scenario, seed=seed, route=route,
-                              model_path=model_path, grace_s=grace_s)
+                              model_path=model_path, grace_s=grace_s,
+                              allow_unverified_model=allow_unverified_model)
             sampler.sample()
 
             scored = [r for r in res.records if r.scored]

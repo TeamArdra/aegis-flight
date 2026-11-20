@@ -492,23 +492,15 @@ def _fix_stream(fix_at):
     return msgs
 
 
-def test_gnss_fix_never_acquired_is_coverage_by_default_and_dos_when_opted_in():
+def test_gnss_fix_never_acquired_says_so_and_never_claims_a_loss():
     rows = _run(_fix_stream(lambda t: (0, 0)), seconds=5.0)
-    _, _, res = rows[GNSS_TICKS - 1]  # the rule's first coverage report
-    assert res.score == 0.0 and res.attack_votes == {}
+    _, _, res = rows[GNSS_TICKS - 1]  # the rule's first firing decision
+    assert res.score == pytest.approx(0.7) and res.attack_votes == {AttackType.DOS: 0.7}
     assert res.signals["gnss_bad_ticks"] == float(GNSS_TICKS)
-    assert res.evidence == [
-        f"coverage: GNSS fix never acquired (fix_type=0, satellites=0 for {GNSS_TICKS} "
-        "decisions; no valid fix since monitoring began); not attack evidence under this profile"
-    ]
+    assert _gnss_ev(res) == [f"GNSS fix never acquired: fix_type=0, satellites=0 for {GNSS_TICKS} "
+                             "decisions (no valid fix since monitoring began)"]
     for _t, _, r in rows:
         assert not any("lost" in e for e in r.evidence)
-
-    rows_dos = _run(_fix_stream(lambda t: (0, 0)), seconds=5.0, gnss_never_acquired_policy="dos")
-    _, _, res_dos = rows_dos[GNSS_TICKS - 1]
-    assert res_dos.score == pytest.approx(0.7) and res_dos.attack_votes == {AttackType.DOS: 0.7}
-    assert _gnss_ev(res_dos) == [f"GNSS fix never acquired: fix_type=0, satellites=0 for {GNSS_TICKS} "
-                                 "decisions (no valid fix since monitoring began)"]
 
 
 def test_gnss_fix_lost_after_valid_fix_keeps_exact_wording_score_and_timing():
@@ -528,11 +520,11 @@ def test_gnss_fix_healthy_throughout_has_no_gnss_evidence():
 def test_gnss_fix_reacquired_after_never_then_lost_says_lost():
     def fix_at(t):
         if t < 2.0:
-            return (0, 0)  # never acquired (coverage under default policy)
+            return (0, 0)  # never acquired (fires "never acquired")
         return (3, 10) if t < 4.0 else (1, 3)  # valid fix, then lost
 
     rows = _run(_fix_stream(fix_at), seconds=7.0)
-    assert any("coverage: GNSS fix never acquired" in e for t, _, r in rows if t < 2.0 for e in r.evidence)
+    assert any(_gnss_ev(r) and "never acquired" in _gnss_ev(r)[0] for t, _, r in rows if t < 2.0)
     late = [r for t, _, r in rows if t >= 4.0 and _gnss_ev(r)]
     assert late and all(_gnss_ev(r)[0].startswith("GNSS fix lost: fix_type=1, satellites=3") for r in late)
 
@@ -540,8 +532,7 @@ def test_gnss_fix_reacquired_after_never_then_lost_says_lost():
 @pytest.mark.parametrize("near_miss", [(3, 4), (2, 10)])  # sats-only short / fix-only short
 def test_gnss_near_miss_fix_does_not_count_as_ever_valid(near_miss):
     # "valid" needs BOTH fix_type >= 3 AND satellites >= 5: a half-good fix is never acquired
-    rows = _run(_fix_stream(lambda t: near_miss if t < 2.0 else (0, 0)), seconds=4.0,
-                gnss_never_acquired_policy="dos")
+    rows = _run(_fix_stream(lambda t: near_miss if t < 2.0 else (0, 0)), seconds=4.0)
     fired = [_gnss_ev(r) for t, _, r in rows if t >= 2.0 and _gnss_ev(r)]
     assert fired and all(ev[0].startswith("GNSS fix never acquired") for ev in fired)
     assert not any("lost" in e for _t, _, r in rows for e in r.evidence)
@@ -552,14 +543,14 @@ def test_gnss_absent_fix_fields_do_not_count_as_ever_valid():
     def msgs(t):
         return _hb_only(t) + [_gpi(t)] + ([_raw(t, 0, 0)] if t >= 2.0 else [])
 
-    rows = _run(msgs, seconds=4.0, gnss_never_acquired_policy="dos")
+    rows = _run(msgs, seconds=4.0)
     assert all(_t >= 2.0 or r.signals["gnss_bad_ticks"] == 0.0 for _t, _, r in rows)
     fired = [_gnss_ev(r) for t, _, r in rows if _gnss_ev(r)]
     assert fired and all(ev[0].startswith("GNSS fix never acquired") for ev in fired)
 
 
 def test_gnss_valid_fix_memory_clears_on_reset():
-    ext, det = FeatureExtractor(), _proto(gnss_never_acquired_policy="dos")
+    ext, det = FeatureExtractor(), _proto()
     for k in range(3):  # a valid fix is observed
         t = k * DECISION_DT
         ext.update(_raw(t, 3, 10))
@@ -604,19 +595,13 @@ def test_extractor_gps_raw_seen_flag_sets_and_clears_on_reset():
 # ---- GPS_RAW_INT.satellites_visible == 255 means "unknown" (issue #16) ---------------------- #
 
 def test_gnss_loss_still_fires_on_fix_type_when_satellite_count_is_unknown():
-    """fix_type < 3 with satellites 255 (unknown) is judged on the fix alone: coverage when never acquired,
-    and DOS when opted into gnss_never_acquired_policy='dos'."""
-    rows = _run(_fix_stream(lambda t: (0, 255)), seconds=5.0, gnss_never_acquired_policy="dos")
+    """fix_type < 3 with satellites 255 (unknown) is judged on the fix alone and still fires."""
+    rows = _run(_fix_stream(lambda t: (0, 255)), seconds=5.0)
     _, _, res = rows[GNSS_TICKS - 1]
     assert res.score == pytest.approx(0.7) and res.attack_votes == {AttackType.DOS: 0.7}
     assert res.signals["gnss_bad_ticks"] == float(GNSS_TICKS)
     assert _gnss_ev(res) == [f"GNSS fix never acquired: fix_type=0, satellites=None for {GNSS_TICKS} "
                              "decisions (no valid fix since monitoring began)"]
-
-    rows_cov = _run(_fix_stream(lambda t: (0, 255)), seconds=5.0)
-    _, _, res_cov = rows_cov[GNSS_TICKS - 1]
-    assert res_cov.score == 0.0 and res_cov.attack_votes == {}
-    assert res_cov.evidence and res_cov.evidence[-1].startswith("coverage: GNSS fix never acquired")
 
 
 def test_gnss_loss_does_not_fire_on_a_3d_fix_with_unknown_satellite_count():

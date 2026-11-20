@@ -64,3 +64,17 @@ def test_hierarchical_link_layer_grouping_and_summary() -> None:
     assert summary["link_layer_support"] == 2
     assert summary["link_layer_matched"] == 2
     assert summary["link_layer_accuracy"] == 1.0
+
+
+def test_scoring_summaries_are_strict_json_when_empty() -> None:
+    import json
+
+    from aegisflight.metrics.scoring import evaluate
+
+    empty_hier = hierarchical_link_summary([], [])
+    assert empty_hier["link_layer_accuracy"] is None
+    assert json.dumps(empty_hier, allow_nan=False)
+
+    ev = evaluate([AttackType.BENIGN], [AttackType.BENIGN])
+    assert all(v is None for v in ev.latency_summary().values())
+    assert json.dumps(ev.to_dict(), allow_nan=False)

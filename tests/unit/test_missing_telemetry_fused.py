@@ -303,24 +303,34 @@ def test_loss_of_a_previously_valid_fix_alerts_dos():
     assert not any(a.threat for a in run.assessments if a.t < 10.0)
 
 
-def test_never_acquired_fix_is_coverage_under_default_policy():
-    """DECIDED D4 (issue #15): a receiver that never had a 3D fix (fix 0 / 0 from t=0)
-    reports a score-0 coverage note under the default ``coverage`` policy and produces 0 alerts."""
+def test_never_acquired_fix_alerts_like_a_loss_but_says_never_acquired():
+    """PENDING POLICY P3 (partly decided) -- pins CURRENT behaviour. A receiver that never had a 3D
+    fix (fix 0 / 0 from t=0, position streams present) triggers the GNSS rule within about a second
+    with the same DOS vote, score and severity as a loss.
+
+    Decided (P3 wording): the evidence no longer claims a LOSS -- it says "GNSS fix never acquired
+    ... (no valid fix since monitoring began)", and never contains "lost". Provenance: the USER's
+    P3.4 brief (2026-10-15) required never-acquired / lost / healthy to be distinguishable without
+    falsely claiming a lost fix and with no score/weight/threshold change; the exact string and the
+    "valid fix ever seen since reset()" state were chosen by the implementer (aegis-lead with
+    aegis-detection), reviewed ACCEPT-WITH-FIXES in aegis-reviewer's P3.4 review, and committed at the user's request
+    (5a35143). Still OPEN (decided by no one): whether a never-acquired fix should SCORE differently (denial evidence vs a coverage
+    condition); the timing/attack_type/severity assertions below pin today's unchanged scoring."""
     run = _run(_fix_never_acquired, seconds=20.0)
-    assert run.alerts == []
-    assert any("coverage: GNSS fix never acquired" in _text(a) for a in run.assessments)
+    first = next(a for a in run.alerts)
+    assert first.t <= 1.5
+    assert first.attack_type is AttackType.DOS and first.severity is Severity.SUSPICIOUS
+    assert "GNSS fix never acquired" in _text(first)
     assert not any("lost" in _text(a) for a in run.assessments)
 
 
 def test_never_acquired_fix_evidence_is_distinguishable_from_loss_after_valid_fix():
-    """GENUINE. The never-acquired case (coverage) and loss-after-valid-fix (DOS alert)
-    remain cleanly distinguishable."""
-    never_cov = next(a for a in _run(_fix_never_acquired, seconds=20.0).assessments
-                     if "coverage: GNSS fix never acquired" in _text(a))
+    """GENUINE (was a strict xfail until the P3 wording fix). The two cases must be distinguishable
+    in the persisted evidence; the exact wording is deliberately not asserted (numbers are masked,
+    only the wording is compared)."""
+    never = next(a for a in _run(_fix_never_acquired, seconds=20.0).alerts)
     lost = next(a for a in _run(_fix_lost_at_10s, seconds=20.0).alerts)
-    assert never_cov.threat is False
-    assert lost.threat is True and lost.attack_type is AttackType.DOS
-    assert _shape(_text(never_cov)) != _shape(_text(lost))
+    assert _shape(_text(never)) != _shape(_text(lost))
 
 
 # --------------------------------------------------------------------------- #
@@ -485,11 +495,11 @@ def test_speed_mismatch_with_position_present_is_still_detected():
     assert COVERAGE_TEXT not in _text(alerts[0])
 
 
-def test_gnss_coverage_notes_on_a_position_less_link_stay_score_zero():
-    """Under default D4 policy, a position-less link with no fix yet emits score-0 coverage lines
-    for both missing GLOBAL_POSITION_INT and never-acquired GNSS, with 0 alerts."""
+def test_gnss_alert_on_a_position_less_link_leads_with_the_gnss_evidence():
+    """GENUINE (presentation). The score-0 coverage line is the LAST protocol evidence item, so an
+    alert raised by another rule does not show it as its headline (the dashboard incident list and
+    the CLI show evidence[0]). Scoring of the never-acquired fix is P3 (open) and is not asserted."""
     run = _run(lambda link, k, t: _stream(link, k, t, gpi=False, raw=(0, 0)), seconds=10.0)
-    assert run.alerts == []
-    cov = [a for a in run.assessments if any("coverage: GNSS fix never acquired" in e for e in a.evidence)]
-    assert cov and cov[-1].evidence[-1].startswith("coverage: GNSS fix never acquired")
-    assert any(COVERAGE_TEXT in e for e in cov[-1].evidence)
+    first = run.alerts[0]
+    assert first.evidence[0].startswith("GNSS fix never acquired")
+    assert first.evidence[-1].startswith(COVERAGE_TEXT)

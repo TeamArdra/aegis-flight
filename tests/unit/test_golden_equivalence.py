@@ -180,6 +180,8 @@ def test_seeded_ml_exercises_all_55_golden_cases(tmp_path: Path, monkeypatch: py
 
     model_file = tmp_path / "seeded_isoforest.joblib"
     joblib.dump(bundle, model_file)
+    digest = hashlib.sha256(model_file.read_bytes()).hexdigest()
+    (tmp_path / "MODELS.sha256").write_text(f"{digest}  seeded_isoforest.joblib\n", encoding="utf-8")
     monkeypatch.setattr(mg, "MODEL_PATH", model_file)
 
     ml_cases = sorted(GOLD["ml"])
@@ -311,8 +313,8 @@ def test_fast_isoforest_equals_sklearn_bitwise_and_fallback_is_identical(anomaly
     from aegisflight.features.extractor import ML_FEATURES, FeatureFrame
 
     cfg = mg.load_config().detector["anomaly"]
-    fast_det = AnomalyDetector(cfg, anomaly_model)
-    slow_det = AnomalyDetector(cfg, anomaly_model)
+    fast_det = AnomalyDetector(cfg, anomaly_model, allow_unverified=True)
+    slow_det = AnomalyDetector(cfg, anomaly_model, allow_unverified=True)
     assert fast_det.bundle is not None, f"{anomaly_model} did not load"
     assert fast_det._fast is not None, "fast scorer should verify against sklearn at load"
     slow_det._fast = None

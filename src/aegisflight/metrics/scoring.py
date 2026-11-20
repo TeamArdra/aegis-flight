@@ -36,7 +36,7 @@ def hierarchical_link_summary(y_true: list[AttackType], y_pred: list[AttackType]
     return {
         "link_layer_support": link_total,
         "link_layer_matched": link_correct,
-        "link_layer_accuracy": round(link_correct / link_total, 4) if link_total else float("nan"),
+        "link_layer_accuracy": round(link_correct / link_total, 4) if link_total else None,
     }
 
 
@@ -114,9 +114,9 @@ class Evaluation:
     n: int
     latencies_ms: list[float] = field(default_factory=list)  # time-to-detect per session
 
-    def latency_summary(self) -> dict[str, float]:
+    def latency_summary(self) -> dict[str, float | None]:
         if not self.latencies_ms:
-            return {"mean": float("nan"), "p50": float("nan"), "p95": float("nan")}
+            return {"mean": None, "p50": None, "p95": None}
         arr = np.array(self.latencies_ms, dtype=float)
         return {
             "mean": float(arr.mean()),
@@ -155,10 +155,10 @@ class Evaluation:
             "detection_latency_s": self.latency_summary(),
         }
 
-    def macro(self) -> dict[str, float]:
+    def macro(self) -> dict[str, float | None]:
         attacks = [c for a, c in self.per_class.items() if a.is_attack and c.support > 0]
         if not attacks:
-            return {"precision": float("nan"), "recall": float("nan"), "f1": float("nan")}
+            return {"precision": None, "recall": None, "f1": None}
         return {
             "precision": _r(float(np.nanmean([c.precision for c in attacks]))),
             "recall": _r(float(np.nanmean([c.recall for c in attacks]))),
@@ -166,8 +166,8 @@ class Evaluation:
         }
 
 
-def _r(x: float) -> float:
-    return round(float(x), 4) if x == x else float("nan")  # x==x filters NaN
+def _r(x: float) -> float | None:
+    return round(float(x), 4) if x == x else None  # x==x filters NaN for strict JSON
 
 
 def evaluate(

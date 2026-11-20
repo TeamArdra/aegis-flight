@@ -71,13 +71,19 @@ def run_session(
     warmup_s: float = 5.0,
     grace_s: float = 8.0,
     rng_seed: int | None = None,
+    allow_unverified_model: bool = False,
 ) -> SessionResult:
     if route is not None:
         cfg = _with_route(cfg, route)
     route = cfg.simulation.get("route", "survey_box")
 
     fw_dir = tempfile.mkdtemp(prefix="aegis_fw_")
-    pipe = IDSPipeline(cfg, model_path=model_path, firmware_dir=fw_dir)
+    pipe = IDSPipeline(
+        cfg,
+        model_path=model_path,
+        firmware_dir=fw_dir,
+        allow_unverified_model=allow_unverified_model,
+    )
 
     rng = np.random.default_rng(rng_seed if rng_seed is not None else seed + 99)
     atk_kwargs = ({"firmware_dir": fw_dir}

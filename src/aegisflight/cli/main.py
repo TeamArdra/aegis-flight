@@ -34,7 +34,14 @@ def _cmd_simulate(args: argparse.Namespace) -> int:
                                   allow_unverified=args.allow_unverified_model)
     print(f"Simulating scenario='{args.attack}' seed={args.seed} route={args.route or 'default'} "
           f"model={'off' if model is None else model}")
-    res = run_session(cfg, args.attack, seed=args.seed, route=args.route, model_path=model)
+    res = run_session(
+        cfg,
+        args.attack,
+        seed=args.seed,
+        route=args.route,
+        model_path=model,
+        allow_unverified_model=args.allow_unverified_model,
+    )
 
     alerts = [a for a in res.assessments if a.is_alert]
     scored = [r for r in res.records if r.scored]
@@ -74,7 +81,13 @@ def _cmd_benchmark(args: argparse.Namespace) -> int:
     cfg = load_config()
     model = resolve_model_or_exit(args.model, no_model=args.no_model,
                                   allow_unverified=args.allow_unverified_model)
-    result = run_benchmark(cfg, seeds=args.seeds, model_path=model, out_dir=args.out)
+    result = run_benchmark(
+        cfg,
+        seeds=args.seeds,
+        model_path=model,
+        out_dir=args.out,
+        allow_unverified_model=args.allow_unverified_model,
+    )
     b = result["binary"]
     print(f"accuracy={b['accuracy']} recall={b['recall_tpr']} FPR={b['fpr']} F1={b['f1']}")
     if not args.no_figures:

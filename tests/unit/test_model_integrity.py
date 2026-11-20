@@ -69,10 +69,63 @@ def test_corrupt_model_file_warns_with_reason_and_stays_ml_off(tmp_path, caplog)
     bad = tmp_path / "corrupt.joblib"
     bad.write_bytes(b"this is not a joblib file")
     with caplog.at_level(logging.WARNING, logger="aegisflight.detectors.anomaly"):
-        det = AnomalyDetector(CFG, bad)
+        det = AnomalyDetector(CFG, bad, allow_unverified=True)
     assert det.bundle is None
     msgs = [r.getMessage() for r in caplog.records]
     assert any("corrupt.joblib" in m and "unreadable" in m for m in msgs)
+
+
+def test_anomaly_detector_refuses_tampered_and_unlisted_models_before_joblib_load(tmp_path, monkeypatch, caplog):
+    """P1 security boundary: tampered or unlisted models must be rejected BEFORE joblib.load deserialization."""
+    import joblib as _joblib
+
+    def _boom(*_a, **_kw):
+        raise AssertionError("joblib.load MUST NOT be called on unverified/tampered models")
+
+    monkeypatch.setattr(_joblib, "load", _boom)
+
+    # 1. Tampered model (hash mismatch against MODELS.sha256)
+    tampered = tmp_path / "tampered.joblib"
+    tampered.write_bytes(b"evil-payload")
+    _manifest(tmp_path, "tampered.joblib", "a" * 64)
+    with caplog.at_level(logging.WARNING, logger="aegisflight.detectors.anomaly"):
+        det_t = AnomalyDetector(CFG, tampered)
+    assert det_t.available is False
+    assert det_t.load_error is not None and "mismatch" in det_t.load_error
+
+    # 2. Unlisted model (no manifest entry)
+    unlisted = tmp_path / "unlisted.joblib"
+    unlisted.write_bytes(b"unlisted-payload")
+    with caplog.at_level(logging.WARNING, logger="aegisflight.detectors.anomaly"):
+        det_u = AnomalyDetector(CFG, unlisted)
+    assert det_u.available is False
+    assert det_u.load_error is not None and "unlisted" in det_u.load_error
+
+
+def test_anomaly_detector_loads_manifest_verified_model(tmp_path):
+    """A model whose SHA-256 matches MODELS.sha256 loads cleanly."""
+    from aegisflight.features.extractor import ML_FEATURES
+
+    m = tmp_path / "valid.joblib"
+    joblib.dump(
+        {
+            "model": None,
+            "scaler": None,
+            "feature_names": list(ML_FEATURES),
+            "iso_mean": 0.0,
+            "iso_std": 1.0,
+            "maha_mean": 0.0,
+            "maha_std": 1.0,
+            "score_thr": 3.0,
+            "score_scale": 1.0,
+        },
+        m,
+    )
+    digest = hashlib.sha256(m.read_bytes()).hexdigest()
+    _manifest(tmp_path, "valid.joblib", digest)
+    det = AnomalyDetector(CFG, m)
+    assert det.available is True
+    assert det.load_error is None
 
 
 def test_no_model_path_is_silent_explicit_opt_out(caplog):

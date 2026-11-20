@@ -85,8 +85,12 @@ def test_profile_overrides_only_and_stage1_defaults_untouched():
     for section, keys in raw.items():
         for k in keys:
             assert k in DEFAULT_DETECTOR[section] or k in additive, (section, k)
-    # fusion / anomaly / decision cadence are not overridden by the profile
-    assert prof["fusion"] == stage1["fusion"] and prof["anomaly"] == stage1["anomaly"]
+    # fusion overrides only ml_require_corroboration (Decision D5); anomaly and decision cadence stay Stage-1 defaults
+    assert prof["fusion"]["ml_require_corroboration"] is True
+    assert {k: v for k, v in prof["fusion"].items() if k != "ml_require_corroboration"} == {
+        k: v for k, v in stage1["fusion"].items() if k != "ml_require_corroboration"
+    }
+    assert prof["anomaly"] == stage1["anomaly"]
     assert prof["decision_rate_hz"] == stage1["decision_rate_hz"]
 
 

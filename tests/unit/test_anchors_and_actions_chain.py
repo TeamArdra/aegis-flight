@@ -209,3 +209,57 @@ def test_actions_chain_logs_bridge_drops_and_actuator_commands(tmp_path: Path) -
     store.conn.commit()
     assert store.verify_actions_chain("ips-run-1").ok is False
     store.close()
+
+
+def test_anchor_chain_detects_middle_deletion_head_deletion_reordering_gaps_and_truncation(tmp_path: Path) -> None:
+    """P1 anchor continuity (#21 / D6): signed anchor chain detects deletion, reordering, gaps, and truncation."""
+    db = tmp_path / "chain_events.sqlite"
+    store = EventStore(db)
+    store.start_run("run-chain", label="sim")
+    key = b"anchor-chain-test-key-32-bytes!!"
+    aw = AnchorWriter(store, interval_s=0.2, key=key)
+
+    for i in range(4):
+        store.log_event(_assessment(float(i)), "run-chain")
+        rec = aw.write_now("run-chain", force=True)
+        assert rec is not None and rec["seq"] == i
+
+    lines = aw.anchor_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 4
+    assert verify_anchors(store, aw.anchor_path, key=key, expected_min_anchors=4).ok is True
+
+    # 1. Middle deletion (drop seq=1) -> detected via seq discontinuity & prev_anchor_hash mismatch
+    mid = tmp_path / "mid_deleted.anchors.jsonl"
+    mid.write_text("\n".join([lines[0], lines[2], lines[3]]) + "\n", encoding="utf-8")
+    v_mid = verify_anchors(store, mid, key=key)
+    assert v_mid.ok is False
+    assert any("sequence discontinuity" in e or "prev_anchor_hash" in e for e in v_mid.errors)
+
+    # 2. Head deletion (drop seq=0) -> detected
+    head = tmp_path / "head_deleted.anchors.jsonl"
+    head.write_text("\n".join(lines[1:]) + "\n", encoding="utf-8")
+    v_head = verify_anchors(store, head, key=key)
+    assert v_head.ok is False
+    assert any("sequence discontinuity" in e for e in v_head.errors)
+
+    # 3. Reordering (swap seq=1 and seq=2) -> detected
+    reord = tmp_path / "reordered.anchors.jsonl"
+    reord.write_text("\n".join([lines[0], lines[2], lines[1], lines[3]]) + "\n", encoding="utf-8")
+    v_reord = verify_anchors(store, reord, key=key)
+    assert v_reord.ok is False
+
+    # 4. Tail truncation (drop seq=3) -> detected when expected_min_anchors=4
+    tail = tmp_path / "tail_trunc.anchors.jsonl"
+    tail.write_text("\n".join(lines[:3]) + "\n", encoding="utf-8")
+    v_tail = verify_anchors(store, tail, key=key, expected_min_anchors=4)
+    assert v_tail.ok is False
+    assert any("anchor log truncated" in e for e in v_tail.errors)
+
+    # 5. Modified record -> detected via anchor_hash + HMAC
+    mod = tmp_path / "modified.anchors.jsonl"
+    r1 = json.loads(lines[1])
+    r1["row_count"] = 999
+    mod.write_text("\n".join([lines[0], json.dumps(r1), lines[2], lines[3]]) + "\n", encoding="utf-8")
+    v_mod = verify_anchors(store, mod, key=key)
+    assert v_mod.ok is False
+    store.close()

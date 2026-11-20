@@ -7,6 +7,8 @@
 protocol:
   auto_rate_baseline: true
   startup_grace_s: 3.0
+  # Explicit live-profile GNSS policy (Decision D3): never-acquired fix reports score-0 coverage.
+  gnss_never_acquired_policy: coverage
 physics:
   yaw_course_enabled: false
   # cross-message checks (battery SYS_STATUS vs BATTERY_STATUS, attitude repeat, VFR_HUD heading vs ATTITUDE yaw):

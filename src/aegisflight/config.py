@@ -99,7 +99,7 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         # D4 policy (issue #15): when GNSS has never achieved a valid 3D fix since monitoring began,
         # emit a score-0 coverage note ('coverage') or vote DOS ('dos'). Once a valid fix is seen,
         # subsequent fix loss always votes DOS under either setting.
-        "gnss_never_acquired_policy": "coverage",
+        "gnss_never_acquired_policy": "dos",
         "allowed_commands_in_flight": [
             "MAV_CMD_NAV_WAYPOINT",
             "MAV_CMD_DO_SET_MODE",
