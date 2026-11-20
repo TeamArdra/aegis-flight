@@ -148,7 +148,10 @@ function MapPanelImpl({
         const segs: string[] = [];
         for (let i = 1; i < track.length; i++) {
           if (trackThreat[i]) {
-            const move = trackThreat[i - 1] ? "L" : `M${sx(xs[i - 1]).toFixed(1)},${sy(ys[i - 1]).toFixed(1)} L`;
+            const move =
+              segs.length > 0 && trackThreat[i - 1]
+                ? "L"
+                : `M${sx(xs[i - 1]).toFixed(1)},${sy(ys[i - 1]).toFixed(1)} L`;
             segs.push(`${move}${sx(xs[i]).toFixed(1)},${sy(ys[i]).toFixed(1)}`);
           }
         }
