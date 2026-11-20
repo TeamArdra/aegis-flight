@@ -48,7 +48,7 @@ class Clock:
 
 def run_bridge(key=None, frames=(gpi(1000),)):
     fc, gcs, clk = Link(), Link(), Clock()
-    b = InlineIpsBridge(fc, gcs, secret_key=key, clock_ns=clk)
+    b = InlineIpsBridge(fc, gcs, secret_key=key, clock_ns=clk, mgmt_enable=True)
     fc.inbox = [(1, f) for f in frames]
     b.pump_once()
     gcs.sent.clear()
@@ -135,7 +135,7 @@ def test_signed_summary_verified_and_forgery_flagged():
 
 def test_bridge_summary_goes_to_gcs_only_and_matches_last_gpi():
     fc, gcs, clk = Link(), Link(), Clock()
-    b = InlineIpsBridge(fc, gcs, clock_ns=clk)
+    b = InlineIpsBridge(fc, gcs, clock_ns=clk, mgmt_enable=True)
     fc.inbox = [(1, gpi(1000)), (2, gpi(1100, lat=5))]
     b.pump_once()
     gcs.sent.clear()
@@ -219,7 +219,7 @@ def test_on_a_serial_flight_controller_port_the_bridge_writes_only_what_the_pilo
     side only, and everything written to the flight-controller port is, byte for byte and in order, a frame the pilot's GCS sent.
     (This scenario raises no detector alert, so alert delivery is not covered here.)"""
     fc, gcs, clk = SerialLink(), Link(), Clock()
-    b = InlineIpsBridge(fc, gcs, mode=mode, clock_ns=clk)           # default crossend_interval_s=1.0
+    b = InlineIpsBridge(fc, gcs, mode=mode, clock_ns=clk, mgmt_enable=(mode == "passive"))           # default crossend_interval_s=1.0
     uplink: list[bytes] = []
     timeline = []
     for sec in range(12):
@@ -253,7 +253,7 @@ def test_on_a_serial_fc_port_an_attack_is_announced_to_the_gcs_only_and_nothing_
     mode change in the uplink. Receive-only: the bridge may not drop or add anything on the FC port, so the FC gets exactly
     the uplink (the forgery included: that is what passive / advisory mean); the alert goes to the pilot's GCS only."""
     fc, gcs, clk = SerialLink(), Link(), Clock()
-    b = InlineIpsBridge(fc, gcs, mode=mode, clock_ns=clk)
+    b = InlineIpsBridge(fc, gcs, mode=mode, clock_ns=clk, mgmt_enable=(mode == "passive"))
     b.mgmt._clock = lambda: clk.ns / 1e9
     uplink: list[bytes] = []
     timeline = []

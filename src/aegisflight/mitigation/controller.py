@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from typing import Any
 
 from ..core.enums import AttackType, Severity
@@ -33,11 +34,15 @@ class MitigationController:
         gps_confirm_ticks: int = 2,
         gps_escalate_s: float = 3.0,
         gps_switch_check_s: float = 4.0,
+        max_counter_cmds_per_min: int = 6,
+        max_counter_cmds_per_episode: int = 4,
     ) -> None:
         self.mode = mode
         self.gps_confirm_ticks = gps_confirm_ticks
         self.gps_escalate_s = gps_escalate_s
         self.gps_switch_check_s = gps_switch_check_s
+        self.max_counter_cmds_per_min = max(1, int(max_counter_cmds_per_min))
+        self.max_counter_cmds_per_episode = max(1, int(max_counter_cmds_per_episode))
         self.ekf_secondary_available: bool = False
         self.recovery_clean_ticks = recovery_clean_ticks
         self.command_cooldown_s = command_cooldown_s
@@ -54,7 +59,11 @@ class MitigationController:
         self._dos_streak = 0
         self._ekf_switched = False
         self._sanitize_gps_latched = False
+        self._safe_hold_alt_hold_sent = False
+        self._episode_counter_cmds = 0
+        self._cmd_budget_window_t: deque[float] = deque()
         self._last_cmd_t: dict[str, float] = {}
+        self._last_refusal_log_t: dict[tuple[str, str], float] = {}
         self._last_cmd_name: str | None = None
         self._quarantined_sysids: set[int] = set()
         self.action_history: list[dict[str, Any]] = []
@@ -89,6 +98,8 @@ class MitigationController:
                 self._quarantined_sysids.clear()
                 self._ekf_switched = False
                 self._sanitize_gps_latched = False
+                self._safe_hold_alt_hold_sent = False
+                self._episode_counter_cmds = 0
                 self._last_cmd_name = None
                 self._reset_gps_episode()
             self._add_action(self.golden.anchor_t or 0.0, "MODE_CHANGE", f"Switched defense posture to {self.mode.value.upper()}")
@@ -101,7 +112,11 @@ class MitigationController:
         self._dos_streak = 0
         self._ekf_switched = False
         self._sanitize_gps_latched = False
+        self._safe_hold_alt_hold_sent = False
+        self._episode_counter_cmds = 0
+        self._cmd_budget_window_t.clear()
         self._last_cmd_t.clear()
+        self._last_refusal_log_t.clear()
         self._last_cmd_name = None
         self._quarantined_sysids.clear()
         self._reset_gps_episode()
@@ -111,13 +126,45 @@ class MitigationController:
         self.estimator.reset()
         self.sanitizer.configure(active=False)
 
-    def _can_send_command(self, cmd_key: str, t: float) -> bool:
+    @staticmethod
+    def _is_fc_counter_cmd(cmd_key: str) -> bool:
+        return not cmd_key.startswith("STATUSTEXT_")
+
+    def _log_cmd_refusal(self, t: float, cmd_key: str, reason: str) -> None:
+        refusal_key = (cmd_key, reason)
+        last = self._last_refusal_log_t.get(refusal_key, -1e9)
+        if (t - last) < max(self.command_cooldown_s, 1.0):
+            return
+        self._last_refusal_log_t[refusal_key] = t
+        self._add_action(
+            t,
+            "CMD_BUDGET_REFUSED",
+            f"Refused {cmd_key} ({reason}: episode={self._episode_counter_cmds}/{self.max_counter_cmds_per_episode}, "
+            f"min={len(self._cmd_budget_window_t)}/{self.max_counter_cmds_per_min})",
+        )
+
+    def _can_send_command(self, cmd_key: str, t: float, *, bypass_budget: bool = False) -> bool:
         last = self._last_cmd_t.get(cmd_key, -1e9)
-        return (t - last) >= self.command_cooldown_s
+        if (t - last) < self.command_cooldown_s:
+            return False
+        if not self._is_fc_counter_cmd(cmd_key) or bypass_budget:
+            return True
+        if self._episode_counter_cmds >= self.max_counter_cmds_per_episode:
+            self._log_cmd_refusal(t, cmd_key, "episode_cap")
+            return False
+        while self._cmd_budget_window_t and (t - self._cmd_budget_window_t[0]) > 60.0:
+            self._cmd_budget_window_t.popleft()
+        if len(self._cmd_budget_window_t) >= self.max_counter_cmds_per_min:
+            self._log_cmd_refusal(t, cmd_key, "minute_cap")
+            return False
+        return True
 
     def _record_command(self, cmd_key: str, t: float) -> None:
         self._last_cmd_t[cmd_key] = t
         self._last_cmd_name = cmd_key
+        if self._is_fc_counter_cmd(cmd_key):
+            self._episode_counter_cmds += 1
+            self._cmd_budget_window_t.append(t)
 
     def step(self, frame: FeatureFrame, asmt: ThreatAssessment) -> MitigationAction:
         """Process one decision tick through the mitigation state machine."""
@@ -161,7 +208,8 @@ class MitigationController:
                         summary = f"[AEGIS DEF] RESOLVED: Telemetry clean for {self._clean_streak * 0.2:.1f}s -> Resumed normal operation"
 
                     if self.mode == DefenseMode.ACTIVE_IPS:
-                        if self._ekf_switched and self._can_send_command("EKF_SWITCH_PRIMARY", t):
+                        # Primary EKF recovery must not be starved even if escalation exhausted the episode cap.
+                        if self._ekf_switched and self._can_send_command("EKF_SWITCH_PRIMARY", t, bypass_budget=True):
                             counter_frames.append(self.actuator.encode_ekf_source_switch(source_set=1))
                             self._record_command("EKF_SWITCH_PRIMARY", t)
                             self._ekf_switched = False
@@ -172,7 +220,8 @@ class MitigationController:
                         restore_mode = self.golden.trusted_mode
                         if self._gps_episode:
                             self._add_action(t, "GPS_RECOVERED", "GPS consistent again - pilot to resume")
-                        elif self.actuator.knows_mode(restore_mode) and self._can_send_command(f"RESTORE_{restore_mode}", t):
+                        elif (frame.snapshot.armed is True and self.actuator.knows_mode(restore_mode)
+                              and self._can_send_command(f"RESTORE_{restore_mode}", t)):
                             counter_frames.append(self.actuator.encode_set_mode(restore_mode))
                             self._record_command(f"RESTORE_{restore_mode}", t)
 
@@ -181,6 +230,8 @@ class MitigationController:
                         self._quarantined_sysids.clear()
 
                     self._sanitize_gps_latched = False
+                    self._safe_hold_alt_hold_sent = False
+                    self._episode_counter_cmds = 0
                     self._reset_gps_episode()
                     self.state = MitigationState.NOMINAL
                     self._add_action(t, "RECOVERED", f"Telemetry verified clean for {self._clean_streak * 0.2:.1f}s -> Resumed nominal baseline")
@@ -308,7 +359,8 @@ class MitigationController:
                     # reported only: nothing on this path drops the command before the autopilot
                     self._add_action(t, "VETO_DISARM", "Flagged motor arm/disarm command burst in flight (not blocked)")
 
-                if (not self._gps_episode and self.actuator.knows_mode(params.target_restore_mode)
+                if (frame.snapshot.armed is True and not self._gps_episode
+                        and self.actuator.knows_mode(params.target_restore_mode)
                         and self._can_send_command(f"RESTORE_{params.target_restore_mode}", t)):
                     counter_frames.append(self.actuator.encode_set_mode(params.target_restore_mode))
                     self._record_command(f"RESTORE_{params.target_restore_mode}", t)
@@ -365,10 +417,14 @@ class MitigationController:
                             and fm != self.golden.trusted_mode)
             safe_hold_ok = self._gps_episode or (asmt.attack_type == AttackType.COMMAND_INJECTION and mode_differs)
             if (self.state == MitigationState.SAFE_HOLD and safe_hold_ok
+                    and frame.snapshot.armed is True
+                    and not self._safe_hold_alt_hold_sent
+                    and not self._gps_alt_hold_sent
                     and not (self._gps_episode and self._gps_cancelled)
                     and self._can_send_command("SET_MODE_ALT_HOLD", t)):
                 counter_frames.append(self.actuator.encode_set_mode("ALT_HOLD"))
                 self._record_command("SET_MODE_ALT_HOLD", t)
+                self._safe_hold_alt_hold_sent = True
                 self._add_action(t, "SAFE_HOLD_CMD", "Counter-actuation dispatched: engaged ALT_HOLD loiter")
 
             # Update inline sanitizer

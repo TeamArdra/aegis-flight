@@ -238,7 +238,7 @@ def audit_mavlink2_signing_and_replay() -> None:
         _fail(f"MAVLink-2 signing/anti-replay check failed: r1={r1}, r2={r2}, replay={r_replay}")
 
     # Unsigned cadence guard in PASSIVE (IDS) vs ACTIVE_IPS (Defense)
-    snap = TelemetrySnapshot(t=10.0, lat=19.1334, lon=72.9133, groundspeed=10.0, heading=0.0, flight_mode="RTL")
+    snap = TelemetrySnapshot(t=10.0, lat=19.1334, lon=72.9133, groundspeed=10.0, heading=0.0, flight_mode="RTL", armed=True)
     asmt_rep = _make_asmt(
         t=10.05, threat=True, attack_type=AttackType.COMMAND_INJECTION,
         severity=Severity.CRITICAL, threat_score=0.95,
@@ -246,14 +246,14 @@ def audit_mavlink2_signing_and_replay() -> None:
     )
     ctrl_ids = MitigationController(mode=DefenseMode.PASSIVE, secret_key=key)
     ctrl_ids.step(
-        FeatureFrame(t=0.0, snapshot=TelemetrySnapshot(t=0.0, lat=19.1334, lon=72.9133, groundspeed=10.0, heading=0.0, flight_mode="AUTO")),
+        FeatureFrame(t=0.0, snapshot=TelemetrySnapshot(t=0.0, lat=19.1334, lon=72.9133, groundspeed=10.0, heading=0.0, flight_mode="AUTO", armed=True)),
         _make_asmt(t=0.0, threat=False),
     )
     act_ids = ctrl_ids.step(FeatureFrame(t=10.05, snapshot=snap), asmt_rep)
 
     ctrl_ips = MitigationController(mode=DefenseMode.ACTIVE_IPS, secret_key=key)
     ctrl_ips.step(
-        FeatureFrame(t=0.0, snapshot=TelemetrySnapshot(t=0.0, lat=19.1334, lon=72.9133, groundspeed=10.0, heading=0.0, flight_mode="AUTO")),
+        FeatureFrame(t=0.0, snapshot=TelemetrySnapshot(t=0.0, lat=19.1334, lon=72.9133, groundspeed=10.0, heading=0.0, flight_mode="AUTO", armed=True)),
         _make_asmt(t=0.0, threat=False),
     )
     act_ips = ctrl_ips.step(FeatureFrame(t=10.05, snapshot=snap), asmt_rep)

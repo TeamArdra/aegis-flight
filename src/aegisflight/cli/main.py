@@ -336,6 +336,7 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                                  mgmt_state_path=args.mgmt_state, lock_posture_file=args.lock_posture_file,
                                  mgmt_max_cmd_age_s=args.mgmt_max_age_s,
                                  audit_log_path=args.audit_log,
+                                 mgmt_enable=bool(args.mgmt_enable),
                                  unsigned_acknowledged=args.allow_unsigned and key is None and args.defense_mode == "active-ips",
                                  vehicle_filter=args.vehicle_uplink_filter, filter_override_file=args.filter_override_file,
                                  filter_lockout_failopen_s=args.filter_lockout_failopen_s,
@@ -563,6 +564,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="unsigned link: number of forwarded sensitive frames remembered for the byte-identical replay filter")
     ib.add_argument("--gcs-alerts", choices=["on", "off"], default="on",
                     help="send IDS alerts / IPS actions as short AEGIS: STATUSTEXTs to the GCS side (never the FC)")
+    ib.add_argument("--mgmt-enable", action="store_true",
+                    help="in PASSIVE posture, opt in to in-band GCS management TX/RX and cross-end summaries (default off = 0B TX)")
     ib.add_argument("--alert-min-interval", type=float, default=2.0,
                     help="at most one alert STATUSTEXT per attack type per this many seconds (escalations bypass)")
     ib.add_argument("--mgmt-status-interval", type=float, default=2.0,
@@ -609,7 +612,33 @@ def build_parser() -> argparse.ArgumentParser:
     ver = sub.add_parser("version", help="print version")
     ver.set_defaults(func=lambda a: (print(f"aegisflight {__version__}"), 0)[1])
 
+    ob = sub.add_parser("onboard", help="run unified onboard companion runtime from a YAML config")
+    ob.add_argument("--config", default=None, help="YAML config path (default: safe passive serial config)")
+    ob.add_argument("--seconds", type=float, default=None, help="optional timed exit (default: until SIGTERM/SIGINT)")
+    ob.add_argument("--defense-mode", choices=["passive", "advisory", "active-ips"], default=None,
+                    help="override configured defense posture")
+    ob.add_argument("--run-dir", default=None, help="override run_root for SQLite/archive output")
+    ob.add_argument("--allow-url", action="store_true", help="override allow_url=true for socket:// tests")
+    ob.set_defaults(func=_cmd_onboard)
+
     return p
+
+
+def _cmd_onboard(args: argparse.Namespace) -> int:
+    from ..onboard import load_onboard_config, run_onboard
+
+    try:
+        cfg = load_onboard_config(args.config)
+    except (OSError, ValueError) as exc:
+        print(f"aegis onboard: bad --config: {exc}", file=sys.stderr)
+        return 2
+    if args.defense_mode is not None:
+        cfg.defense_mode = args.defense_mode
+    if args.run_dir is not None:
+        cfg.run_root = args.run_dir
+    if args.allow_url:
+        cfg.allow_url = True
+    return run_onboard(cfg, seconds=args.seconds)
 
 
 def main(argv: list[str] | None = None) -> int:
