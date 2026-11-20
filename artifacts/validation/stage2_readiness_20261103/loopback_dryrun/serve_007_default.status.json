@@ -1,0 +1,357 @@
+{
+ "running": true,
+ "sim": false,
+ "environment": "REPLAY",
+ "source": {
+  "kind": "replay",
+  "environment": "REPLAY",
+  "physical": false,
+  "label": "Replay (recorded / virtual link)",
+  "detail": {
+   "tlog": "telemetry_radio_007.tlog",
+   "speed": 10.0
+  },
+  "ml": false,
+  "gcs_notify": false,
+  "defense_mode": "passive",
+  "config_dir": "configs (Stage-1 default)"
+ },
+ "defense_mode": "passive",
+ "signing": {
+  "configured": false
+ },
+ "unsigned_acknowledged": false,
+ "topology": "a+b",
+ "topology_reasons": [
+  "Simulation twin models an inline deployment; nothing is transmitted to a vehicle"
+ ],
+ "topology_info": {
+  "kind": "REPLAY",
+  "label": "Replay (no wiring)",
+  "source": "none",
+  "posture": "passive",
+  "links": {
+   "fc": {
+    "connected": null,
+    "name": null
+   },
+   "gcs": {
+    "connected": null,
+    "name": null
+   }
+  },
+  "uplink_visible": null,
+  "can_block_frames": false,
+  "can_send_counter_commands": false,
+  "reasons": [
+   "recorded log: no live link, nothing can act on a vehicle"
+  ]
+ },
+ "mitigation": {
+  "t": 59.8,
+  "mode": "passive",
+  "state": "SAFE_HOLD",
+  "sub_mode": "dos:gnss_jamming",
+  "clean_streak": 0,
+  "recovery_target_ticks": 25,
+  "recovery_progress": 0.0,
+  "counter_frames_sent": 0,
+  "quarantined_sysids": [],
+  "sanitize_gps": false,
+  "sanitize_alt": false,
+  "ekf_switched": false,
+  "last_command_sent": null,
+  "actions": [
+   {
+    "t": 1.0,
+    "tag": "DETECTED",
+    "detail": "Identified dos:gnss_jamming (score=0.62)"
+   },
+   {
+    "t": 31.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 32.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 33.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 34.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 35.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 36.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 37.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 38.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 39.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 40.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 41.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 42.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 43.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 44.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 45.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 46.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 47.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 48.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 49.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 50.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 51.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 52.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 53.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 54.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 55.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 56.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 57.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 58.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   },
+   {
+    "t": 59.0,
+    "tag": "SAFE_HOLD",
+    "detail": "Sustained attack >30s detected on link"
+   }
+  ],
+  "inputs": {
+   "trusted_lat": 0.0,
+   "trusted_lon": 0.0,
+   "trusted_alt_m": 0.57,
+   "trusted_mode": "STABILIZE"
+  },
+  "outputs": {
+   "north_offset_m": 0.0,
+   "east_offset_m": 0.0,
+   "drift_rate_ms": 0.0,
+   "alt_bias_m": 0.0,
+   "speed_bias_ms": 0.0,
+   "battery_bias_v": 0.0,
+   "rogue_sysids": [],
+   "target_restore_mode": null,
+   "quarantined_sysids": [],
+   "sanitize_gps": false,
+   "sanitize_alt": false,
+   "ekf_switched": false,
+   "last_command_sent": null,
+   "counter_frames_sent": 0
+  },
+  "params": {
+   "attack_type": "DOS",
+   "sub_mode": "dos:gnss_jamming",
+   "trusted_lat": 0.0,
+   "trusted_lon": 0.0,
+   "trusted_alt_m": 0.57,
+   "trusted_mode": "STABILIZE",
+   "lat_offset_deg": 0.0,
+   "lon_offset_deg": 0.0,
+   "north_offset_m": 0.0,
+   "east_offset_m": 0.0,
+   "drift_rate_ms": 0.0,
+   "alt_bias_m": 0.0,
+   "speed_bias_ms": 0.0,
+   "battery_bias_v": 0.0,
+   "rogue_sysids": [],
+   "target_restore_mode": null
+  },
+  "summary": "[AEGIS IDS] SUSTAINED INTRUSION (>30s): Continuous attack vector detected"
+ },
+ "link": {
+  "state": "ended",
+  "frames": 1620,
+  "last_frame_age_s": 0.0,
+  "stale_after_s": 3.0,
+  "messages": {
+   "AHRS2": {
+    "count": 240,
+    "age_s": 0.0
+   },
+   "ATTITUDE": {
+    "count": 240,
+    "age_s": 0.0
+   },
+   "GLOBAL_POSITION_INT": {
+    "count": 120,
+    "age_s": 0.2
+   },
+   "GPS_RAW_INT": {
+    "count": 120,
+    "age_s": 0.2
+   },
+   "HEARTBEAT": {
+    "count": 60,
+    "age_s": 0.6
+   },
+   "MEMINFO": {
+    "count": 120,
+    "age_s": 0.2
+   },
+   "MISSION_CURRENT": {
+    "count": 120,
+    "age_s": 0.2
+   },
+   "NAV_CONTROLLER_OUTPUT": {
+    "count": 120,
+    "age_s": 0.2
+   },
+   "POWER_STATUS": {
+    "count": 120,
+    "age_s": 0.2
+   },
+   "SYS_STATUS": {
+    "count": 120,
+    "age_s": 0.2
+   },
+   "VFR_HUD": {
+    "count": 240,
+    "age_s": 0.0
+   }
+  },
+  "gps": {
+   "fix_type": 0,
+   "fix_name": "NO_GPS",
+   "satellites": 0,
+   "valid_fix": false,
+   "gps_raw_age_s": 0.2,
+   "position_age_s": 0.2,
+   "position_zero": true,
+   "hdop": null,
+   "ekf_flags": null,
+   "ekf_age_s": null,
+   "horizontal_solution": null,
+   "gps_healthy": null,
+   "quality_flags": []
+  },
+  "transport": null,
+  "error": null
+ },
+ "sim_time_s": 59.8,
+ "uptime_s": 6.7,
+ "active_attack": null,
+ "ml_available": false,
+ "threat": true,
+ "severity": "SUSPICIOUS",
+ "attack_type": "DOS",
+ "threat_score": 0.6176,
+ "integrity_status": "UNKNOWN",
+ "distance_m": 0.0,
+ "run_id": "replay-20261103-131650-1",
+ "checks": {
+  "mission": {
+   "known": false,
+   "xtrack_m": null,
+   "wp_seq": null
+  },
+  "crossend": {
+   "active": false,
+   "matched": 0,
+   "mismatches": 0,
+   "last_summary_age_s": null
+  },
+  "receiver": {
+   "ekf_vel_var": null,
+   "ekf_pos_var": null,
+   "sat_jump": 0,
+   "snr_spread": null
+  }
+ }
+}

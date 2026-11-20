@@ -1,0 +1,5 @@
+# aegis verify-log on scratch copies of the fixture run's event store (12 events). Rows deleted with sqlite3.
+full: events: 12  chain: OK  1 run chain(s) intact | exit 0
+tail: events: 11  chain: OK  1 run chain(s) intact | exit 0
+mid: events: 11  chain: BROKEN  run replay-20261103-131633-1: chain broken at event id=5 | exit 2
+all: events: 0  chain: OK  0 run chain(s) intact | exit 0

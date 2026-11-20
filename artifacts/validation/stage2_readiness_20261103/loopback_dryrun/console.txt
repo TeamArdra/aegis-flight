@@ -1,0 +1,29 @@
+serve_synth state ended env REPLAY frames 4340 events 12 {'DOS': 5, 'GPS_SPOOFING': 7} chain {'run_id': 'replay-20261103-131633-1', 'environment': 'REPLAY', 'defense_mode': 'passive'}
+  gps {'fix_name': '3D_FIX', 'satellites': 10, 'valid_fix': True, 'horizontal_solution': True, 'gps_healthy': True, 'quality_flags': []}
+  verify-log 0 events: 12  chain: OK  1 run chain(s) intact
+serve_007_default state ended env REPLAY frames 1620 events 15 {'DOS': 15} chain {'run_id': 'replay-20261103-131650-1', 'environment': 'REPLAY', 'defense_mode': 'passive'}
+  gps {'fix_name': 'NO_GPS', 'satellites': 0, 'valid_fix': False, 'horizontal_solution': None, 'gps_healthy': None, 'quality_flags': []}
+  verify-log 0 events: 15  chain: OK  1 run chain(s) intact
+serve_007_indoor state ended env REPLAY frames 1620 events 0 {} chain {'run_id': 'replay-20261103-131658-1', 'environment': 'REPLAY', 'defense_mode': 'passive'}
+  gps {'fix_name': 'NO_GPS', 'satellites': 0, 'valid_fix': False, 'horizontal_solution': None, 'gps_healthy': None, 'quality_flags': []}
+  verify-log 0 events: 0  chain: OK  0 run chain(s) intact
+serve_005_default state ended env REPLAY frames 60 events 0 {} chain {'run_id': 'replay-20261103-131706-1', 'environment': 'REPLAY', 'defense_mode': 'passive'}
+  gps {'fix_name': None, 'satellites': None, 'valid_fix': None, 'horizontal_solution': None, 'gps_healthy': None, 'quality_flags': []}
+  verify-log 0 events: 0  chain: OK  0 run chain(s) intact
+loop_gpsverify_default exit 0 decisions 151 threat 0 alerts 0 bytes_sent 0 passive True chain True
+  coverage {'heartbeat_seen': True, 'global_position_seen': True, 'gps_raw_seen': True, 'decisions_without_global_position': 1}
+  nav {'decisions': 151, 'flagged_decisions': {'ekf_no_horizontal_solution': 150, 'gps_sensor_unhealthy': 150}, 'last': {'fix_type': 3, 'satellites': 7, 'hdop': 8.12, 'ekf_flags': 167, 'ekf_age_s': 0.3, 'horizontal_solution': False, 'gps_healthy': False, 'quality_flags': ['ekf_no_horizontal_solution', 'gps_sensor_unhealthy']}}
+  keys ['schema', 'started_utc', 'port', 'baud', 'ml_enabled', 'config_dir', 'defense_mode', 'tlog', 'wall_s', 'cpu_s', 'cpu_pct_of_one_core_mean', 'rss_mb_max', 'decisions', 'threat_decisions', 'alert_decisions', 'alert_types', 'decision_latency_ms', 'transport', 'source', 'link_ever_delivered_frames', 'telemetry_coverage', 'navigation_health', 'passive_check', 'hash_chain', 'exit_code']
+loop_007_default exit 0 decisions 151 threat 146 alerts 8 bytes_sent 0 passive True chain True
+  coverage {'heartbeat_seen': True, 'global_position_seen': True, 'gps_raw_seen': True, 'decisions_without_global_position': 0}
+  nav {'decisions': 151, 'flagged_decisions': {'ekf_no_horizontal_solution': 0, 'gps_sensor_unhealthy': 0}, 'last': {'fix_type': 0, 'satellites': 0, 'hdop': None, 'ekf_flags': None, 'ekf_age_s': None, 'horizontal_solution': None, 'gps_healthy': None, 'quality_flags': []}}
+  keys ['schema', 'started_utc', 'port', 'baud', 'ml_enabled', 'config_dir', 'defense_mode', 'tlog', 'wall_s', 'cpu_s', 'cpu_pct_of_one_core_mean', 'rss_mb_max', 'decisions', 'threat_decisions', 'alert_decisions', 'alert_types', 'decision_latency_ms', 'transport', 'source', 'link_ever_delivered_frames', 'telemetry_coverage', 'navigation_health', 'passive_check', 'hash_chain', 'exit_code']
+loop_007_indoor exit 0 decisions 151 threat 0 alerts 0 bytes_sent 0 passive True chain True
+  coverage {'heartbeat_seen': True, 'global_position_seen': True, 'gps_raw_seen': True, 'decisions_without_global_position': 0}
+  nav {'decisions': 151, 'flagged_decisions': {'ekf_no_horizontal_solution': 0, 'gps_sensor_unhealthy': 0}, 'last': {'fix_type': 0, 'satellites': 0, 'hdop': None, 'ekf_flags': None, 'ekf_age_s': None, 'horizontal_solution': None, 'gps_healthy': None, 'quality_flags': []}}
+  keys ['schema', 'started_utc', 'port', 'baud', 'ml_enabled', 'config_dir', 'defense_mode', 'tlog', 'wall_s', 'cpu_s', 'cpu_pct_of_one_core_mean', 'rss_mb_max', 'decisions', 'threat_decisions', 'alert_decisions', 'alert_types', 'decision_latency_ms', 'transport', 'source', 'link_ever_delivered_frames', 'telemetry_coverage', 'navigation_health', 'passive_check', 'hash_chain', 'exit_code']
+loop_005_default exit 0 decisions 151 threat 0 alerts 0 bytes_sent 0 passive True chain True
+  coverage {'heartbeat_seen': True, 'global_position_seen': False, 'gps_raw_seen': False, 'decisions_without_global_position': 151}
+  nav {'decisions': 151, 'flagged_decisions': {'ekf_no_horizontal_solution': 0, 'gps_sensor_unhealthy': 0}, 'last': {'fix_type': None, 'satellites': None, 'hdop': None, 'ekf_flags': None, 'ekf_age_s': None, 'horizontal_solution': None, 'gps_healthy': None, 'quality_flags': []}}
+  keys ['schema', 'started_utc', 'port', 'baud', 'ml_enabled', 'config_dir', 'defense_mode', 'tlog', 'wall_s', 'cpu_s', 'cpu_pct_of_one_core_mean', 'rss_mb_max', 'decisions', 'threat_decisions', 'alert_decisions', 'alert_types', 'decision_latency_ms', 'transport', 'source', 'link_ever_delivered_frames', 'telemetry_coverage', 'navigation_health', 'passive_check', 'hash_chain', 'exit_code']
+serve_serial_gpsverify env REPLAY physical False link live frames 1452 events 0 bytes_sent 0 attack POST -> 409

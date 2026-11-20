@@ -1,0 +1,34 @@
+{
+  "tlog": "data/hardware/raw/telemetry_radio_008.tlog",
+  "config_dir": "demo/indoor_bench_profile",
+  "ml_enabled": false,
+  "clock_offset_s_used_for_phases": 0.0,
+  "decisions": 313,
+  "threat_decisions": 5,
+  "alert_decisions": 2,
+  "alert_rate_per_decision": 0.00639,
+  "by_phase": {
+    "boot": {
+      "decisions": 313,
+      "threat": 5,
+      "alerts": 2
+    }
+  },
+  "detector_ge_0.5": {
+    "physics_consistency": 5
+  },
+  "alert_types": {
+    "GPS_SPOOFING": 1,
+    "TELEMETRY_MANIPULATION": 1
+  },
+  "alert_evidence_top": [
+    [
+      "GPS_RAW_INT velocity differs from EKF velocity by 3.1 m/s > 3 m/s",
+      1
+    ],
+    [
+      "GPS/baro altitude mismatch 19.2 m > 8 m",
+      1
+    ]
+  ]
+}
