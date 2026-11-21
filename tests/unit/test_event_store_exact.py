@@ -299,3 +299,36 @@ def test_tampering_any_action_column_breaks_the_actions_chain(column: str) -> No
     st.conn.commit()
     assert st.verify_actions_chain("r").ok is False
     st.close()
+
+
+def test_a_read_only_store_may_also_be_read_from_another_thread(tmp_path: Path) -> None:
+    db = tmp_path / "ro_thread.sqlite"
+    rw = EventStore(db)
+    rw.start_run("r")
+    rw.log_event(assessment(), "r")
+    rw.close()
+    ro = EventStore(db, read_only=True)
+    seen: list[int] = []
+    errors: list[BaseException] = []
+
+    def worker() -> None:
+        try:
+            seen.append(ro.count_events())
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    th = threading.Thread(target=worker)
+    th.start()
+    th.join()
+    assert errors == [] and seen == [1]
+    ro.close()
+
+
+def test_get_events_default_limit_is_exactly_one_hundred() -> None:
+    st = EventStore(":memory:")
+    st.start_run("r")
+    for i in range(101):
+        st.log_event(assessment(t=float(i)), "r")
+    assert len(st.get_events()) == 100 and len(st.get_events("r")) == 100
+    assert st.get_events()[0]["id"] == 101
+    st.close()
