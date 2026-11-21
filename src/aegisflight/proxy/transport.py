@@ -659,6 +659,11 @@ def is_virtual_sitl_interface(name: str) -> bool:
     return not pinned or pinned == name
 
 
+#: Widest virtual-adapter network accepted for the opt-in, by IP version (minimum prefix length). A /8 or /0
+#: docker/custom network would otherwise admit any private address in it. WSL2's /20 and docker's /16 pass.
+MIN_VIRTUAL_PREFIX: dict[int, int] = {4: 16, 6: 64}
+
+
 def check_upstream_host(host: str, *, allow_private: bool | None = None) -> str:
     """Refuse an upstream (vehicle-side) address that is not local SITL. Opens no socket.
 
@@ -668,7 +673,10 @@ def check_upstream_host(host: str, *, allow_private: bool | None = None) -> str:
     WSL/Default Switch, ``docker0``, ``virbr*``, VirtualBox/VMware host-only, ...). An address inside the subnet of
     a physical-looking interface (``Wi-Fi``, ``Ethernet``, ``en0``, ``eth0``, ``wlan0``, ...) is refused even with
     the opt-in, and if the address also falls in any non-virtual interface's subnet it is refused (ambiguous).
-    ``AEGIS_SITL_INTERFACE`` can only narrow this to one allowlisted interface. If interfaces cannot be listed the
+    The matched virtual network must also be no wider than /16 (IPv4) or /64 (IPv6) (:data:`MIN_VIRTUAL_PREFIX`),
+    so a /8 or /0 docker/custom network cannot admit arbitrary private addresses. Scoped addresses (anything
+    containing ``%``) are refused outright, as their egress interface is not the one validated. The returned
+    string is the canonical host the caller must connect to. ``AEGIS_SITL_INTERFACE`` can only narrow this to one allowlisted interface. If interfaces cannot be listed the
     check fails closed. Hostnames (not resolved) and public addresses never pass.
 
     Remaining limitation: this trusts interface NAMES. A user who bridges a virtual adapter onto a real LAN
@@ -676,10 +684,13 @@ def check_upstream_host(host: str, *, allow_private: bool | None = None) -> str:
     keep the vehicle's radio/bridge off any host that runs attack tooling.
     """
     h = str(host).strip().strip("[]")
+    if "%" in h:
+        raise ValueError(f"refusing upstream {host!r}: a scoped address (IPv6 zone / interface suffix after '%') "
+                         "could route out of a physical interface; give the plain IP literal (AGENTS.md s5)")
     if h.lower() == "localhost":
         return "127.0.0.1"
     try:
-        ip = ipaddress.ip_address(h.split("%", 1)[0])
+        ip = ipaddress.ip_address(h)
     except ValueError:
         raise ValueError(f"refusing upstream {host!r}: only a loopback or (opted-in) local-network IP literal "
                          "is allowed; hostnames are not resolved (AGENTS.md s5)") from None
@@ -703,6 +714,14 @@ def check_upstream_host(host: str, *, allow_private: bool | None = None) -> str:
                 f"SITL (AGENTS.md s5). The opt-in never admits a physical interface; {SITL_INTERFACE_ENV} can "
                 "only narrow, not widen, the allowlist")
         name, net = matches[0]
+        min_prefix = MIN_VIRTUAL_PREFIX[net.version]
+        wide = [(n, nt) for n, nt in matches if nt.prefixlen < min_prefix]
+        if wide:
+            name, net = wide[0]
+            raise ValueError(
+                f"refusing upstream {host!r}: it is inside {net} on interface {name!r}, a network wider than "
+                f"/{min_prefix} (IPv{net.version}); a SITL adapter network that wide could contain a real vehicle "
+                f"bridge or LAN. Narrow the virtual network to /{min_prefix} or smaller (AGENTS.md s5)")
         _PRIVATE_ACKS.append({"host": h, "interface": name, "network": str(net)})
         log.warning("private upstream %s accepted on opt-in (virtual interface %s, %s)", h, name, net)
         return h
@@ -734,8 +753,8 @@ def make_udp_relay(
     ``AEGIS_ALLOW_PRIVATE_UPSTREAM=1`` and is recorded in the run manifest; other private addresses,
     hostnames and public addresses are always refused.
     """
-    check_upstream_host(px4_host, allow_private=allow_private_upstream)
-    upstream = UdpMavlinkTransport(connect=(px4_host, px4_port), gcs_heartbeat=True)
+    host = check_upstream_host(px4_host, allow_private=allow_private_upstream)
+    upstream = UdpMavlinkTransport(connect=(host, px4_port), gcs_heartbeat=True)
     try:
         downstream = UdpDownstream((listen_host, listen_port))
     except BaseException:
