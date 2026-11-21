@@ -85,6 +85,19 @@ def _segment_heads(store: EventStore) -> dict[str, object]:
     }
 
 
+class RotationLinkError(RuntimeError):
+    """The old segment was renamed but the ROTATION_LINK row could not be written to the fresh store.
+
+    ``store`` is the usable reopened store (a ROTATION_FAILED row naming the rotated segment and the captured
+    heads was attempted in it); ``started`` says whether ``start_run`` for the new run id succeeded.
+    """
+
+    def __init__(self, store: EventStore, started: bool, cause: Exception | None) -> None:
+        super().__init__(f"rotation link not written: {type(cause).__name__}: {cause}")
+        self.store = store
+        self.started = started
+
+
 def rotate_sqlite_store(
     store: EventStore,
     *,
@@ -156,18 +169,38 @@ def rotate_sqlite_store(
         **prev_heads,
     }
     fresh_meta = {**(meta or {}), "prev_segment": prev_segment}
-    fresh = _EventStore(db_path)
-    fresh.start_run(run_id, label=label, meta=fresh_meta)
-    fresh.log_action(
-        run_id,
-        time.time(),
-        "rotation",
-        # With max_rotations == 0 the old segment was deleted: there is nothing to link to, so say so.
-        "ROTATION_LINK" if keep_segment else "ROTATION_DISCARDED",
-        db_path.name,
-        json.dumps(prev_segment, sort_keys=True),
-    )
-    return fresh, True
+    # With max_rotations == 0 the old segment was deleted: there is nothing to link to, so say so.
+    link_action = "ROTATION_LINK" if keep_segment else "ROTATION_DISCARDED"
+    link_detail = json.dumps(prev_segment, sort_keys=True)
+    # The old segment is already renamed, so the fresh file MUST carry the link row. Retry once; never leave a
+    # silently unlinked segment (R1 P3).
+    fresh = None
+    started = False
+    link_error: Exception | None = None
+    for attempt in (1, 2):
+        try:
+            if fresh is None:
+                fresh = _EventStore(db_path)
+            if not started:
+                fresh.start_run(run_id, label=label, meta=fresh_meta)
+                started = True
+            fresh.log_action(run_id, time.time(), "rotation", link_action, db_path.name, link_detail)
+            return fresh, True
+        except Exception as exc:  # noqa: BLE001 - handled below, never silent
+            link_error = exc
+            log.error("rotation link write failed for %s (attempt %d/2)", db_path, attempt, exc_info=True)
+    # Could not write the link. Make sure a usable store exists at db_path and record the failure in it.
+    if fresh is None:
+        fresh = _EventStore(db_path)  # may raise; the caller recovers a store and counts the failure
+    if not started:
+        with contextlib.suppress(Exception):
+            fresh.start_run(run_id, label=label, meta=fresh_meta)
+            started = True
+    failure_detail = json.dumps({**prev_segment, "error": f"{type(link_error).__name__}: {link_error}"},
+                                sort_keys=True)
+    with contextlib.suppress(Exception):
+        fresh.log_action(run_id, time.time(), "rotation", "ROTATION_FAILED", db_path.name, failure_detail)
+    raise RotationLinkError(fresh, started, link_error)
 
 
 def prune_rotated_files(

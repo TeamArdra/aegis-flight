@@ -78,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--px4-host", default=None, help="default: discovered WSL IP")
     ap.add_argument("--allow-private-upstream", action="store_true",
-                    help="allow a private --px4-host (WSL2 NAT) that lies in a local interface's subnet; default loopback only")
+                    help="allow a private --px4-host (WSL2 NAT) that lies in a VIRTUAL host-only/NAT adapter's subnet (never a physical NIC); default loopback only")
     ap.add_argument("--px4-port", type=int, default=18572)
     ap.add_argument("--relay-listen-port", type=int, default=18672)
     ap.add_argument("--seed", type=int, required=True)

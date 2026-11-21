@@ -213,7 +213,13 @@ def test_archive_marks_complete_false_when_segments_rotated_out_and_missing_jobl
     assert det.load_error is not None and "ImportError" in det.load_error
 
 
-@pytest.mark.skipif(not hasattr(signal, "SIGTERM"), reason="SIGTERM requires POSIX")
+# On Windows ``signal.SIGTERM`` exists but ``Popen.send_signal(SIGTERM)`` is ``TerminateProcess``: the child
+# is killed unconditionally (exit code 1) and its handler never runs, so graceful shutdown cannot be
+# exercised there. ``hasattr(signal, "SIGTERM")`` is therefore not a POSIX check.
+@pytest.mark.skipif(
+    sys.platform == "win32" or not hasattr(signal, "SIGTERM"),
+    reason="Windows has no deliverable SIGTERM (send_signal terminates the process hard)",
+)
 def test_sigterm_shuts_down_onboard_cleanly_with_valid_sqlite_and_manifest(tmp_path: Path) -> None:
     fc_port = _free_port()
     gcs_port = _free_port()

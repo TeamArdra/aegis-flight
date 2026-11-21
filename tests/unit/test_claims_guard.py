@@ -89,6 +89,7 @@ def test_file_globs_match_the_issue(tmp_path, path, flagged):
 def test_the_allowlist_is_the_issue_list_plus_the_guard_itself():
     assert cg.ALLOWLIST == ("docs/STAGE2_*", "docs/SUBMISSION_READINESS_AUDIT.md",
                             "docs/REDTEAM_AUDIT_STAGE2.md", "docs/GPS_WORKSTREAM_PROGRESS.md",
+                            "artifacts/sitl/p2_telemetry_dryrun_20261119/*",
                             "scripts/claims_guard.py", "tests/unit/test_claims_guard.py")
 
 
@@ -109,3 +110,11 @@ def test_ci_runs_this_guard():
     ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     assert "python3 scripts/claims_guard.py" in ci
     assert "git grep -nE" not in ci, "the pattern must live only in scripts/claims_guard.py"
+
+
+def test_citing_the_unsupported_p2_dry_run_is_flagged_outside_its_own_directory(tmp_path):
+    cite = "see artifacts/sitl/p2_telemetry_dryrun_20261119/summary.md"
+    _repo(tmp_path, {"docs/REPORT.md": cite,
+                     "artifacts/sitl/p2_telemetry_dryrun_20261119/UNSUPPORTED.md": cite})
+    hits = cg.find_claims(cwd=str(tmp_path))
+    assert len(hits) == 1 and hits[0].startswith("docs/REPORT.md"), hits
