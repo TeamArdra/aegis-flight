@@ -685,11 +685,14 @@ def run_onboard(
                 rc = 1
                 break
             notifier.watchdog()
-            bridge.rotate_store(
-                max_bytes=cfg.retention.max_db_bytes,
-                max_rotations=cfg.retention.max_rotations,
-                run_id_prefix="onboard",
-            )
+            try:
+                bridge.rotate_store(
+                    max_bytes=cfg.retention.max_db_bytes,
+                    max_rotations=cfg.retention.max_rotations,
+                    run_id_prefix="onboard",
+                )
+            except Exception as exc:  # noqa: BLE001 - a rotation fault must never stop the IDS (bridge already logs it)
+                print(f"aegis onboard: store rotation failed: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             if cfg.retention.max_total_disk_bytes > 0:
                 active = set(ARCHIVE_FILES) | {cfg.db_name, "run_manifest.json", db_path.with_suffix(".anchors.jsonl").name}
                 pruned_names: list[str] = []

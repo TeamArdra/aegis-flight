@@ -244,6 +244,14 @@ def collect_run_provenance(
     }
     if extra:  # before the drift check: extra fields can never overwrite the reproducibility stamp
         manifest.update({k: v for k, v in extra.items() if k not in _STAMP_KEYS})
+    try:  # additive, only when the private-upstream opt-in was used in this process (proxy/transport.py)
+        from .proxy.transport import private_upstream_acks  # noqa: PLC0415
+
+        acks = private_upstream_acks()
+    except Exception:  # noqa: BLE001 - provenance must never fail because of the proxy import
+        acks = []
+    if acks:
+        manifest["private_upstream_ack"] = acks
     _apply_drift(manifest, state, end)
     return manifest
 

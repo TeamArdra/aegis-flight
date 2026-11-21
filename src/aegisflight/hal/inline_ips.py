@@ -35,6 +35,7 @@ on the host it runs on; nothing here has been measured on a companion computer o
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import threading
 import time
@@ -65,6 +66,7 @@ from ..sources.mavlink_serial import may_reach_vehicle
 from .mgmt_channel import MAX_CMD_AGE_S, FrameSender, MgmtChannel, drop_label, is_mgmt_command
 
 UPLINK_FAIL_CLOSED_MSGIDS = CONTROL_MSGIDS | _COMMAND_MSGIDS
+log = logging.getLogger(__name__)
 
 
 class BridgeTransport(Protocol):
@@ -215,6 +217,10 @@ class InlineIpsBridge:
         self.rate_hz = sample_rate_hz
         self.store = store
         self._store_lock = threading.RLock()
+        # audit rows that arrived while a rotation held the store lock; flushed (in order) once it is free
+        self._action_backlog: deque[tuple[float, str, str, str, str]] = deque(maxlen=20_000)
+        self.store_rows_lost = 0
+        self.rotation_failures = 0
         self.run_id = run_id
         self._clock_ns = clock_ns
         self._idle = idle_sleep_s
@@ -299,8 +305,45 @@ class InlineIpsBridge:
             with contextlib.suppress(Exception):
                 tr.close()
 
+    def _write_action_locked(self, t: float, actor: str, action: str, target: str, detail: str) -> None:
+        """Append one action row. Caller holds ``_store_lock``. A failure is counted and logged, never raised."""
+        if self.store is None:
+            return
+        try:
+            self.store.log_action(self.run_id, t, actor, action, target, detail)
+            if self.anchor_writer is not None:
+                self.anchor_writer.maybe_write(self.run_id)
+        except Exception:  # noqa: BLE001 - the audit row is lost: count it, say so, keep forwarding
+            self.store_rows_lost += 1
+            if self.store_rows_lost == 1 or self.store_rows_lost % 1000 == 0:
+                log.error("action-log write failed (%d rows lost so far)", self.store_rows_lost, exc_info=True)
+
+    def _flush_action_backlog_locked(self) -> None:
+        while self._action_backlog:
+            self._write_action_locked(*self._action_backlog.popleft())
+
+    def _log_action(self, t: float, actor: str, action: str, target: str, detail: str = "") -> None:
+        """Thread-safe action row. Never blocks the forwarding path: if a rotation holds the store lock the row is
+        queued and written, in order, as soon as the lock is free (a full queue is counted in ``store_rows_lost``)."""
+        if self.store is None:
+            return
+        if not self._store_lock.acquire(blocking=False):
+            if len(self._action_backlog) == self._action_backlog.maxlen:
+                self.store_rows_lost += 1  # deque(maxlen) drops the oldest row on append
+            self._action_backlog.append((t, actor, action, target, detail))
+            return
+        try:
+            self._flush_action_backlog_locked()
+            self._write_action_locked(t, actor, action, target, detail)
+        finally:
+            self._store_lock.release()
+
     def rotate_store(self, *, max_bytes: int, max_rotations: int = 5, run_id_prefix: str = "ips") -> bool:
-        """Safely rotate the attached EventStore when its active file reaches ``max_bytes``."""
+        """Safely rotate the attached EventStore when its active file reaches ``max_bytes``.
+
+        Never raises: a failed rotation is logged (``rotation_failures``), the store is kept or reopened so the
+        IDS keeps logging on an unbroken chain, and ``False`` is returned.
+        """
         if self.store is None or max_bytes <= 0:
             return False
         from ..logging.rotation import rotate_sqlite_store  # noqa: PLC0415
@@ -312,19 +355,38 @@ class InlineIpsBridge:
                 with contextlib.suppress(Exception):
                     self.anchor_writer.write_now(self.run_id, force=True)
             new_run_id = time.strftime(f"{run_id_prefix}-%Y%m%d-%H%M%S")
-            fresh, rotated = rotate_sqlite_store(
-                self.store,
-                max_bytes=max_bytes,
-                max_rotations=max_rotations,
-                run_id=new_run_id,
-                label="ips-bridge",
-            )
-            if rotated:
-                self.store = fresh
-                self.run_id = new_run_id
+            old = self.store
+            try:
+                fresh, rotated = rotate_sqlite_store(
+                    old,
+                    max_bytes=max_bytes,
+                    max_rotations=max_rotations,
+                    run_id=new_run_id,
+                    label="ips-bridge",
+                )
+            except Exception:  # noqa: BLE001 - the IDS must outlive a rotation fault
+                self.rotation_failures += 1
+                log.error("store rotation failed; recovering a usable store", exc_info=True)
+                fresh, rotated = self._recover_store(old), False
+            if fresh is not old:
+                self.store = fresh  # rotate_sqlite_store closed the old handle whenever it returns a new one
                 if self.anchor_writer is not None:
-                    self.anchor_writer.store = fresh
+                    self.anchor_writer.store = fresh  # anchors must follow the store, rotated or reopened
+            if rotated:
+                self.run_id = new_run_id
+            self._flush_action_backlog_locked()
             return rotated
+
+    @staticmethod
+    def _recover_store(old: Any) -> Any:
+        """After an unexpected rotation error: keep ``old`` if its connection still works, else reopen its file."""
+        try:
+            old.conn.execute("SELECT 1")
+            return old
+        except Exception:  # noqa: BLE001 - closed connection
+            from ..logging.store import EventStore  # noqa: PLC0415
+
+            return EventStore(old.db_path)
 
     def __enter__(self) -> InlineIpsBridge:
         return self.start()
@@ -517,11 +579,7 @@ class InlineIpsBridge:
                 if self._mgmt_active():
                     with contextlib.suppress(Exception):
                         self.mgmt.note_drop(lbl)
-                if self.store is not None:
-                    with self._store_lock, contextlib.suppress(Exception):
-                        self.store.log_action(self.run_id, stamp / 1e9, "inline_ips", action_name, direction, lbl)
-                        if self.anchor_writer is not None:
-                            self.anchor_writer.maybe_write(self.run_id)
+                self._log_action(stamp / 1e9, "inline_ips", action_name, direction, lbl)
             if policy._observed_pending:
                 with contextlib.suppress(Exception):
                     for verdict, oraw, osys, omsg in policy.take_observed():
@@ -604,16 +662,20 @@ class InlineIpsBridge:
                 with contextlib.suppress(Exception):
                     self.mgmt.alert(assessment.attack_type.value, assessment.severity.value, rogue[0] if rogue else None)
             if self.store is not None:
-                with self._store_lock, contextlib.suppress(Exception):
-                    self.store.log_event(assessment, self.run_id)
-                    if self.anchor_writer is not None:
-                        self.anchor_writer.maybe_write(self.run_id)
+                with self._store_lock:
+                    self._flush_action_backlog_locked()
+                    try:
+                        if self.store is not None:
+                            self.store.log_event(assessment, self.run_id)
+                            if self.anchor_writer is not None:
+                                self.anchor_writer.maybe_write(self.run_id)
+                    except Exception:  # noqa: BLE001 - counted and logged; the analyser keeps running
+                        self.store_rows_lost += 1
+                        log.error("event-log write failed (%d rows lost so far)", self.store_rows_lost, exc_info=True)
         mode = self.controller.mode
-        if mode == DefenseMode.ACTIVE_IPS or (mode == DefenseMode.ADVISORY and not self._mgmt_active()):
+        if mode == DefenseMode.ACTIVE_IPS:  # PASSIVE / ADVISORY never write counter-frames (ADVISORY alerts go via mgmt.alert())
             for frame in act.counter_frames:
                 is_txt = _is_statustext(frame)
-                if mode == DefenseMode.ADVISORY and (not is_txt or not self.gcs_alerts):
-                    continue  # ADVISORY never writes non-STATUSTEXT or touches FC; _mgmt_active() already emitted mgmt.alert()
                 # corrective commands go to the flight controller; a STATUSTEXT warning is for the pilot's GCS
                 # (the FC does not relay a STATUSTEXT it receives), so it goes to the GCS side only
                 link = self.gcs if is_txt else self.fc
@@ -622,19 +684,10 @@ class InlineIpsBridge:
                 ok = link.send(frame)
                 if self.archive is not None:
                     self.archive.action(t, "counter_frame", target_link, frame, sent=bool(ok))
-                if self.store is not None:
-                    with contextlib.suppress(Exception):
-                        self.store.log_action(
-                            self.run_id,
-                            t / 1e9,
-                            "inline_ips",
-                            "counter_frame",
-                            target_link,
-                            f"bytes={len(frame)} sent={bool(ok)}",
-                        )
+                self._log_action(t / 1e9, "inline_ips", "counter_frame", target_link,
+                                 f"bytes={len(frame)} sent={bool(ok)}")
                 if ok:
-                    if mode == DefenseMode.ACTIVE_IPS:
-                        self.counter_frames_sent += 1
+                    self.counter_frames_sent += 1
                 else:
                     self.send_failures += 1
 

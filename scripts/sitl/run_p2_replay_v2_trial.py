@@ -114,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
     attack = ReplayAttack(params, capture_sysid=CAPTURE_SYSID, capture_compid=CAPTURE_COMPID,
                           capture_command=DEFAULT_COMMAND, frame_log=frame_log)
     hook = _CarrierRecorder(attack)
-    relay = make_udp_relay(px4_host, a.px4_port, a.relay_listen_port, up_hook=hook, down_hook=hook,
+    relay = make_udp_relay(px4_host, a.px4_port, a.relay_listen_port, allow_private_upstream=True if a.allow_private_upstream else None, up_hook=hook, down_hook=hook,
                            mirror_uplink_to_clients=True)
     relay.start()
     if not relay.wait_upstream_alive(timeout=15.0):
