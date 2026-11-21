@@ -22,12 +22,17 @@ Verifies:
 - Fail-closed uplink blocking (`dropped_unsigned`, `dropped_semantic_param`, `dropped_untrusted_control`) under signed `ACTIVE_IPS`.
 - Validated SHA-256 `events` + `actions` chains and HMAC-signed `anchors.jsonl`.
 
-### B. Companion-Computer Resource & `tc netem` Bench (Docker)
-Simulates a resource-capped companion (`2 vCPU / 512 MiB RAM`) and Linux kernel `tc netem` telemetry-radio impairments (`40ms ± 20ms` jitter, `3%` burst loss, `4%` reordering, `0.2%` corruption):
+### B. Companion-Computer Resource Bench (Docker, SIM only)
+Runs the field drill and the soak above inside a resource-capped container (`2 vCPU / 512 MiB RAM`). Export
+`AEGIS_API_TOKEN` and `AEGIS_ANCHOR_KEY` first (the compose file has no default secrets):
 ```bash
 docker compose -f deploy/bench/docker-compose.yml run --rm aegis-companion
 ```
-To launch with containerized ArduPilot Copter SITL + `tc netem`:
+The compose command also applies a `tc netem` qdisc to the container's `eth0` (`apply_netem.sh`, defaults `40ms ± 20ms`
+jitter, `3%` loss, `4%` reordering, `0.2%` corruption). **That impairment does not reach the drill or the soak**, which use
+in-memory transports and open no socket, so no result from this step is evidence about behaviour on an impaired radio link.
+The `sitl` profile only starts an ArduCopter SITL container (image pinned by digest) on the same network; the default
+command does not connect to it and does not start the dashboard:
 ```bash
 docker compose -f deploy/bench/docker-compose.yml --profile sitl up --build
 ```
@@ -54,7 +59,9 @@ Once you have a real Pixhawk and companion computer (**props removed, bench powe
    ```
    Confirm `0` bytes transmitted during probe (`discover_mavlink_ports`) and verify serial receive-only safety (`may_reach_vehicle()` blocks `ACTIVE_IPS` on OS serial devices).
 2. **Firmware Manifest Enrollment:**
-   Capture known-good Pixhawk firmware hashes (`aegis fw-manifest <dir>` (writes an unsigned `manifest.json`; keep it with the images)) and save an HMAC-signed `configs/firmware_allowlist.yaml`.
+   While disarmed, passively capture the Pixhawk `AUTOPILOT_VERSION` (0 B TX) with `aegis onboard --enroll-firmware OUT_YAML`
+   (optionally HMAC-signed with `AEGIS_ALLOWLIST_KEY`) and use `OUT_YAML` as the firmware allowlist
+   (e.g. `configs/firmware_allowlist.yaml`). `aegis fw-manifest DIR` is a different tool: it hashes `*.bin` files.
 3. **RX-Only Cable Check:**
    Physically disconnect the UART TX pin between the companion computer and Pixhawk TELEM port while testing `PASSIVE` monitoring, confirming QGroundControl and autopilot behavior are completely unaffected.
 
@@ -94,9 +101,28 @@ Disabled unless `AEGIS_HW_WATCHDOG_PATH` is set (a GPIO `value` file); `AEGIS_HW
 Drive the relay coil through a retriggerable monostable that releases after about 8 ms without an edge.
 `aegis onboard` starts the pulse after READY and stops it (pin low) on exit; it is suppressed if bridge workers die.
 
+### Live SITL + `tc netem` bench results (2026-11-21, tag `SITL`, link-level only)
+
+Setup: `deploy/bench` containers (`radarku/ardupilot-sitl` ArduCopter, companion 2 vCPU / 512 MiB), `tc netem` on both egress sides (rate 115200 bit, delay 40 +/- 20 ms, loss 3%, reorder 4%, corrupt 0.2%), wind 12 m/s, turbulence 4, GPS noise 0.8, battery sag. Artifacts are container-local (`/h/run_*`), not committed; harness scripts are not in the repo.
+
+- **Benign soak 1 (30 min, untuned universal profile):** 96,816 frames down, 11 alerts (10 heading/yaw > 10 deg, 1 ConstDet 44.4 m/s2 spike). Bridge latency p50 21.5 us, p95 124.7 us; RSS <= 78 MB; CPU mean 7.4%, max 9.0%.
+- **Tuning (`configs/universal_flight/detector.yaml` only; Stage-1 `configs/detector.yaml` untouched):** `control_accel_residual_ms2` 8.0 (benign wind residual p99 6.15, max 6.43) and `heading_yaw_tolerance_deg` 20.0. Regression tests: `tests/unit/test_universal_constdet_wind.py`. Cost: heading/yaw offsets below 20 deg are no longer flagged on the universal profile.
+- **Benign soak 2 (20 min, tuned profile):** heading/yaw false alarms gone; 8 ConstDet alerts (about 24/h extrapolated; spikes 8.2-57 m/s2, attributed to netem loss/reorder/corruption on velocity deltas, not fixed). Event chain OK, 245 signed anchors OK, `PRAGMA integrity_check` ok, RSS <= 77.8 MB, CPU mean 6.9%, max 8.0%.
+- **Compound attack under signed ACTIVE_IPS (15 min flight, attack t=300-390 s):** 5,000 msg/s flood from an unauthorised sysid, rogue/spoofed unsigned COMMAND_LONG, unsigned and signed PARAM_SET, GPS drift. Zero tracebacks, 0 analyser errors, bridge stayed up. 409,580 uplink frames dropped (409,400 by the dynamic rule, 180 unsigned control frames); 23 `DOS` alerts and 1 `MAVLINK_ANOMALY` during the flood; RSS <= 81.2 MB; CPU mean 12.8%, max 61.8% (flood). Event chain OK, 186 signed anchors OK, integrity_check ok.
+- **Limitations found in that run:**
+  - The legitimately signed in-flight `PARAM_SET` (FS_GCS_ENABLE) was forwarded (`semantic_firewall.dropped_param` = 0). Treat as an open gap for armed flight.
+  - The IDS reacted to the GPS drift late (ALT_HOLD at t=456 s) and no `GPS_SPOOFING` event for the drift was found in the event table (STATUSTEXT messages only); the vehicle disarmed at t=579 s for a cause not established. RC takeover/recovery was not exercised.
+  - An earlier attack run was discarded: the harness sent unsigned frames (import-order bug), so it measured nothing about recovery.
+
+### Stage-1 regression and readiness soak on the final head (2026-11-21)
+
+- `aegis benchmark --out <scratch> --no-figures` with the hash-verified `models/isoforest.joblib` (`scripts/fetch_models.py`): `TP / FP / TN / FN = 6535 / 4 / 16826 / 65` (tag `SIM`). Unchanged from the Stage-1 baseline.
+- `python scripts/hardware/hw_readiness_soak.py --cycles 5 --flood-frames 5000`: `ok=True benign_alerts=0 attack_alerts=1 forwarded=5702 dropped_up=3 dropped_unsigned=2 dropped_semantic_param=1 analyser_errors=0 p95_us=5.3`, event/actions chains and anchors verified (tag `SIM`).
+- **Open finding:** with the model present, `tests/unit/test_golden_equivalence.py` fails 55 ML-on cases (`frame_r` digest first). `origin/main` passes all 138. The ML-on section of `tests/golden/golden.json` predates the Stage-2 hardening: the stack adds FeatureFrame fields and lowers alert counts on 16 live cases (for example `live/crossend/profile` 11 -> 3 alerts). CI does not fetch the model, so it skips these cases. The ML-on section was regenerated with `scripts/make_golden.py --ml-only` (model sha256 `3fe74cdd...2939c4`, ML-off section byte-identical); the 16 changed alert summaries need reviewer sign-off.
+
 ### Not run in this pass
 
-- **Live SITL + `tc netem` benign/attack soak:** not run. It needs the `radarku/ardupilot-sitl` image pulled from a registry and a multi-hour flight. No live-SITL `FA/hr`, RSS, CPU or bridge-latency numbers exist yet.
+- **Multi-hour live SITL soak:** not run. The SITL runs below are 20-30 min flights, so every per-hour figure is a short-run extrapolation.
 - **Real outdoor replay `FA/hr`:** not measured. The only tlogs on the dev host are PX4-VTOL-SITL captures.
 - `aegis onboard --preflight` on a laptop fails only `run_root_writable` (default `/var/lib/aegisflight`); pass `--run-dir`.
 
