@@ -203,3 +203,95 @@ def test_fetch_models_corrupt_file_is_refetched_and_verified(tmp_path):
     assert fm.main(["--models-dir", str(dst), "--verify-only"]) == 1
     assert fm.main(["--models-dir", str(dst), "--base-url", src.as_uri()]) == 0
     assert fm.main(["--models-dir", str(dst), "--verify-only"]) == 0
+
+
+# --- R5: CLI, detector and benchmark metadata agree on every model state ---------------------------------
+
+def _valid_bundle(path: Path) -> None:
+    import numpy as np
+    from sklearn.ensemble import IsolationForest
+    from sklearn.preprocessing import StandardScaler
+
+    from aegisflight.features.extractor import ML_FEATURES
+
+    X = np.random.default_rng(0).normal(size=(200, len(ML_FEATURES)))
+    scaler = StandardScaler().fit(X)
+    model = IsolationForest(n_estimators=10, random_state=0).fit(scaler.transform(X))
+    joblib.dump({"model": model, "scaler": scaler, "feature_names": list(ML_FEATURES), "iso_mean": 0.0,
+                 "iso_std": 1.0, "maha_mean": 0.0, "maha_std": 1.0, "score_thr": 3.0, "score_scale": 1.0}, path)
+
+
+def _bench(tmp_path, monkeypatch, model, allow=False):
+    from aegisflight.benchmark import harness
+
+    monkeypatch.setattr(harness, "SCENARIOS", ["benign"])
+    return harness.run_benchmark(load_config(), seeds=[1], model_path=str(model),
+                                 out_dir=tmp_path / "out", allow_unverified_model=allow)
+
+
+def _setup(tmp_path, state):
+    m = tmp_path / "m.joblib"
+    if state == "missing":
+        return m
+    if state == "corrupt":  # listed + hash matches, but not a joblib file
+        digest = _write_model(m, b"not a joblib file")
+        _manifest(tmp_path, "m.joblib", digest)
+        return m
+    _valid_bundle(m)
+    digest = hashlib.sha256(m.read_bytes()).hexdigest()
+    if state == "canonical":
+        _manifest(tmp_path, "m.joblib", digest)
+    elif state == "mismatch":
+        _manifest(tmp_path, "m.joblib", "0" * 64)
+    return m  # "unlisted": no manifest
+
+
+@pytest.mark.parametrize("state", ["missing", "mismatch", "unlisted"])
+def test_cli_refuses_non_ok_models_without_the_override(tmp_path, capsys, state):
+    m = _setup(tmp_path, state)
+    with pytest.raises(SystemExit) as e:
+        cli_main(["simulate", "--model", str(m), "--attack", "benign"])
+    assert e.value.code == 2
+    err = capsys.readouterr().err
+    assert (("fetch_models" in err) if state == "missing" else ("--allow-unverified-model" in err))
+
+
+def test_cli_accepts_unlisted_model_with_override_and_ml_is_actually_on(tmp_path, capsys):
+    m = _setup(tmp_path, "unlisted")
+    assert cli_main(["simulate", "--model", str(m), "--attack", "benign", "--allow-unverified-model"]) == 0
+    cap = capsys.readouterr()
+    assert "UNVERIFIED" in cap.err
+
+
+@pytest.mark.parametrize(("state", "allow", "used"), [
+    ("missing", False, False),
+    ("corrupt", False, False),  # listed+hash OK but unreadable: detector degrades, benchmark must say ML off
+    ("mismatch", False, False),  # library path: detector refuses -> ML off, header must not claim it
+    ("unlisted", False, False),
+    ("unlisted", True, True),
+    ("canonical", False, True),
+])
+def test_benchmark_metadata_reflects_what_the_pipeline_loaded(tmp_path, monkeypatch, state, allow, used):
+    m = _setup(tmp_path, state)
+    res = _bench(tmp_path, monkeypatch, m, allow)
+    cfg = res["config"]
+    assert cfg["model_used"] is used
+    expected = hashlib.sha256(m.read_bytes()).hexdigest() if used else "none"
+    assert cfg["model_sha256"] == expected
+    summary = (tmp_path / "out" / "summary.md").read_text(encoding="utf-8")
+    assert f"Model used: {used}. model_sha256: {expected}._" in summary
+    assert "| TP / FP / TN / FN |" in summary
+
+
+@pytest.mark.parametrize("state", ["canonical", "mismatch", "missing"])
+def test_extended_benchmark_metadata_reflects_what_the_pipeline_loaded(tmp_path, monkeypatch, state):
+    from aegisflight.benchmark import extended
+
+    m = _setup(tmp_path, state)
+    one = extended.build_grid()[:1]
+    monkeypatch.setattr(extended, "build_grid", lambda **_kw: one)
+    res = extended.run_extended(tmp_path / "out", model_path=str(m), workers=1)
+    used = state == "canonical"
+    assert res["config"]["model_used"] is used
+    expected = hashlib.sha256(m.read_bytes()).hexdigest() if used else "none"
+    assert res["config"]["model_sha256"] == expected

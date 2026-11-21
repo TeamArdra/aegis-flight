@@ -22,6 +22,7 @@ Thresholds are read from the loaded config, never hard-coded.
 from __future__ import annotations
 
 import math
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -951,7 +952,9 @@ def test_ml_detector_is_not_gated_and_still_flags_wander_under_sustained_no_solu
     (``backend/sources.py`` ``ml_enabled``), in ``run_serial_ids.py`` and in the bench replays
     (``--no-ml``)."""
     if not _MODEL.exists():
-        pytest.skip("models/isoforest.joblib not present (git-ignored)")
+        if os.environ.get("AEGIS_REQUIRE_MODEL") == "1":
+            pytest.fail("AEGIS_REQUIRE_MODEL=1 but models/isoforest.joblib is not present", pytrace=False)
+        pytest.skip("models/isoforest.joblib not present (git-ignored; scripts/fetch_models.py fetches it)")
     rows = _run(_with(_wander, ekf=EKF_CONST_POS), model_path=str(_MODEL))
     ml = [a for a in rows if a.threat and a.attack_type == AttackType.GPS_SPOOFING
           and DetectorName.ANOMALY.value in a.contributing_detectors]
