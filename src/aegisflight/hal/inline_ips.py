@@ -324,7 +324,7 @@ class InlineIpsBridge:
         """
         if self.store is None or max_bytes <= 0:
             return False
-        from ..logging.rotation import rotate_sqlite_store  # noqa: PLC0415
+        from ..logging.rotation import RotationLinkError, rotate_sqlite_store  # noqa: PLC0415
 
         with self._store_lock:
             if self.store is None:
@@ -339,6 +339,11 @@ class InlineIpsBridge:
                     run_id=new_run_id,
                     label="ips-bridge",
                 )
+            except RotationLinkError as exc:
+                # Renamed but the link row could not be written: the reopened store carries a ROTATION_FAILED row.
+                self.rotation_failures += 1
+                log.error("store rotated but ROTATION_LINK not written; ROTATION_FAILED recorded", exc_info=True)
+                fresh, rotated = exc.store, exc.started
             except Exception:  # noqa: BLE001 - the IDS must outlive a rotation fault
                 self.rotation_failures += 1
                 log.error("store rotation failed; recovering a usable store", exc_info=True)

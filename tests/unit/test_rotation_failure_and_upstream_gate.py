@@ -374,3 +374,51 @@ def test_non_active_postures_never_send_controller_counter_frames(mode, tmp_path
     assert fc.sent == []
     assert b.counter_frames_sent == 0
     assert all(fr.msgid != 76 for raw in gcs.sent for fr in split_frames(raw)[0])
+
+
+# -- post-rename link failure (R1 P3): never a silent unlinked segment --------------------------
+
+
+def _fail_link_writes(monkeypatch, times: int) -> list[int]:
+    real = EventStore.log_action
+    calls = [0]
+
+    def flaky(self, run_id, t, actor, action, target, detail=""):
+        if action == "ROTATION_LINK" and calls[0] < times:
+            calls[0] += 1
+            raise OSError("disk hiccup writing the link row")
+        return real(self, run_id, t, actor, action, target, detail)
+
+    monkeypatch.setattr(EventStore, "log_action", flaky)
+    return calls
+
+
+def test_transient_link_write_failure_is_retried_and_the_link_is_written(tmp_path, monkeypatch):
+    b = _bridge(tmp_path)
+    for i in range(10):
+        b._log_action(float(i), "t", "ROW", "x", "d" * 60)
+    calls = _fail_link_writes(monkeypatch, times=1)
+    assert b.rotate_store(max_bytes=1, max_rotations=3) is True
+    assert calls[0] == 1 and b.rotation_failures == 0
+    names = [a["action"] for a in b.store.get_actions(limit=100)]
+    assert "ROTATION_LINK" in names and "ROTATION_FAILED" not in names
+    assert (tmp_path / "events.1.sqlite").exists()
+    b.store.close()
+
+
+def test_persistent_link_write_failure_records_rotation_failed_and_ids_keeps_logging(tmp_path, monkeypatch):
+    b = _bridge(tmp_path)
+    for i in range(10):
+        b._log_action(float(i), "t", "ROW", "x", "d" * 60)
+    _fail_link_writes(monkeypatch, times=99)
+    assert b.rotate_store(max_bytes=1, max_rotations=3) is True  # the segment really was rotated
+    assert b.rotation_failures == 1
+    b._log_action(100.0, "t", "AFTER", "x")
+    assert b.store_rows_lost == 0
+    acts = {a["action"]: a for a in b.store.get_actions(limit=100)}
+    assert "ROTATION_LINK" not in acts and "AFTER" in acts
+    failed = json.loads(acts["ROTATION_FAILED"]["detail"])
+    assert failed["rotated_path"].endswith("events.1.sqlite") and failed["action_count"] == 10
+    assert failed["last_action_hash"] and "OSError" in failed["error"]
+    assert b.store.verify_chain().ok is True
+    b.store.close()
