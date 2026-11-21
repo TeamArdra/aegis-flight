@@ -1,0 +1,35 @@
+{
+  "environment": "SITL",
+  "claim_class": "link-level (no attack injected)",
+  "ml_enabled": true,
+  "profile": "configs/universal_flight",
+  "frames": 41322,
+  "decisions": 556,
+  "classes": {
+    "BENIGN": 556
+  },
+  "lat_ms_p50": 0.12079199998993317,
+  "lat_ms_p99": 0.6294579999917005,
+  "events": {
+    "t_start": "2026-11-21T14:46:29.023777+00:00",
+    "home": {
+      "lat": 47.3979709,
+      "lon": 8.5461639,
+      "alt": 0.237,
+      "rel": -0.047
+    },
+    "arm_result": 0,
+    "t_armed": "2026-11-21T14:46:34.673972+00:00",
+    "takeoff": 0,
+    "legs_reached": [
+      true,
+      true,
+      true,
+      true
+    ],
+    "land": 0,
+    "disarmed_after_land": true,
+    "t_end": "2026-11-21T14:48:17.126266+00:00"
+  },
+  "duration_s": 111.2
+}

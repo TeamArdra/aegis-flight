@@ -1,0 +1,36 @@
+{
+  "environment": "SITL",
+  "claim_class": "link-level (no attack injected)",
+  "ml_enabled": true,
+  "profile": "/prof16",
+  "frames": 41430,
+  "decisions": 560,
+  "classes": {
+    "BENIGN": 448,
+    "MAVLINK_ANOMALY": 112
+  },
+  "lat_ms_p50": 0.117666000051031,
+  "lat_ms_p99": 0.2839169999333535,
+  "events": {
+    "t_start": "2026-11-21T14:55:33.254885+00:00",
+    "home": {
+      "lat": 47.3979712,
+      "lon": 8.5461636,
+      "alt": 0.248,
+      "rel": 0.0
+    },
+    "arm_result": 0,
+    "t_armed": "2026-11-21T14:55:39.280294+00:00",
+    "takeoff": 0,
+    "legs_reached": [
+      true,
+      true,
+      true,
+      true
+    ],
+    "land": 0,
+    "disarmed_after_land": true,
+    "t_end": "2026-11-21T14:57:22.194301+00:00"
+  },
+  "duration_s": 112.0
+}
