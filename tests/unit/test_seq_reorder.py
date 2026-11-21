@@ -145,3 +145,25 @@ def test_ml_features_contract_unchanged_and_pipeline_passes_config() -> None:
     cfg.detector["features"]["reorder_window"] = 4
     pipe = IDSPipeline(cfg)
     assert pipe.extractor.reorder_window == 4
+
+
+def test_universal_flight_profile_tolerates_px4_jitter_reordering() -> None:
+    """PX4 SITL under 40+-20 ms netem jitter reordered frames ~22 behind (SITL 2026-11-21)."""
+    cfg = load_config("configs/universal_flight")
+    window = int(cfg.detector["features"]["reorder_window"])
+    assert window == 48
+    ex = FeatureExtractor(reorder_window=window)
+    f = _step(ex, [(1, 1, s) for s in range(100)] + [(1, 1, 100 - 22)])
+    assert f.max_seq_gap == 0
+    assert f.reorder_count == 1
+
+
+def test_universal_flight_window_still_flags_a_far_backward_jump() -> None:
+    cfg = load_config("configs/universal_flight")
+    ex = FeatureExtractor(reorder_window=int(cfg.detector["features"]["reorder_window"]))
+    f = _step(ex, [(1, 1, s) for s in range(100)] + [(1, 1, 100 - 60)])
+    assert f.max_seq_gap > 30
+
+
+def test_default_profile_keeps_the_stage1_window() -> None:
+    assert int(load_config().detector["features"]["reorder_window"]) == 16

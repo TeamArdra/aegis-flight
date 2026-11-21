@@ -4,6 +4,11 @@
 # learns static GPS-vs-baro offset on the ground while disarmed, enables airborne
 # semantic firewall detection, ConstDet attitude-vs-accel check, and GNSS clock-skew check.
 features:
+  # 48 (default 16): PX4 1.16 SITL streams ~370 msg/s; netem 40+-20 ms jitter reordered frames by up to ~22
+  # sequence numbers, so the shipped window counted late frames as forward gaps (234-238 > 30): 113 of 556
+  # benign decisions alerted. With 48: 0 of 876. Costs sensitivity to scrambled sequences that stay within
+  # 48 of the high-water mark. Calibrated on that one SITL condition only; disclose when quoting.
+  reorder_window: 48
   learn_baro_offset: true
   baro_offset_alpha: 0.05
 protocol:
