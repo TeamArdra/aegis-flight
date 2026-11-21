@@ -3,6 +3,7 @@ import { BenchSetupWizard } from "./components/BenchSetupWizard";
 import { ForensicExportPanel } from "./components/ForensicExportPanel";
 import { ModeBanner } from "./components/ModeBanner";
 import { SettingsModal } from "./components/SettingsModal";
+import { getSigningStatus } from "./lib/requestAuth";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ControlPanel } from "./components/ControlPanel";
 import { DefensePanel } from "./components/DefensePanel";
@@ -39,6 +40,7 @@ export default function App() {
     () => linkView(live.link, live.connected, live.updateAgeS, live.environment),
     [live.link, live.connected, live.updateAgeS, live.environment],
   );
+  const signingWarning = getSigningStatus().warning;
   const openSettings = useCallback(() => setSettingsOpen(true), []);
   useEffect(() => {
     document.title = `AegisFlight — UAV IDS (${env.badge})`;
@@ -63,6 +65,11 @@ export default function App() {
         runId={live.runId}
         eventsCount={live.eventsCount}
       />
+      {signingWarning && (
+        <div role="alert" data-testid="signing-warning" className="panel" style={{ margin: "8px 16px", padding: "8px 12px", borderLeft: "4px solid #d9822b" }}>
+          <strong>Request signing unavailable.</strong> {signingWarning}
+        </div>
+      )}
       <ModeBanner
         env={live.environment}
         mode={caps.mode}

@@ -3,6 +3,8 @@
 
 const SESSION_API_TOKEN_KEY = "aegis_api_token_session";
 const SESSION_BRIDGE_TOKEN_KEY = "aegis_bridge_token_session";
+// Pre-W13 builds kept the API token in localStorage under this key; it is migrated once (see getApiToken).
+export const LEGACY_API_TOKEN_KEY = "aegis_api_token";
 
 let _memApiToken = "";
 let _memBridgeToken = "";
@@ -25,12 +27,32 @@ function ssSet(key: string, value: string): void {
   }
 }
 
+/** One-time move of a legacy localStorage API token into sessionStorage; the legacy key is always removed. */
+function migrateLegacyApiToken(): string {
+  try {
+    const ls = typeof window !== "undefined" ? window.localStorage : undefined;
+    if (!ls) return "";
+    const legacy = (ls.getItem(LEGACY_API_TOKEN_KEY) || "").trim();
+    if (!legacy) return "";
+    ssSet(SESSION_API_TOKEN_KEY, legacy);
+    ls.removeItem(LEGACY_API_TOKEN_KEY);
+    return legacy;
+  } catch {
+    return "";
+  }
+}
+
 export function getApiToken(): string {
   if (_memApiToken) return _memApiToken;
   const fromSession = ssGet(SESSION_API_TOKEN_KEY);
   if (fromSession) {
     _memApiToken = fromSession;
     return fromSession;
+  }
+  const migrated = migrateLegacyApiToken();
+  if (migrated) {
+    _memApiToken = migrated;
+    return migrated;
   }
   const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
   return metaEnv?.VITE_AEGIS_API_TOKEN?.trim() || "";
@@ -105,6 +127,27 @@ export async function signCanonicalRequest(
   );
   const sig = await subtle.sign("HMAC", key, enc.encode(canonical));
   return Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export interface SigningStatus {
+  /** Web Crypto (`crypto.subtle`) is available, so requests can be HMAC-signed. */
+  available: boolean;
+  tokenConfigured: boolean;
+  /** Operator-facing warning, or null when nothing needs attention. */
+  warning: string | null;
+}
+
+/** `crypto.subtle` exists only in secure contexts (https or localhost); over plain http to a LAN host it is absent. */
+export function getSigningStatus(): SigningStatus {
+  const available = !!globalThis.crypto?.subtle;
+  const tokenConfigured = !!getApiToken();
+  const warning =
+    tokenConfigured && !available
+      ? "Request signing is unavailable in this browser context (Web Crypto needs https or localhost). " +
+        "Control requests are sent with the API token only, without HMAC/nonce replay protection. " +
+        "Open the console over https or http://localhost."
+      : null;
+  return { available, tokenConfigured, warning };
 }
 
 export async function buildSignedAuthHeaders(
