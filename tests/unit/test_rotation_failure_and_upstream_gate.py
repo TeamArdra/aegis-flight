@@ -19,6 +19,7 @@ from aegisflight.logging import rotation as rotation_mod
 from aegisflight.logging.rotation import rotate_sqlite_store
 from aegisflight.logging.store import EventStore
 from aegisflight.mavlink.signing import MavlinkSignatureVerifier
+from aegisflight.proxy import transport as transport_mod
 from aegisflight.proxy.transport import check_upstream_host, make_udp_relay, split_frames
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -238,21 +239,93 @@ def test_make_udp_relay_refuses_non_loopback_upstream_without_opening_a_socket(h
         make_udp_relay(host, 14550, 18672)
 
 
-def test_hostnames_and_public_ips_are_refused_even_with_opt_in():
+def test_hostnames_and_public_ips_are_refused_even_with_opt_in(monkeypatch):
+    _fake_ifaces(monkeypatch, ("eth0", "8.8.8.0/24"))
     for host in ("px4.example.com", "8.8.8.8", "0.0.0.0", "224.0.0.1"):
         with pytest.raises(ValueError):
             check_upstream_host(host, allow_private=True)
 
 
-def test_loopback_and_opted_in_private_are_accepted(monkeypatch):
+def _fake_ifaces(monkeypatch, *nets):
+    import ipaddress
+
+    monkeypatch.setattr(transport_mod, "_local_interface_networks",
+                        lambda: [(n, ipaddress.ip_network(c)) for n, c in nets])
+
+
+def test_loopback_always_accepted_and_private_needs_opt_in_and_a_local_interface(monkeypatch):
     monkeypatch.delenv("AEGIS_ALLOW_PRIVATE_UPSTREAM", raising=False)
+    transport_mod._PRIVATE_ACKS.clear()
+    _fake_ifaces(monkeypatch, ("vEthernet (WSL)", "172.29.0.0/20"), ("Wi-Fi", "10.0.0.0/24"))
     for host in ("127.0.0.1", "localhost", "::1"):
         check_upstream_host(host)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="refusing"):  # on a local interface but no opt-in
         check_upstream_host("172.29.4.5")
-    assert check_upstream_host("172.29.4.5", allow_private=True) == "172.29.4.5"
+    assert check_upstream_host("172.29.4.5", allow_private=True) == "172.29.4.5"  # positive: WSL adapter subnet
     monkeypatch.setenv("AEGIS_ALLOW_PRIVATE_UPSTREAM", "1")
     assert check_upstream_host("172.29.4.5") == "172.29.4.5"
+    acks = transport_mod.private_upstream_acks()
+    assert acks and acks[0]["interface"] == "vEthernet (WSL)" and acks[0]["network"] == "172.29.0.0/20"
+
+
+@pytest.mark.parametrize("host", ["192.168.1.10", "172.16.9.9", "169.254.1.1"])
+def test_private_address_not_on_a_local_interface_is_refused_even_with_opt_in(host, monkeypatch, no_sockets):
+    _fake_ifaces(monkeypatch, ("vEthernet (WSL)", "172.29.0.0/20"))
+    with pytest.raises(ValueError, match="not inside the subnet"):
+        check_upstream_host(host, allow_private=True)
+    with pytest.raises(ValueError, match="not inside the subnet"):
+        make_udp_relay(host, 14550, 18672, allow_private_upstream=True)
+
+
+def test_no_interface_info_fails_closed(monkeypatch):
+    _fake_ifaces(monkeypatch)
+    with pytest.raises(ValueError):
+        check_upstream_host("172.29.4.5", allow_private=True)
+
+
+def test_real_interface_listing_never_includes_loopback_and_does_not_raise():
+    for _name, net in transport_mod._local_interface_networks():
+        assert not net.is_loopback
+
+
+def test_run_manifest_records_the_private_upstream_acknowledgement(monkeypatch):
+    from aegisflight.run_provenance import collect_run_provenance
+
+    transport_mod._PRIVATE_ACKS.clear()
+    base = collect_run_provenance(allow_dirty=True)
+    assert "private_upstream_ack" not in base
+    _fake_ifaces(monkeypatch, ("vEthernet (WSL)", "172.29.0.0/20"))
+    check_upstream_host("172.29.4.5", allow_private=True)
+    man = collect_run_provenance(allow_dirty=True)
+    assert man["private_upstream_ack"][0]["host"] == "172.29.4.5"
+    transport_mod._PRIVATE_ACKS.clear()
+
+
+TRIAL_SCRIPTS = ["run_p2_trial", "run_p2_replay_trial", "run_p2_replay_v2_trial", "run_p2_delay_trial",
+                 "run_p2_drop_trial", "run_p2_gnss_trial", "run_p2_injection_trial",
+                 "run_p2_gcs_impersonation_trial", "run_p4_signing_trial"]
+
+
+EXTRA_ARGS = {"run_p2_gcs_impersonation_trial": ["--seq-policy", "own_counter"]}
+
+
+@pytest.mark.parametrize("name", TRIAL_SCRIPTS)
+def test_trial_scripts_expose_the_opt_in_and_refuse_a_foreign_host_before_any_socket(
+        name, tmp_path, no_sockets, monkeypatch, capsys):
+    import importlib
+
+    monkeypatch.delenv("AEGIS_ALLOW_PRIVATE_UPSTREAM", raising=False)
+    mod = importlib.import_module(name)
+    with pytest.raises(SystemExit):
+        mod.main(["--help"])
+    assert "--allow-private-upstream" in capsys.readouterr().out
+    try:
+        rc = mod.main(["--seed", "1", "--out", str(tmp_path / "x" / "t"), "--px4-host", "192.168.1.10",
+                       "--allow-dirty", *EXTRA_ARGS.get(name, [])])
+    except ValueError as exc:  # make_udp_relay refused: no socket was opened (no_sockets would have raised)
+        assert "refusing" in str(exc)
+    else:  # a script that validates up-front returns non-zero
+        assert rc != 0
 
 
 @pytest.mark.parametrize("host", ["192.168.1.10", "px4.example.com"])
