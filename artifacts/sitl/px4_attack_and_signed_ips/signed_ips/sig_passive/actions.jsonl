@@ -1,0 +1,31 @@
+{"t_ns": 4035942192334, "kind": "summary", "to": "controller", "summary": "Nominal flight (IDS passive)", "mode": "passive", "state": "NOMINAL"}
+{"t_ns": 4088544296816, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] DETECTED: MAVLINK_ANOMALY:ROGUE_SYSID (score=0.79) \u2014 Passive monitoring (0B TX)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4089344371942, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] DETECTED: DOS:FLOOD (score=0.88) \u2014 Passive monitoring (0B TX)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4096742966070, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] DETECTED: DOS:FLOOD (score=0.75) \u2014 Passive monitoring (0B TX)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4096943115570, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] DETECTED: DOS:FLOOD (score=0.53) \u2014 Passive monitoring (0B TX)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4097143315279, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (1/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4097343197279, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (2/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4097544732696, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (3/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4097743688487, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (4/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4097943603487, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (5/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4098143727362, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (6/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4098343895946, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (7/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4098543998738, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (8/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4098743495738, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (9/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4098943382863, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (10/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4099143453988, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (11/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4099343335988, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (12/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4099544089363, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (13/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4099743540780, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (14/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4099943538280, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (15/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4100142911822, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (16/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4100343700405, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (17/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4100543376989, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (18/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4100743206239, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (19/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4100943168489, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (20/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4101143177489, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (21/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4101344805447, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (22/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4101543536697, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (23/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4101743739906, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (24/25 clean ticks)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 4101943938114, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] CLEARED: Telemetry clean for 5.0s -> Nominal baseline", "mode": "passive", "state": "NOMINAL"}
+{"t_ns": 4102143564031, "kind": "summary", "to": "controller", "summary": "Nominal flight (IDS passive)", "mode": "passive", "state": "NOMINAL"}

@@ -1,0 +1,515 @@
+{
+ "scenario": "signing",
+ "vehicle": {
+  "sysid": 1,
+  "autopilot": 12,
+  "type": 2
+ },
+ "arm_result": 0,
+ "takeoff_ack": 0,
+ "baseline_mode": "AUTO_LOITER",
+ "baseline_rel_alt_m": 19.9,
+ "replay_frame_captured": true,
+ "flood_frames_sent": 15760,
+ "legit_after_attack_reached_RTL": true,
+ "end_mode": "AUTO_LOITER",
+ "stages": [
+  {
+   "stage": "unsigned_sys66",
+   "mode_before": "AUTO_LOITER",
+   "mode_after": "AUTO_LOITER",
+   "modes_seen": [],
+   "armed": true,
+   "rel_alt_m": 20.0,
+   "bridge_policy_delta": {
+    "dropped_unsigned": 9
+   },
+   "restored": true
+  },
+  {
+   "stage": "unsigned_sys255",
+   "mode_before": "AUTO_LOITER",
+   "mode_after": "AUTO_LOITER",
+   "modes_seen": [],
+   "armed": true,
+   "rel_alt_m": 20.0,
+   "bridge_policy_delta": {
+    "dropped_unsigned": 12
+   },
+   "restored": true
+  },
+  {
+   "stage": "wrong_key_sys255",
+   "mode_before": "AUTO_LOITER",
+   "mode_after": "AUTO_LOITER",
+   "modes_seen": [],
+   "armed": true,
+   "rel_alt_m": 20.0,
+   "bridge_policy_delta": {
+    "dropped_bad_signature": 9
+   },
+   "restored": true
+  },
+  {
+   "stage": "replay_signed",
+   "mode_before": "AUTO_LOITER",
+   "mode_after": "AUTO_LOITER",
+   "modes_seen": [],
+   "armed": true,
+   "rel_alt_m": 29.1,
+   "bridge_policy_delta": {
+    "dropped_replay": 3
+   },
+   "restored": true
+  },
+  {
+   "stage": "flood",
+   "mode_before": "AUTO_LOITER",
+   "mode_after": "AUTO_LOITER",
+   "modes_seen": [],
+   "armed": true,
+   "rel_alt_m": 30.0,
+   "bridge_policy_delta": {
+    "dropped_dynamic": 15460
+   },
+   "restored": true
+  }
+ ],
+ "timeline": [
+  {
+   "t": 4.28,
+   "mode": "AUTO_LOITER",
+   "armed": false
+  },
+  {
+   "t": 10.33,
+   "mode": "AUTO_TAKEOFF",
+   "armed": true
+  },
+  {
+   "t": 26.36,
+   "mode": "AUTO_LOITER",
+   "armed": true
+  },
+  {
+   "t": 47.37,
+   "mode": "AUTO_RTL",
+   "armed": true
+  },
+  {
+   "t": 48.37,
+   "mode": "AUTO_LOITER",
+   "armed": true
+  },
+  {
+   "t": 64.37,
+   "mode": "AUTO_RTL",
+   "armed": true
+  },
+  {
+   "t": 65.37,
+   "mode": "AUTO_LOITER",
+   "armed": true
+  },
+  {
+   "t": 66.37,
+   "mode": "AUTO_LAND",
+   "armed": true
+  },
+  {
+   "t": 95.42,
+   "mode": "AUTO_LOITER",
+   "armed": false
+  }
+ ],
+ "statustext": [
+  {
+   "t": 9.3,
+   "text": "Armed by external command\t"
+  },
+  {
+   "t": 11.0,
+   "text": "Takeoff detected\t"
+  },
+  {
+   "t": 46.4,
+   "text": "RTL: start return at 31 m (30 m above destination)"
+  },
+  {
+   "t": 46.4,
+   "text": "\t"
+  },
+  {
+   "t": 63.9,
+   "text": "RTL: start return at 31 m (31 m above destination)"
+  },
+  {
+   "t": 64.0,
+   "text": "\t"
+  }
+ ],
+ "status_final": {
+  "mode": "active-ips",
+  "state": "AUTO_MITIGATING",
+  "vehicle_filter": false,
+  "vehicle_filter_state": "off",
+  "frames": {
+   "down": 22909,
+   "up": 15849,
+   "forwarded_down": 22909,
+   "forwarded_up": 356,
+   "dropped_down": 0,
+   "dropped_up": 15493,
+   "uplink_fail_closed_drops": 0,
+   "send_failures": 0,
+   "tap_overflow": 0,
+   "forged_vehicle_up": 0
+  },
+  "latency_us": {
+   "p50": 38.4,
+   "p95": 185.2,
+   "max": 7494.8,
+   "samples": 20000
+  },
+  "policy": {
+   "signing": true,
+   "signed_ok": 7,
+   "dropped_unsigned": 21,
+   "dropped_bad_signature": 9,
+   "dropped_replay": 3,
+   "enforce": true,
+   "dynamic_fresh": true,
+   "armed": true,
+   "in_flight": true,
+   "dropped_untrusted_control": 0,
+   "dropped_inflight_disarm": 0,
+   "dropped_burst": 0,
+   "dropped_dynamic": 15460,
+   "rewritten": 0,
+   "hook_errors": 0,
+   "provenance_known_sources": 0,
+   "dropped_provenance": 0,
+   "suspect_provenance": 0,
+   "dropped_replay_unsigned": 0,
+   "resyncs": 0,
+   "replay_memory": 4096,
+   "contested_policy": "alert",
+   "contested_events": 0,
+   "contested_sources": 0,
+   "contested_alarms": 0,
+   "dropped_contested": 0
+  },
+  "semantic_firewall": {
+   "enabled": true,
+   "dropped_param": 0,
+   "dropped_fence": 0,
+   "last_reason": null
+  },
+  "signing_observed": {
+   "unsigned": 0,
+   "bad_signature": 0,
+   "replay": 0,
+   "forged_down_observed": 0,
+   "forged_down_dropped": 0
+  },
+  "analyser": {
+   "decisions": 311,
+   "alerts": 3,
+   "errors": 0,
+   "counter_frames_sent": 0,
+   "alarms_sent": 0,
+   "crossend_sent": 58,
+   "summary": "[AEGIS DEF] VERIFYING RECOVERY (19/25 clean ticks)",
+   "ekf_secondary": false
+  },
+  "firmware_allowlist_sha256": "63b01f5fe0cbb69e11b7e5a4fd1fe944bbe1756e3dcbe7e0113d63fd104788ad",
+  "anchors": {
+   "head_hash": "dc1314de056144285b380b1e6097f709f578d8b3f205cbd247ba74ca4d32da45",
+   "row_count": 3,
+   "last_id": 3,
+   "signed": true,
+   "age_s": 2.09,
+   "path": "events.anchors.jsonl"
+  },
+  "last_error": null,
+  "mgmt_active": true,
+  "mgmt": {
+   "sent": {
+    "alert": 0,
+    "action": 0,
+    "status": 31,
+    "ack": 0,
+    "other": 0
+   },
+   "bytes_sent": 1891,
+   "budget_denied": 0,
+   "suppressed": 0,
+   "send_failures": 0,
+   "queue_dropped": 0,
+   "commands_consumed": 0,
+   "accepted": 0,
+   "denied": 0,
+   "ignored": 0,
+   "bad_signatures": 0,
+   "lockouts": 0,
+   "control_enabled": false,
+   "locked_out": false,
+   "budget_bytes_per_s": 150.0
+  },
+  "topology": {
+   "kind": "A+B",
+   "label": "Inline bridge (FC <-> GCS)",
+   "source": "detected",
+   "posture": "active-ips",
+   "links": {
+    "fc": {
+     "connected": true,
+     "name": null
+    },
+    "gcs": {
+     "connected": true,
+     "name": null
+    }
+   },
+   "uplink_visible": true,
+   "can_block_frames": true,
+   "can_send_counter_commands": true,
+   "reasons": [
+    "inline bridge: flight-controller link and GCS link are both handled by this process",
+    "flight-controller link connected",
+    "GCS link connected",
+    "15849 frame(s) seen from the GCS side"
+   ]
+  },
+  "crossend": {
+   "sent": 58
+  },
+  "signing": {
+   "configured": true,
+   "unsigned_acknowledged": false
+  },
+  "control": {
+   "enabled": false
+  }
+ },
+ "status_samples": [
+  {
+   "t": 56.4,
+   "analyser": {
+    "decisions": 266,
+    "alerts": 2,
+    "errors": 0,
+    "counter_frames_sent": 0,
+    "alarms_sent": 0,
+    "crossend_sent": 50,
+    "summary": "[AEGIS DEF] MITIGATING: DOS:FLOOD (score=0.88)",
+    "ekf_secondary": false
+   },
+   "policy": {
+    "signing": true,
+    "signed_ok": 5,
+    "dropped_unsigned": 21,
+    "dropped_bad_signature": 9,
+    "dropped_replay": 3,
+    "enforce": true,
+    "dynamic_fresh": true,
+    "armed": true,
+    "in_flight": true,
+    "dropped_untrusted_control": 0,
+    "dropped_inflight_disarm": 0,
+    "dropped_burst": 0,
+    "dropped_dynamic": 6582,
+    "rewritten": 0,
+    "hook_errors": 0,
+    "provenance_known_sources": 0,
+    "dropped_provenance": 0,
+    "suspect_provenance": 0,
+    "dropped_replay_unsigned": 0,
+    "resyncs": 0,
+    "replay_memory": 4096,
+    "contested_policy": "alert",
+    "contested_events": 0,
+    "contested_sources": 0,
+    "contested_alarms": 0,
+    "dropped_contested": 0
+   },
+   "mode": "active-ips",
+   "state": "AUTO_MITIGATING"
+  },
+  {
+   "t": 58.4,
+   "analyser": {
+    "decisions": 276,
+    "alerts": 3,
+    "errors": 0,
+    "counter_frames_sent": 0,
+    "alarms_sent": 0,
+    "crossend_sent": 52,
+    "summary": "[AEGIS DEF] MITIGATING: DOS:FLOOD (score=0.88)",
+    "ekf_secondary": false
+   },
+   "policy": {
+    "signing": true,
+    "signed_ok": 5,
+    "dropped_unsigned": 21,
+    "dropped_bad_signature": 9,
+    "dropped_replay": 3,
+    "enforce": true,
+    "dynamic_fresh": true,
+    "armed": true,
+    "in_flight": true,
+    "dropped_untrusted_control": 0,
+    "dropped_inflight_disarm": 0,
+    "dropped_burst": 0,
+    "dropped_dynamic": 10540,
+    "rewritten": 0,
+    "hook_errors": 0,
+    "provenance_known_sources": 0,
+    "dropped_provenance": 0,
+    "suspect_provenance": 0,
+    "dropped_replay_unsigned": 0,
+    "resyncs": 0,
+    "replay_memory": 4096,
+    "contested_policy": "alert",
+    "contested_events": 0,
+    "contested_sources": 0,
+    "contested_alarms": 0,
+    "dropped_contested": 0
+   },
+   "mode": "active-ips",
+   "state": "AUTO_MITIGATING"
+  },
+  {
+   "t": 60.4,
+   "analyser": {
+    "decisions": 286,
+    "alerts": 3,
+    "errors": 0,
+    "counter_frames_sent": 0,
+    "alarms_sent": 0,
+    "crossend_sent": 54,
+    "summary": "[AEGIS DEF] MITIGATING: DOS:FLOOD (score=0.88)",
+    "ekf_secondary": false
+   },
+   "policy": {
+    "signing": true,
+    "signed_ok": 5,
+    "dropped_unsigned": 21,
+    "dropped_bad_signature": 9,
+    "dropped_replay": 3,
+    "enforce": true,
+    "dynamic_fresh": true,
+    "armed": true,
+    "in_flight": true,
+    "dropped_untrusted_control": 0,
+    "dropped_inflight_disarm": 0,
+    "dropped_burst": 0,
+    "dropped_dynamic": 14480,
+    "rewritten": 0,
+    "hook_errors": 0,
+    "provenance_known_sources": 0,
+    "dropped_provenance": 0,
+    "suspect_provenance": 0,
+    "dropped_replay_unsigned": 0,
+    "resyncs": 0,
+    "replay_memory": 4096,
+    "contested_policy": "alert",
+    "contested_events": 0,
+    "contested_sources": 0,
+    "contested_alarms": 0,
+    "dropped_contested": 0
+   },
+   "mode": "active-ips",
+   "state": "AUTO_MITIGATING"
+  },
+  {
+   "t": 62.4,
+   "analyser": {
+    "decisions": 296,
+    "alerts": 3,
+    "errors": 0,
+    "counter_frames_sent": 0,
+    "alarms_sent": 0,
+    "crossend_sent": 55,
+    "summary": "[AEGIS DEF] VERIFYING RECOVERY (4/25 clean ticks)",
+    "ekf_secondary": false
+   },
+   "policy": {
+    "signing": true,
+    "signed_ok": 5,
+    "dropped_unsigned": 21,
+    "dropped_bad_signature": 9,
+    "dropped_replay": 3,
+    "enforce": true,
+    "dynamic_fresh": true,
+    "armed": true,
+    "in_flight": true,
+    "dropped_untrusted_control": 0,
+    "dropped_inflight_disarm": 0,
+    "dropped_burst": 0,
+    "dropped_dynamic": 15460,
+    "rewritten": 0,
+    "hook_errors": 0,
+    "provenance_known_sources": 0,
+    "dropped_provenance": 0,
+    "suspect_provenance": 0,
+    "dropped_replay_unsigned": 0,
+    "resyncs": 0,
+    "replay_memory": 4096,
+    "contested_policy": "alert",
+    "contested_events": 0,
+    "contested_sources": 0,
+    "contested_alarms": 0,
+    "dropped_contested": 0
+   },
+   "mode": "active-ips",
+   "state": "AUTO_MITIGATING"
+  },
+  {
+   "t": 64.4,
+   "analyser": {
+    "decisions": 306,
+    "alerts": 3,
+    "errors": 0,
+    "counter_frames_sent": 0,
+    "alarms_sent": 0,
+    "crossend_sent": 57,
+    "summary": "[AEGIS DEF] VERIFYING RECOVERY (14/25 clean ticks)",
+    "ekf_secondary": false
+   },
+   "policy": {
+    "signing": true,
+    "signed_ok": 7,
+    "dropped_unsigned": 21,
+    "dropped_bad_signature": 9,
+    "dropped_replay": 3,
+    "enforce": true,
+    "dynamic_fresh": true,
+    "armed": true,
+    "in_flight": true,
+    "dropped_untrusted_control": 0,
+    "dropped_inflight_disarm": 0,
+    "dropped_burst": 0,
+    "dropped_dynamic": 15460,
+    "rewritten": 0,
+    "hook_errors": 0,
+    "provenance_known_sources": 0,
+    "dropped_provenance": 0,
+    "suspect_provenance": 0,
+    "dropped_replay_unsigned": 0,
+    "resyncs": 0,
+    "replay_memory": 4096,
+    "contested_policy": "alert",
+    "contested_events": 0,
+    "contested_sources": 0,
+    "contested_alarms": 0,
+    "dropped_contested": 0
+   },
+   "mode": "active-ips",
+   "state": "AUTO_MITIGATING"
+  }
+ ],
+ "rx_frames": 22997,
+ "sent_frames": 60,
+ "landed_disarmed": true
+}
