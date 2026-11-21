@@ -24,7 +24,9 @@ skip reason (``pytest -r s``), when only the default layers were compared.
 
 ML cases need the canonical team model: ``models/isoforest.joblib`` with the fixture's ``ml_model_sha256``. It is
 git-ignored and ``aegis train`` cannot reproduce it byte for byte (it stamps a creation time), so the ML cases
-skip without it, as in CI. ``test_fast_isoforest_equals_sklearn_*`` does not need it (it trains a small model).
+skip without it on a developer machine (the skip reason says why). CI fetches and verifies it
+(``scripts/fetch_models.py``) and sets ``AEGIS_REQUIRE_MODEL=1``, which turns that skip into a hard failure so the ML-on
+coverage can never silently vanish. ``test_fast_isoforest_equals_sklearn_*`` does not need it (it trains a small model).
 """
 
 from __future__ import annotations
@@ -37,14 +39,19 @@ from pathlib import Path
 
 import pytest
 
+from aegisflight.model_integrity import parse_manifest
+
 REPO = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location("make_golden", REPO / "scripts" / "make_golden.py")
 mg = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(mg)  # type: ignore[union-attr]
 
 GOLD = json.loads(mg.GOLDEN_PATH.read_text(encoding="utf-8"))
-_MODEL_OK = (mg.MODEL_PATH.exists()
-             and hashlib.sha256(mg.MODEL_PATH.read_bytes()).hexdigest() == GOLD.get("ml_model_sha256"))
+CANONICAL_ML_SHA256 = parse_manifest(REPO / "models" / "MODELS.sha256")["isoforest.joblib"]
+_MODEL_PRESENT = mg.MODEL_PATH.exists()
+_MODEL_ACTUAL_SHA = hashlib.sha256(mg.MODEL_PATH.read_bytes()).hexdigest() if _MODEL_PRESENT else None
+_MODEL_OK = bool(_MODEL_PRESENT and _MODEL_ACTUAL_SHA == GOLD.get("ml_model_sha256") == CANONICAL_ML_SHA256)
+_MODEL_REASON = "canonical team model models/isoforest.joblib missing or differs (fixture notes.ml)"
 _SIM = dict(mg.sim_cases())
 _LIVE = {n: (s, v) for n, s, v in mg.live_cases()}
 
@@ -94,10 +101,17 @@ def _run(name: str, ml: bool) -> dict:
     return mg.run_live_case(scn, var, ml)
 
 
+def _need_model(reason: str) -> None:
+    """The canonical model is unusable: skip on a developer machine, but fail when ``AEGIS_REQUIRE_MODEL=1`` (CI).
+
+    Read at call time, not import time, so the behaviour is testable and cannot be frozen by an early import."""
+    if os.environ.get("AEGIS_REQUIRE_MODEL") == "1":
+        pytest.fail(f"AEGIS_REQUIRE_MODEL=1 but {reason}; ML-on coverage would be skipped", pytrace=False)
+    pytest.skip(reason)
+
+
 def _params(key: str):
-    reason = "canonical team model models/isoforest.joblib missing or differs (fixture notes.ml)"
-    marks = [pytest.mark.skipif(not _MODEL_OK, reason=reason)] if key == "ml" else []
-    return [pytest.param(n, id=n, marks=marks) for n in GOLD.get(key, {})]
+    return [pytest.param(n, id=n) for n in GOLD.get(key, {})]
 
 
 @pytest.mark.parametrize("name", _params("no_ml"))
@@ -107,6 +121,8 @@ def test_golden_ml_off(name):
 
 @pytest.mark.parametrize("name", _params("ml"))
 def test_golden_ml_on(name):
+    if not _MODEL_OK:
+        _need_model(_MODEL_REASON)
     _compare(_run(name, True), GOLD["ml"][name], ml=True)
 
 
@@ -114,12 +130,100 @@ def test_golden_ml_on(name):
 def test_bit_exact_layers_compared_here(section):
     """Says (as a skip reason, listed by ``pytest -r s``) when only the default layers were compared above."""
     if section == "ml" and not _MODEL_OK:
-        pytest.skip("ml: canonical team model missing or differs, ML cases not run")
+        _need_model("ml: canonical team model missing or differs, ML cases not run")
     if not _STRICT:
         pytest.skip(f"{section}: bit-exact layers NOT compared (opt-in: AEGIS_GOLDEN_STRICT=1); compared "
                     f"{', '.join(_default_layers(section == 'ml'))} and the decision summary. "
                     f"Recording environment vs here: {_env_diff(section)}.")
     assert GOLD[section], "strict mode on an empty section"
+
+
+def test_missing_model_skips_locally_and_fails_when_required(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AEGIS_REQUIRE_MODEL=1 (set in CI) turns the model-missing skip of the ML-on golden tests into a failure."""
+    monkeypatch.delenv("AEGIS_REQUIRE_MODEL", raising=False)
+    with pytest.raises(pytest.skip.Exception, match="model gone"):
+        _need_model("model gone")
+    monkeypatch.setenv("AEGIS_REQUIRE_MODEL", "0")
+    with pytest.raises(pytest.skip.Exception):
+        _need_model("model gone")
+    monkeypatch.setenv("AEGIS_REQUIRE_MODEL", "1")
+    with pytest.raises(pytest.fail.Exception, match="AEGIS_REQUIRE_MODEL=1.*model gone"):
+        _need_model("model gone")
+
+
+def test_golden_ml_sha_matches_canonical_manifest() -> None:
+    """Guard against committing a retrained non-canonical SHA into golden.json (never skip silently)."""
+    assert GOLD.get("ml_model_sha256") == CANONICAL_ML_SHA256, (
+        f"tests/golden/golden.json ml_model_sha256={GOLD.get('ml_model_sha256')!r} "
+        f"does not match canonical models/MODELS.sha256={CANONICAL_ML_SHA256!r}"
+    )
+    if _MODEL_PRESENT:
+        assert _MODEL_ACTUAL_SHA == CANONICAL_ML_SHA256, (
+            f"models/isoforest.joblib has sha256 {_MODEL_ACTUAL_SHA}, expected canonical {CANONICAL_ML_SHA256}"
+        )
+
+
+def test_seeded_ml_exercises_all_55_golden_cases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise all 55 ML golden scenarios with the deterministic seed-100 bundle even when canonical binary is absent."""
+    import joblib
+    import numpy as np
+    from sklearn.ensemble import IsolationForest
+    from sklearn.preprocessing import StandardScaler
+
+    from aegisflight.benchmark.dataset import collect_benign_dataset
+    from aegisflight.config import load_config
+    from aegisflight.detectors.anomaly import combined_anomaly_raw
+    from aegisflight.features.extractor import ML_FEATURES
+
+    cfg = load_config()
+    acfg = cfg.detector["anomaly"]
+    ds = collect_benign_dataset(cfg, n_sessions=24, seed=100)
+    split = ds.split_by_session(train_frac=0.6, val_frac=0.2, seed=100)
+    Xtr, Xva = split["train"], split["val"]
+    scaler = StandardScaler().fit(Xtr)
+    Xtr_s = scaler.transform(Xtr)
+    model = IsolationForest(
+        n_estimators=int(acfg.get("n_estimators", 200)),
+        contamination=float(acfg.get("contamination", 0.02)),
+        random_state=100,
+        n_jobs=-1,
+    ).fit(Xtr_s)
+    iso_tr = -model.score_samples(Xtr_s)
+    maha_tr = np.linalg.norm(Xtr_s, axis=1)
+    bundle = {
+        "model": model,
+        "scaler": scaler,
+        "feature_names": list(ML_FEATURES),
+        "iso_mean": float(iso_tr.mean()),
+        "iso_std": float(iso_tr.std() or 1e-3),
+        "maha_mean": float(maha_tr.mean()),
+        "maha_std": float(maha_tr.std() or 1e-3),
+    }
+    va_raw = combined_anomaly_raw(bundle, Xva)
+    bundle["score_thr"] = float(va_raw.mean() + 3.0 * va_raw.std())
+    bundle["score_scale"] = float(max(va_raw.std(), 1e-3))
+
+    model_file = tmp_path / "seeded_isoforest.joblib"
+    joblib.dump(bundle, model_file)
+    digest = hashlib.sha256(model_file.read_bytes()).hexdigest()
+    (tmp_path / "MODELS.sha256").write_text(f"{digest}  seeded_isoforest.joblib\n", encoding="utf-8")
+    monkeypatch.setattr(mg, "MODEL_PATH", model_file)
+
+    ml_cases = sorted(GOLD["ml"])
+    assert len(ml_cases) == 55
+    for name in ml_cases:
+        got = _run(name, True)
+        assert got["n_decisions"] > 0, name
+        want_no_ml = GOLD["no_ml"][name]
+        # Adding ML must never alter message parsing/stats or drop decisions.
+        assert got["n_decisions"] == want_no_ml["n_decisions"], name
+        assert got["n_messages"] == want_no_ml["n_messages"], name
+        for k in ("parse", "stats"):
+            if k in want_no_ml["digests"]:
+                assert got["digests"].get(k) == want_no_ml["digests"][k], (name, k)
+        assert got["digests"]["frame_r"] == want_no_ml["digests"]["frame_r"], name
+        if not name.endswith("/profile"):
+            assert got["digests"]["detectors_r"] != want_no_ml["digests"]["detectors_r"], name
 
 
 def test_fixture_covers_every_attack_mode_and_live_scenario():
@@ -220,7 +324,7 @@ def anomaly_model(request, tmp_path) -> Path:
     if request.param == "tiny-in-test":
         return _tiny_model(tmp_path / "tiny_isoforest.joblib")
     if not mg.MODEL_PATH.exists():
-        pytest.skip("models/isoforest.joblib missing (git-ignored; `aegis train` writes it)")
+        _need_model("models/isoforest.joblib missing (git-ignored; `python scripts/fetch_models.py` fetches it)")
     return mg.MODEL_PATH
 
 
@@ -234,8 +338,8 @@ def test_fast_isoforest_equals_sklearn_bitwise_and_fallback_is_identical(anomaly
     from aegisflight.features.extractor import ML_FEATURES, FeatureFrame
 
     cfg = mg.load_config().detector["anomaly"]
-    fast_det = AnomalyDetector(cfg, anomaly_model)
-    slow_det = AnomalyDetector(cfg, anomaly_model)
+    fast_det = AnomalyDetector(cfg, anomaly_model, allow_unverified=True)
+    slow_det = AnomalyDetector(cfg, anomaly_model, allow_unverified=True)
     assert fast_det.bundle is not None, f"{anomaly_model} did not load"
     assert fast_det._fast is not None, "fast scorer should verify against sklearn at load"
     slow_det._fast = None

@@ -25,6 +25,7 @@ from .detectors import AnomalyDetector, IntegrityDetector, PhysicsDetector, Prot
 from .detectors.crossend import CrossEndMonitor
 from .features.extractor import FeatureExtractor, FeatureFrame
 from .fusion.engine import FusionEngine
+from .integrity.allowlist import FirmwareAllowlist
 from .integrity.verifier import FirmwareVerifier
 from .sources.stream import TelemetryTick
 
@@ -38,17 +39,21 @@ class IDSPipeline:
         crossend: CrossEndMonitor | None = None,
         firmware_real: bool = False,
         firmware_recheck_every: int = 5,
+        firmware_allowlist: FirmwareAllowlist | None = None,
+        allow_unverified_model: bool = False,
     ) -> None:
         self.cfg = cfg
         # optional GCS-side cross-end check (detectors/crossend.py); None = byte-identical behaviour
         self.crossend = crossend
+        self.firmware_allowlist = firmware_allowlist
         det = cfg.detector
         self.extractor = FeatureExtractor(
-            cmd_window_s=det["protocol"].get("command_burst_window_s", 2.0)
+            cmd_window_s=det["protocol"].get("command_burst_window_s", 2.0),
+            reorder_window=int(det.get("features", {}).get("reorder_window", 16)),
         )
         self.protocol = ProtocolDetector(det["protocol"])
         self.physics = PhysicsDetector(det["physics"])
-        self.anomaly = AnomalyDetector(det["anomaly"], model_path)
+        self.anomaly = AnomalyDetector(det["anomaly"], model_path, allow_unverified=allow_unverified_model)
 
         # firmware_real: the directory holds REAL files with a trusted manifest (``aegis fw-manifest``); the simulated
         # fixture is never written into it and a reset never overwrites it
@@ -58,7 +63,11 @@ class IDSPipeline:
             self.verifier = FirmwareVerifier(firmware_dir)
             if not self._firmware_real:
                 self.verifier.ensure_fixture()
-        self.integrity = IntegrityDetector(self.verifier, recheck_every=firmware_recheck_every)
+        self.integrity = IntegrityDetector(
+            self.verifier,
+            recheck_every=firmware_recheck_every,
+            allowlist=firmware_allowlist,
+        )
 
         self.fusion = FusionEngine(det["fusion"])
 
@@ -96,13 +105,16 @@ class IDSPipeline:
             self.extractor.update(m)
             if self.crossend is not None:
                 self.crossend.update(m)
+            self.integrity.observe_message(m.msgname, m.fields, m.sysid, m.compid)
         self.extractor.note_sig_invalid(tick.sig_invalid)  # P4: 0 for every non-signing source
+        self.extractor.note_signing_streams(tick.sig_invalid_streams, tick.sig_verified_streams)
         if tick.tick % self.decision_every != 0:
             return None
 
         t0 = time.perf_counter()
         frame = self.extractor.extract(tick.t)
         self.last_frame = frame
+        self.protocol.observe_signing_context(**self.extractor.signing_context)
         r_proto = self.protocol.process(frame)
         if self.crossend is not None:
             self._merge_crossend(r_proto, tick.t)

@@ -9,12 +9,35 @@ class?). Latency is measured per attack session as time-to-first-detection.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 
 from ..core.enums import AttackType
 
 ALL_CLASSES: list[AttackType] = list(AttackType)
+LINK_LAYER_DISRUPTION: frozenset[AttackType] = frozenset({AttackType.DOS, AttackType.MAVLINK_ANOMALY})
+
+
+def link_layer_label(attack: AttackType) -> str:
+    """Group ``DOS`` and ``MAVLINK_ANOMALY`` under ``LINK_LAYER_DISRUPTION`` (Decision D10)."""
+    return "LINK_LAYER_DISRUPTION" if attack in LINK_LAYER_DISRUPTION else attack.value
+
+
+def hierarchical_link_summary(y_true: list[AttackType], y_pred: list[AttackType]) -> dict[str, Any]:
+    """Compute attribution accuracy when grouping link-layer DoS and MAVLink anomaly together."""
+    link_total = 0
+    link_correct = 0
+    for yt, yp in zip(y_true, y_pred, strict=True):
+        if yt in LINK_LAYER_DISRUPTION:
+            link_total += 1
+            if yp in LINK_LAYER_DISRUPTION:
+                link_correct += 1
+    return {
+        "link_layer_support": link_total,
+        "link_layer_matched": link_correct,
+        "link_layer_accuracy": round(link_correct / link_total, 4) if link_total else None,
+    }
 
 
 @dataclass
@@ -91,9 +114,9 @@ class Evaluation:
     n: int
     latencies_ms: list[float] = field(default_factory=list)  # time-to-detect per session
 
-    def latency_summary(self) -> dict[str, float]:
+    def latency_summary(self) -> dict[str, float | None]:
         if not self.latencies_ms:
-            return {"mean": float("nan"), "p50": float("nan"), "p95": float("nan")}
+            return {"mean": None, "p50": None, "p95": None}
         arr = np.array(self.latencies_ms, dtype=float)
         return {
             "mean": float(arr.mean()),
@@ -132,10 +155,10 @@ class Evaluation:
             "detection_latency_s": self.latency_summary(),
         }
 
-    def macro(self) -> dict[str, float]:
+    def macro(self) -> dict[str, float | None]:
         attacks = [c for a, c in self.per_class.items() if a.is_attack and c.support > 0]
         if not attacks:
-            return {"precision": float("nan"), "recall": float("nan"), "f1": float("nan")}
+            return {"precision": None, "recall": None, "f1": None}
         return {
             "precision": _r(float(np.nanmean([c.precision for c in attacks]))),
             "recall": _r(float(np.nanmean([c.recall for c in attacks]))),
@@ -143,8 +166,8 @@ class Evaluation:
         }
 
 
-def _r(x: float) -> float:
-    return round(float(x), 4) if x == x else float("nan")  # x==x filters NaN
+def _r(x: float) -> float | None:
+    return round(float(x), 4) if x == x else None  # x==x filters NaN for strict JSON
 
 
 def evaluate(

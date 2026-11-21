@@ -21,6 +21,7 @@ class MavlinkActuator:
         compid: int = 191,
         secret_key: bytes | None = None,
         link_id: int = 0,
+        on_action: Callable[[str, str, str], None] | None = None,
     ) -> None:
         self.sysid = sysid
         self.compid = compid
@@ -31,6 +32,11 @@ class MavlinkActuator:
         self._signer = MavlinkSignatureVerifier(secret_key) if secret_key is not None else None
         self._ts_source: Callable[[], int | None] | None = None
         self._last_ts = 0
+        self.on_action = on_action
+
+    def _emit_action(self, action: str, target: str, detail: str) -> None:
+        if self.on_action is not None:
+            self.on_action(action, target, detail)
 
     def _next_seq(self) -> int:
         seq = self._seq
@@ -83,7 +89,9 @@ class MavlinkActuator:
             0.0,
             0.0,
         )
-        return self._finalize(bytes(msg.pack(self._encoder)))
+        raw = self._finalize(bytes(msg.pack(self._encoder)))
+        self._emit_action("encode_set_mode", f"sysid={target_sysid}", f"mode={custom_mode_name.upper()}")
+        return raw
 
     def encode_ekf_source_switch(self, source_set: int = 2, target_sysid: int = 1) -> bytes:
         """Encode MAV_CMD_DO_AUX_FUNCTION (218) with Aux 90 (EKF Pos Source Switch).
@@ -104,7 +112,9 @@ class MavlinkActuator:
             0.0,
             0.0,
         )
-        return self._finalize(bytes(msg.pack(self._encoder)))
+        raw = self._finalize(bytes(msg.pack(self._encoder)))
+        self._emit_action("encode_ekf_source_switch", f"sysid={target_sysid}", f"source_set={source_set}")
+        return raw
 
     def encode_prearm_disarm(self, force: bool = False, target_sysid: int = 1) -> bytes:
         """Encode MAV_CMD_COMPONENT_ARM_DISARM (400). ``force`` adds ArduPilot's force-disarm code (21196),
@@ -124,7 +134,9 @@ class MavlinkActuator:
             0.0,
             0.0,
         )
-        return self._finalize(bytes(msg.pack(self._encoder)))
+        raw = self._finalize(bytes(msg.pack(self._encoder)))
+        self._emit_action("encode_prearm_disarm", f"sysid={target_sysid}", f"force={force}")
+        return raw
 
     def encode_param_set(
         self,
@@ -141,7 +153,9 @@ class MavlinkActuator:
             float(param_value),
             mav2.MAV_PARAM_TYPE_REAL32,
         )
-        return self._finalize(bytes(msg.pack(self._encoder)))
+        raw = self._finalize(bytes(msg.pack(self._encoder)))
+        self._emit_action("encode_param_set", f"sysid={target_sysid}", f"{param_id}={param_value}")
+        return raw
 
     def encode_statustext(self, text: str, severity: int = 2) -> bytes:
         """Encode STATUSTEXT (253) message for GCS / HUD display."""

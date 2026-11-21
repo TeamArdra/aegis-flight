@@ -56,6 +56,8 @@ class SessionResult:
     n_decisions: int
     wall_time_s: float
     compute_latency_ms: list[float]
+    ml_loaded: bool = False  # the ML detector actually loaded a model (not merely requested)
+    ml_sha256: str | None = None  # SHA-256 of the model file that was loaded
 
     @property
     def throughput_msgs_per_s(self) -> float:
@@ -71,13 +73,19 @@ def run_session(
     warmup_s: float = 5.0,
     grace_s: float = 8.0,
     rng_seed: int | None = None,
+    allow_unverified_model: bool = False,
 ) -> SessionResult:
     if route is not None:
         cfg = _with_route(cfg, route)
     route = cfg.simulation.get("route", "survey_box")
 
     fw_dir = tempfile.mkdtemp(prefix="aegis_fw_")
-    pipe = IDSPipeline(cfg, model_path=model_path, firmware_dir=fw_dir)
+    pipe = IDSPipeline(
+        cfg,
+        model_path=model_path,
+        firmware_dir=fw_dir,
+        allow_unverified_model=allow_unverified_model,
+    )
 
     rng = np.random.default_rng(rng_seed if rng_seed is not None else seed + 99)
     atk_kwargs = ({"firmware_dir": fw_dir}
@@ -152,6 +160,8 @@ def run_session(
         n_decisions=len(records),
         wall_time_s=wall,
         compute_latency_ms=latencies,
+        ml_loaded=pipe.ml_available,
+        ml_sha256=pipe.anomaly.loaded_sha256,
     )
 
 

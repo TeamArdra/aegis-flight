@@ -1,0 +1,22 @@
+{
+  "schema": "aegisflight.ardupilot_heldout_lock/1",
+  "locked_utc": "2026-11-18T23:59:32.830283+00:00",
+  "calibration_runs": [
+    "ap_benign_six_001",
+    "ap_benign_six_002",
+    "ap_benign_final_noml_001"
+  ],
+  "heldout_runs": [
+    "ap_benign_six_003",
+    "ap_benign_six_004",
+    "ap_benign_groups_001",
+    "ap_benign_final_noml_002"
+  ],
+  "frozen_inputs": {
+    "ardupilot_profile_yaml_sha256": "c5cfd220b3acb0bb638e00a103099b5cb1693d5c9faab397303a5d7518915c58",
+    "px4_profile_yaml_sha256": "94a60c9b39991b45539fc8b92f0514acb516046209d6356aada5f053a59b21a2",
+    "stage1_detector_yaml_sha256": "12948921a230df3c5e26090581540d821491f244d34d4fcb2ab9aaf66f7c37be",
+    "anomaly_py_sha256": "f5d55dc0dc98c5ae3d9ca7406b19f6265817e4c26277149908d26709d0738ca4",
+    "fusion_engine_py_sha256": "8f15785161fc44f431e5cdd71db1974eeed864aa43d68c87829d998b644ed663"
+  }
+}

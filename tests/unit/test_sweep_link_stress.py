@@ -152,8 +152,9 @@ def test_cli_subset_selection_and_loss_ordering_are_applied(tmp_path: Path) -> N
                     "--duration-s", "12", "--allow-dirty", "--out", str(out)]) == 0
     rows = _summary(out)
     assert [(r["ordering"], r["loss_pct"], r["ml"]) for r in rows] == [("reorder", "0", "off"), ("reorder", "10", "off")]
-    # reorder fires the protocol sequence-gap rule even without loss (the 2026-11-17 audit probe's finding, ML off)
-    assert int(rows[0]["alarm_decisions"]) > 0 and "sequence gap" in rows[0]["dominant_evidence"]
+    # The 2026-11-17 audit probe found that benign reordering alone fired the protocol sequence-gap rule (ML off).
+    # #14 (features.reorder_window) fixed that: reordering with no loss must raise no sequence-gap alarm.
+    assert int(rows[0]["alarm_decisions"]) == 0 and "sequence gap" not in rows[0]["dominant_evidence"]
 
 
 def test_refuses_dirty_tree_without_flag_and_does_not_overwrite(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

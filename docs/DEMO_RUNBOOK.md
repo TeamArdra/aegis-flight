@@ -36,7 +36,7 @@ pytest tests/unit/test_mitigation.py tests/unit/test_hal.py -q   # 34 tests pass
 
 ## Startup
 ```bash
-aegis serve --defense-mode active-ips         # http://127.0.0.1:8000
+aegis serve                                   # http://127.0.0.1:8000 (safe passive default; SIM defense demo uses UI posture toggle)
 ```
 Or launch the native desktop GCS:
 ```bash
@@ -70,7 +70,7 @@ The GCS displays:
 ## Segment 4 — Denial of Service & High-Rate Flood
 - Click **Denial of Service**.
 - Threat state escalates to `CRITICAL / DOS`.
-- `FloodMitigator` isolates the rogue telemetry stream; heartbeat and critical attitude frames are preserved on priority channels.
+- `MitigationController` (`src/aegisflight/mitigation/controller.py`) records a `RATE_LIMIT` action for `DOS_FLOOD` / `MAV_RATE_SPIKE` (the sanitizer rate-limit flag is set after 3 consecutive DoS ticks) and a `LINK_WATCHDOG` action for `DOS_BLACKOUT`. These actions go to the event chain; no GCS alert is sent and no physical packet-rate shaper is claimed.
 
 ## Segment 5 — Hardware Abstraction Layer & Topology Detection
 - In the **Defense HUD**, read the **detected topology** (no selector): `A` sidecar, `A+B` inline bridge, or SIM/REPLAY. It lists what it can do (block frames, send counter-commands) from the live link and posture.
