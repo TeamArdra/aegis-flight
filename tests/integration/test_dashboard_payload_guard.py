@@ -26,10 +26,19 @@ GOLDEN = {
 }
 
 
+# ML-on SIM run, floats rounded to 9 significant digits (``digest_portable``). The exact ``GOLDEN['sim']`` digest above
+# is bit-exact on Windows / macOS only: Linux x86-64 gives a different last-bit ML score and so a different exact digest
+# (d2f07d40... with the same 441 updates). The rounded digest was measured identical on macOS arm64 and Linux x86-64.
+SIM_ML_PORTABLE = "0ca1cc38284ab893e070765ece78e5b65f4586af4a9fc4f71e2aad733818860a"
+
+
 def test_payload_sequence_digests_unchanged() -> None:
     got = drv.collect()
     for k, (n, h) in GOLDEN.items():
         assert len(got[k]) == n, k
+        if k == "sim" and _MODEL.exists():
+            assert drv.digest_portable(got[k]) == SIM_ML_PORTABLE, "sim payload sequence changed (ML on, rounded)"
+            continue
         assert drv.digest(got[k]) == h, f"{k} payload sequence changed"
 
 
