@@ -9,6 +9,7 @@ zero bytes ever transmitted to the FC link.
 from __future__ import annotations
 
 import contextlib
+import logging
 import threading
 import time
 from typing import Any
@@ -19,6 +20,8 @@ from ..mitigation.controller import MitigationController
 from ..mitigation.types import DefenseMode
 from ..pipeline import IDSPipeline
 from ..sources.mavlink_live import LiveMavlinkSource
+
+log = logging.getLogger(__name__)
 
 
 class SideTapRunner:
@@ -74,6 +77,7 @@ class SideTapRunner:
         self.decisions = 0
         self.alerts = 0
         self.analyser_errors = 0
+        self.rotation_failures = 0
         self.last_error: str | None = None
         self.last_summary: str = "Side-tap passive monitoring (0 B TX)"
 
@@ -110,7 +114,7 @@ class SideTapRunner:
     def rotate_store(self, *, max_bytes: int, max_rotations: int = 5, run_id_prefix: str = "onboard") -> bool:
         if self.store is None or max_bytes <= 0:
             return False
-        from ..logging.rotation import rotate_sqlite_store  # noqa: PLC0415
+        from ..logging.rotation import RotationLinkError, rotate_sqlite_store  # noqa: PLC0415
 
         with self._store_lock:
             if self.store is None:
@@ -119,19 +123,42 @@ class SideTapRunner:
                 with contextlib.suppress(Exception):
                     self.anchor_writer.write_now(self.run_id, force=True)
             new_run_id = time.strftime(f"{run_id_prefix}-%Y%m%d-%H%M%S")
-            fresh, rotated = rotate_sqlite_store(
-                self.store,
-                max_bytes=max_bytes,
-                max_rotations=max_rotations,
-                run_id=new_run_id,
-                label="onboard-sidetap",
-            )
-            if rotated:
-                self.store = fresh
-                self.run_id = new_run_id
+            old = self.store
+            try:
+                fresh, rotated = rotate_sqlite_store(
+                    old,
+                    max_bytes=max_bytes,
+                    max_rotations=max_rotations,
+                    run_id=new_run_id,
+                    label="onboard-sidetap",
+                )
+            except RotationLinkError as exc:
+                # Renamed but the link row could not be written: adopt the reopened store (has ROTATION_FAILED).
+                self.rotation_failures += 1
+                log.error("store rotated but ROTATION_LINK not written; ROTATION_FAILED recorded", exc_info=True)
+                fresh, rotated = exc.store, exc.started
+            except Exception:  # noqa: BLE001 - the observer must outlive a rotation fault
+                self.rotation_failures += 1
+                log.error("store rotation failed; recovering a usable store", exc_info=True)
+                fresh, rotated = self._recover_store(old), False
+            if fresh is not old:
+                self.store = fresh  # rotate_sqlite_store closed the old handle whenever it returns a new one
                 if self.anchor_writer is not None:
                     self.anchor_writer.store = fresh
+            if rotated:
+                self.run_id = new_run_id
             return rotated
+
+    @staticmethod
+    def _recover_store(old: Any) -> Any:
+        """After an unexpected rotation error: keep ``old`` if its connection still works, else reopen its file."""
+        try:
+            old.conn.execute("SELECT 1")
+            return old
+        except Exception:  # noqa: BLE001 - closed connection
+            from ..logging.store import EventStore  # noqa: PLC0415
+
+            return EventStore(old.db_path)
 
     def _run_loop(self) -> None:
         self._source = LiveMavlinkSource(
