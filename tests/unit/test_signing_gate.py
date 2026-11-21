@@ -250,10 +250,46 @@ def test_posture_cors_and_methods(srv_factory):
 
 
 def test_rejected_post_with_large_body_closes_cleanly(srv_factory):
-    """A rejected request's body is drained before the reply, so the client never sees a reset."""
+    """A rejected request's (in-budget) body is drained before the reply, so the client never sees a reset."""
     s, _b = srv_factory(control_token="s3cret")
-    big = b"x" * 200_000
+    big = b"x" * 60_000  # within the server's 64 KiB drain budget
     for _ in range(20):
         assert _http(s.port, body=big, headers={"Authorization": "Bearer nope"})[0] == 401
         assert _http(s.port, "PUT", "/posture", body=big)[0] == 405
         assert _http(s.port, body=big, headers={"Authorization": "Bearer s3cret"})[0] == 400
+
+
+def test_oversize_declared_length_returns_promptly(srv_factory):
+    """A huge declared Content-Length is not read: 413 + close (a reset is acceptable), never a hang."""
+    import socket
+    import time
+
+    s, b = srv_factory(control_token="s3cret")
+    t0 = time.monotonic()
+    with socket.create_connection(("127.0.0.1", s.port), timeout=4) as c:
+        c.sendall(b"POST /posture HTTP/1.1\r\nHost: x\r\nContent-Length: 104857600\r\n\r\nabc")
+        try:
+            resp = c.recv(4096)
+        except OSError:  # RST from closing with unread bytes: allowed for an oversize client
+            resp = b""
+    assert time.monotonic() - t0 < 3
+    assert resp == b"" or b" 413 " in resp.split(b"\r\n", 1)[0]
+    assert b.calls == []
+    assert _http(s.port, "GET", "/status")[0] == 200  # server still serves
+
+
+def test_slow_drip_client_is_dropped(srv_factory):
+    """A client that declares a body and never sends it cannot hold the handler past the socket timeout."""
+    import socket
+    import time
+
+    s, _b = srv_factory(control_token="s3cret")
+    t0 = time.monotonic()
+    with socket.create_connection(("127.0.0.1", s.port), timeout=15) as c:
+        c.sendall(b"POST /posture HTTP/1.1\r\nHost: x\r\nContent-Length: 2000\r\n\r\nabc")
+        try:
+            c.recv(4096)
+        except OSError:
+            pass
+    assert time.monotonic() - t0 < 12
+    assert _http(s.port, "GET", "/status")[0] == 200
