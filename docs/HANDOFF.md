@@ -84,7 +84,8 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
 ## Do NOT change casually
 - **`ML_FEATURES` order/content** (`features/extractor.py`) — the saved model
   depends on it exactly; changing it silently breaks inference. Retrain.
-  *Frozen-contract migration note (issue #14, 2026-11-18):* `ML_FEATURES` order and
+  *Frozen-contract migration note (issue #14, 2026-11-18; maintainer approval recorded 2026-11-21:
+  https://github.com/TeamArdra/aegis-flight/issues/14#issuecomment-7060961736):* `ML_FEATURES` order and
   content are unchanged (`len == 11`). `FeatureExtractor` now tracks per-source
   sequence numbers against a high-water mark with `features.reorder_window` (default
   `16`), counting late packets within `1..R` steps in the new additive `FeatureFrame.reorder_count`
@@ -116,7 +117,8 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
   - Extended 2026-10-28, additive: EKF_STATUS_REPORT variances, GPS_RAW_INT eph/vel, GPS_STATUS read by the extractor; user requested the EKF-health and receiver-signature rules in chat on 2026-10-28; ML_FEATURES unchanged.
   - See `docs/DETECTION.md` "Estimator-aware position residual".
 - **The event schema / hash-chain canonicalisation** — breaks existing logs.
-  *Extended 2026-11-18 (#21, offline maintainer approval confirmed; additive only):*
+  *Extended 2026-11-18 (#21, additive only; maintainer approval recorded 2026-11-21:
+  https://github.com/TeamArdra/aegis-flight/issues/21#issuecomment-7060964181):*
   - `events` table columns, `_canonical`, `_hash`, `verify_chain()`, and default `aegis verify-log <db>` output are **byte-identical** (`read_only=True` verification leaves legacy fixture DBs untouched on disk).
   - Additive `<db>.anchors.jsonl` external head anchoring (`logging/anchors.py`, optional `AEGIS_ANCHOR_KEY` HMAC-SHA256) and additive `actions` table (`EventStore.log_action`, `verify_actions_chain`) added without changing any `events` canonical bytes.
 - **The benchmark scoring policy** (warmup/grace) — changing it changes reported
