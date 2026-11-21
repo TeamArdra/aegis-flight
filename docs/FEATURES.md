@@ -13,7 +13,7 @@ apply thresholds and the "expected source" policy.
 |---|---|---|---|
 | `msg_rate_hz` | msg/s | messages in the last `rate_window_s` (1 s) | protocol, ML |
 | `interarrival_mean_ms` / `interarrival_jitter_ms` | ms | mean / std of inter-arrival in the window | protocol, ML |
-| `max_seq_gap` | count | largest per-source forward sequence jump (or backward step outside `features.reorder_window`, default 16) this decision window | protocol, ML |
+| `max_seq_gap` | count | largest per-source forward sequence jump (or backward step outside `features.reorder_window`, default 16; 48 in `configs/universal_flight`) this decision window | protocol, ML |
 | `reorder_count` | count | out-of-order frames received within `features.reorder_window` behind the per-source high-water mark this decision window (**not** in `ML_FEATURES`) | diagnostic only (**not** ML) |
 | `n_sources` | count | distinct (sysid,compid) seen this window | protocol |
 | `sources` | map | (sysid,compid) → count (rogue-source detection) | protocol |

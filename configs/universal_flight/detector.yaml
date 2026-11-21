@@ -4,6 +4,13 @@
 # learns static GPS-vs-baro offset on the ground while disarmed, enables airborne
 # semantic firewall detection, ConstDet attitude-vs-accel check, and GNSS clock-skew check.
 features:
+  # 48 (default 16). Evidence: artifacts/sitl/px4_netem_reorder_window/ (SITL, link-level, benign mission only,
+  # PX4 v1.16.2 + Gazebo Sim 8.15.0, clean-tree install, no attack injected on PX4; re-run commands in its README).
+  # PX4 streams ~370 msg/s; netem 40+-20 ms jitter reordered frames up to ~22 sequence numbers, so the window
+  # of 16 counted late frames as forward gaps (234-238 > 30): 195 and 112 alerts in two ~560-decision runs.
+  # With 48: 0 and 0. Cost (SIM, seq_scramble, 20 seeds): still 20/20 detected, decision recall 0.966 -> 0.911;
+  # jumps that stay within 48 behind the high-water mark are not flagged. Calibrated on that one condition only.
+  reorder_window: 48
   learn_baro_offset: true
   baro_offset_alpha: 0.05
   # |dv|/dt over at least 0.15 s: netem reorder/jitter delivered velocity samples ms apart (45-57 m/s2 ConstDet spikes).
