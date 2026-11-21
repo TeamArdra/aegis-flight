@@ -107,6 +107,12 @@ Setup: `deploy/bench` containers (`radarku/ardupilot-sitl` ArduCopter, companion
   - The IDS reacted to the GPS drift late (ALT_HOLD at t=456 s) and no `GPS_SPOOFING` event for the drift was found in the event table (STATUSTEXT messages only); the vehicle disarmed at t=579 s for a cause not established. RC takeover/recovery was not exercised.
   - An earlier attack run was discarded: the harness sent unsigned frames (import-order bug), so it measured nothing about recovery.
 
+### Stage-1 regression and readiness soak on the final head (2026-11-21)
+
+- `aegis benchmark --out <scratch> --no-figures` with the hash-verified `models/isoforest.joblib` (`scripts/fetch_models.py`): `TP / FP / TN / FN = 6535 / 4 / 16826 / 65` (tag `SIM`). Unchanged from the Stage-1 baseline.
+- `python scripts/hardware/hw_readiness_soak.py --cycles 5 --flood-frames 5000`: `ok=True benign_alerts=0 attack_alerts=1 forwarded=5702 dropped_up=3 dropped_unsigned=2 dropped_semantic_param=1 analyser_errors=0 p95_us=5.3`, event/actions chains and anchors verified (tag `SIM`).
+- **Open finding:** with the model present, `tests/unit/test_golden_equivalence.py` fails 55 ML-on cases (`frame_r` digest first). `origin/main` passes all 138. The ML-on section of `tests/golden/golden.json` predates the Stage-2 hardening: the stack adds FeatureFrame fields and lowers alert counts on 16 live cases (for example `live/crossend/profile` 11 -> 3 alerts). CI does not fetch the model, so it skips these cases. The fixture needs a reviewed `scripts/make_golden.py --ml-only` regeneration; it has not been regenerated here.
+
 ### Not run in this pass
 
 - **Multi-hour live SITL soak:** not run. The SITL runs below are 20-30 min flights, so every per-hour figure is a short-run extrapolation.
