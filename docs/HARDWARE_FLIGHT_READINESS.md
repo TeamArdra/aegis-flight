@@ -147,6 +147,26 @@ Setup: `deploy/bench` containers (`radarku/ardupilot-sitl` ArduCopter, companion
   - **Sensitivity cost, needs reviewer sign-off:** `live/mission/profile` first `GPS_SPOOFING` alert 32.0 s -> 50.8 s (injected drift starts at 30 s; the base tree alerted through `ml_anomaly` plus physics, the head through physics alone); `live/seq/profile` first alert 20.2 s (30 dropped frames) -> 40.2 s (scrambled sequence numbers), so a pure sequence gap no longer alerts without the ML vote; `live/dropout/profile` 30.2 s -> 34.0 s. All three come from #49 disabling the Stage-1 simulator-trained Isolation Forest in the ArduCopter profile because it does not transfer to SITL rate and timing distributions. No case has an alert before its fault onset on either tree, and the shipped profile still detects every injected fault in this set, later in three of them. Whether an earlier but uncalibrated ML vote is worth its false positives is the maintainer's call (decision D2 on #79); this document does not claim it is approved.
   - **Stage-1 is not affected:** the default config is untouched, and `aegis benchmark --out <scratch> --no-figures` still reports TP/FP/TN/FN 6535 / 4 / 16826 / 65.
 
+### Unit-level safety evidence: branch coverage, mutation testing, fuzz, acceptance specs (2026-11-21, tag `SIM`, unit-level only)
+
+These numbers show how well the safety-critical modules are pinned by tests. They are not flight evidence and make no detection claim.
+
+- **Line + branch coverage.** `python -m pytest tests/unit tests/acceptance --cov=src/aegisflight --cov-branch --cov-report=term-missing:skip-covered` (use the path form: `--cov=aegisflight.<module>` double-imports numpy under pytest-cov). Branch coverage on the safety modules: `mitigation/inline_policy.py` 99% (564 stmts, 0 missed, 3 partial branches), `mitigation/semantic_firewall.py` 98%, `sources/mavlink_serial.py` 97%, `mavlink/signing.py` 100%, `logging/store.py` 100%. `may_reach_vehicle()` is 100% line and branch and has an exact truth-table test (`tests/unit/test_may_reach_vehicle_exact.py`). The whole package is 85%, so the 90% target is met for the safety modules, not for the repository.
+- **Mutation testing** (`mutmut` 3.8.1, `also_copy = [src, scripts]`, one run per module; the killed/total counts are the tool's own):
+
+| module | killed / total | score | surviving mutants |
+|---|---|---|---|
+| `mitigation/semantic_firewall.py` | 383 / 393 | 97.5% | 10, all equivalent (default offsets, unused args) |
+| `mavlink/signing.py` | 471 / 492 | 95.7% | reviewed; killing tests added afterwards (`test_signing_exact.py`), **not re-run** |
+| `logging/store.py` | 506 / 587 | 86.2% | ~79 equivalent (SQL/PRAGMA case, `Row` keys, encoding aliases); 2 real gaps found and closed afterwards, **not re-run** |
+| `mitigation/inline_policy.py` | 1245 / 1279 | 97.3% | 34, reviewed one by one; nearly all equivalent. Two were worth a test (observed-replay accounting, relearn after signing lapse) and have one now, **not re-run** |
+| `sources/mavlink_serial.py::may_reach_vehicle` | 24 / 24 | 100% | mutmut could not drive this module, so these are 24 **hand-written** mutants, each killed by the truth-table test |
+
+  Equivalent-mutant classes: SQL keyword/PRAGMA case, `sqlite3.Row` key spelling, codec alias names, default offsets that equal the parsed value, arguments that are never read. Every security-boundary mutant (signature check, replay drop, uplink drop, serial transmit gate, hash-chain link) was killed. Scores were produced on a loaded host, so a latency-sensitive mutant could have been mis-classified as a timeout; none of the survivors is one.
+- **Bug found by this work.** `InlinePolicy._load_state` crashed startup when the state file held valid JSON of the wrong shape (for example a list). It now ignores any such file and starts with empty state (`AttributeError` added to the suppressed set). Regression test: `tests/unit/test_inline_policy_state_exact.py`.
+- **Hostile-input fuzz:** `tests/unit/test_fuzz_hostile_inputs.py` (hypothesis, at least 500 examples per property) over the frame parser, signature check, semantic-firewall extractors and the event store. No uncaught exception and no frame is forwarded after a failed check.
+- **Acceptance specs** (`pytest-bdd`, `tests/acceptance/`): active IPS, receive-only serial, forensic chain.
+
 ### Not run in this pass
 
 - **Multi-hour live SITL soak:** not run. The SITL runs below are 20-30 min flights, so every per-hour figure is a short-run extrapolation.
