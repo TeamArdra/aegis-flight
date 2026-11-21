@@ -143,6 +143,16 @@ class MitigationController:
             f"min={len(self._cmd_budget_window_t)}/{self.max_counter_cmds_per_min})",
         )
 
+    def _note_armed_unknown(self, t: float, cmd_key: str) -> None:
+        """Audit-only: a counter-action that is otherwise due was withheld because the arm state is unknown (no
+        HEARTBEAT seen yet). Rate-limited like the budget refusals; it never changes what is sent."""
+        key = (cmd_key, "armed_unknown")
+        if (t - self._last_refusal_log_t.get(key, -1e9)) < max(self.command_cooldown_s, 1.0):
+            return
+        self._last_refusal_log_t[key] = t
+        self._add_action(t, "CMD_SUPPRESSED_ARM_UNKNOWN",
+                         f"Withheld {cmd_key}: vehicle arm state unknown (counter-actions need a confirmed armed state)")
+
     def _can_send_command(self, cmd_key: str, t: float, *, bypass_budget: bool = False) -> bool:
         last = self._last_cmd_t.get(cmd_key, -1e9)
         if (t - last) < self.command_cooldown_s:
@@ -359,6 +369,9 @@ class MitigationController:
                     # reported only: nothing on this path drops the command before the autopilot
                     self._add_action(t, "VETO_DISARM", "Flagged motor arm/disarm command burst in flight (not blocked)")
 
+                if (frame.snapshot.armed is None and not self._gps_episode
+                        and self.actuator.knows_mode(params.target_restore_mode)):
+                    self._note_armed_unknown(t, f"RESTORE_{params.target_restore_mode}")
                 if (frame.snapshot.armed is True and not self._gps_episode
                         and self.actuator.knows_mode(params.target_restore_mode)
                         and self._can_send_command(f"RESTORE_{params.target_restore_mode}", t)):
@@ -505,6 +518,8 @@ class MitigationController:
         mode = frame.snapshot.flight_mode
         # only an ArduCopter mode name is acted on: PX4 mode numbers mean something else, so those are never guessed
         dependent = bool(mode) and self.actuator.knows_mode(mode) and str(mode).upper() in _POSITION_DEPENDENT_MODES
+        if frame.snapshot.armed is None and dependent:
+            self._note_armed_unknown(t, "SET_MODE_ALT_HOLD")
         if frame.snapshot.armed is not True or not dependent:
             return
         if self._can_send_command("SET_MODE_ALT_HOLD", t):

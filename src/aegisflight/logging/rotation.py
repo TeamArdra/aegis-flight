@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import re
 import time
@@ -18,6 +19,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .store import EventStore
+
+log = logging.getLogger(__name__)
 
 _ROTATED_RE = re.compile(r"\.([1-9][0-9]*)\.(?:jsonl|sqlite)$")
 
@@ -109,24 +112,47 @@ def rotate_sqlite_store(
     if size < max_bytes:
         return store, False
 
-    prev_heads: dict[str, object] = {}
-    with contextlib.suppress(Exception):
-        lock = getattr(store, "_lock", None)
-        if lock is not None:
-            with lock:
-                prev_heads = _segment_heads(store)
+    # Capture the closing heads of this segment BEFORE closing it. If that fails the chain link would
+    # carry null heads, so rotation is skipped (the store stays open and usable) and the failure is logged.
+    lock = getattr(store, "_lock", None)
+    try:
+        with lock if lock is not None else contextlib.nullcontext():
+            prev_heads = _segment_heads(store)
+            try:
                 store.conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
                 store.conn.commit()
-        else:
-            prev_heads = _segment_heads(store)
-            store.conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
-            store.conn.commit()
+            except Exception:  # noqa: BLE001 - a failed checkpoint only leaves a -wal file; rows are safe
+                log.warning("rotation: wal_checkpoint failed for %s", db_path, exc_info=True)
+    except Exception:  # noqa: BLE001
+        log.error("rotation SKIPPED for %s: could not capture segment head hashes; store kept open",
+                  db_path, exc_info=True)
+        return store, False
+
     store.close()
-    for sidecar in ("-wal", "-shm"):
-        Path(f"{db_path}{sidecar}").unlink(missing_ok=True)
-    rotated = rotate_file_series(db_path, max_bytes=max_bytes, max_rotations=max_rotations)
+    failure: Exception | None = None
+    rotated = False
+    try:
+        for sidecar in ("-wal", "-shm"):
+            Path(f"{db_path}{sidecar}").unlink(missing_ok=True)
+        rotated = rotate_file_series(db_path, max_bytes=max_bytes, max_rotations=max_rotations)
+    except OSError as exc:
+        failure = exc
+        log.error("rotation FAILED for %s: %s; reopening the active store (chain continues unbroken)",
+                  db_path, exc, exc_info=True)
+
+    if not rotated:
+        # Nothing moved (failure, or the file shrank below the threshold): reopen the same file. The run
+        # chain resumes from its stored last hash, so no link row is written and continuity is intact.
+        reopened = _EventStore(db_path)
+        if failure is not None:
+            with contextlib.suppress(Exception):
+                reopened.log_action(run_id, time.time(), "rotation", "ROTATION_FAILED", db_path.name,
+                                    f"{type(failure).__name__}: {failure}")
+        return reopened, False
+
+    keep_segment = int(max_rotations) > 0
     prev_segment = {
-        "rotated_path": str(_rotated_path(db_path, 1)) if max_rotations > 0 else None,
+        "rotated_path": str(_rotated_path(db_path, 1)) if keep_segment else None,
         **prev_heads,
     }
     fresh_meta = {**(meta or {}), "prev_segment": prev_segment}
@@ -136,11 +162,12 @@ def rotate_sqlite_store(
         run_id,
         time.time(),
         "rotation",
-        "ROTATION_LINK",
+        # With max_rotations == 0 the old segment was deleted: there is nothing to link to, so say so.
+        "ROTATION_LINK" if keep_segment else "ROTATION_DISCARDED",
         db_path.name,
         json.dumps(prev_segment, sort_keys=True),
     )
-    return fresh, rotated
+    return fresh, True
 
 
 def prune_rotated_files(

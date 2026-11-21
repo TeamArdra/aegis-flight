@@ -66,6 +66,7 @@ import argparse
 import ipaddress
 import json
 import logging
+import os
 import queue
 import select
 import socket
@@ -585,6 +586,36 @@ def _validated(out: object) -> list[bytes]:
     return frames
 
 
+PRIVATE_UPSTREAM_ENV = "AEGIS_ALLOW_PRIVATE_UPSTREAM"
+
+
+def check_upstream_host(host: str, *, allow_private: bool | None = None) -> str:
+    """Refuse an upstream (vehicle-side) address that is not local SITL. Opens no socket.
+
+    Loopback literals and ``localhost`` always pass. A private / link-local IP literal (WSL2 /
+    Hyper-V NAT, LAN) passes only on explicit opt-in (``allow_private=True`` or the
+    ``AEGIS_ALLOW_PRIVATE_UPSTREAM=1`` environment variable). Hostnames (not resolved) and
+    public addresses never pass.
+    """
+    h = str(host).strip().strip("[]")
+    if h.lower() == "localhost":
+        return "127.0.0.1"
+    try:
+        ip = ipaddress.ip_address(h.split("%", 1)[0])
+    except ValueError:
+        raise ValueError(f"refusing upstream {host!r}: only a loopback or (opted-in) private IP literal "
+                         "is allowed; hostnames are not resolved (AGENTS.md s5)") from None
+    if ip.is_loopback:
+        return h
+    if allow_private is None:
+        allow_private = os.environ.get(PRIVATE_UPSTREAM_ENV) == "1"
+    if allow_private and ip.is_private and not ip.is_unspecified and not ip.is_multicast:
+        return h
+    raise ValueError(f"refusing non-loopback upstream {host!r}: attack tooling may target only local SITL "
+                     f"(AGENTS.md s5). A private WSL/Hyper-V address needs allow_private_upstream=True / "
+                     f"--allow-private-upstream / {PRIVATE_UPSTREAM_ENV}=1")
+
+
 def make_udp_relay(
     px4_host: str,
     px4_port: int,
@@ -594,13 +625,20 @@ def make_udp_relay(
     down_hook: FrameHook = passthrough,
     up_hook: FrameHook = passthrough,
     mirror_uplink_to_clients: bool = False,
+    allow_private_upstream: bool | None = None,
     **relay_kwargs: Any,
 ) -> MavlinkRelay:
     """Real-socket relay: connect to ``px4_host:px4_port`` (explicit), bind loopback ``listen_port``.
 
     ``mirror_uplink_to_clients`` is opt-in and defaults to ``False`` (unchanged relay
     behaviour); see :class:`MavlinkRelay` / the module docstring for why it exists.
+
+    The upstream must be loopback (AGENTS.md s5: attack tooling targets local SITL only). The
+    check runs before any socket is opened. A private (RFC 1918 / link-local) literal, e.g. the
+    WSL2 NAT address, is accepted only with ``allow_private_upstream=True`` or
+    ``AEGIS_ALLOW_PRIVATE_UPSTREAM=1``; hostnames and public addresses are always refused.
     """
+    check_upstream_host(px4_host, allow_private=allow_private_upstream)
     upstream = UdpMavlinkTransport(connect=(px4_host, px4_port), gcs_heartbeat=True)
     try:
         downstream = UdpDownstream((listen_host, listen_port))
@@ -622,6 +660,8 @@ def main(argv: list[str] | None = None) -> int:
         description="Pass-through MAVLink UDP relay to PX4 SITL (loopback clients only).")
     ap.add_argument("--px4-host", required=True, help="PX4 address (explicit; no discovery)")
     ap.add_argument("--px4-port", type=int, required=True)
+    ap.add_argument("--allow-private-upstream", action="store_true",
+                    help="allow a private (WSL2/LAN) upstream IP literal; default loopback only")
     ap.add_argument("--listen-port", type=int, required=True)
     ap.add_argument("--listen-host", default=None, help="loopback address (default 127.0.0.1)")
     ap.add_argument("--seconds", type=float, default=None, help="run time (default: until Ctrl-C)")
@@ -630,7 +670,8 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 
     relay = make_udp_relay(args.px4_host, args.px4_port, args.listen_port,
-                           listen_host=args.listen_host)
+                           listen_host=args.listen_host,
+                           allow_private_upstream=True if args.allow_private_upstream else None)
     code = 0
     try:
         relay.start()
