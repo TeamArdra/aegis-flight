@@ -94,9 +94,22 @@ Disabled unless `AEGIS_HW_WATCHDOG_PATH` is set (a GPIO `value` file); `AEGIS_HW
 Drive the relay coil through a retriggerable monostable that releases after about 8 ms without an edge.
 `aegis onboard` starts the pulse after READY and stops it (pin low) on exit; it is suppressed if bridge workers die.
 
+### Live SITL + `tc netem` bench results (2026-11-21, tag `SITL`, link-level only)
+
+Setup: `deploy/bench` containers (`radarku/ardupilot-sitl` ArduCopter, companion 2 vCPU / 512 MiB), `tc netem` on both egress sides (rate 115200 bit, delay 40 +/- 20 ms, loss 3%, reorder 4%, corrupt 0.2%), wind 12 m/s, turbulence 4, GPS noise 0.8, battery sag. Artifacts are container-local (`/h/run_*`), not committed; harness scripts are not in the repo.
+
+- **Benign soak 1 (30 min, untuned universal profile):** 96,816 frames down, 11 alerts (10 heading/yaw > 10 deg, 1 ConstDet 44.4 m/s2 spike). Bridge latency p50 21.5 us, p95 124.7 us; RSS <= 78 MB; CPU mean 7.4%, max 9.0%.
+- **Tuning (`configs/universal_flight/detector.yaml` only; Stage-1 `configs/detector.yaml` untouched):** `control_accel_residual_ms2` 8.0 (benign wind residual p99 6.15, max 6.43) and `heading_yaw_tolerance_deg` 20.0. Regression tests: `tests/unit/test_universal_constdet_wind.py`. Cost: heading/yaw offsets below 20 deg are no longer flagged on the universal profile.
+- **Benign soak 2 (20 min, tuned profile):** heading/yaw false alarms gone; 8 ConstDet alerts (about 24/h extrapolated; spikes 8.2-57 m/s2, attributed to netem loss/reorder/corruption on velocity deltas, not fixed). Event chain OK, 245 signed anchors OK, `PRAGMA integrity_check` ok, RSS <= 77.8 MB, CPU mean 6.9%, max 8.0%.
+- **Compound attack under signed ACTIVE_IPS (15 min flight, attack t=300-390 s):** 5,000 msg/s flood from an unauthorised sysid, rogue/spoofed unsigned COMMAND_LONG, unsigned and signed PARAM_SET, GPS drift. Zero tracebacks, 0 analyser errors, bridge stayed up. 409,580 uplink frames dropped (409,400 by the dynamic rule, 180 unsigned control frames); 23 `DOS` alerts and 1 `MAVLINK_ANOMALY` during the flood; RSS <= 81.2 MB; CPU mean 12.8%, max 61.8% (flood). Event chain OK, 186 signed anchors OK, integrity_check ok.
+- **Limitations found in that run:**
+  - The legitimately signed in-flight `PARAM_SET` (FS_GCS_ENABLE) was forwarded (`semantic_firewall.dropped_param` = 0). Treat as an open gap for armed flight.
+  - The IDS reacted to the GPS drift late (ALT_HOLD at t=456 s) and no `GPS_SPOOFING` event for the drift was found in the event table (STATUSTEXT messages only); the vehicle disarmed at t=579 s for a cause not established. RC takeover/recovery was not exercised.
+  - An earlier attack run was discarded: the harness sent unsigned frames (import-order bug), so it measured nothing about recovery.
+
 ### Not run in this pass
 
-- **Live SITL + `tc netem` benign/attack soak:** not run. It needs the `radarku/ardupilot-sitl` image pulled from a registry and a multi-hour flight. No live-SITL `FA/hr`, RSS, CPU or bridge-latency numbers exist yet.
+- **Multi-hour live SITL soak:** not run. The SITL runs below are 20-30 min flights, so every per-hour figure is a short-run extrapolation.
 - **Real outdoor replay `FA/hr`:** not measured. The only tlogs on the dev host are PX4-VTOL-SITL captures.
 - `aegis onboard --preflight` on a laptop fails only `run_root_writable` (default `/var/lib/aegisflight`); pass `--run-dir`.
 

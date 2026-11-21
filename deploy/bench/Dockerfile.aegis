@@ -14,7 +14,7 @@ COPY configs ./configs
 COPY scripts ./scripts
 COPY deploy ./deploy
 
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e ".[serial]"
 
 RUN chmod +x /app/deploy/bench/apply_netem.sh
 
