@@ -263,3 +263,37 @@ def test_anchor_chain_detects_middle_deletion_head_deletion_reordering_gaps_and_
     v_mod = verify_anchors(store, mod, key=key)
     assert v_mod.ok is False
     store.close()
+
+
+@pytest.mark.parametrize("tail", ['{"seq": 1, "anchor_ha', "not json at all", "[1, 2, 3]", '{"no_seq": true}'])
+def test_anchor_writer_never_forks_a_chain_with_a_corrupt_tail(tmp_path: Path, caplog: pytest.LogCaptureFixture,
+                                                                tail: str) -> None:
+    """R5: a corrupt last anchor line must not restart at seq=0/GENESIS in the same file."""
+    db = tmp_path / "events.sqlite"
+    store = _seed_store(db, "run-a", n=3)
+    aw = AnchorWriter(store)
+    assert aw.write_now("run-a", force=True) is not None
+    path = aw.anchor_path
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(tail + "\n")
+    before = path.read_bytes()
+
+    with caplog.at_level("ERROR", logger="aegisflight.logging.anchors"):
+        aw2 = AnchorWriter(store)
+    assert any("corrupt tail" in r.getMessage() for r in caplog.records)
+    assert aw2.anchor_path != path and "resumed-after-corrupt" in aw2.anchor_path.name
+    rec = aw2.write_now("run-a", force=True)
+    assert rec is not None
+    assert path.read_bytes() == before  # damaged file untouched: no second genesis appended
+    assert aw2.anchor_path.is_file()
+
+
+def test_anchor_writer_still_resumes_a_healthy_chain(tmp_path: Path) -> None:
+    db = tmp_path / "events.sqlite"
+    store = _seed_store(db, "run-a", n=3)
+    aw = AnchorWriter(store)
+    first = aw.write_now("run-a", force=True)
+    aw2 = AnchorWriter(store)
+    assert aw2.anchor_path == aw.anchor_path
+    second = aw2.write_now("run-a", force=True)
+    assert second["seq"] == first["seq"] + 1 and second["prev_anchor_hash"] == first["anchor_hash"]

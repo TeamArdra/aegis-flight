@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import os
 import time
 import warnings
@@ -13,6 +14,8 @@ from pathlib import Path
 from typing import Any
 
 from .store import GENESIS_HASH, EventStore
+
+log = logging.getLogger(__name__)
 
 ANCHOR_KEY_ENV = "AEGIS_ANCHOR_KEY"
 DEFAULT_ANCHOR_INTERVAL_S = 5.0
@@ -327,18 +330,43 @@ class AnchorWriter:
         self._resume_chain_state()
 
     def _resume_chain_state(self) -> None:
+        """Continue the chain from the last anchor line; never silently fork it.
+
+        If the file exists but its last line cannot be parsed as an anchor record (truncated write,
+        corruption, tampering), restarting at seq=0/GENESIS in the same file would splice a second genesis
+        onto the old chain. The damaged file is left untouched and new anchors go to a clearly named sibling
+        file instead; an error is logged. The anchor record format and hashing are unchanged.
+        """
         if not self.anchor_path.is_file():
             return
-        lines = [ln.strip() for ln in self.anchor_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        try:
+            lines = [ln.strip() for ln in self.anchor_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        except (OSError, UnicodeDecodeError) as exc:
+            self._divert_corrupt_tail(f"unreadable ({type(exc).__name__}: {exc})")
+            return
         if not lines:
             return
         try:
             last = json.loads(lines[-1])
-            if isinstance(last, dict) and "seq" in last:
-                self._seq = int(last["seq"]) + 1
-                self._prev_anchor_hash = str(last.get("anchor_hash") or anchor_record_hash(last))
-        except Exception:  # noqa: BLE001
-            pass
+            if not isinstance(last, dict) or "seq" not in last:
+                raise ValueError("last line is not an anchor record with a seq")
+            seq = int(last["seq"]) + 1
+            prev = str(last.get("anchor_hash") or anchor_record_hash(last))
+        except (ValueError, TypeError, KeyError) as exc:  # JSONDecodeError is a ValueError
+            self._divert_corrupt_tail(f"last line is not a valid anchor record ({type(exc).__name__}: {exc})")
+            return
+        self._seq = seq
+        self._prev_anchor_hash = prev
+
+    def _divert_corrupt_tail(self, reason: str) -> None:
+        stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+        original = self.anchor_path
+        self.anchor_path = original.with_name(f"{original.stem}.resumed-after-corrupt-{stamp}{original.suffix}")
+        log.error(
+            "anchor file %s has a corrupt tail (%s); NOT appending a new genesis to it. New anchors go to %s "
+            "(the original file is left unchanged for investigation; `aegis verify-log` on it will report the damage)",
+            original, reason, self.anchor_path,
+        )
 
     def write_now(self, run_id: str, *, force: bool = False) -> dict[str, Any] | None:
         """Write an anchor record for ``run_id`` now (unless unchanged and not forced)."""
