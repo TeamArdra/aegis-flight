@@ -472,18 +472,27 @@ def test_check_signature_return_values_and_counters_are_exact() -> None:
 def test_max_age_boundary_and_counters(monkeypatch: pytest.MonkeyPatch) -> None:
     now = float(MAVLINK_EPOCH_UNIX_S) + 1000.0
     monkeypatch.setattr(time, "time", lambda: now)
-    p, _ = policy(signing_key=KEY, max_age_s=10.0)
     threshold = 99_000_000  # (now - epoch) * 1e5 - max_age * 1e5
-    assert p._check_signature(mk(signed(command(p2=1.0), threshold))) == "ok"  # exactly at the limit is still fresh
-    assert p._check_signature(mk(signed(command(p2=2.0), threshold + 1))) == "ok"
-    old = signed(command(p2=3.0), threshold - 1)
-    assert p._check_signature(mk(old)) == "replay" and p.dropped_replay == 1
-    stale = signed(command(p2=4.0), 98_999_995)  # within 1e-5 of the limit: needs the exact multiplier to be rejected
-    assert p._check_signature(mk(stale)) == "replay" and p.dropped_replay == 2
-    for n in (1, 2):
-        assert p._check_signature(mk(signed(command(p2=5.0 + n), threshold - 100 - n)), observe=True) == "replay"
-        assert p.observed_replay == n
-    assert p.dropped_replay == 2
+
+    def fresh() -> InlinePolicy:
+        return policy(signing_key=KEY, max_age_s=10.0)[0]
+
+    assert fresh()._check_signature(mk(signed(command(), threshold))) == "ok"  # exactly at the limit is still fresh
+    assert fresh()._check_signature(mk(signed(command(), threshold + 1))) == "ok"
+    for ts in (threshold - 1, threshold - 5):  # just past the limit: needs the exact multiplier to be rejected
+        p = fresh()
+        assert p._check_signature(mk(signed(command(), ts))) == "replay"
+        assert p.dropped_replay == 1 and p.observed_replay == 0 and p.signed_ok == 0
+    # counters accumulate: stale frames with increasing timestamps reach the age check every time
+    p = fresh()
+    for n in (1, 2, 3):
+        assert p._check_signature(mk(signed(command(p2=float(n)), threshold - 1000 + n))) == "replay"
+        assert p.dropped_replay == n
+    q = fresh()
+    for n in (1, 2, 3):
+        assert q._check_signature(mk(signed(command(p2=float(n)), threshold - 1000 + n)), observe=True) == "replay"
+        assert q.observed_replay == n
+    assert q.dropped_replay == 0
 
 
 # -- command rule ------------------------------------------------------------------------------------------------------------

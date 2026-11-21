@@ -691,3 +691,101 @@ def test_payload_start_offsets_do_not_leak_into_the_next_field() -> None:
     assert _command(raw, 76) == (400, 0.0, 21196.0)
     assert Clock()() == 100.0
     assert MAVLINK_EPOCH_UNIX_S > 0
+
+
+# -- additional boundary pins ----------------------------------------------------------------------------------------------------
+
+
+def test_default_semantic_stats_report_enabled_and_default_filter_event_detail() -> None:
+    assert InlinePolicy().semantic_stats()["enabled"] is True
+    p, _ = policy()
+    p._set_filter_state("engaged")
+    assert p.take_filter_events() == [("engaged", "")]
+
+
+def test_engaged_watchdog_counts_a_forged_non_control_frame_as_observed_not_dropped() -> None:
+    p, _ = policy(signing_key=KEY)
+    p.set_uplink_filter_only(True)
+    p.lockout_failopen_s = 30.0
+    assert p.up(mk(signed(command(), now_ts()))) != []
+    forged = signed(gcs_heartbeat(), now_ts() + 50, key=bytes(range(1, 33)))
+    assert p.up(mk(forged)) == [forged]
+    assert p.observed_bad_signature == 1 and p.dropped_bad_signature == 0
+
+
+def test_seq_provenance_learning_phase_wraps_modulo_256() -> None:
+    t = SeqProvenance()
+    t.observe(250)
+    t.observe(10)  # +16 across the wrap: inside the window
+    assert t.count == 2
+    u = SeqProvenance()
+    u.observe(250)
+    u.observe(11)  # +17: outside it
+    assert u.count == 1
+
+
+def test_after_a_lapse_the_source_is_relearned_from_one() -> None:
+    p, _ = policy(signing_key=KEY)
+    t0 = 1_000_000_000
+    sign_n(p, 20, 1000, recv_ns=t0)
+    late = t0 + 20_000_000_000
+    assert p._down_forged(down_ctx(heartbeat(), late)) is None
+    assert p._down_forged(down_ctx(sv(9000), late)) is None
+    assert p._down_signed[(1, 1)] == 1
+
+
+def _v1_heartbeat_ctx(length: int) -> FrameContext:
+    raw = bytes([_V1, length - 8]) + bytes(length - 2)
+    assert len(raw) == length
+    return FrameContext("down", raw, 1, 1, 1, 0, 0, False)
+
+
+@pytest.mark.parametrize("length,learns", [(11, False), (12, True), (13, True)])
+def test_heartbeat_state_is_learnt_only_from_frames_of_at_least_twelve_bytes(length: int, learns: bool) -> None:
+    p, _ = policy()
+    assert p.down(_v1_heartbeat_ctx(length)) == [_v1_heartbeat_ctx(length).raw]
+    assert p.armed is (False if learns else None)
+
+
+def test_command_int_ids_above_32767_stay_unsigned() -> None:
+    m = enc(255, 190)
+    raw = bytes(m.command_int_encode(1, 1, 0, 40000, 0, 0, 0, 0, 0, 0, 0, 0, 0.0).pack(m))
+    got = _command(raw, 75)
+    assert got is not None and got[0] == 40000
+
+
+def test_a_mission_count_reaches_the_firewall_with_its_count() -> None:
+    from types import SimpleNamespace
+
+    from pymavlink.dialects.v20 import ardupilotmega as apm
+
+    p, _ = policy()
+    seen: list = []
+
+    def fake(event, **kw):
+        seen.append(event)
+        return SimpleNamespace(blocked=True, reason="count")
+
+    p.semantic_firewall.evaluate_fence_change = fake  # type: ignore[method-assign]
+    m = apm.MAVLink(file=None, srcSystem=255, srcComponent=190)
+    raw = bytes(apm.MAVLink_mission_count_message(1, 1, 3, 1).pack(m))
+    assert p.up(mk(raw)) == []
+    assert (seen[0].action, seen[0].count, seen[0].mission_type) == ("upload_fence", 3, 1)
+
+
+def test_persisting_into_a_missing_directory_is_swallowed(tmp_path: Path) -> None:
+    p, _ = policy(signing_key=KEY, state_path=tmp_path / "no" / "such" / "state.json")
+    assert p._check_signature(mk(signed(command(), 500))) == "ok"
+    assert p._state_dirty is False  # the attempt was made and its failure ignored
+
+
+def test_state_file_is_replaced_atomically_through_a_tmp_sibling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+
+    calls: list[tuple[str, str]] = []
+    real = os.replace
+    monkeypatch.setattr(os, "replace", lambda a, b: (calls.append((str(a), str(b))), real(a, b))[1])
+    path = tmp_path / "state.json"
+    p, _ = policy(signing_key=KEY, state_path=path)
+    p._check_signature(mk(signed(command(), 500)))
+    assert calls == [(str(path) + ".tmp", str(path))]
