@@ -18,6 +18,7 @@ from ..core.types import MessageEnvelope
 from ..hal.inline_ips import FrameContext, InlineIpsBridge
 from ..mavlink.signing import sign_mavlink2_frame
 from ..pipeline import IDSPipeline
+from ..sources.mavlink_serial import may_reach_vehicle
 from ..sources.stream import TelemetryTick
 
 DRILL_SCENARIOS = (
@@ -48,6 +49,21 @@ class _ShadowTransport:
         self.connected = False
 
 
+def _new_transport(name: str) -> Any:
+    """Transport factory for the bridge drills (a seam so a test can prove the flag is measured, not asserted)."""
+    return _ShadowTransport(name)
+
+
+def _zero_real_tx(*transports: Any) -> bool:
+    """Measured, not asserted: True only if every transport a drill used is an in-memory shadow sink that cannot
+    reach a vehicle. Any other transport type, or one that names a device or URL that may reach a vehicle, gives False.
+    A drill that uses no transport at all (pipeline-only) trivially transmits nothing."""
+    for t in transports:
+        if not isinstance(t, _ShadowTransport) or may_reach_vehicle(getattr(t, "port", None)):
+            return False
+    return True
+
+
 def _pack(msg: Any, sysid: int, compid: int, seq: int = 1) -> bytes:
     m = apm.MAVLink(file=None, srcSystem=sysid, srcComponent=compid)
     m.seq = seq
@@ -56,8 +72,8 @@ def _pack(msg: Any, sysid: int, compid: int, seq: int = 1) -> bytes:
 
 def _drill_signed_spoof_rejection() -> dict[str, Any]:
     t0 = time.perf_counter()
-    fc = _ShadowTransport("shadow-fc")
-    gcs = _ShadowTransport("shadow-gcs")
+    fc = _new_transport("shadow-fc")
+    gcs = _new_transport("shadow-gcs")
     key = os.urandom(32)
     bridge = InlineIpsBridge(fc, gcs, mode="active-ips", secret_key=key)
     try:
@@ -84,7 +100,7 @@ def _drill_signed_spoof_rejection() -> dict[str, Any]:
         return {
             "name": "signed_spoof_rejection",
             "ok": ok,
-            "zero_real_fc_tx": True,
+            "zero_real_fc_tx": _zero_real_tx(fc, gcs),
             "unsigned_dropped": len(out_unsigned) == 0,
             "bad_mac_dropped": len(out_bad) == 0,
             "valid_signed_forwarded": len(out_good) == 1,
@@ -96,8 +112,8 @@ def _drill_signed_spoof_rejection() -> dict[str, Any]:
 
 def _drill_semantic_param_fence_block() -> dict[str, Any]:
     t0 = time.perf_counter()
-    fc = _ShadowTransport("shadow-fc")
-    gcs = _ShadowTransport("shadow-gcs")
+    fc = _new_transport("shadow-fc")
+    gcs = _new_transport("shadow-gcs")
     bridge = InlineIpsBridge(fc, gcs, mode="active-ips", unsigned_acknowledged=True)
     try:
         hb = _pack(apm.MAVLink_heartbeat_message(2, 3, 0x81 | 0x80, 5, 4, 3), 1, 1, seq=1)
@@ -114,7 +130,7 @@ def _drill_semantic_param_fence_block() -> dict[str, Any]:
         return {
             "name": "semantic_param_fence_block",
             "ok": ok,
-            "zero_real_fc_tx": True,
+            "zero_real_fc_tx": _zero_real_tx(fc, gcs),
             "semantic_stats": sem,
             "elapsed_ms": round((time.perf_counter() - t0) * 1000.0, 2),
         }
@@ -150,7 +166,7 @@ def _drill_gps_spoof_escalation() -> dict[str, Any]:
     return {
         "name": "gps_spoof_escalation",
         "ok": "GPS_SPOOFING" in alerts,
-        "zero_real_fc_tx": True,
+        "zero_real_fc_tx": _zero_real_tx(),  # pipeline only: no transport exists
         "alert_types": sorted(set(alerts)),
         "elapsed_ms": round((time.perf_counter() - t0) * 1000.0, 2),
     }
@@ -177,7 +193,7 @@ def _drill_clock_skew_sdr_spoof() -> dict[str, Any]:
     return {
         "name": "clock_skew_sdr_spoof",
         "ok": "GPS_SPOOFING" in alerts,
-        "zero_real_fc_tx": True,
+        "zero_real_fc_tx": _zero_real_tx(),  # pipeline only: no transport exists
         "alert_types": sorted(set(alerts)),
         "elapsed_ms": round((time.perf_counter() - t0) * 1000.0, 2),
     }
@@ -204,7 +220,7 @@ def run_field_drill(scenario: str = "all") -> dict[str, Any]:
     passed = sum(1 for r in results if r["ok"])
     return {
         "ok": passed == len(results),
-        "zero_real_fc_tx": True,
+        "zero_real_fc_tx": all(bool(r.get("zero_real_fc_tx")) for r in results),
         "passed": passed,
         "total": len(results),
         "scenarios": results,
