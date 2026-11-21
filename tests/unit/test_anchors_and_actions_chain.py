@@ -297,3 +297,26 @@ def test_anchor_writer_still_resumes_a_healthy_chain(tmp_path: Path) -> None:
     assert aw2.anchor_path == aw.anchor_path
     second = aw2.write_now("run-a", force=True)
     assert second["seq"] == first["seq"] + 1 and second["prev_anchor_hash"] == first["anchor_hash"]
+
+
+def test_verify_log_reports_and_verifies_the_diverted_anchor_file(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """R1: after a corrupt-tail diversion, verify-log must not look only at the damaged original."""
+    db = tmp_path / "events.sqlite"
+    store = _seed_store(db, "run-a", n=3)
+    aw = AnchorWriter(store)
+    aw.write_now("run-a", force=True)
+    with aw.anchor_path.open("a", encoding="utf-8") as fh:
+        fh.write('{"seq": 1, "anchor_ha\n')
+    aw2 = AnchorWriter(store)
+    assert aw2.diverted_from == aw.anchor_path
+    aw2.write_now("run-a", force=True)
+    store.close()
+
+    from aegisflight.logging import find_diverted_anchor_files
+
+    assert find_diverted_anchor_files(aw.anchor_path) == [aw2.anchor_path]
+    rc = aegis_main(["verify-log", str(db), "--anchors", str(aw.anchor_path)])
+    cap = capsys.readouterr()
+    assert rc == 2  # the damaged original still fails verification
+    assert aw2.anchor_path.name in cap.err and "corrupt tail" in cap.err
+    assert f"diverted anchors {aw2.anchor_path.name}: 1" in cap.out and "status: OK" in cap.out.splitlines()[-1]

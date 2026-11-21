@@ -281,3 +281,17 @@ def test_benchmark_metadata_reflects_what_the_pipeline_loaded(tmp_path, monkeypa
     summary = (tmp_path / "out" / "summary.md").read_text(encoding="utf-8")
     assert f"Model used: {used}. model_sha256: {expected}._" in summary
     assert "| TP / FP / TN / FN |" in summary
+
+
+@pytest.mark.parametrize("state", ["canonical", "mismatch", "missing"])
+def test_extended_benchmark_metadata_reflects_what_the_pipeline_loaded(tmp_path, monkeypatch, state):
+    from aegisflight.benchmark import extended
+
+    m = _setup(tmp_path, state)
+    one = extended.build_grid()[:1]
+    monkeypatch.setattr(extended, "build_grid", lambda **_kw: one)
+    res = extended.run_extended(tmp_path / "out", model_path=str(m), workers=1)
+    used = state == "canonical"
+    assert res["config"]["model_used"] is used
+    expected = hashlib.sha256(m.read_bytes()).hexdigest() if used else "none"
+    assert res["config"]["model_sha256"] == expected

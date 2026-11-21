@@ -10,6 +10,7 @@ import os
 import time
 import warnings
 from dataclasses import dataclass, field
+from glob import escape as glob_escape
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,19 @@ GENESIS_ANCHOR_HASH = "0" * 64
 def default_anchors_path(db_path: str | Path) -> Path:
     """Sidecar anchor log path ``<db>.anchors.jsonl``."""
     return Path(f"{db_path}.anchors.jsonl")
+
+
+DIVERTED_MARK = ".resumed-after-corrupt-"
+
+
+def find_diverted_anchor_files(anchor_path: str | Path) -> list[Path]:
+    """Sibling anchor files an ``AnchorWriter`` started after finding ``anchor_path``'s tail corrupt.
+
+    They are named ``<stem>.resumed-after-corrupt-<UTC><suffix>`` next to ``anchor_path`` and each is its own
+    anchor chain starting at seq 0. Sorted by name (i.e. by time).
+    """
+    p = Path(anchor_path)
+    return sorted(p.parent.glob(f"{glob_escape(p.stem)}{DIVERTED_MARK}*{p.suffix}"))
 
 
 def _coerce_key(key: bytes | str | None) -> bytes | None:
@@ -327,6 +341,7 @@ class AnchorWriter:
         self._warned_unsigned = False
         self._seq: int = 0
         self._prev_anchor_hash: str = GENESIS_ANCHOR_HASH
+        self.diverted_from: Path | None = None  # set when the original file's tail was corrupt
         self._resume_chain_state()
 
     def _resume_chain_state(self) -> None:
@@ -361,6 +376,7 @@ class AnchorWriter:
     def _divert_corrupt_tail(self, reason: str) -> None:
         stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
         original = self.anchor_path
+        self.diverted_from = original
         self.anchor_path = original.with_name(f"{original.stem}.resumed-after-corrupt-{stamp}{original.suffix}")
         log.error(
             "anchor file %s has a corrupt tail (%s); NOT appending a new genesis to it. New anchors go to %s "
