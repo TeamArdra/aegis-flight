@@ -729,9 +729,8 @@ def test_after_a_lapse_the_source_is_relearned_from_one() -> None:
     t0 = 1_000_000_000
     sign_n(p, 20, 1000, recv_ns=t0)
     late = t0 + 20_000_000_000
-    assert p._down_forged(down_ctx(heartbeat(), late)) is None
-    assert p._down_forged(down_ctx(sv(9000), late)) is None
-    assert p._down_signed[(1, 1)] == 1
+    assert p._down_forged(down_ctx(sv(9000), late)) is None  # the lapse is detected by a valid signed frame
+    assert p.signing_lapsed == 1 and p._down_signed[(1, 1)] == 1
 
 
 def _v1_heartbeat_ctx(length: int) -> FrameContext:
@@ -789,3 +788,13 @@ def test_state_file_is_replaced_atomically_through_a_tmp_sibling(tmp_path: Path,
     p, _ = policy(signing_key=KEY, state_path=path)
     p._check_signature(mk(signed(command(), 500)))
     assert calls == [(str(path) + ".tmp", str(path))]
+
+
+def test_a_timestamp_replay_is_counted_as_observed_every_time() -> None:
+    p, _ = policy(signing_key=KEY)
+    good = signed(command(), 5000)
+    assert p._check_signature(mk(good)) == "ok"
+    for n in (1, 2, 3):
+        assert p._check_signature(mk(good), observe=True) == "replay"
+        assert p.observed_replay == n
+    assert p.dropped_replay == 0
