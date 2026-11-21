@@ -28,7 +28,9 @@ feature distribution → **retrain the ML model** (`aegis train`) and re-benchma
   reorder tolerance behind the high-water mark. Late frames within `1..R` steps
   increment `FeatureFrame.reorder_count` instead of recording a `256 - k` gap.
   Security note: replays within `R` frames are counted as reorder; MAVLink-2 signing
-  and command-cadence checks still apply.
+  and command-cadence checks still apply. `configs/universal_flight` sets 48 (PX4 SITL under 40 +/- 20 ms
+  jitter: 195 and 112 benign alerts at 16, 0 and 0 at 48; simulator `seq_scramble` recall 0.966 -> 0.911;
+  evidence in `artifacts/sitl/px4_netem_reorder_window/README.md`).
 - `protocol.*` — expected sysids/compids, `max_msg_rate_hz` (400),
   `nominal_msg_rate_hz` (28), `msg_rate_spike_factor` (3), `max_seq_gap` (30),
   `heartbeat_timeout_s` (3), `gps_dropout_s` (2), sensitive commands, burst

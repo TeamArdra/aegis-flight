@@ -22,7 +22,7 @@ detector score is their max); each casts a vote for the attack it implies:
 | Rule | Threshold (config `protocol.*`) | Votes |
 |---|---|---|
 | Message flood | `msg_rate ≥ max_msg_rate_hz` (400) → 1.0; `> spike_factor×nominal` (84) → ramp | DOS |
-| Sequence gaps | `max_seq_gap > max_seq_gap` (30); late frames within `features.reorder_window` (default 16) behind the per-source high-water mark are counted in `reorder_count` rather than as `256 - k` gaps | DOS if rate high, else MAVLINK_ANOMALY |
+| Sequence gaps | `max_seq_gap > max_seq_gap` (30); late frames within `features.reorder_window` (default 16; `configs/universal_flight` sets 48 for jittery ~370 msg/s PX4 links, which also means a sequence jump that stays within 48 behind the high-water mark is not flagged, see `artifacts/sitl/px4_netem_reorder_window/README.md`) behind the per-source high-water mark are counted in `reorder_count` rather than as `256 - k` gaps | DOS if rate high, else MAVLINK_ANOMALY |
 | Rogue telemetry source | sysid ∉ expected & not a command source | MAVLINK_ANOMALY |
 | Heartbeat stale | `heartbeat_age > heartbeat_timeout_s` (3); never received: elapsed monitoring time `> heartbeat_timeout_s` and past `startup_grace_s` (0 = off) | DOS |
 | GPS dropout | `gps_age > gps_dropout_s` (2); never received: coverage line only (score 0) unless `require_global_position`, then elapsed `> gps_dropout_s` and past `startup_grace_s` | DOS |
