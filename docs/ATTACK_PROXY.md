@@ -385,3 +385,5 @@ Implemented in `src/aegisflight/proxy/attacks_live_telemetry.py` and driven by
 
 All hooks are unit-tested without SITL hardware in `tests/unit/test_proxy_telemetry_and_firmware.py`;
 same-team authorship of attack hooks and detectors is disclosed here.
+
+A dry run of these scenarios (2026-11-19, under `artifacts/sitl/`) exists. It is an **unsupported dry run**: not reproducible and not validated evidence, so it supports no detection, false-positive-rate or reproducibility claim (see `UNSUPPORTED.md` in that directory).
