@@ -147,6 +147,25 @@ class RateLimiter:
             self._locked_until.pop(key, None)
 
 
+def key_id(token: str) -> str:
+    """Public, non-reversible identifier of a shared token (sent as ``X-Aegis-Key-Id`` instead of the token)."""
+    return hashlib.sha256(b"aegis-key-id:" + token.encode()).hexdigest()[:16]
+
+
+def signed_api_required(token: str) -> bool:
+    """Whether unsigned control requests are refused.
+
+    ``AEGIS_REQUIRE_SIGNED_API=1`` forces it on, ``=0`` is the documented compatibility switch that
+    allows legacy token-only clients, and when unset it is ON whenever an API token is configured.
+    """
+    raw = os.environ.get("AEGIS_REQUIRE_SIGNED_API", "").strip()
+    if raw == "1":
+        return True
+    if raw == "0":
+        return False
+    return bool(token)
+
+
 def compute_request_hmac(
     token: str,
     *,
@@ -202,7 +221,7 @@ def verify_signed_headers(
 
     has_any = bool(nonce or ts_str or sig)
     if not has_any:
-        if require_signed or os.environ.get("AEGIS_REQUIRE_SIGNED_API", "").strip() == "1":
+        if require_signed or signed_api_required(token):
             return JSONResponse(
                 status_code=401,
                 content={"ok": False, "error": "signed request headers (nonce, timestamp, signature) required"},
@@ -225,6 +244,16 @@ def verify_signed_headers(
             status_code=429,
             headers={"Retry-After": str(retry_after)},
             content={"ok": False, "error": "too many invalid authentication attempts"},
+        )
+
+    claimed_kid = request.headers.get("x-aegis-key-id", "").strip().lower()
+    if claimed_kid and not hmac.compare_digest(claimed_kid.encode(), key_id(token).encode()):
+        retry = GLOBAL_RATE_LIMITER.record_failure(ip)
+        headers = {"Retry-After": str(retry)} if retry else {}
+        return JSONResponse(
+            status_code=401 if not retry else 429,
+            headers=headers,
+            content={"ok": False, "error": "unknown X-Aegis-Key-Id"},
         )
 
     # Read-only freshness/replay check first; the nonce is recorded only AFTER the HMAC verifies, so a

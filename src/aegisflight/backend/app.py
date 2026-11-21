@@ -120,13 +120,19 @@ def _require_control_auth(request: Request, *, body: bytes = b"") -> JSONRespons
             auth_hdr = request.headers.get("authorization", "").strip()
             if auth_hdr.lower().startswith("bearer "):
                 provided = auth_hdr[7:].strip()
-        if not provided or not hmac.compare_digest(provided.encode("utf-8"), expected_token.encode("utf-8")):
+        signed_only = not provided and bool(request.headers.get("x-aegis-signature", "").strip())
+        # A signed-only request proves possession of the token through its HMAC (verified below), so the raw
+        # token need not cross the wire. Legacy token-only clients keep working only under the compatibility
+        # switch AEGIS_REQUIRE_SIGNED_API=0 (see signed_api_required).
+        if not signed_only and (
+            not provided or not hmac.compare_digest(provided.encode("utf-8"), expected_token.encode("utf-8"))
+        ):
             retry = GLOBAL_RATE_LIMITER.record_failure(ip)
             headers = {"Retry-After": str(retry)} if retry else {}
             return JSONResponse(
                 status_code=401 if not retry else 429,
                 headers=headers,
-                content={"ok": False, "error": "unauthorized: valid X-Aegis-Token or Bearer token required"},
+                content={"ok": False, "error": "unauthorized: valid signed request or X-Aegis-Token/Bearer required"},
             )
         if (sig_err := verify_signed_headers(request, token=expected_token, body=body)) is not None:
             return sig_err
@@ -200,6 +206,7 @@ app.add_middleware(
     allow_headers=[
         "Content-Type",
         "X-Aegis-Token",
+        "X-Aegis-Key-Id",
         "X-Aegis-Nonce",
         "X-Aegis-Timestamp",
         "X-Aegis-Signature",
