@@ -16,7 +16,7 @@ from aegisflight.sources.mavlink_serial import may_reach_vehicle
 
 @pytest.mark.parametrize(
     "port",
-    ["COM7", "com3", "/dev/ttyACM0", "/dev/tty.usbmodem14101", "/dev/pts/4", "\\\\.\\COM12", "COM7:", "a:/b", "x:", "//"],
+    ["a", "0", " ", "COM7", "com3", "/dev/ttyACM0", "/dev/tty.usbmodem14101", "/dev/pts/4", "\\\\.\\COM12", "COM7:", "a:/b", "x:", "//"],
 )
 def test_every_os_serial_device_name_may_reach_the_vehicle(port: str) -> None:
     assert may_reach_vehicle(port) is True
