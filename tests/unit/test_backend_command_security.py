@@ -166,3 +166,70 @@ def test_replay_cache_check_is_read_only_and_record_is_atomic() -> None:
     assert cache.record("nonce-12345678", now, now_s=now) == (True, "ok")
     assert cache.record("nonce-12345678", now, now_s=now)[0] is False  # second record loses
     assert cache.check("nonce-12345678", now, now_s=now)[0] is False
+
+
+def _signed_headers(token: str, path: str, body: bytes, nonce: str, *, with_token: bool, kid: str | None = None):
+    from aegisflight.backend.security import key_id
+
+    ts = f"{time.time():.3f}"
+    sig = compute_request_hmac(token, method="POST", path=path, timestamp=ts, nonce=nonce, body=body)
+    h = {"Content-Type": "application/json", "X-Aegis-Timestamp": ts, "X-Aegis-Nonce": nonce,
+         "X-Aegis-Signature": sig, "X-Aegis-Key-Id": kid if kid is not None else key_id(token)}
+    if with_token:
+        h["X-Aegis-Token"] = token
+    return h
+
+
+def test_signed_only_request_is_accepted_without_the_raw_token(monkeypatch) -> None:
+    GLOBAL_RATE_LIMITER.clear("testclient")
+    token = "proposal-secret-2026"
+    monkeypatch.setenv("AEGIS_API_TOKEN", token)
+    monkeypatch.delenv("AEGIS_REQUIRE_SIGNED_API", raising=False)  # default: ON because a token is set
+    monkeypatch.setattr(backend_app, "engine", LiveEngine(spec=SourceSpec(kind="sim")))
+    body = json.dumps({"mode": "advisory"}).encode()
+    try:
+        with TestClient(backend_app.app) as client:
+            ok = client.post("/api/defense/mode", content=body,
+                             headers=_signed_headers(token, "/api/defense/mode", body, "signed-only-nonce-1", with_token=False))
+            assert ok.status_code == 200
+            # wrong key id and wrong-key signature are refused
+            bad_kid = client.post("/api/defense/mode", content=body,
+                                  headers=_signed_headers(token, "/api/defense/mode", body, "signed-only-nonce-2", with_token=False, kid="0" * 16))
+            assert bad_kid.status_code == 401
+            forged = client.post("/api/defense/mode", content=body,
+                                 headers=_signed_headers("other-key", "/api/defense/mode", body, "signed-only-nonce-3", with_token=False, kid=None)
+                                 | {"X-Aegis-Key-Id": __import__("aegisflight.backend.security", fromlist=["key_id"]).key_id(token)})
+            assert forged.status_code == 401
+    finally:
+        GLOBAL_RATE_LIMITER.clear("testclient")
+        GLOBAL_REPLAY_CACHE._seen.clear()
+
+
+def test_require_signed_defaults_on_with_a_token_and_compat_switch_restores_legacy(monkeypatch) -> None:
+    GLOBAL_RATE_LIMITER.clear("testclient")
+    token = "proposal-secret-2026"
+    monkeypatch.setenv("AEGIS_API_TOKEN", token)
+    monkeypatch.setattr(backend_app, "engine", LiveEngine(spec=SourceSpec(kind="sim")))
+    body = json.dumps({"mode": "advisory"}).encode()
+    legacy = {"Content-Type": "application/json", "X-Aegis-Token": token}
+    try:
+        with TestClient(backend_app.app) as client:
+            monkeypatch.delenv("AEGIS_REQUIRE_SIGNED_API", raising=False)
+            assert client.post("/api/defense/mode", content=body, headers=legacy).status_code == 401  # token alone refused
+            monkeypatch.setenv("AEGIS_REQUIRE_SIGNED_API", "0")
+            assert client.post("/api/defense/mode", content=body, headers=legacy).status_code == 200  # compat switch
+    finally:
+        GLOBAL_RATE_LIMITER.clear("testclient")
+        GLOBAL_REPLAY_CACHE._seen.clear()
+
+
+def test_no_token_configured_keeps_open_loopback_behaviour(monkeypatch) -> None:
+    from aegisflight.backend.security import signed_api_required
+
+    monkeypatch.delenv("AEGIS_REQUIRE_SIGNED_API", raising=False)
+    assert signed_api_required("") is False
+    assert signed_api_required("t") is True
+    monkeypatch.setenv("AEGIS_REQUIRE_SIGNED_API", "0")
+    assert signed_api_required("t") is False
+    monkeypatch.setenv("AEGIS_REQUIRE_SIGNED_API", "1")
+    assert signed_api_required("") is True

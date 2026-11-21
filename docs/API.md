@@ -274,8 +274,15 @@ and `advisory` are never gated. The bridge's own `POST /posture` is documented i
 
 - **Security Headers & Signed Control Requests:** All responses carry CSP (`default-src 'self'`),
   `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store` on `/api/*`.
-  When `AEGIS_API_TOKEN` is configured, mutating POST requests support and verify Web Crypto canonical HMAC-SHA256 signatures
-  (`X-Aegis-Nonce`, `X-Aegis-Timestamp`, `X-Aegis-Signature`) against a bounded TTL replay cache (`60 s`) and per-client authentication lockout (`429 Retry-After`).
+  When `AEGIS_API_TOKEN` is configured, control requests are authenticated by a canonical HMAC-SHA256 signature
+  (`X-Aegis-Key-Id`, `X-Aegis-Nonce`, `X-Aegis-Timestamp`, `X-Aegis-Signature`); the raw token is not sent when the
+  browser can sign. Each nonce is single-use inside a bounded `60 s` replay cache (recorded only after the signature
+  verifies) with per-client authentication lockout (`429 Retry-After`). `AEGIS_REQUIRE_SIGNED_API` defaults to ON when a
+  token is set; `AEGIS_REQUIRE_SIGNED_API=0` is the compatibility switch that re-allows legacy token-only clients
+  (`X-Aegis-Token` / `Bearer`). Signing needs Web Crypto (https or localhost); without it the console sends the token
+  header to loopback origins only and refuses other origins. `VITE_AEGIS_API_TOKEN` is dev-server only: production builds
+  fail if it is set. **Limits:** over plain HTTP the signature stops replay and tampering but not eavesdropping on the
+  request itself, and nothing here protects the response; use loopback or TLS for anything beyond a bench.
 - **Forensic Export & Field Drills:**
   - `GET /api/forensic/report?format=json|html` returns hash-chain-verified event/action/anchor reports.
   - `POST /api/drill/run` executes zero-TX shadow verification drills (`DRILL_SCENARIOS`).

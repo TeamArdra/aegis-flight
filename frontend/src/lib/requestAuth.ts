@@ -54,8 +54,12 @@ export function getApiToken(): string {
     _memApiToken = migrated;
     return migrated;
   }
-  const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
-  return metaEnv?.VITE_AEGIS_API_TOKEN?.trim() || "";
+  // Dev server only: the literal `import.meta.env.VITE_*` form below is dead-code-eliminated in production
+  // builds, and vite.config.ts additionally refuses to build when the variable is set.
+  if ((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV) {
+    return (import.meta as unknown as { env: Record<string, string | undefined> }).env.VITE_AEGIS_API_TOKEN?.trim() || "";
+  }
+  return "";
 }
 
 export function saveApiToken(token: string): void {
@@ -150,24 +154,53 @@ export function getSigningStatus(): SigningStatus {
   return { available, tokenConfigured, warning };
 }
 
+/** True for http(s) origins whose host is loopback; '' / relative means same-origin as the page. */
+export function isLoopbackOrigin(origin: string): boolean {
+  const o = origin || (typeof location !== "undefined" ? location.origin : "");
+  try {
+    const h = new URL(o).hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    return h === "localhost" || h === "::1" || /^127\./.test(h);
+  } catch {
+    return false;
+  }
+}
+
+/** Public identifier of the token (matches backend `key_id`); the token itself is never sent when signing. */
+export async function computeKeyId(token: string): Promise<string> {
+  return (await sha256Hex(`aegis-key-id:${token}`)).slice(0, 16);
+}
+
+/**
+ * Signed-only scheme: when Web Crypto is available send ONLY key-id/timestamp/nonce/signature (no raw token).
+ * Without Web Crypto the legacy token header is sent to a loopback origin only; for any other origin the
+ * request is refused rather than sending the secret in the clear.
+ */
 export async function buildSignedAuthHeaders(
   method: string,
   path: string,
   body = "",
   tokenOverride?: string,
+  origin = "",
 ): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const token = (tokenOverride ?? getApiToken()).trim();
   if (!token) return headers;
 
-  headers["X-Aegis-Token"] = token;
-  if (globalThis.crypto?.subtle) {
-    const timestamp = (Date.now() / 1000).toFixed(3);
-    const nonce = generateNonce();
-    const signature = await signCanonicalRequest(token, method, path, timestamp, nonce, body);
-    headers["X-Aegis-Timestamp"] = timestamp;
-    headers["X-Aegis-Nonce"] = nonce;
-    headers["X-Aegis-Signature"] = signature;
+  if (!globalThis.crypto?.subtle) {
+    if (!isLoopbackOrigin(origin)) {
+      throw new Error(
+        "Refusing to send an unsigned control request to a non-loopback origin: Web Crypto is unavailable " +
+          "(open the console over https or http://localhost).",
+      );
+    }
+    headers["X-Aegis-Token"] = token;
+    return headers;
   }
+  const timestamp = (Date.now() / 1000).toFixed(3);
+  const nonce = generateNonce();
+  headers["X-Aegis-Key-Id"] = await computeKeyId(token);
+  headers["X-Aegis-Timestamp"] = timestamp;
+  headers["X-Aegis-Nonce"] = nonce;
+  headers["X-Aegis-Signature"] = await signCanonicalRequest(token, method, path, timestamp, nonce, body);
   return headers;
 }

@@ -870,6 +870,7 @@ def test_api_origin_and_token_checks_still_apply(api, monkeypatch):
     assert c.post("/api/bridge/posture", json={"mode": "advisory"},
                   headers={"origin": "http://evil.example"}).status_code == 403
     monkeypatch.setenv("AEGIS_API_TOKEN", "s3cret")
+    monkeypatch.setenv("AEGIS_REQUIRE_SIGNED_API", "0")  # legacy token-only compatibility switch
     assert c.post("/api/bridge/posture", json={"mode": "advisory"}).status_code == 401
     assert c.post("/api/bridge/posture", json={"mode": "advisory"},
                   headers={"x-aegis-token": "s3cret"}).status_code == 200

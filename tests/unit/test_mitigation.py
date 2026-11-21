@@ -761,6 +761,7 @@ def test_control_plane_auth_and_cors_lockdown(monkeypatch):
 
     # 3. When AEGIS_API_TOKEN is configured, mutating POST requires matching X-Aegis-Token or Bearer
     monkeypatch.setenv("AEGIS_API_TOKEN", "top-secret-gcs-key-2026")
+    monkeypatch.setenv("AEGIS_REQUIRE_SIGNED_API", "0")  # legacy token-only compatibility switch
     r_no_tok = client.post("/api/defense/mode", json={"mode": "active-ips"})
     assert r_no_tok.status_code == 401
 

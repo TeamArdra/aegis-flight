@@ -83,7 +83,7 @@ export function getUrlSetting(key: string): string { return lsGet(key) ?? ""; }
 
 async function jget<T>(path: string, opts?: { signed?: boolean }): Promise<T> {
   // Gated GET routes (bench setup) need the same token + signature headers as a POST.
-  const headers = opts?.signed ? await buildSignedAuthHeaders("GET", path) : undefined;
+  const headers = opts?.signed ? await buildSignedAuthHeaders("GET", path, "", undefined, backendBase()) : undefined;
   const r = await fetch(backendBase() + path, headers ? { headers } : undefined);
   if (!r.ok) throw new Error(httpErrorMessage(path, r.status));
   return r.json();
@@ -97,7 +97,7 @@ function httpErrorMessage(path: string, status: number): string {
 
 async function jpost<T>(path: string, body?: unknown): Promise<T> {
   const payload = body !== undefined ? JSON.stringify(body) : "";
-  const headers = await buildSignedAuthHeaders("POST", path, payload);
+  const headers = await buildSignedAuthHeaders("POST", path, payload, undefined, backendBase());
   const r = await fetch(backendBase() + path, {
     method: "POST",
     headers,
@@ -144,7 +144,7 @@ export const api = {
 /** POST /api/bridge/posture: sent over the telemetry radio; the result arrives later in bridge_remote.last_command. Never throws. */
 export async function setBridgePostureViaRadio(mode: DefenseMode, allowUnsigned?: boolean, confirm?: boolean): Promise<RadioPostureResult> {
   const payload = radioPostureBody(mode, allowUnsigned, confirm);
-  const headers = await buildSignedAuthHeaders("POST", "/api/bridge/posture", payload);
+  const headers = await buildSignedAuthHeaders("POST", "/api/bridge/posture", payload, undefined, backendBase());
   try {
     const r = await fetch(backendBase() + "/api/bridge/posture", { method: "POST", headers, body: payload });
     let body: unknown = null;
