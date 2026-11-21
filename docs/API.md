@@ -287,3 +287,59 @@ and `advisory` are never gated. The bridge's own `POST /posture` is documented i
   - `GET /api/forensic/report?format=json|html` returns hash-chain-verified event/action/anchor reports.
   - `POST /api/drill/run` executes zero-TX shadow verification drills (`DRILL_SCENARIOS`).
 - **Loopback + Disarmed Bench Setup Gate:** `/api/setup/discover-ports` (0 B TX), `/api/setup/preflight`, `/api/setup/generate-config`, and `/api/setup/enroll-firmware` require both a local loopback peer AND a disarmed vehicle (`409 vehicle_armed` in flight).
+
+## Endpoint authentication matrix
+
+Authentication classes: **none** (no credential; the Host header is still restricted to local names), **token**
+(`_require_control_auth`: Origin allow-list, lockout, then a valid credential when `AEGIS_API_TOKEN` is set; with no token
+configured the route is open), **bench gate** (token **plus** loopback TCP peer **plus** disarmed vehicle). "Console" columns
+show what the React console sends when a token is configured: **T+S** = raw `X-Aegis-Token` plus timestamp/nonce/HMAC (if
+Web Crypto exists), **S** = key-id/timestamp/nonce/HMAC only (no raw token), **-** = nothing.
+
+| Method | Path | Auth | Console on #82 | Console with #90 | Console with #93 |
+|---|---|---|---|---|---|
+| GET | `/health` | none | - | - | - |
+| GET | `/api/status` | none | - | - | - |
+| GET | `/api/metrics` | none | - | - | - |
+| GET | `/api/events` | none | - | - | - |
+| GET | `/api/events/forensic` | none | - | - | - |
+| GET | `/api/config` | none | - | - | - |
+| GET | `/api/forensic/report` | none (reads the whole report; see note 1) | - | - | - |
+| GET | `/api/topology` | none | - | - | - |
+| WS | `/ws/telemetry` | none (browser Origin must be local) | - | - | - |
+| GET | `/` and static files | none | - | - | - |
+| POST | `/api/simulation/start` | token | T+S | T+S | S |
+| POST | `/api/simulation/stop` | token | T+S | T+S | S |
+| POST | `/api/simulation/reset` | token | T+S | T+S | S |
+| POST | `/api/simulation/attack` | token (+ SIM only) | T+S | T+S | S |
+| POST | `/api/defense/mode` | token | T+S | T+S | S |
+| POST | `/api/defense/override` | token | T+S | T+S | S |
+| POST | `/api/bridge/posture` | token | T+S | T+S | S |
+| POST | `/api/drill/run` | token | T+S | T+S | S |
+| GET | `/api/setup/discover-ports` | bench gate | **- (401 when a token is set)** | T+S | S |
+| POST | `/api/setup/preflight` | bench gate | T+S | T+S | S |
+| POST | `/api/setup/generate-config` | bench gate | T+S | T+S | S |
+| POST | `/api/setup/enroll-firmware` | bench gate | T+S | T+S | S |
+
+Without Web Crypto (plain `http://` on a non-loopback host): #82 and #90 send the raw token header only; #93 refuses to send
+anything to a non-loopback origin and, on loopback, sends the raw token header, which the default (signed-required) backend
+rejects with 401 unless `AEGIS_REQUIRE_SIGNED_API=0`. `http://localhost` and `http://127.0.0.1` are secure contexts, so this
+path is rare in practice.
+
+Notes: (1) every unauthenticated GET is readable by any process that can reach the port; keep `aegis serve` on loopback (the
+default). (2) The signature covers method, path (not the query string), timestamp, nonce and body, not the `Origin` or `Host`
+headers. (3) The replay cache is in memory: a backend restart empties it, and it keeps at most 4096 nonces, so a flood of
+valid requests can evict old ones inside the 60 s window. Replay protection is best-effort on a bench link, not a guarantee.
+
+### Non-browser clients
+
+| Client | What it calls | Credential it sends | Current backend | #93 default | #93 with `AEGIS_REQUIRE_SIGNED_API=0` |
+|---|---|---|---|---|---|
+| `scripts/verify_stage2.py` (suite 7, in-process `TestClient`) | `POST /api/defense/mode` | before the signing fix: raw `X-Aegis-Token`; after: key-id, timestamp, nonce, HMAC and token (`aegisflight.backend.client_auth.signed_headers`) | works / works | **before: 401, after: works** | works / works |
+| `scripts/ardupilot/inline_demo/mgmt_drive.py` | `GET /api/status`, `/api/events`; `POST /api/bridge/posture` on the GCS (`:8104`) | before: none (the GCS is started without a token); after: signed when `AEGIS_API_TOKEN` is exported | works (no token set) | works (no token set) | works |
+| `mgmt_drive.py` posts to the bridge (`:8090/posture`) | the Pi bridge status server, **not** this backend | raw `X-Aegis-Token` (bridge's own token) | unchanged | unchanged | unchanged |
+| `tests/unit/test_mitigation.py`, `tests/unit/test_mgmt_channel.py` | `POST /api/defense/mode`, `/api/bridge/posture` | raw `X-Aegis-Token` | works | 401 unless the test sets the compat switch (it does on #93) | works |
+| `tests/unit/test_backend_command_security.py` | control routes | raw token + signature, and signed-only on #93 | works | works | works |
+| `curl` examples in `docs/API.md`, `docs/DEMO_SCRIPT_SOFTWARE_ONLY.md` | `POST /api/simulation/attack` | none (valid only when no token is configured) | works without a token | works without a token | works without a token |
+| `deploy/bench/docker-compose.yml` | none (runs `field-drill` and the soak in-process) | sets `AEGIS_API_TOKEN` but makes no HTTP calls | n/a | n/a | n/a |
+| Any third-party `curl`/script sending `X-Aegis-Token` or `Bearer` only | control routes | raw token | works | **401** | works |
