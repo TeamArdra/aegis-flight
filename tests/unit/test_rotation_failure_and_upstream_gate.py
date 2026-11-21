@@ -337,6 +337,56 @@ def test_address_in_both_a_virtual_and_a_physical_subnet_is_refused(monkeypatch)
         check_upstream_host("192.168.1.10", allow_private=True)
 
 
+@pytest.mark.parametrize("raw,canonical", [(" 127.0.0.1 ", "127.0.0.1"), ("localhost", "127.0.0.1"),
+                                           ("[::1]", "::1")])
+def test_make_udp_relay_connects_with_the_canonical_host(raw, canonical, monkeypatch):
+    seen = {}
+
+    class Boom(Exception):
+        pass
+
+    def fake_transport(*, connect, **_k):
+        seen["connect"] = connect
+        raise Boom
+
+    monkeypatch.setattr(transport_mod, "UdpMavlinkTransport", fake_transport)
+    with pytest.raises(Boom):
+        make_udp_relay(raw, 14550, 18672)
+    assert seen["connect"] == (canonical, 14550)
+
+
+@pytest.mark.parametrize("host", ["fe80::2%999", "172.20.0.5%eth0", "127.0.0.1%lo", "::1%1", "localhost%x"])
+def test_scoped_upstream_is_refused_even_with_opt_in(host, monkeypatch, no_sockets):
+    _fake_ifaces(monkeypatch, ("vEthernet (WSL)", "172.20.0.0/20"), ("docker0", "fe80::/64"))
+    with pytest.raises(ValueError, match="scoped"):
+        check_upstream_host(host, allow_private=True)
+    with pytest.raises(ValueError, match="scoped"):
+        make_udp_relay(host, 14550, 18672, allow_private_upstream=True)
+
+
+@pytest.mark.parametrize("cidr,host", [("10.0.0.0/8", "10.1.2.3"), ("0.0.0.0/0", "10.1.2.3"),
+                                       ("172.16.0.0/12", "172.17.0.2"), ("fd00::/48", "fd00::5")])
+def test_overly_wide_virtual_network_is_refused(cidr, host, monkeypatch, no_sockets):
+    monkeypatch.delenv("AEGIS_SITL_INTERFACE", raising=False)
+    transport_mod._PRIVATE_ACKS.clear()
+    _fake_ifaces(monkeypatch, ("docker0", cidr))
+    with pytest.raises(ValueError, match="wider than"):
+        check_upstream_host(host, allow_private=True)
+    with pytest.raises(ValueError, match="wider than"):
+        make_udp_relay(host, 14550, 18672, allow_private_upstream=True)
+    assert transport_mod.private_upstream_acks() == []
+
+
+@pytest.mark.parametrize("cidr,host", [("172.29.0.0/20", "172.29.4.5"), ("172.17.0.0/16", "172.17.0.2"),
+                                       ("fd00::/64", "fd00::5")])
+def test_sufficiently_narrow_virtual_network_is_accepted(cidr, host, monkeypatch):
+    monkeypatch.delenv("AEGIS_SITL_INTERFACE", raising=False)
+    transport_mod._PRIVATE_ACKS.clear()
+    _fake_ifaces(monkeypatch, ("docker0", cidr))
+    assert check_upstream_host(host, allow_private=True) == host
+    transport_mod._PRIVATE_ACKS.clear()
+
+
 def test_no_interface_info_fails_closed(monkeypatch):
     _fake_ifaces(monkeypatch)
     with pytest.raises(ValueError):
