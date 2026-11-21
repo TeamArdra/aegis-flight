@@ -240,7 +240,7 @@ def test_make_udp_relay_refuses_non_loopback_upstream_without_opening_a_socket(h
 
 
 def test_hostnames_and_public_ips_are_refused_even_with_opt_in(monkeypatch):
-    _fake_ifaces(monkeypatch, ("eth0", "8.8.8.0/24"))
+    _fake_ifaces(monkeypatch, ("docker0", "8.8.8.0/24"))
     for host in ("px4.example.com", "8.8.8.8", "0.0.0.0", "224.0.0.1"):
         with pytest.raises(ValueError):
             check_upstream_host(host, allow_private=True)
@@ -262,6 +262,8 @@ def test_loopback_always_accepted_and_private_needs_opt_in_and_a_local_interface
     with pytest.raises(ValueError, match="refusing"):  # on a local interface but no opt-in
         check_upstream_host("172.29.4.5")
     assert check_upstream_host("172.29.4.5", allow_private=True) == "172.29.4.5"  # positive: WSL adapter subnet
+    with pytest.raises(ValueError, match="not a virtual"):  # physical Wi-Fi subnet, opt-in given
+        check_upstream_host("10.0.0.7", allow_private=True)
     monkeypatch.setenv("AEGIS_ALLOW_PRIVATE_UPSTREAM", "1")
     assert check_upstream_host("172.29.4.5") == "172.29.4.5"
     acks = transport_mod.private_upstream_acks()
@@ -275,6 +277,64 @@ def test_private_address_not_on_a_local_interface_is_refused_even_with_opt_in(ho
         check_upstream_host(host, allow_private=True)
     with pytest.raises(ValueError, match="not inside the subnet"):
         make_udp_relay(host, 14550, 18672, allow_private_upstream=True)
+
+
+@pytest.mark.parametrize("name,cidr,host", [
+    ("vEthernet (WSL (Hyper-V firewall))", "172.29.0.0/20", "172.29.4.5"),
+    ("vEthernet (WSL)", "172.29.0.0/20", "172.29.4.5"),
+    ("vEthernet (Default Switch)", "172.20.0.0/20", "172.20.1.2"),
+    ("docker0", "172.17.0.0/16", "172.17.0.2"),
+    ("br-1a2b3c4d5e6f", "172.18.0.0/16", "172.18.0.9"),
+    ("virbr0", "192.168.122.0/24", "192.168.122.50"),
+    ("vboxnet0", "192.168.56.0/24", "192.168.56.101"),
+    ("bridge100", "192.168.64.0/24", "192.168.64.3"),
+])
+def test_virtual_adapters_are_accepted_with_opt_in(name, cidr, host, monkeypatch):
+    monkeypatch.delenv("AEGIS_SITL_INTERFACE", raising=False)
+    transport_mod._PRIVATE_ACKS.clear()
+    _fake_ifaces(monkeypatch, (name, cidr))
+    assert check_upstream_host(host, allow_private=True) == host
+    assert transport_mod.private_upstream_acks()[0]["interface"] == name
+    transport_mod._PRIVATE_ACKS.clear()
+
+
+@pytest.mark.parametrize("name", ["Wi-Fi", "Ethernet", "Ethernet 2", "en0", "eth0", "wlan0", "wlp3s0", "wl0",
+                                  "utun3", "vmnet0", "vEthernet (External Switch)", "vEthernet (Wi-Fi)",
+                                  "docker0-evil", "my-docker0", ""])
+def test_physical_or_unlisted_interface_subnet_is_refused_even_with_opt_in(name, monkeypatch, no_sockets):
+    monkeypatch.delenv("AEGIS_SITL_INTERFACE", raising=False)
+    transport_mod._PRIVATE_ACKS.clear()
+    _fake_ifaces(monkeypatch, (name, "192.168.1.0/24"))
+    with pytest.raises(ValueError, match="not a virtual") as ei:
+        check_upstream_host("192.168.1.10", allow_private=True)
+    assert repr(name) in str(ei.value)
+    with pytest.raises(ValueError, match="not a virtual"):
+        make_udp_relay("192.168.1.10", 14550, 18672, allow_private_upstream=True)
+    assert transport_mod.private_upstream_acks() == []
+
+
+def test_sitl_interface_env_is_never_a_bypass_for_a_physical_nic(monkeypatch):
+    _fake_ifaces(monkeypatch, ("Wi-Fi", "192.168.1.0/24"))
+    monkeypatch.setenv("AEGIS_SITL_INTERFACE", "Wi-Fi")
+    with pytest.raises(ValueError, match="not a virtual"):
+        check_upstream_host("192.168.1.10", allow_private=True)
+
+
+def test_sitl_interface_env_only_narrows_among_virtual_adapters(monkeypatch):
+    transport_mod._PRIVATE_ACKS.clear()
+    _fake_ifaces(monkeypatch, ("docker0", "172.17.0.0/16"), ("vEthernet (WSL)", "172.29.0.0/20"))
+    monkeypatch.setenv("AEGIS_SITL_INTERFACE", "vEthernet (WSL)")
+    assert check_upstream_host("172.29.4.5", allow_private=True) == "172.29.4.5"
+    with pytest.raises(ValueError, match="not a virtual"):
+        check_upstream_host("172.17.0.2", allow_private=True)
+    transport_mod._PRIVATE_ACKS.clear()
+
+
+def test_address_in_both_a_virtual_and_a_physical_subnet_is_refused(monkeypatch):
+    monkeypatch.delenv("AEGIS_SITL_INTERFACE", raising=False)
+    _fake_ifaces(monkeypatch, ("docker0", "192.168.1.0/24"), ("Ethernet", "192.168.1.0/24"))
+    with pytest.raises(ValueError, match="'Ethernet'"):
+        check_upstream_host("192.168.1.10", allow_private=True)
 
 
 def test_no_interface_info_fails_closed(monkeypatch):
