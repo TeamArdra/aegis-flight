@@ -32,7 +32,7 @@ class ModelCheck:
 
     @property
     def usable(self) -> bool:
-        return self.status in (OK, UNLISTED)
+        return self.status == OK  # fail closed: an unlisted model needs an explicit --allow-unverified-model
 
     def message(self) -> str:
         if self.status == MISSING:
@@ -43,6 +43,10 @@ class ModelCheck:
                     f"{self.expected} (models/{MANIFEST_NAME}). It is corrupt or a different training "
                     f"run (`aegis train` does not reproduce the shipped model). Run `{FETCH_COMMAND}`, "
                     "or pass --allow-unverified-model to use it anyway (recorded in the output).")
+        if self.status == UNLISTED:
+            return (f"{self.path} has no entry in {MANIFEST_NAME}, so its integrity cannot be checked and it is "
+                    "refused before deserialization. Add its SHA-256 to the manifest, or pass "
+                    "--allow-unverified-model to use it anyway (recorded in the output).")
         return f"{self.path}: {self.status}"
 
 
@@ -93,9 +97,9 @@ def resolve_model_or_exit(model: str | Path, *, no_model: bool = False, allow_un
                           err=None) -> str | None:
     """Model path for a CLI run that asked for ML, or ``None`` for the explicit ``--no-model`` opt-out.
 
-    Exits with status 2 (message names the fetch command) when the model is missing, or when it is listed
-    in ``MODELS.sha256`` and its SHA-256 differs (unless ``allow_unverified``, which prints a warning).
-    A model with no manifest entry (a custom ``--model`` path) is used as-is with a note.
+    Fails closed, consistent with ``AnomalyDetector``: exits with status 2 (message names the fetch command)
+    when the model is missing, or is not verified OK (hash mismatch, or no ``MODELS.sha256`` entry for a custom
+    ``--model`` path) unless ``allow_unverified`` is set, which prints a warning and is recorded in the output.
     """
     import sys
 
@@ -103,11 +107,9 @@ def resolve_model_or_exit(model: str | Path, *, no_model: bool = False, allow_un
     if no_model:
         return None
     chk = check_model(model)
-    if chk.status == MISSING or (chk.status == MISMATCH and not allow_unverified):
+    if chk.status == MISSING or (chk.status != OK and not allow_unverified):
         print(f"error: {chk.message()}", file=err)
         raise SystemExit(2)
-    if chk.status == MISMATCH:
+    if chk.status != OK:
         print(f"warning: using an UNVERIFIED model ({chk.message()})", file=err)
-    elif chk.status == UNLISTED:
-        print(f"note: {chk.path} has no entry in models/{MANIFEST_NAME}; integrity not checked", file=err)
     return str(model)

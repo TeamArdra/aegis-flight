@@ -20,22 +20,32 @@ python scripts/fetch_models.py --verify-only        # check files you copied in 
 python scripts/fetch_models.py --base-url file:///path/to/dir   # a mirror / local directory
 ```
 
-The default `--base-url` is a GitHub Release (`models-v1`). **That release has not been published**: it needs
-the model-distribution decision (D3) first. Until then, obtain the two files from a maintainer, place them in
-`models/`, and run `--verify-only`.
+The default `--base-url` is the GitHub Release `models-v1` on `TeamArdra/aegis-flight` (tag at `8605cea`). It is
+**published and verified**: the two assets are
+
+| Asset | SHA-256 | Size |
+|---|---|---|
+| `isoforest.joblib` | `3fe74cddf3689e169610ffd783b109b6539cc6c03629bd1e4bb8b1d3842939c4` | 2,302,587 B |
+| `isoforest_px4.joblib` | `df540999dc6b43c3981d6ac6ecb91369b56ce1ba8cfdb894b76b195951260c7c` | 1,607,791 B |
+
+`python scripts/fetch_models.py` downloads both and installs each only if its SHA-256 matches `models/MODELS.sha256`.
+To check files you already have, from the repo root: `(cd models && sha256sum -c MODELS.sha256)`.
 
 ## Behaviour
 
 - `aegis benchmark` / `aegis simulate` / `scripts/benchmark.py`:
   - model **missing** -> exit 2 and print `python scripts/fetch_models.py`;
-  - model listed in `MODELS.sha256` but **SHA-256 differs** -> exit 2, unless `--allow-unverified-model`
-    (prints a warning; use it for `aegis train` output);
-  - a custom `--model` with no manifest entry runs with a note;
+  - model that is not verified OK, i.e. listed in `MODELS.sha256` but **SHA-256 differs**, or a custom `--model`
+    with **no manifest entry** (`unlisted`) -> exit 2 naming `--allow-unverified-model`, which prints a warning
+    and is the only way to use it (e.g. `aegis train` output). This matches `AnomalyDetector`, which refuses the
+    same files before deserialization, so the CLI can never report an ML run that silently ran ML-off;
   - `--no-model` is the explicit ML-off opt-out (unchanged).
 - `AnomalyDetector(model_path=...)`: a path that does not exist or cannot be loaded now logs a **WARNING**
   naming the path and reason, then degrades to ML off as before (live sources run ML-off by design).
   `model_path=None` stays silent: it is the explicit opt-out.
-- Every `aegis benchmark` `summary.md` header and `results.json` records `model_sha256` (or `none`).
+- Every `aegis benchmark` `summary.md` header and `results.json` records `model_used` and `model_sha256` from
+  what the pipeline **actually loaded** (`none` / `False` when the model was refused, unreadable or absent), not
+  from the requested path.
 
 ## `model_path=` callers audited for #11
 
@@ -56,22 +66,24 @@ the model-distribution decision (D3) first. Until then, obtain the two files fro
 The silent `exists()` guards that remain in the evidence scripts are a candidate follow-up, not changed here
 to avoid altering evidence tooling in this PR.
 
-## Release workflow (prepared, not active)
+## Release workflow (how `models-v1` was published; manual)
 
-Publishing is manual and waits for D3 approval. When approved, a maintainer (with the real model files):
+Publishing a release is a manual maintainer step. For reference, with the real model files:
 
 ```bash
-sha256sum -c models/MODELS.sha256            # run in models/ ; must say OK for both files
+(cd models && sha256sum -c MODELS.sha256)    # from the repo root; must say OK for both files
 gh release create models-v1 models/isoforest.joblib models/isoforest_px4.joblib \
   --title "AegisFlight trained models v1" --notes "SHA-256 in models/MODELS.sha256"
 python scripts/fetch_models.py               # from a fresh clone: must verify
 ```
 
-Nothing in this PR publishes a release or depends on one existing; CI does not fetch models.
+`ci-python` runs `python scripts/fetch_models.py` before pytest (a missing file or hash mismatch fails the job) and sets
+`AEGIS_REQUIRE_MODEL=1`, which turns every model-missing skip of the model-dependent tests (golden ML-on, the fused-GPS ML
+limitation test, extended-benchmark session 51, the fast-IsolationForest check on the repository model) into a failure.
+Local runs without the model still skip, with the reason in `pytest -r s`.
 
 ## Limits
 
-- The author of this change did not have the shipped model files, so the fetch path was tested with
-  `file://` fixtures only. The manifest hashes come from committed manifests; they were **not** re-verified
-  against the actual files.
-- Without the model the 9 model-dependent tests still skip on a clean clone.
+- The unit tests drive the fetch path with `file://` fixtures only (no network in the unit tests; the CI fetch step is the live check). The live `models-v1`
+  download was verified separately: both assets matched the manifest hashes above.
+- Without the model the model-dependent tests still skip on a clean clone unless `AEGIS_REQUIRE_MODEL=1` is set (CI sets it).

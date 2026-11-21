@@ -212,6 +212,9 @@ class AnomalyDetector(Detector):
         self.model_path = path
         self.bundle: dict | None = None
         self.load_error: str | None = None
+        # SHA-256 of the file that was actually deserialised (None unless a model loaded); benchmark
+        # metadata records this, never a hash of a file that was refused
+        self.loaded_sha256: str | None = None
         self._ticks = 0
         self._fast: _FastScorer | None = None
         self._fast_bundle: dict | None = None
@@ -261,6 +264,7 @@ class AnomalyDetector(Detector):
             else:
                 self._fast = _fast_scorer(path, self.bundle)
                 self._fast_bundle = self.bundle
+                self.loaded_sha256 = chk.sha256
 
     @property
     def available(self) -> bool:
