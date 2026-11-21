@@ -26,7 +26,7 @@ from pymavlink.dialects.v20 import ardupilotmega as _apm
 from ..core.geo import EARTH_RADIUS_M, wrap_deg_180
 from ..core.gps_health import satellites_or_none
 from ..core.types import MessageEnvelope, TelemetrySnapshot
-from ..mavlink.codec import MODE_NAMES
+from ..mavlink.codec import decode_flight_mode
 from .mission import MissionTracker
 
 # Position-residual sliding window (in position fixes; GPS ≈ 5 Hz => ~3 s).
@@ -210,16 +210,47 @@ class FeatureFrame:
     mission_xtrack_m: float | None = None
     mission_wp_dist_m: float | None = None
     mission_wp_seq: int | None = None
+    # ADDITIVE (Phase 1): underlying transport liveness (False on local USB/UART unplug). NOT in ML_FEATURES.
+    transport_connected: bool = True
+    # ADDITIVE (Phase 3): Universal flight-hardening features. NOT in ML_FEATURES.
+    autopilot_id: int | None = None
+    mav_type: int | None = None
+    param_writes_recent: list[tuple[float, int, int, str, float]] = field(default_factory=list)
+    fence_changes_recent: list[tuple[float, int, int, str, int]] = field(default_factory=list)
+    optflow_gps_speed_diff_ms: float | None = None
+    gnss_clock_jump_s: float | None = None
+    gnss_clock_backward: bool = False
+    gps_baro_alt_bias_corrected_diff_m: float | None = None
+    learned_baro_offset_m: float | None = None
+    control_accel_residual_ms2: float | None = None
 
     @property
     def battery_v_rate_abs(self) -> float:
         return abs(self.battery_v_rate)
 
     def to_vector(self) -> list[float]:
-        return [float(getattr(self, name)) for name in ML_FEATURES]
+        out: list[float] = []
+        for name in ML_FEATURES:
+            v = float(getattr(self, name))
+            out.append(v if math.isfinite(v) else 0.0)
+        return out
 
     def signals(self) -> dict[str, float]:
-        return {name: float(getattr(self, name)) for name in ML_FEATURES}
+        out: dict[str, float] = {}
+        for name in ML_FEATURES:
+            v = float(getattr(self, name))
+            out[name] = v if math.isfinite(v) else 0.0
+        return out
+
+
+_MAX_TRACKED_SOURCES = 512
+
+
+def _all_finite(*vals: object) -> bool:
+    try:
+        return all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(float(v)) for v in vals)
+    except (TypeError, ValueError, OverflowError):
+        return False
 
 
 class FeatureExtractor:
@@ -230,12 +261,17 @@ class FeatureExtractor:
         rate_window_s: float = 1.0,
         cmd_window_s: float = 2.0,
         reorder_window: int = 16,
+        *,
+        learn_baro_offset: bool = False,
+        baro_offset_alpha: float = 0.05,
     ) -> None:
         if not 0 <= reorder_window <= 127:
             raise ValueError(f"reorder_window must be in [0, 127], got {reorder_window}")
         self.rate_window_s = rate_window_s
         self.cmd_window_s = cmd_window_s
         self.reorder_window = int(reorder_window)
+        self.learn_baro_offset = bool(learn_baro_offset)
+        self.baro_offset_alpha = max(0.001, min(1.0, float(baro_offset_alpha)))
         self.reset()
 
     def reset(self) -> None:
@@ -317,6 +353,21 @@ class FeatureExtractor:
         self._sig_streams_tracked = False
         self._sig_invalid_streams_window: dict[tuple[int, int, int], int] = {}
         self._sig_verified_streams_window: set[tuple[int, int, int]] = set()
+        self._transport_connected: bool = True
+        self._autopilot_id: int | None = None
+        self._mav_type: int | None = None
+        self._primary_vehicle_src: tuple[int, int] | None = None
+        self._primary_hb_t: float = -1e9
+        self._param_writes: deque[tuple[float, int, int, str, float]] = deque(maxlen=100)
+        self._fence_changes: deque[tuple[float, int, int, str, int]] = deque(maxlen=100)
+        self._optflow_speed: float | None = None
+        self._optflow_t: float = -1e9
+        self._gnss_clock_offset_ema: float | None = None
+        self._prev_gnss_unix_s: float | None = None
+        self._gnss_clock_jump_window: float | None = None
+        self._gnss_clock_backward_window: bool = False
+        self._baro_offset_m: float | None = None
+        self._constdet_resid_ema: float | None = None
 
     # -- ingestion ---------------------------------------------------------- #
 
@@ -336,9 +387,18 @@ class FeatureExtractor:
         self._sig_streams_tracked = True
         if invalid_streams:
             for k, v in invalid_streams.items():
+                if k not in self._sig_invalid_streams_window and len(self._sig_invalid_streams_window) >= _MAX_TRACKED_SOURCES:
+                    continue
                 self._sig_invalid_streams_window[k] = self._sig_invalid_streams_window.get(k, 0) + int(v)
         if verified_streams:
-            self._sig_verified_streams_window.update(verified_streams)
+            for k in verified_streams:
+                if len(self._sig_verified_streams_window) >= _MAX_TRACKED_SOURCES and k not in self._sig_verified_streams_window:
+                    continue
+                self._sig_verified_streams_window.add(k)
+
+    def note_transport_connected(self, connected: bool) -> None:
+        """Record underlying link connection state (False on local serial/socket disconnect)."""
+        self._transport_connected = bool(connected)
 
     def update(self, msg: MessageEnvelope) -> None:
         t = msg.recv_time
@@ -348,18 +408,24 @@ class FeatureExtractor:
             self._recv_dec_n = self._recv_n
         self._recv_n += 1
         rts.append(t)
-        self._sources[src] = self._sources.get(src, 0) + 1
-        self._source_msgs_window.setdefault(src, set()).add(msg.msgname.upper())
+        if src in self._sources or len(self._sources) < _MAX_TRACKED_SOURCES:
+            self._sources[src] = self._sources.get(src, 0) + 1
+            s_msgs = self._source_msgs_window.setdefault(src, set())
+            if len(s_msgs) < 64:
+                s_msgs.add(msg.msgname.upper())
         if msg.signed:
             self._signed += 1
         else:
             self._unsigned += 1
             uk = (msg.sysid, msg.msgname)
-            self._unsigned_window[uk] = self._unsigned_window.get(uk, 0) + 1
+            if uk in self._unsigned_window or len(self._unsigned_window) < _MAX_TRACKED_SOURCES:
+                self._unsigned_window[uk] = self._unsigned_window.get(uk, 0) + 1
 
         # per-source sequence gap tracking against high-water mark with reorder tolerance
         prev = self._seq_state.get(src)
         if prev is None:
+            if len(self._seq_state) >= _MAX_TRACKED_SOURCES:
+                self._seq_state.pop(next(iter(self._seq_state)))
             self._seq_state[src] = msg.seq
         else:
             d = (msg.seq - prev) % 256
@@ -377,58 +443,83 @@ class FeatureExtractor:
         name = msg.msgname
         f = msg.fields
         if name.startswith("MISSION_"):
+            if int(f.get("mission_type", 0)) == 1 and name in (
+                "MISSION_CLEAR_ALL",
+                "MISSION_COUNT",
+                "MISSION_ITEM_INT",
+            ):
+                self._fence_changes.append(
+                    (t, msg.sysid, msg.compid, name, int(f.get("count", 0)))
+                )
             self._mission.update(msg)
             return
-        if name == "HEARTBEAT":
-            m_type = f.get("type", 0)
+        if name == "PARAM_SET":
+            raw_pid = f.get("param_id", "")
+            if isinstance(raw_pid, (bytes, bytearray)):
+                pid = bytes(raw_pid).decode("utf-8", errors="ignore").rstrip("\x00")
+            else:
+                pid = str(raw_pid).rstrip("\x00")
+            raw_pval = f.get("param_value", 0.0)
+            pval = float(raw_pval) if _all_finite(raw_pval) else 0.0
+            self._param_writes.append(
+                (t, msg.sysid, msg.compid, pid, pval)
+            )
+        elif name == "HEARTBEAT":
+            m_type = int(f.get("type", 0))
             if m_type != 6:  # Ignore GCS heartbeats for vehicle state
                 self._last_heartbeat_t = t
                 self.snapshot.armed = bool(f.get("base_mode", 0) & 128)
                 cm = int(f.get("custom_mode", 0))
-                autopilot = f.get("autopilot", 0)
+                autopilot = int(f.get("autopilot", 0))
+                self._autopilot_id = autopilot
+                self._mav_type = m_type
                 if autopilot == 12 or cm >= 65536:
                     from ..sources.mavlink_live import decode_px4_mode
                     self.snapshot.flight_mode = decode_px4_mode(cm)
                 else:
-                    self.snapshot.flight_mode = MODE_NAMES.get(cm, "UNKNOWN")
+                    self.snapshot.flight_mode = decode_flight_mode(autopilot, m_type, cm)
         elif name == "GLOBAL_POSITION_INT":
-            self._last_gps_t = t
-            lat = f["lat"] / 1e7
-            lon = f["lon"] / 1e7
-            self.snapshot.lat = lat
-            self.snapshot.lon = lon
-            self.snapshot.alt_msl = f["alt"] / 1000.0
-            self.snapshot.rel_alt = f["relative_alt"] / 1000.0
-            self.snapshot.vx = f["vx"] / 100.0
-            self.snapshot.vy = f["vy"] / 100.0
-            self.snapshot.vz = f["vz"] / 100.0
-            self._update_position_residual(t, lat, lon, self.snapshot.vx, self.snapshot.vy)
+            if _all_finite(f.get("lat"), f.get("lon"), f.get("alt"), f.get("relative_alt"), f.get("vx"), f.get("vy"), f.get("vz")):
+                self._last_gps_t = t
+                lat = f["lat"] / 1e7
+                lon = f["lon"] / 1e7
+                self.snapshot.lat = lat
+                self.snapshot.lon = lon
+                self.snapshot.alt_msl = f["alt"] / 1000.0
+                self.snapshot.rel_alt = f["relative_alt"] / 1000.0
+                self.snapshot.vx = f["vx"] / 100.0
+                self.snapshot.vy = f["vy"] / 100.0
+                self.snapshot.vz = f["vz"] / 100.0
+                self._update_position_residual(t, lat, lon, self.snapshot.vx, self.snapshot.vy)
         elif name == "ATTITUDE":
-            self.snapshot.roll = f["roll"]
-            self.snapshot.pitch = f["pitch"]
-            self.snapshot.yaw = f["yaw"]
-            self.snapshot.rollspeed = f["rollspeed"]
-            self.snapshot.pitchspeed = f["pitchspeed"]
-            self.snapshot.yawspeed = f["yawspeed"]
-            key = (f["roll"], f["pitch"], f["yaw"], f["rollspeed"], f["pitchspeed"], f["yawspeed"])
-            self._att_repeat = self._att_repeat + 1 if key == self._att_key else 0
-            self._att_key = key
-            self._att_t = t
+            if _all_finite(f.get("roll"), f.get("pitch"), f.get("yaw"), f.get("rollspeed"), f.get("pitchspeed"), f.get("yawspeed")):
+                self.snapshot.roll = f["roll"]
+                self.snapshot.pitch = f["pitch"]
+                self.snapshot.yaw = f["yaw"]
+                self.snapshot.rollspeed = f["rollspeed"]
+                self.snapshot.pitchspeed = f["pitchspeed"]
+                self.snapshot.yawspeed = f["yawspeed"]
+                key = (f["roll"], f["pitch"], f["yaw"], f["rollspeed"], f["pitchspeed"], f["yawspeed"])
+                self._att_repeat = self._att_repeat + 1 if key == self._att_key else 0
+                self._att_key = key
+                self._att_t = t
         elif name == "VFR_HUD":
-            self._hdg_t = t
-            self.snapshot.groundspeed = f["groundspeed"]
-            self.snapshot.heading = float(f["heading"])
-            self.snapshot.throttle = float(f["throttle"])
-            self.snapshot.baro_alt = f["alt"]
-            self.snapshot.vertical_speed = f["climb"]
+            if _all_finite(f.get("groundspeed"), f.get("heading"), f.get("throttle"), f.get("alt"), f.get("climb")):
+                self._hdg_t = t
+                self.snapshot.groundspeed = f["groundspeed"]
+                self.snapshot.heading = float(f["heading"])
+                self.snapshot.throttle = float(f["throttle"])
+                self.snapshot.baro_alt = f["alt"]
+                self.snapshot.vertical_speed = f["climb"]
         elif name == "SYS_STATUS":
-            self.snapshot.battery_voltage = f["voltage_battery"] / 1000.0
-            self.snapshot.battery_remaining = float(f["battery_remaining"])
-            self._batt_hist.append((t, self.snapshot.battery_voltage))
-            self._sys_batt_t = t
+            if _all_finite(f.get("voltage_battery"), f.get("battery_remaining")):
+                self.snapshot.battery_voltage = f["voltage_battery"] / 1000.0
+                self.snapshot.battery_remaining = float(f["battery_remaining"])
+                self._batt_hist.append((t, self.snapshot.battery_voltage))
+                self._sys_batt_t = t
         elif name == "BATTERY_STATUS":
             if int(f.get("id", 0)) == 0:  # the primary battery, the one SYS_STATUS reports
-                cells = [int(v) for v in f.get("voltages", ()) if int(v) != 65535]  # 65535 = field not in use
+                cells = [int(v) for v in f.get("voltages", ()) if _all_finite(v) and int(v) != 65535]  # 65535 = field not in use
                 if cells and sum(cells) > 0:
                     self._batt_pack_v = sum(cells) / 1000.0
                     self._batt_pack_t = t
@@ -437,7 +528,8 @@ class FeatureExtractor:
             # MAVLink: 255 = count unknown (None), not 255 satellites. Credit: unmerged 035fb5e.
             self.snapshot.satellites = satellites_or_none(f.get("satellites_visible", 0))
             self.snapshot.gps_fix_type = int(f.get("fix_type", 0))
-            self.snapshot.hdop = f.get("eph", 0) / 100.0
+            eph = f.get("eph", 0)
+            self.snapshot.hdop = (eph / 100.0) if _all_finite(eph) else 0.0
             sats = self.snapshot.satellites
             # a jump counts only with a 3D fix on BOTH reports: satellites returning after a fix
             # loss (or leaving with it) is receiver recovery / jamming, handled by other rules
@@ -456,19 +548,30 @@ class FeatureExtractor:
                 self._prev_sats = sats
                 self._prev_valid = valid
             vel = f.get("vel")
-            if vel is not None and int(vel) != 65535:  # 65535 = unknown
+            if vel is not None and _all_finite(vel) and int(vel) != 65535:  # 65535 = unknown
                 self._raw_vel_ms = int(vel) / 100.0
                 self._raw_vel_t = t
+            self._update_gnss_clock(t, f.get("time_usec"))
+        elif name == "SYSTEM_TIME":
+            self._update_gnss_clock(t, f.get("time_unix_usec"))
+        elif name == "OPTICAL_FLOW":
+            if "flow_comp_m_x" in f and "flow_comp_m_y" in f and _all_finite(f["flow_comp_m_x"], f["flow_comp_m_y"]):
+                self._optflow_speed = math.hypot(float(f["flow_comp_m_x"]), float(f["flow_comp_m_y"]))
+                self._optflow_t = t
+        elif name == "ODOMETRY":
+            if "vx" in f and "vy" in f and _all_finite(f["vx"], f["vy"]):
+                self._optflow_speed = math.hypot(float(f["vx"]), float(f["vy"]))
+                self._optflow_t = t
         elif name == "GPS_STATUS" and "satellite_snr" in f:
             self._ext_seen = True
-            vals = [float(x) for x in f["satellite_snr"] if x]
+            vals = [float(x) for x in f["satellite_snr"] if _all_finite(x) and x]
             self._snr_t = t
             if len(vals) >= 8:
                 mean = sum(vals) / len(vals)
                 self._snr = ((sum((x - mean) ** 2 for x in vals) / len(vals)) ** 0.5, len(vals))
             else:
                 self._snr = None
-        elif name == "EKF_STATUS_REPORT" and "flags" in f:
+        elif name == "EKF_STATUS_REPORT" and "flags" in f and _all_finite(f["flags"]):
             flags = int(f["flags"])
             if ekf_has_horizontal_solution(flags):
                 self._nosol_since = None
@@ -478,22 +581,27 @@ class FeatureExtractor:
             self._ekf_flags = flags
             self._ext_seen = True
             if all(k in f for k in ("velocity_variance", "pos_horiz_variance", "compass_variance")):
-                self._ekf_vars = (
-                    float(f["velocity_variance"]),
-                    float(f["pos_horiz_variance"]),
-                    float(f["compass_variance"]),
-                )
+                vv, pv, cv = f["velocity_variance"], f["pos_horiz_variance"], f["compass_variance"]
+                if _all_finite(vv, pv, cv):
+                    self._ekf_vars = (float(vv), float(pv), float(cv))
         elif name == "COMMAND_LONG":
-            params = tuple(f.get(f"param{i}", 0.0) for i in range(1, 8))
+            params = tuple(
+                float(v) if _all_finite(v := f.get(f"param{i}", 0.0)) else 0.0
+                for i in range(1, 8)
+            )
+            cmd_raw = f.get("command", 0)
+            cmd_id = int(cmd_raw) if _all_finite(cmd_raw) else 0
             self._commands.append(
-                CommandEvent(t, msg.sysid, msg.compid, int(f.get("command", 0)), params)
+                CommandEvent(t, msg.sysid, msg.compid, cmd_id, params)
             )
         elif name == "SET_MODE":
             # the older plain SET_MODE message (some ground stations still use it) is the same intent as
             # MAV_CMD_DO_SET_MODE (176): record it as that command so provenance and pilot-override logic see it
+            bm = float(v) if _all_finite(v := f.get("base_mode", 0)) else 0.0
+            cm_val = float(v) if _all_finite(v := f.get("custom_mode", 0)) else 0.0
             self._commands.append(
                 CommandEvent(t, msg.sysid, msg.compid, 176,
-                             (float(f.get("base_mode", 0)), float(f.get("custom_mode", 0)), 0.0, 0.0, 0.0, 0.0, 0.0))
+                             (bm, cm_val, 0.0, 0.0, 0.0, 0.0, 0.0))
             )
 
     # -- navigation helpers ------------------------------------------------- #
@@ -710,6 +818,52 @@ class FeatureExtractor:
         recent = [c for c in self._commands if c.recv_time >= cmds_cut] if self._commands else []
         cmd_rate = len(recent) / self.cmd_window_s if self.cmd_window_s > 0 else 0.0
 
+        # ---- Phase 3: universal flight hardening features (NOT in ML_FEATURES) ----
+        params_recent = [p for p in self._param_writes if p[0] >= cmds_cut] if self._param_writes else []
+        fence_recent = [fc for fc in self._fence_changes if fc[0] >= cmds_cut] if self._fence_changes else []
+
+        optflow_diff: float | None = None
+        if (
+            self._optflow_speed is not None
+            and (t - self._optflow_t) <= _XMSG_FRESH_S
+            and snap.gps_age <= _LINK_GAP_S
+        ):
+            optflow_diff = abs(self._optflow_speed - gps_speed)
+
+        if (
+            self.learn_baro_offset
+            and snap.armed is False
+            and (snap.gps_fix_type or 0) >= 3
+            and snap.gps_age <= _LINK_GAP_S
+            and snap.alt_msl is not None
+            and snap.baro_alt is not None
+        ):
+            raw_bias = snap.alt_msl - snap.baro_alt
+            if self._baro_offset_m is None:
+                self._baro_offset_m = raw_bias
+            else:
+                a = self.baro_offset_alpha
+                self._baro_offset_m = (1.0 - a) * self._baro_offset_m + a * raw_bias
+
+        bias_corrected_alt_diff: float | None = None
+        if self._baro_offset_m is not None and snap.alt_msl is not None and snap.baro_alt is not None:
+            bias_corrected_alt_diff = abs((snap.alt_msl - snap.baro_alt) - self._baro_offset_m)
+
+        if (
+            len(self._vel_hist) >= 2
+            and (t - self._att_t) <= _LINK_GAP_S
+            and snap.roll is not None
+            and snap.pitch is not None
+            and abs(snap.roll) < 1.2
+            and abs(snap.pitch) < 1.2
+        ):
+            a_expected = 9.80665 * math.hypot(math.sin(snap.roll), math.sin(snap.pitch))
+            resid = abs(accel - a_expected)
+            if self._constdet_resid_ema is None:
+                self._constdet_resid_ema = resid
+            else:
+                self._constdet_resid_ema = 0.75 * self._constdet_resid_ema + 0.25 * resid
+
         return FeatureFrame(
             t=t,
             snapshot=snap,
@@ -761,7 +915,38 @@ class FeatureExtractor:
             mission_xtrack_m=m_xt,
             mission_wp_dist_m=m_wd,
             mission_wp_seq=m_seq,
+            transport_connected=self._transport_connected,
+            autopilot_id=self._autopilot_id,
+            mav_type=self._mav_type,
+            param_writes_recent=params_recent,
+            fence_changes_recent=fence_recent,
+            optflow_gps_speed_diff_ms=optflow_diff,
+            gnss_clock_jump_s=self._gnss_clock_jump_window,
+            gnss_clock_backward=self._gnss_clock_backward_window,
+            gps_baro_alt_bias_corrected_diff_m=bias_corrected_alt_diff,
+            learned_baro_offset_m=self._baro_offset_m,
+            control_accel_residual_ms2=self._constdet_resid_ema,
         )
+
+    def _update_gnss_clock(self, t: float, usec_raw: object) -> None:
+        if not _all_finite(usec_raw):
+            return
+        usec = int(usec_raw)  # type: ignore[arg-type]
+        if usec < 1_500_000_000_000_000:
+            return
+        gnss_s = usec / 1_000_000.0
+        if self._prev_gnss_unix_s is not None and gnss_s < self._prev_gnss_unix_s - 0.5:
+            self._gnss_clock_backward_window = True
+        self._prev_gnss_unix_s = gnss_s
+        offset = gnss_s - t
+        if self._gnss_clock_offset_ema is None:
+            self._gnss_clock_offset_ema = offset
+            return
+        jump = abs(offset - self._gnss_clock_offset_ema)
+        if self._gnss_clock_jump_window is None or jump > self._gnss_clock_jump_window:
+            self._gnss_clock_jump_window = jump
+        if jump < 2.0:
+            self._gnss_clock_offset_ema = 0.95 * self._gnss_clock_offset_ema + 0.05 * offset
 
     # -- small numeric helpers --------------------------------------------- #
 
@@ -816,3 +1001,5 @@ class FeatureExtractor:
         self._source_msgs_window = {}
         self._sig_invalid_streams_window = {}
         self._sig_verified_streams_window = set()
+        self._gnss_clock_jump_window = None
+        self._gnss_clock_backward_window = False

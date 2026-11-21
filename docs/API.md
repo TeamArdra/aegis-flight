@@ -269,3 +269,14 @@ within 10 s. The usual origin / `AEGIS_API_TOKEN` checks apply.
 optional boolean `allow_unsigned`. For a non-SIM source, `active-ips` without a key and without `allow_unsigned: true`
 returns `409 {"ok": false, "error": "signing_required", "message": ..., "signing": {"configured": false}}`. SIM, `passive`
 and `advisory` are never gated. The bridge's own `POST /posture` is documented in `docs/INLINE_IPS.md`.
+
+## End-to-End Request Signing, Replay Protection & Bench Setup Gate (W9–W13)
+
+- **Security Headers & Signed Control Requests:** All responses carry CSP (`default-src 'self'`),
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store` on `/api/*`.
+  When `AEGIS_API_TOKEN` is configured, mutating POST requests support and verify Web Crypto canonical HMAC-SHA256 signatures
+  (`X-Aegis-Nonce`, `X-Aegis-Timestamp`, `X-Aegis-Signature`) against a bounded TTL replay cache (`60 s`) and per-client authentication lockout (`429 Retry-After`).
+- **Forensic Export & Field Drills:**
+  - `GET /api/forensic/report?format=json|html` returns hash-chain-verified event/action/anchor reports.
+  - `POST /api/drill/run` executes zero-TX shadow verification drills (`DRILL_SCENARIOS`).
+- **Loopback + Disarmed Bench Setup Gate:** `/api/setup/discover-ports` (0 B TX), `/api/setup/preflight`, `/api/setup/generate-config`, and `/api/setup/enroll-firmware` require both a local loopback peer AND a disarmed vehicle (`409 vehicle_armed` in flight).

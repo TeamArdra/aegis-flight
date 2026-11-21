@@ -15,6 +15,7 @@ from ..core.enums import AttackType, DetectorName
 from ..core.types import DetectorResult
 from ..features.extractor import FeatureFrame
 from ..mavlink.codec import command_name_from_id as _command_name_from_id
+from ..mitigation.semantic_firewall import DEFAULT_PROTECTED_PARAM_PREFIXES
 from .base import Detector, ramp
 
 # the MAV_CMD id -> name table is static, but the lookup scans ``dir(mavlink)`` (~0.3 ms): memoise it
@@ -113,6 +114,9 @@ class ProtocolDetector(Detector):
         self.rate_relearn_s = float(p.get("rate_relearn_s", 30.0))
         self._plateau: list[tuple[float, float]] = []
         self._relearns = 0
+        self.semantic_firewall_enabled = bool(p.get("semantic_firewall_enabled", False))
+        self.gnss_clock_skew_enabled = bool(p.get("gnss_clock_skew_enabled", False))
+        self.gnss_clock_max_jump_s = float(p.get("gnss_clock_max_jump_s", 5.0))
 
     @staticmethod
     def _parse_unsigned_allowed(raw: object) -> list[tuple[int | None, str]]:
@@ -299,9 +303,12 @@ class ProtocolDetector(Detector):
         ]
         if rogue_telemetry:
             bump(AttackType.MAVLINK_ANOMALY, 0.9)
+            shown = rogue_telemetry[:16]
+            extra = f" (+{len(rogue_telemetry) - 16} more)" if len(rogue_telemetry) > 16 else ""
             evidence.append(
                 "rogue telemetry source(s): "
-                + ", ".join(f"sys{s}/comp{c}" for s, c in rogue_telemetry)
+                + ", ".join(f"sys{s}/comp{c}" for s, c in shown)
+                + extra
             )
         signals["n_sources"] = float(frame.n_sources)
 
@@ -323,16 +330,26 @@ class ProtocolDetector(Detector):
         gps_never = (
             (not frame.gps_seen) if frame.gps_seen is not None else frame.gps_age_s >= _NEVER_SEEN_S
         )
-        hb_fault = (
-            elapsed > self.hb_timeout and not in_grace
-            if hb_never
-            else frame.heartbeat_age_s > self.hb_timeout
-        )
-        gps_fault_now = (
-            elapsed > self.gps_dropout and not in_grace
-            if gps_never
-            else frame.gps_age_s > self.gps_dropout
-        )
+        transport_fault = (frame.transport_connected is False) and (not hb_never)
+        transport_note: str | None = None
+        if transport_fault:
+            # Disconnected local serial/socket port -> silence is a local transport fault,
+            # not an RF jamming / blackout attack.
+            hb_fault = False
+            gps_fault_now = False
+            self._gnss_bad = 0
+            transport_note = "transport_fault: local telemetry port disconnected (not RF attack)"
+        else:
+            hb_fault = (
+                elapsed > self.hb_timeout and not in_grace
+                if hb_never
+                else frame.heartbeat_age_s > self.hb_timeout
+            )
+            gps_fault_now = (
+                elapsed > self.gps_dropout and not in_grace
+                if gps_never
+                else frame.gps_age_s > self.gps_dropout
+            )
         if hb_fault:
             s = ramp(frame.heartbeat_age_s, self.hb_timeout, self.hb_timeout * 2)
             # (#22) When other telemetry channels remain healthy and frames continue arriving,
@@ -456,7 +473,36 @@ class ProtocolDetector(Detector):
                             f"at groundspeed={snap.groundspeed:.1f} m/s"
                         )
                 seen_in_window[key] = c.recv_time
+                if key not in self._last_cmd_seen and len(self._last_cmd_seen) >= 512:
+                    self._last_cmd_seen.pop(next(iter(self._last_cmd_seen)))
                 self._last_cmd_seen[key] = c.recv_time
+
+        # ---- airborne semantic firewall (PARAM_SET / geofence mutations while armed) ----
+        if self.semantic_firewall_enabled and snap.armed:
+            for _pt, psys, _pcomp, pid, _pval in frame.param_writes_recent:
+                up = pid.upper()
+                if any(up.startswith(pref) for pref in DEFAULT_PROTECTED_PARAM_PREFIXES):
+                    bump(AttackType.COMMAND_INJECTION, 0.90)
+                    evidence.append(
+                        f"semantic firewall: protected parameter write {pid} from sys{psys} while armed"
+                    )
+            for _ft, fsys, _fcomp, fname, fcnt in frame.fence_changes_recent:
+                bump(AttackType.COMMAND_INJECTION, 0.90)
+                evidence.append(
+                    f"semantic firewall: armed geofence mutation {fname} (count={fcnt}) from sys{fsys}"
+                )
+
+        # ---- GNSS-vs-monotonic clock skew (SDR spoofing signature) ----
+        if self.gnss_clock_skew_enabled:
+            if frame.gnss_clock_backward:
+                bump(AttackType.GPS_SPOOFING, 0.90)
+                evidence.append("GNSS receiver clock stepped backward against monotonic companion clock")
+            elif frame.gnss_clock_jump_s is not None and frame.gnss_clock_jump_s >= self.gnss_clock_max_jump_s:
+                signals["gnss_clock_jump_s"] = frame.gnss_clock_jump_s
+                bump(AttackType.GPS_SPOOFING, 0.80)
+                evidence.append(
+                    f"GNSS clock-skew jump {frame.gnss_clock_jump_s:.2f}s >= {self.gnss_clock_max_jump_s:.1f}s"
+                )
 
         # ---- signing policy (#19: per-stream bootstrap settle + per-source unsigned allowlist) ----
         settling_note: str | None = None
@@ -465,7 +511,9 @@ class ProtocolDetector(Detector):
                 self._sig_t0 = frame.t
             if sig_verified_streams:
                 # Settle window closes permanently for verified streams; never re-opens.
-                self._sig_verified_streams.update(sig_verified_streams)
+                for sk in sig_verified_streams:
+                    if len(self._sig_verified_streams) < 512 or sk in self._sig_verified_streams:
+                        self._sig_verified_streams.add(sk)
 
             # 1) Invalid / rejected signatures (with per-stream bootstrap settle window)
             if sig_invalid_streams is not None:
@@ -536,6 +584,8 @@ class ProtocolDetector(Detector):
             evidence.append(coverage)
         if gnss_coverage is not None:
             evidence.append(gnss_coverage)
+        if transport_note is not None:
+            evidence.append(transport_note)
 
         return DetectorResult(
             detector=self.name,

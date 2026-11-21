@@ -9,7 +9,9 @@ After=multi-user.target
 Wants=multi-user.target
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=main
+WatchdogSec=10
 User=aegisflight
 Group=dialout
 WorkingDirectory=/opt/aegisflight
@@ -18,8 +20,10 @@ Environment=AEGIS_ONBOARD_CONFIG=/etc/aegisflight/onboard.yaml
 ExecStart=/opt/aegisflight/.venv/bin/aegis onboard --config ${AEGIS_ONBOARD_CONFIG}
 KillSignal=SIGTERM
 TimeoutStopSec=15
+Nice=-10
+OOMScoreAdjust=-500
 Restart=on-failure
-RestartSec=3
+RestartSec=2
 
 [Install]
 WantedBy=multi-user.target

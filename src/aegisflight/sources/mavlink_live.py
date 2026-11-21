@@ -1027,6 +1027,9 @@ class LiveMavlinkSource:
             k_done = (now_rel - self._settle_us) // dt_us
             tick = asm.pop_next(k_done, now_rel)
             if tick is not None:
+                conn = getattr(self.transport, "connected", None)
+                if isinstance(conn, bool):
+                    tick.transport_connected = conn
                 yield tick
                 continue
             wait_us = asm.next_k * dt_us + self._settle_us - now_rel
