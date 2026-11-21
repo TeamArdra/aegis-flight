@@ -38,7 +38,7 @@ from aegisflight.model_integrity import (  # noqa: E402
     sha256_file,
 )
 
-DEFAULT_BASE_URL = "https://github.com/TeamArdra/techfest-2026/releases/download/models-v1"
+DEFAULT_BASE_URL = "https://github.com/TeamArdra/aegis-flight/releases/download/models-v1"
 
 
 def fetch_one(name: str, expected: str, dest_dir: Path, base_url: str, opener=urllib.request.urlopen) -> str:
