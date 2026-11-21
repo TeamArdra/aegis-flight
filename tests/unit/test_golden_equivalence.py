@@ -24,7 +24,9 @@ skip reason (``pytest -r s``), when only the default layers were compared.
 
 ML cases need the canonical team model: ``models/isoforest.joblib`` with the fixture's ``ml_model_sha256``. It is
 git-ignored and ``aegis train`` cannot reproduce it byte for byte (it stamps a creation time), so the ML cases
-skip without it, as in CI. ``test_fast_isoforest_equals_sklearn_*`` does not need it (it trains a small model).
+skip without it on a developer machine (the skip reason says why). CI fetches and verifies it
+(``scripts/fetch_models.py``) and sets ``AEGIS_REQUIRE_MODEL=1``, which turns that skip into a hard failure so the ML-on
+coverage can never silently vanish. ``test_fast_isoforest_equals_sklearn_*`` does not need it (it trains a small model).
 """
 
 from __future__ import annotations
@@ -49,6 +51,7 @@ CANONICAL_ML_SHA256 = parse_manifest(REPO / "models" / "MODELS.sha256")["isofore
 _MODEL_PRESENT = mg.MODEL_PATH.exists()
 _MODEL_ACTUAL_SHA = hashlib.sha256(mg.MODEL_PATH.read_bytes()).hexdigest() if _MODEL_PRESENT else None
 _MODEL_OK = bool(_MODEL_PRESENT and _MODEL_ACTUAL_SHA == GOLD.get("ml_model_sha256") == CANONICAL_ML_SHA256)
+_MODEL_REASON = "canonical team model models/isoforest.joblib missing or differs (fixture notes.ml)"
 _SIM = dict(mg.sim_cases())
 _LIVE = {n: (s, v) for n, s, v in mg.live_cases()}
 
@@ -98,10 +101,17 @@ def _run(name: str, ml: bool) -> dict:
     return mg.run_live_case(scn, var, ml)
 
 
+def _need_model(reason: str) -> None:
+    """The canonical model is unusable: skip on a developer machine, but fail when ``AEGIS_REQUIRE_MODEL=1`` (CI).
+
+    Read at call time, not import time, so the behaviour is testable and cannot be frozen by an early import."""
+    if os.environ.get("AEGIS_REQUIRE_MODEL") == "1":
+        pytest.fail(f"AEGIS_REQUIRE_MODEL=1 but {reason}; ML-on coverage would be skipped", pytrace=False)
+    pytest.skip(reason)
+
+
 def _params(key: str):
-    reason = "canonical team model models/isoforest.joblib missing or differs (fixture notes.ml)"
-    marks = [pytest.mark.skipif(not _MODEL_OK, reason=reason)] if key == "ml" else []
-    return [pytest.param(n, id=n, marks=marks) for n in GOLD.get(key, {})]
+    return [pytest.param(n, id=n) for n in GOLD.get(key, {})]
 
 
 @pytest.mark.parametrize("name", _params("no_ml"))
@@ -111,6 +121,8 @@ def test_golden_ml_off(name):
 
 @pytest.mark.parametrize("name", _params("ml"))
 def test_golden_ml_on(name):
+    if not _MODEL_OK:
+        _need_model(_MODEL_REASON)
     _compare(_run(name, True), GOLD["ml"][name], ml=True)
 
 
@@ -118,12 +130,25 @@ def test_golden_ml_on(name):
 def test_bit_exact_layers_compared_here(section):
     """Says (as a skip reason, listed by ``pytest -r s``) when only the default layers were compared above."""
     if section == "ml" and not _MODEL_OK:
-        pytest.skip("ml: canonical team model missing or differs, ML cases not run")
+        _need_model("ml: canonical team model missing or differs, ML cases not run")
     if not _STRICT:
         pytest.skip(f"{section}: bit-exact layers NOT compared (opt-in: AEGIS_GOLDEN_STRICT=1); compared "
                     f"{', '.join(_default_layers(section == 'ml'))} and the decision summary. "
                     f"Recording environment vs here: {_env_diff(section)}.")
     assert GOLD[section], "strict mode on an empty section"
+
+
+def test_missing_model_skips_locally_and_fails_when_required(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AEGIS_REQUIRE_MODEL=1 (set in CI) turns the model-missing skip of the ML-on golden tests into a failure."""
+    monkeypatch.delenv("AEGIS_REQUIRE_MODEL", raising=False)
+    with pytest.raises(pytest.skip.Exception, match="model gone"):
+        _need_model("model gone")
+    monkeypatch.setenv("AEGIS_REQUIRE_MODEL", "0")
+    with pytest.raises(pytest.skip.Exception):
+        _need_model("model gone")
+    monkeypatch.setenv("AEGIS_REQUIRE_MODEL", "1")
+    with pytest.raises(pytest.fail.Exception, match="AEGIS_REQUIRE_MODEL=1.*model gone"):
+        _need_model("model gone")
 
 
 def test_golden_ml_sha_matches_canonical_manifest() -> None:
@@ -299,7 +324,7 @@ def anomaly_model(request, tmp_path) -> Path:
     if request.param == "tiny-in-test":
         return _tiny_model(tmp_path / "tiny_isoforest.joblib")
     if not mg.MODEL_PATH.exists():
-        pytest.skip("models/isoforest.joblib missing (git-ignored; `aegis train` writes it)")
+        _need_model("models/isoforest.joblib missing (git-ignored; `python scripts/fetch_models.py` fetches it)")
     return mg.MODEL_PATH
 
 

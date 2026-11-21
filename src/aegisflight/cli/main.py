@@ -419,7 +419,7 @@ def _cmd_fw_manifest(args: argparse.Namespace) -> int:
 
 
 def _cmd_verify_log(args: argparse.Namespace) -> int:
-    from ..logging import EventStore, verify_anchors
+    from ..logging import EventStore, find_diverted_anchor_files, verify_anchors
 
     store = EventStore(args.db, read_only=True)
     try:
@@ -441,6 +441,17 @@ def _cmd_verify_log(args: argparse.Namespace) -> int:
                 f"unsigned: {av.unsigned_anchors}  status: {'OK' if av.ok else 'FAILED'}"
             )
             ok = ok and av.ok
+            # an AnchorWriter that found a corrupt tail wrote its later anchors to sibling files: verify each as
+            # its own chain and say so, never report only the (damaged) original as if it were the whole story
+            for sib in find_diverted_anchor_files(args.anchors):
+                print(f"anchor warning: {args.anchors} had a corrupt tail when a later run resumed; "
+                      f"anchors from that run are in {sib.name}", file=sys.stderr)
+                sv = verify_anchors(store, sib)
+                for err in sv.errors:
+                    print(f"anchor error ({sib.name}): {err}", file=sys.stderr)
+                print(f"diverted anchors {sib.name}: {sv.anchors_checked}  signed: {sv.signed_anchors}  "
+                      f"unsigned: {sv.unsigned_anchors}  status: {'OK' if sv.ok else 'FAILED'}")
+                ok = ok and sv.ok
     finally:
         store.close()
     return 0 if ok else 2

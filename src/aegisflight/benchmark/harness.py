@@ -29,7 +29,6 @@ from ..core.enums import AttackType
 from ..core.geo import haversine_m
 from ..metrics.resources import ResourceSampler
 from ..metrics.scoring import evaluate
-from ..model_integrity import model_sha256_or_none
 from .runner import run_session
 
 log = logging.getLogger(__name__)
@@ -81,6 +80,8 @@ def run_benchmark(
     per_scenario_pairs: dict[str, tuple[list, list]] = {}
     n_messages_total = 0
     n_decisions_total = 0
+    ml_loaded_flags: list[bool] = []
+    ml_loaded_hashes: set[str | None] = set()
 
     sampler = ResourceSampler()
     sampler.start()
@@ -93,6 +94,8 @@ def run_benchmark(
                               model_path=model_path, grace_s=grace_s,
                               allow_unverified_model=allow_unverified_model)
             sampler.sample()
+            ml_loaded_flags.append(res.ml_loaded)
+            ml_loaded_hashes.add(res.ml_sha256)
 
             scored = [r for r in res.records if r.scored]
             all_true.extend(r.true_label for r in scored)
@@ -159,12 +162,18 @@ def run_benchmark(
             "n_scored": len(yt),
         }
     result["per_scenario"] = per_scenario
+    # what the pipeline actually loaded, not what was requested: a refused/corrupt/unreadable model leaves ML OFF
+    model_used = bool(ml_loaded_flags) and all(ml_loaded_flags) and len(ml_loaded_hashes) == 1
+    model_sha256 = next(iter(ml_loaded_hashes)) if model_used and None not in ml_loaded_hashes else "none"
+    if model_path and not model_used:
+        log.warning("benchmark asked for ML (%s) but no model was loaded: ML was OFF (model_used=False, "
+                    "model_sha256=none)", model_path)
     result["config"] = {
         "seeds": seeds,
         "routes": ROUTES,
         "grace_s": grace_s,
-        "model_used": bool(model_path),
-        "model_sha256": model_sha256_or_none(model_path),
+        "model_used": model_used,
+        "model_sha256": model_sha256,
         "decision_rate_hz": cfg.detector.get("decision_rate_hz"),
         "python": platform.python_version(),
     }
