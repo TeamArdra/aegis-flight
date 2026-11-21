@@ -84,10 +84,19 @@ def test_arducopter_unchanged(mt):
     assert act.knows_mode("AUTO/LOITER") is False  # a PX4 name is still never guessed as a Copter mode
 
 
-def test_default_actuator_is_the_arducopter_the_bridge_was_verified_on():
-    act = MavlinkActuator()
-    assert (act.autopilot_id, act.mav_type) == (3, 2)
+def test_default_actuator_has_no_dialect_and_refuses_until_a_heartbeat_binds_one():
+    """Fail-closed (D4b): a fresh actuator has no dialect; ArduCopter ALT_HOLD only after set_vehicle_dialect(3, 2)."""
+    log: list[tuple[str, str, str]] = []
+    act = MavlinkActuator(on_action=lambda a, t, d: log.append((a, t, d)))
+    assert (act.autopilot_id, act.mav_type) == (None, None)
+    assert act.knows_mode("ALT_HOLD") is False and act.safe_hold_mode_name() is None
+    with pytest.raises(ValueError):
+        act.encode_set_mode("ALT_HOLD")
+    refusals = [x for x in log if x[0] == "refuse_set_mode"]
+    assert refusals and all("no vehicle HEARTBEAT" in x[2] for x in refusals)
+    act.set_vehicle_dialect(3, 2)
     assert act.knows_mode("ALT_HOLD")
+    assert _command_long(act.encode_set_mode("ALT_HOLD"))[1][:3] == (1.0, 2.0, 0.0)
 
 
 # ---- controller level: the actual actuation path (ACTIVE_IPS) ------------------------------------------------- #
@@ -148,9 +157,6 @@ def test_non_copter_manual_safe_hold_emits_no_set_mode_bytes(ap, mt):
     assert [f for f in act.counter_frames if _is_set_mode(f)] == []
 
 
-@pytest.mark.xfail(strict=True, reason="OPEN MAINTAINER DECISION: with no heartbeat ever observed the controller keeps the "
-                   "legacy default (autopilot 3, mav_type 2 = ArduCopter) and still actuates; fail-closed needs 8 legacy "
-                   "controller test fixtures to carry an explicit dialect")
 def test_no_heartbeat_seen_should_fail_closed():
     _, frames = _drive(None, None, "LOITER")
     assert [f for f in frames if _is_set_mode(f)] == []
