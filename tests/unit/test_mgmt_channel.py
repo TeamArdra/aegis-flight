@@ -144,6 +144,7 @@ def make_bridge(tmp_path=None, mode="passive", **kw):
     fc, gcs = Link(), Link()
     kw.setdefault("mgmt_status_interval_s", 0.0)
     kw.setdefault("mgmt_clock", clock)
+    kw.setdefault("mgmt_enable", True)
     if tmp_path is not None:
         kw.setdefault("audit_log_path", str(tmp_path / "audit.jsonl"))
         kw.setdefault("mgmt_state_path", str(tmp_path / "state.json"))

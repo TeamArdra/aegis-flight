@@ -20,8 +20,12 @@ import dashboard_payload_driver as drv  # noqa: E402
 
 _MODEL = Path(__file__).resolve().parents[2] / "models" / "isoforest.joblib"
 GOLDEN = {
-    "sim": ((441, "51264c85ed34b4c04b0bd7aa1e68bffda5629e32093a366aa0b2d9730fc273f2") if _MODEL.exists()
-            else (446, "4b28f1b8c05c2c3f5f16c4f0a89c5f8c4a9eaffe47955e23005fc85a2402ba12")),
+    # Both ML-on (with models/isoforest.joblib from `python scripts/train_models.py --out models/isoforest.joblib`)
+    # and non-ML SIM digests regenerated via:
+    #   PYTHONPATH=src:tests/integration python -c "import dashboard_payload_driver as d; g=d.collect(); print(len(g['sim']), d.digest(g['sim']))"
+    # after #60 (SAFE_HOLD no longer repeats ALT_HOLD when GPS ladder already sent one).
+    "sim": ((441, "77216119d25aba355c39e8135bf9e6f7ce3dbde4763c0f773b26277f3d4dc0b9") if _MODEL.exists()
+            else (446, "67ecf6d747e015ee1b27182251e65250f23dddb0b9cff73b3cad0e7de8e7e784")),
     "replay": (400, "2c64a0985900e3257524cec63c10acdd7cb2cc2d16f5a4b860c9329e61381b3f"),
 }
 
@@ -29,7 +33,10 @@ GOLDEN = {
 # ML-on SIM run, floats rounded to 9 significant digits (``digest_portable``). The exact ``GOLDEN['sim']`` digest above
 # is bit-exact on Windows / macOS only: Linux x86-64 gives a different last-bit ML score and so a different exact digest
 # (d2f07d40... with the same 441 updates). The rounded digest was measured identical on macOS arm64 and Linux x86-64.
-SIM_ML_PORTABLE = "0ca1cc38284ab893e070765ece78e5b65f4586af4a9fc4f71e2aad733818860a"
+# Regenerated on #80 (IPS modes / onboard / proxy hooks change the ML-on SIM payload; #79's value 0ca1cc38... no longer
+# applies): PYTHONPATH=src:tests/integration python -c "import dashboard_payload_driver as d; g=d.collect(); print(len(g['sim']), d.digest_portable(g['sim']))"
+# -> 441 updates, same digest as on #82 (which carries the later UI changes but not a different SIM payload).
+SIM_ML_PORTABLE = "ec5bb1b43789ca6972b91e1ddb7fc3746b6f8d2a3973d4aaefd7168c4ea6ac02"
 
 
 def test_payload_sequence_digests_unchanged() -> None:
