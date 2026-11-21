@@ -39,6 +39,33 @@ class BridgeStatusServer:
                     self.send_header("Access-Control-Allow-Origin", origin)
                     self.send_header("Vary", "Origin")
 
+            def handle_one_request(self) -> None:
+                self._body_done = False
+                super().handle_one_request()
+
+            def _read_body(self, limit: int = 4096) -> bytes | None:
+                """Consume the whole request body so the socket closes cleanly (an unread body turns the
+                close into a TCP reset, which aborts the client's read on Windows). Returns the body if
+                it is 1..limit bytes, else None."""
+                if getattr(self, "_body_done", False):  # already consumed for this request
+                    return self._body
+                self._body_done, self._body = True, None
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                except ValueError:
+                    return None
+                if n <= 0:
+                    return None
+                data = self.rfile.read(min(n, limit))
+                remaining = n - len(data)
+                while remaining > 0:  # drain-and-discard the excess (bounded by what the client sends)
+                    chunk = self.rfile.read(min(remaining, 65536))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                self._body = data if n <= limit else None
+                return self._body
+
             def _send(self, code: int, body: bytes, ctype: str = "application/json") -> None:
                 self.send_response(code)
                 self._cors()
@@ -60,6 +87,7 @@ class BridgeStatusServer:
                 self._send(code, json.dumps(obj).encode())
 
             def _refuse(self) -> None:
+                self._read_body()
                 self.send_response(405)
                 self.send_header("Allow", "GET, POST, OPTIONS")
                 self.send_header("Content-Length", "0")
@@ -89,6 +117,7 @@ class BridgeStatusServer:
                 self.end_headers()
 
             def do_POST(self) -> None:  # noqa: N802
+                raw = self._read_body()  # always consume the body, even when we are about to reject
                 if self.path.split("?", 1)[0] != "/posture":
                     self._refuse()
                     return
@@ -103,8 +132,7 @@ class BridgeStatusServer:
                     self._json(401, {"ok": False, "error": "unauthorized"})
                     return
                 try:
-                    n = int(self.headers.get("Content-Length") or 0)
-                    body = json.loads(self.rfile.read(n).decode("utf-8")) if 0 < n <= 4096 else None
+                    body = json.loads(raw.decode("utf-8")) if raw is not None else None
                 except (ValueError, UnicodeDecodeError):
                     body = None
                 if not isinstance(body, dict):

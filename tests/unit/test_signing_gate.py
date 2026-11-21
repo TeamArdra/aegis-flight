@@ -247,3 +247,13 @@ def test_posture_cors_and_methods(srv_factory):
     for m in ("PUT", "DELETE", "PATCH"):
         assert _http(s.port, m, "/posture")[0] == 405
     assert _http(s.port, "POST", "/status", body={})[0] == 405
+
+
+def test_rejected_post_with_large_body_closes_cleanly(srv_factory):
+    """A rejected request's body is drained before the reply, so the client never sees a reset."""
+    s, _b = srv_factory(control_token="s3cret")
+    big = b"x" * 200_000
+    for _ in range(20):
+        assert _http(s.port, body=big, headers={"Authorization": "Bearer nope"})[0] == 401
+        assert _http(s.port, "PUT", "/posture", body=big)[0] == 405
+        assert _http(s.port, body=big, headers={"Authorization": "Bearer s3cret"})[0] == 400
