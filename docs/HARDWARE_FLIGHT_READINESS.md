@@ -111,7 +111,7 @@ Setup: `deploy/bench` containers (`radarku/ardupilot-sitl` ArduCopter, companion
 
 - `aegis benchmark --out <scratch> --no-figures` with the hash-verified `models/isoforest.joblib` (`scripts/fetch_models.py`): `TP / FP / TN / FN = 6535 / 4 / 16826 / 65` (tag `SIM`). Unchanged from the Stage-1 baseline.
 - `python scripts/hardware/hw_readiness_soak.py --cycles 5 --flood-frames 5000`: `ok=True benign_alerts=0 attack_alerts=1 forwarded=5702 dropped_up=3 dropped_unsigned=2 dropped_semantic_param=1 analyser_errors=0 p95_us=5.3`, event/actions chains and anchors verified (tag `SIM`).
-- **Open finding:** with the model present, `tests/unit/test_golden_equivalence.py` fails 55 ML-on cases (`frame_r` digest first). `origin/main` passes all 138. The ML-on section of `tests/golden/golden.json` predates the Stage-2 hardening: the stack adds FeatureFrame fields and lowers alert counts on 16 live cases (for example `live/crossend/profile` 11 -> 3 alerts). CI does not fetch the model, so it skips these cases. The fixture needs a reviewed `scripts/make_golden.py --ml-only` regeneration; it has not been regenerated here.
+- **Open finding:** with the model present, `tests/unit/test_golden_equivalence.py` fails 55 ML-on cases (`frame_r` digest first). `origin/main` passes all 138. The ML-on section of `tests/golden/golden.json` predates the Stage-2 hardening: the stack adds FeatureFrame fields and lowers alert counts on 16 live cases (for example `live/crossend/profile` 11 -> 3 alerts). CI does not fetch the model, so it skips these cases. The ML-on section was regenerated with `scripts/make_golden.py --ml-only` (model sha256 `3fe74cdd...2939c4`, ML-off section byte-identical); the 16 changed alert summaries need reviewer sign-off.
 
 ### Not run in this pass
 
