@@ -148,6 +148,12 @@ def load_onboard_config(path: str | Path | None = None) -> OnboardConfig:
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
     if not isinstance(raw, dict):
         raise ValueError(f"onboard config {path} must be a YAML mapping")
+    if "topology" not in raw or raw["topology"] is None or not str(raw["topology"]).strip():
+        raise ValueError(
+            f"onboard config {path} has no 'topology' key; there is no default for a config file. Set "
+            "'topology: side-tap' (single receive-only port, passive, 0 B TX) or 'topology: inline' "
+            "(FC <-> companion <-> radio bridge) explicitly"
+        )
 
     ret_raw = raw.get("retention") or {}
     if not isinstance(ret_raw, dict):
@@ -173,7 +179,7 @@ def load_onboard_config(path: str | Path | None = None) -> OnboardConfig:
     gcs_alerts = None if gcs_alerts_raw is None else bool(gcs_alerts_raw)
 
     return OnboardConfig(
-        topology=str(raw.get("topology", "side-tap")).strip().lower() or "side-tap",
+        topology=str(raw["topology"]).strip().lower(),
         fc_port=str(raw.get("fc_port", "/dev/ttyAMA0")),
         fc_baud=_parse_baud(raw.get("fc_baud"), 921600),
         fc_rtscts=bool(raw.get("fc_rtscts", False)),

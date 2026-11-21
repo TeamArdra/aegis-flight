@@ -210,6 +210,7 @@ def test_sigterm_shuts_down_onboard_cleanly_with_valid_sqlite_and_manifest(tmp_p
     cfg_path.write_text(
         yaml.safe_dump(
             {
+                "topology": "side-tap",
                 "fc_port": f"socket://127.0.0.1:{fc_port}",
                 "gcs_port": f"socket://127.0.0.1:{gcs_port}",
                 "allow_url": True,
@@ -270,3 +271,31 @@ def test_sigterm_shuts_down_onboard_cleanly_with_valid_sqlite_and_manifest(tmp_p
         assert store.verify_chain().ok is True
     finally:
         store.close()
+
+
+def test_config_file_without_topology_is_refused_naming_both_options(tmp_path) -> None:
+    """R8: a legacy config with no ``topology`` key must not silently become side-tap (or inline)."""
+    legacy = tmp_path / "legacy.yaml"
+    legacy.write_text(yaml.safe_dump({"fc_port": "/dev/ttyAMA0", "defense_mode": "passive"}), encoding="utf-8")
+    with pytest.raises(ValueError, match=r"no 'topology' key.*side-tap.*inline"):
+        load_onboard_config(legacy)
+    empty = tmp_path / "empty.yaml"
+    empty.write_text("", encoding="utf-8")
+    with pytest.raises(ValueError, match="no 'topology' key"):
+        load_onboard_config(empty)
+    null_topology = tmp_path / "null.yaml"
+    null_topology.write_text("topology:\nfc_port: /dev/ttyAMA0\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="no 'topology' key"):
+        load_onboard_config(null_topology)
+
+
+@pytest.mark.parametrize("topology", ["side-tap", "inline"])
+def test_config_file_with_explicit_topology_loads(tmp_path, topology) -> None:
+    p = tmp_path / "ok.yaml"
+    p.write_text(yaml.safe_dump({"topology": topology, "fc_port": "/dev/ttyAMA0"}), encoding="utf-8")
+    assert load_onboard_config(p).topology == topology
+
+
+def test_default_yaml_states_topology_explicitly() -> None:
+    raw = yaml.safe_load((REPO_ROOT / "configs" / "onboard_default.yaml").read_text(encoding="utf-8"))
+    assert raw["topology"] == "side-tap"

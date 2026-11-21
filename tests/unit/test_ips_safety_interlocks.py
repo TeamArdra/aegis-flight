@@ -32,6 +32,8 @@ def _snap(t: float, *, armed: bool | None = True, mode: str = "AUTO") -> Telemet
 
 def _gps_frame(t: float, *, armed: bool | None = True, mode: str = "AUTO") -> FeatureFrame:
     return FeatureFrame(
+        autopilot_id=3,
+        mav_type=2,
         t=t,
         snapshot=_snap(t, armed=armed, mode=mode),
         gps_seen=True,
@@ -44,6 +46,8 @@ def _gps_frame(t: float, *, armed: bool | None = True, mode: str = "AUTO") -> Fe
 
 def _cmd_frame(t: float, *, armed: bool | None = True, mode: str = "LAND") -> FeatureFrame:
     return FeatureFrame(
+        autopilot_id=3,
+        mav_type=2,
         t=t,
         snapshot=_snap(t, armed=armed, mode=mode),
         gps_seen=True,
