@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
 
     frame_log = FrameLogWriter(out.with_suffix(".frames.jsonl"))
     attack = GnssDegradationAttack(params, frame_log=frame_log)
-    relay = make_udp_relay(px4_host, a.px4_port, a.relay_listen_port, down_hook=attack)
+    relay = make_udp_relay(px4_host, a.px4_port, a.relay_listen_port, allow_private_upstream=True if a.allow_private_upstream else None,  down_hook=attack)
     relay.start()
     if not relay.wait_upstream_alive(timeout=15.0):
         relay.close()

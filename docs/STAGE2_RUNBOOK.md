@@ -12,6 +12,13 @@ build are **not** modified.
 - Always address the distro: `wsl -d Ubuntu-24.04 -- ...` (the default distro is a different one).
 - The WSL IP changes across reboots. Never hard-code it: `wsl -d Ubuntu-24.04 -- hostname -I`
   (the recorder discovers it automatically).
+- **Attack proxy upstream is loopback-only by default.** Every `scripts/sitl/run_p2_*_trial.py` / `run_p4_signing_trial.py`
+  builds its relay through `make_udp_relay`, which refuses a non-loopback `--px4-host` before opening any socket. To reach PX4 in
+  WSL2 over its NAT address, opt in explicitly: pass `--allow-private-upstream` (or set `AEGIS_ALLOW_PRIVATE_UPSTREAM=1`). Even then
+  the address must lie in the subnet of a local network interface of this host (the WSL `vEthernet` adapter); any other LAN or
+  public address, and any hostname, is refused. The opt-in is recorded as `private_upstream_ack` in the run manifest. A host on the
+  same subnet as a physical LAN adapter cannot be told apart from SITL by address alone, so check `--px4-host` is the WSL IP.
+  (Live verification of this path has not been run.)
 - After any WSL session, from **PowerShell**:
   `wsl -d Ubuntu-24.04 --cd /home/astryx/PX4-Autopilot -- git status --porcelain --untracked-files=no` must print nothing.
 - Raw captures (`data/sitl/raw/*.tlog`) are local evidence and are git-ignored; manifests and

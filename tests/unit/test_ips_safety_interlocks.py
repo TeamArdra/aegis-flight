@@ -181,3 +181,16 @@ def test_ekf_primary_recovery_not_starved_when_episode_budget_exhausted() -> Non
     assert ctrl._last_cmd_name == "EKF_SWITCH_PRIMARY"
     assert len(recovered_frames) == 1
 
+
+
+def test_unknown_arm_state_withholds_counter_actions_and_leaves_a_rate_limited_audit_row() -> None:
+    """armed=None (no HEARTBEAT yet) must still emit zero counter-commands, and the suppression must be visible."""
+    ctrl = MitigationController(mode=DefenseMode.ACTIVE_IPS)
+    ctrl.golden.update(_snap(0.0, armed=True, mode="AUTO"), _asmt(0.0, AttackType.BENIGN), active_ips=True)
+    for k in range(1, 180):  # 36 s of command injection with unknown arm state
+        t = k * 0.2
+        act = ctrl.step(_cmd_frame(t, armed=None, mode="LAND"), _asmt(t, AttackType.COMMAND_INJECTION))
+        assert act.counter_frames == []
+    rows = [a for a in ctrl.action_history if a["tag"] == "CMD_SUPPRESSED_ARM_UNKNOWN"]
+    assert rows and "arm state unknown" in rows[0]["detail"]
+    assert len(ctrl._last_refusal_log_t) >= 1 and ctrl._episode_counter_cmds == 0
