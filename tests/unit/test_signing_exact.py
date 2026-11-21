@@ -261,16 +261,43 @@ def test_a_signed_frame_with_the_signed_flag_alone_is_judged_signed() -> None:
     assert v.verify_frame(bytes(raw)).signed is True
 
 
-def test_stream_table_is_bounded_and_keeps_known_streams() -> None:
+def _stream_frame(link: int, sysid: int, ts: int) -> bytes:
+    return sign_mavlink2_frame(heartbeat(sysid=sysid), KEY, link_id=link, timestamp_10us=ts)
+
+
+def test_stream_table_is_bounded_at_1024_and_evicts_only_for_new_streams() -> None:
     v = MavlinkSignatureVerifier(KEY)
-    base = heartbeat()
-    for i in range(1024):
-        assert v.verify_frame(sign_mavlink2_frame(base, KEY, link_id=i % 256, timestamp_10us=10 + i)).valid or True
-    streams = {(i % 256, 1, 1) for i in range(1024)}
-    assert len(v._last_timestamps) == len(streams)
-    other = packed(mav2.MAVLink_heartbeat_message, 2, 3, 0x81, 0, 4, 3, sysid=200, comp=3)
-    for i in range(50):
-        assert v.verify_frame(sign_mavlink2_frame(other, KEY, link_id=0, timestamp_10us=1000 + i)).valid
-    assert len(v._last_timestamps) <= 1024
-    # an existing stream still advances once the table is full
-    assert v.verify_frame(sign_mavlink2_frame(other, KEY, link_id=0, timestamp_10us=5000)).valid
+    for i in range(1023):
+        assert v.verify_frame(_stream_frame(i % 256, i // 256 + 1, 10)).valid
+    assert len(v._last_timestamps) == 1023
+    oldest = next(iter(v._last_timestamps))
+    # one slot left: a new stream is added without evicting anything
+    assert v.verify_frame(_stream_frame(0, 100, 10)).valid
+    assert len(v._last_timestamps) == 1024 and oldest in v._last_timestamps
+    # the table is full: a new stream evicts exactly the oldest entry
+    assert v.verify_frame(_stream_frame(1, 100, 10)).valid
+    assert len(v._last_timestamps) == 1024 and oldest not in v._last_timestamps
+    keys = set(v._last_timestamps)
+    # a known stream advancing at a full table evicts nothing
+    survivor = next(iter(v._last_timestamps))
+    assert v.verify_frame(_stream_frame(survivor[0], survivor[1], 20)).valid
+    assert set(v._last_timestamps) == keys and v._last_timestamps[survivor] == 20
+    # the evicted stream is accepted again, as a new one
+    assert v.verify_frame(_stream_frame(oldest[0], oldest[1], 5)).valid
+
+
+def test_high_bit_timestamps_survive_signing_and_verification() -> None:
+    ts = 2**47 + 12345  # needs all 48 bits: a signed 6-byte encoding would overflow
+    signed = sign_mavlink2_frame(heartbeat(), KEY, timestamp_10us=ts)
+    assert int.from_bytes(signed[-12:-6], "little") == ts
+    res = MavlinkSignatureVerifier(KEY).verify_frame(signed)
+    assert res.valid and res.timestamp_10us == ts
+
+
+def test_transmit_clock_follows_wall_time_when_it_runs_ahead_of_the_counter(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = [float(MAVLINK_EPOCH_UNIX_S) + 10.0]
+    monkeypatch.setattr(sg.time, "time", lambda: clock[0])
+    v = MavlinkSignatureVerifier(KEY)
+    assert int.from_bytes(v.sign_frame(heartbeat())[-12:-6], "little") == 1_000_001
+    clock[0] += 20.0
+    assert int.from_bytes(v.sign_frame(heartbeat())[-12:-6], "little") == 3_000_000
