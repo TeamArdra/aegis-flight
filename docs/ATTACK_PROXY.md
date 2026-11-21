@@ -317,7 +317,7 @@ frame and is fed only bytes + decoded envelope (header-first, via the existing
   `_loopback_only()` guard (`src/aegisflight/sources/mavlink_live.py`): `bind=(None, port)`
   defaults to `127.0.0.1`; wildcard (`0.0.0.0`/`::`) requires explicit
   `allow_wildcard=True`, which this proxy's default config must never set. The upstream
-  leg (`connect=(wsl_ip, 14550)`) targets only the discovered WSL NAT address (opt-in `--allow-private-upstream`; it must lie in a local interface's subnet, loopback otherwise; see `docs/STAGE2_RUNBOOK.md`) — never
+  leg (`connect=(wsl_ip, 14550)`) targets only the discovered WSL NAT address (opt-in `--allow-private-upstream`; it must lie in the subnet of a virtual host-only/NAT adapter such as the WSL `vEthernet`, `docker0`, `virbr*`, never a physical Wi-Fi/Ethernet NIC; loopback otherwise; see `docs/STAGE2_RUNBOOK.md`) — never
   hard-coded, per `.claude/CLAUDE.md` — and only the PX4 GCS port.
 - **Single-partner guarantee.** Because PX4's UDP link "locks to the first sender and
   never re-learns," the proxy becomes PX4's *only* GCS partner by being the first and
