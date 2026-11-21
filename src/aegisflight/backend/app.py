@@ -568,6 +568,8 @@ async def setup_generate_config(request: Request) -> JSONResponse:
         _validate_onboard(cfg)
     except (TypeError, ValueError) as exc:
         return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
+    # the generated file always states its topology: load_onboard_config refuses a file without one
+    clean = {"topology": cfg.topology, **clean}
     return JSONResponse(content={"ok": True, "yaml": yaml.safe_dump(clean, sort_keys=False)})
 
 
