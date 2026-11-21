@@ -56,3 +56,73 @@ test("signCanonicalRequest matches Node crypto HMAC-SHA256 verification", async 
   assert.ok(headers["X-Aegis-Signature"]);
   saveApiToken("");
 });
+
+function fakeStorage(init: Record<string, string> = {}) {
+  const m = new Map(Object.entries(init));
+  return {
+    getItem: (k: string) => (m.has(k) ? m.get(k)! : null),
+    setItem: (k: string, v: string) => void m.set(k, v),
+    removeItem: (k: string) => void m.delete(k),
+    has: (k: string) => m.has(k),
+  };
+}
+
+test("legacy localStorage API token is migrated once into sessionStorage and removed", async () => {
+  // fresh module instance so the in-memory token cache is empty
+  const mod = await import(`../src/lib/requestAuth.ts?migrate=${Date.now()}`);
+  const local = fakeStorage({ aegis_api_token: "  legacy-token  " });
+  const session = fakeStorage();
+  (globalThis as any).window = { localStorage: local, sessionStorage: session };
+  try {
+    assert.equal(mod.getApiToken(), "legacy-token");
+    assert.equal(local.has("aegis_api_token"), false);
+    assert.equal(session.getItem("aegis_api_token_session"), "legacy-token");
+    assert.equal(mod.getApiToken(), "legacy-token"); // second read comes from memory/session
+  } finally {
+    delete (globalThis as any).window;
+  }
+});
+
+test("session token wins over a legacy key, and the legacy key is not read", async () => {
+  const mod = await import(`../src/lib/requestAuth.ts?nomigrate=${Date.now()}`);
+  const local = fakeStorage({ aegis_api_token: "old" });
+  const session = fakeStorage({ aegis_api_token_session: "new" });
+  (globalThis as any).window = { localStorage: local, sessionStorage: session };
+  try {
+    assert.equal(mod.getApiToken(), "new");
+  } finally {
+    delete (globalThis as any).window;
+  }
+});
+
+test("without crypto.subtle: operator warning is raised and only the token header is sent", async () => {
+  const mod = await import(`../src/lib/requestAuth.ts?nosubtle=${Date.now()}`);
+  mod.saveApiToken("tok-123");
+  const desc = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  Object.defineProperty(globalThis, "crypto", { value: { randomUUID: () => "x" }, configurable: true });
+  try {
+    const st = mod.getSigningStatus();
+    assert.equal(st.available, false);
+    assert.match(st.warning ?? "", /signing is unavailable/i);
+    const h = await mod.buildSignedAuthHeaders("POST", "/api/x", "{}");
+    assert.equal(h["X-Aegis-Token"], "tok-123");
+    assert.equal(h["X-Aegis-Signature"], undefined); // transmission unchanged from before
+  } finally {
+    if (desc) Object.defineProperty(globalThis, "crypto", desc);
+    mod.saveApiToken("");
+  }
+  // with subtle available and a token: no warning; with no token: no warning
+  assert.equal(mod.getSigningStatus().warning, null);
+});
+
+test("authenticated GET headers carry token and signature over an empty body", async () => {
+  saveApiToken("get-token-1");
+  try {
+    const h = await buildSignedAuthHeaders("GET", "/api/setup/discover-ports");
+    assert.equal(h["X-Aegis-Token"], "get-token-1");
+    const expected = await signCanonicalRequest("get-token-1", "GET", "/api/setup/discover-ports", h["X-Aegis-Timestamp"], h["X-Aegis-Nonce"], "");
+    assert.equal(h["X-Aegis-Signature"], expected);
+  } finally {
+    saveApiToken("");
+  }
+});
