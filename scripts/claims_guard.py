@@ -18,6 +18,7 @@ import sys
 PATTERN = (
     r"11\.4 ?%|42\.8 MB|(^|[^0-9,])2,900|82\.4 ?km|4\.8 h|mIDS|0\.08 ms"
     r"|EKF failsafe blind|92/100|729\+"
+    r"|p2_telemetry_dryrun_20261119"
 )
 FILE_GLOBS = ("*.md", "*.tsx", "*.ts", "*.py")
 # Audit documents that discuss the withdrawn claims on purpose (issue #10's list), plus the
@@ -27,6 +28,7 @@ ALLOWLIST = (
     "docs/SUBMISSION_READINESS_AUDIT.md",
     "docs/REDTEAM_AUDIT_STAGE2.md",
     "docs/GPS_WORKSTREAM_PROGRESS.md",
+    "artifacts/sitl/p2_telemetry_dryrun_20261119/*",   # the unsupported dry run itself (UNSUPPORTED.md)
     "scripts/claims_guard.py",
     "tests/unit/test_claims_guard.py",
 )

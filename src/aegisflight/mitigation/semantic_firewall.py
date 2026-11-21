@@ -223,7 +223,9 @@ class SemanticFirewall:
             return SemanticVerdict(True, "airborne_fence_clear", "geofence_hijack", 0.95)
         if ev.action == "upload_fence" and (armed is True or (armed is None and self.block_when_arm_unknown)):
             return SemanticVerdict(True, "airborne_fence_overwrite", "geofence_hijack", 0.90)
-        if (ev.action == "fence_item" and ev.command == MAV_CMD_NAV_FENCE_CIRCLE_INCLUSION
+        # Only while armed: home is the first GPS fix the bridge saw, which is a trustworthy takeoff point only for a
+        # flight the bridge watched from the ground. A disarmed operator may legitimately plan any fence (review R13).
+        if (armed is True and ev.action == "fence_item" and ev.command == MAV_CMD_NAV_FENCE_CIRCLE_INCLUSION
                 and home_lat_lon is not None and ev.lat_deg is not None and ev.lon_deg is not None
                 and ev.radius_m is not None and ev.radius_m > 0.0):
             dist_m = haversine_m(home_lat_lon[0], home_lat_lon[1], ev.lat_deg, ev.lon_deg)
