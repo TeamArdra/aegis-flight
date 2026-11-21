@@ -103,3 +103,31 @@ def test_side_tap_runner_is_strictly_passive() -> None:
     finally:
         runner.close()
     assert tr.closed is True
+
+
+def test_side_tap_rotation_link_failure_adopts_reopened_store(tmp_path, monkeypatch) -> None:
+    from aegisflight.logging.store import EventStore
+
+    st = EventStore(tmp_path / "events.sqlite")
+    st.start_run("r0", label="t")
+    for i in range(10):
+        st.log_action("r0", float(i), "t", "ROW", "x", "d" * 60)
+    real = EventStore.log_action
+
+    def flaky(self, run_id, t, actor, action, target, detail=""):
+        if action == "ROTATION_LINK":
+            raise OSError("disk hiccup writing the link row")
+        return real(self, run_id, t, actor, action, target, detail)
+
+    monkeypatch.setattr(EventStore, "log_action", flaky)
+    runner = SideTapRunner(_DummyTapTransport(), store=st, run_id="r0")
+    try:
+        assert runner.rotate_store(max_bytes=1, max_rotations=3) is True  # segment really was rotated
+        assert runner.rotation_failures == 1
+        assert runner.store is not st
+        runner.store.log_action(runner.run_id, 99.0, "t", "AFTER", "x")  # usable, not the closed old handle
+        names = [a["action"] for a in runner.store.get_actions(limit=100)]
+        assert "ROTATION_FAILED" in names and "AFTER" in names and "ROTATION_LINK" not in names
+    finally:
+        runner.store.close()
+        runner.close()
