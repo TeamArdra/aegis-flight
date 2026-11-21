@@ -33,7 +33,10 @@ GOLDEN = {
 # ML-on SIM run, floats rounded to 9 significant digits (``digest_portable``). The exact ``GOLDEN['sim']`` digest above
 # is bit-exact on Windows / macOS only: Linux x86-64 gives a different last-bit ML score and so a different exact digest
 # (d2f07d40... with the same 441 updates). The rounded digest was measured identical on macOS arm64 and Linux x86-64.
-SIM_ML_PORTABLE = "0ca1cc38284ab893e070765ece78e5b65f4586af4a9fc4f71e2aad733818860a"
+# Regenerated on #80 (IPS modes / onboard / proxy hooks change the ML-on SIM payload; #79's value 0ca1cc38... no longer
+# applies): PYTHONPATH=src:tests/integration python -c "import dashboard_payload_driver as d; g=d.collect(); print(len(g['sim']), d.digest_portable(g['sim']))"
+# -> 441 updates, same digest as on #82 (which carries the later UI changes but not a different SIM payload).
+SIM_ML_PORTABLE = "ec5bb1b43789ca6972b91e1ddb7fc3746b6f8d2a3973d4aaefd7168c4ea6ac02"
 
 
 def test_payload_sequence_digests_unchanged() -> None:
