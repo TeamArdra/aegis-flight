@@ -45,7 +45,9 @@ def test_actuator_persists_monotonic_signing_timestamp(tmp_path: Path) -> None:
     assert emitted_ts > floor_10us
 
 
-def test_rc_transmitter_mode_flip_cancels_ips_ladder() -> None:
+def test_rc_transmitter_mode_flip_cancels_ips_ladder(monkeypatch) -> None:
+    # Plane actuation is gated off by default; enable it here only to exercise the (Option B) override logic
+    monkeypatch.setattr(MavlinkActuator, "ALLOW_NON_COPTER_DIALECTS", True)
     ctrl = MitigationController(mode=DefenseMode.ACTIVE_IPS)
     ctrl.actuator.set_vehicle_dialect(3, 1)  # Fixed-wing Plane -> safe mode FBWA
     assert ctrl.actuator.safe_hold_mode_name() == "FBWA"

@@ -77,15 +77,22 @@ def _baud_order_for_port(info: PortInfo, candidates: tuple[int, ...]) -> list[in
 def _open_passive_serial(device: str, baudrate: int, timeout_s: float = 0.05) -> Any:
     import serial  # type: ignore[import-untyped]
 
-    return serial.Serial(
-        device,
-        baudrate=baudrate,
-        timeout=timeout_s,
-        write_timeout=0.05,
-        rtscts=False,
-        xonxoff=False,
-        dsrdtr=False,
-    )
+    # pyserial 3.5 defaults its DTR and RTS state to True and applies it inside open() whenever dsrdtr / rtscts are False
+    # (serialposix.py open(): `if not self._dsrdtr: self._update_dtr_state()`; serialwin32.py: DTR_CONTROL_ENABLE). So
+    # `Serial(device, dsrdtr=False, rtscts=False)` still drives both lines high. Build the port unopened and set the
+    # intended line state first. On Linux the kernel may still raise DTR/RTS for an instant while the tty opens.
+    ser = serial.Serial()
+    ser.port = device
+    ser.baudrate = baudrate
+    ser.timeout = timeout_s
+    ser.write_timeout = 0.05
+    ser.rtscts = False
+    ser.xonxoff = False
+    ser.dsrdtr = False
+    ser.dtr = False
+    ser.rts = False
+    ser.open()
+    return ser
 
 
 def probe_serial_port_passive(
