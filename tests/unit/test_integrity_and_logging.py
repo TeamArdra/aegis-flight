@@ -106,3 +106,24 @@ def test_multiple_runs_verify_independently(tmp_path):
     assert store.verify_chain("r1").ok
     assert store.verify_chain("r2").ok
     assert store.verify_chain().ok  # all runs
+
+
+def test_verify_chain_reports_a_stored_column_that_is_not_json_instead_of_raising() -> None:
+    """Found by tests/unit/test_fuzz_hostile_inputs.py: a tampered JSON column crashed the verifier."""
+    from aegisflight.core.enums import AttackType, Severity
+    from aegisflight.core.types import ThreatAssessment
+    from aegisflight.logging.store import EventStore
+
+    store = EventStore(":memory:")
+    store.start_run("r1")
+    for k in range(3):
+        store.log_event(ThreatAssessment(t=float(k), wall_time=1.0, threat=True, threat_score=0.5, severity=Severity.NORMAL,
+                                         attack_type=AttackType.BENIGN, confidence=0.5), "r1")
+    assert store.verify_chain("r1").ok
+    for col in ("evidence", "detector_scores", "contributing_detectors", "telemetry"):
+        store.conn.execute(f"UPDATE events SET {col}=? WHERE id=2", ("not json",))
+        store.conn.commit()
+        cs = store.verify_chain("r1")
+        assert cs.ok is False and cs.broken_at == 1 and "not valid JSON" in cs.detail
+        store.conn.execute(f"UPDATE events SET {col}=? WHERE id=2", ("[]" if col != "telemetry" else "{}",))
+    store.close()

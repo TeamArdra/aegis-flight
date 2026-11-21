@@ -28,6 +28,7 @@ from .hal.auto_port import (
     discover_mavlink_ports,
     probe_serial_port_passive,
 )
+from .hal.hw_watchdog import HardwareWatchdog
 from .hal.inline_ips import InlineIpsBridge
 from .hal.run_archive import FILES as ARCHIVE_FILES
 from .hal.run_archive import BridgeRunArchive
@@ -498,6 +499,11 @@ def run_onboard(
     """Run the unified onboard companion service until ``SIGTERM``/``SIGINT`` or ``seconds``."""
     notifier = SystemdNotifier()
     try:
+        # Opt-in watchdog env config is validated with the other onboard config so an
+        # invalid value fails closed (rc 2, clean message) instead of a raw traceback.
+        hw_watchdog = HardwareWatchdog.from_env(
+            health_check=lambda: bridge.threads_healthy() if hasattr(bridge, "threads_healthy") else True
+        )
         fc_port, fc_baud, gcs_port, gcs_baud = _resolve_ports_and_bauds(cfg)
         key, mgmt_key, token, allowlist = _validate_onboard(
             cfg, resolved_fc_port=fc_port, resolved_gcs_port=gcs_port
@@ -661,6 +667,7 @@ def run_onboard(
             ).start()
         dash_proc = _start_dashboard_child(cfg)
         notifier.ready(f"AegisFlight {cfg.topology} posture={cfg.defense_mode}")
+        hw_watchdog.start()
         link_desc = f"{fc_port} (side-tap RX-only)" if cfg.topology == "side-tap" else f"{fc_port} <-> {gcs_port}"
         print(
             f"aegis onboard: {link_desc}, posture {cfg.defense_mode}, "
@@ -716,6 +723,7 @@ def run_onboard(
                                 f"Pruned {deleted} rotated segment(s): {', '.join(pruned_names)}",
                             )
     finally:
+        hw_watchdog.stop()
         notifier.stopping()
         if dash_proc is not None and dash_proc.poll() is None:
             dash_proc.terminate()

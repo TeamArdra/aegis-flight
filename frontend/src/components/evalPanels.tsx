@@ -231,19 +231,21 @@ function ValidationPanelImpl() {
         <span className="panel-title">Validation Evidence</span>
         <span className="panel-note">benchmark — not live</span>
       </header>
-      <table className="val-table">
-        <tbody>
-          {VAL_ROWS.map((r) => (
-            <tr key={r.metric}>
-              <td>
-                <span className={`val-tier t-${r.tier}`}>{TIER_LABEL[r.tier]}</span>
-              </td>
-              <td className="val-metric">{r.metric}</td>
-              <td className="val-value">{r.value}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div style={{ overflowX: "auto" }}>
+        <table className="val-table">
+          <tbody>
+            {VAL_ROWS.map((r) => (
+              <tr key={r.metric}>
+                <td>
+                  <span className={`val-tier t-${r.tier}`}>{TIER_LABEL[r.tier]}</span>
+                </td>
+                <td className="val-metric">{r.metric}</td>
+                <td className="val-value">{r.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <div className="val-foot">
         Reproducible results from committed <code>artifacts/**</code>. Benchmark
         CPU ~99% reflects a saturated measurement loop, not steady-state efficiency;

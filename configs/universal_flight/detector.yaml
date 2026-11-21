@@ -6,6 +6,8 @@
 features:
   learn_baro_offset: true
   baro_offset_alpha: 0.05
+  # |dv|/dt over at least 0.15 s: netem reorder/jitter delivered velocity samples ms apart (45-57 m/s2 ConstDet spikes).
+  accel_min_dt_s: 0.15
 protocol:
   auto_rate_baseline: true
   max_msg_rate_hz: 2000.0
@@ -19,9 +21,17 @@ physics:
   yaw_course_auto: true
   use_learned_baro_offset: true
   control_semantics_enabled: true
-  control_accel_residual_ms2: 4.5
+  # 8.0 (Stage-1 default 4.5): ConstDet models acceleration as thrust tilt only and ignores aerodynamic drag.
+  # ArduCopter SITL, 12 m/s wind + turbulence 4 + GPS noise 0.8 m, benign guided flight, REPLAY of the captured
+  # downlink: armed-frame residual p50 4.42 / p99 6.15 / max 6.43 m/s2 (a steady offset, not noise), so 4.5
+  # alerted continuously. Calibrated on that one SITL condition only; disclose when quoting.
+  control_accel_residual_ms2: 8.0
   optflow_gps_speed_diff_ms: 4.0
   xmsg_checks: true
+  # 20 deg (Stage-1 default 10): VFR_HUD heading and ATTITUDE yaw are separate messages; under turbulence
+  # (SITL wind 12 m/s, turb 4, netem 40+-20 ms jitter) benign disagreement reached 11-15 deg, 10 alerts in 30 min.
+  # Costs sensitivity to forged heading offsets below 20 deg. Calibrated on that one SITL condition only.
+  heading_yaw_tolerance_deg: 20.0
   battery_rise_v: 1.05
 anomaly:
   enabled: false
