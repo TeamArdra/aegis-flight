@@ -298,6 +298,22 @@ def test_dos_flood_submode():
     assert sub == AttackSubMode.DOS_FLOOD
 
 
+def test_gnss_fix_loss_on_a_high_rate_link_is_not_a_flood():
+    """PX4 streams ~370 msg/s: named GNSS evidence must still reach the GPS ladder, a real flood must not."""
+    clf = AttackSubModeClassifier()
+    frame = _make_dummy_frame(_make_dummy_snapshot(), msg_rate=370.0)
+    gnss = _make_dummy_assessment(
+        threat=True, attack_type=AttackType.DOS,
+        evidence=["GNSS fix lost: fix_type=0, satellites=2 for 5 decisions"],
+    )
+    assert clf.classify(frame, gnss) == AttackSubMode.DOS_GNSS_JAMMING
+    both = _make_dummy_assessment(
+        threat=True, attack_type=AttackType.DOS,
+        evidence=["GNSS fix lost: fix_type=0", "packet flood msg_rate=370Hz"],
+    )
+    assert clf.classify(frame, both) == AttackSubMode.DOS_FLOOD
+
+
 # --- 9. Firmware Integrity Ground Disarm vs In-Flight Takeover ---
 
 def test_firmware_integrity_ground_vs_inflight():

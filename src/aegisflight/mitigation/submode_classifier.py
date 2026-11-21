@@ -210,6 +210,10 @@ class AttackSubModeClassifier:
         if atk == AttackType.DOS:
             if "message-rate spike" in ev_text and frame.msg_rate_hz < 250.0:
                 return AttackSubMode.MAV_RATE_SPIKE
+            # Named GNSS evidence wins over the rate test: PX4 streams ~370 msg/s, so with only the rate test every
+            # fix-loss threat on PX4 was DOS_FLOOD and never reached the GPS response ladder.
+            if "gnss" in ev_text and "flood" not in ev_text:
+                return AttackSubMode.DOS_GNSS_JAMMING
             if frame.msg_rate_hz > 84.0 or "flood" in ev_text:
                 return AttackSubMode.DOS_FLOOD
             if (snap.gps_fix_type is not None and snap.gps_fix_type < 3) or "gnss" in ev_text:
