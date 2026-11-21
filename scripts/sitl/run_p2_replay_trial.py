@@ -114,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
     # mirror_uplink_to_clients=True: without it the IDS tap has ZERO visibility into uplink
     # traffic, including this attack's own replayed frame -- see run_p2_injection_trial.py's
     # own note (docs/STAGE2_PROGRESS.md "architectural finding").
-    relay = make_udp_relay(px4_host, a.px4_port, a.relay_listen_port, up_hook=attack, down_hook=attack,
+    relay = make_udp_relay(px4_host, a.px4_port, a.relay_listen_port, allow_private_upstream=True if a.allow_private_upstream else None, up_hook=attack, down_hook=attack,
                            mirror_uplink_to_clients=True)
     relay.start()
     if not relay.wait_upstream_alive(timeout=15.0):

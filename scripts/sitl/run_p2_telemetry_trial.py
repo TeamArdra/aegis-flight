@@ -29,7 +29,7 @@ from aegisflight.proxy import (
     SpeedMismatchAttack,
     build_restricted_visibility_hook,
 )
-from aegisflight.proxy.transport import make_udp_relay
+from aegisflight.proxy.transport import check_upstream_host, make_udp_relay
 from aegisflight.sources.mavlink_live import LiveMavlinkSource, UdpMavlinkTransport
 
 DOWNLINK_SCENARIOS = {
@@ -51,6 +51,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--scenario", choices=(*DOWNLINK_SCENARIOS, *UPLINK_SCENARIOS), required=True)
     ap.add_argument("--px4-host", default="127.0.0.1")
+    ap.add_argument("--allow-private-upstream", action="store_true",
+                    help="allow a private (WSL2 NAT/LAN) --px4-host IP literal; default is loopback only")
     ap.add_argument("--px4-port", type=int, default=18572)
     ap.add_argument("--relay-listen-port", type=int, default=18672)
     ap.add_argument("--seed", type=int, required=True)
@@ -65,6 +67,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", required=True)
     add_provenance_args(ap)
     a = ap.parse_args(argv)
+
+    # Fail closed before provenance, files or sockets: injection scenarios (force-disarm, DO_SET_MODE)
+    # must only ever reach local SITL (AGENTS.md s5).
+    try:
+        check_upstream_host(a.px4_host, allow_private=True if a.allow_private_upstream else None)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
 
     start_state = require_clean_tree(a.allow_dirty)
     started = datetime.now(UTC).isoformat()
@@ -84,7 +94,8 @@ def main(argv: list[str] | None = None) -> int:
         hook = DOWNLINK_SCENARIOS[a.scenario](**kw)
         if a.onset_s is not None and hasattr(hook, "_onset_s"):
             hook._onset_s = float(a.onset_s)
-        relay = make_udp_relay(a.px4_host, a.px4_port, a.relay_listen_port, down_hook=hook)
+        relay = make_udp_relay(a.px4_host, a.px4_port, a.relay_listen_port, down_hook=hook,
+                               allow_private_upstream=True if a.allow_private_upstream else None)
     else:
         hook = build_restricted_visibility_hook(
             a.scenario,
@@ -102,6 +113,7 @@ def main(argv: list[str] | None = None) -> int:
             up_hook=hook,
             down_hook=hook,
             mirror_uplink_to_clients=True,
+            allow_private_upstream=True if a.allow_private_upstream else None,
         )
 
     relay.start()
