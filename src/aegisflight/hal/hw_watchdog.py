@@ -68,7 +68,10 @@ class HardwareWatchdog:
         kwargs: dict[str, Any] = {}
         raw = (e.get(ENV_PERIOD_MS) or "").strip()
         if raw:
-            kwargs["period_s"] = float(raw) / 1000.0
+            try:
+                kwargs["period_s"] = float(raw) / 1000.0
+            except ValueError:
+                raise ValueError(f"{ENV_PERIOD_MS} must be a number of milliseconds, got {raw!r}") from None
         return cls(path, health_check=health_check, **kwargs)
 
     @property
