@@ -131,11 +131,11 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
 ## Completed in Stage 2
 1. **MAVLink 2 message signing & cryptographic attestation**: Implemented in `src/aegisflight/mavlink/signing.py`.
 2. **Serial & UDP transports & SITL integration**: Fully verified with ArduPilot 4.7.1 and PX4 1.14 (`docs/ARDUPILOT_SITL.md`, `docs/STAGE2_RUNBOOK.md`).
-3. **Strict 3-mode separation (`#58`)**: Default `passive` posture on `InlineIpsBridge` is now strictly zero-TX on both `fc` and `gcs` links and forwards `compid 191` frames transparently; keyed deployments that require in-band `passive -> advisory` remote promotion must pass `--mgmt-enable`.
-3. **Hardware Abstraction Layer (HAL)**: Auto-discovery across flight controllers, companion computers, and dynamic latency budgets (`src/aegisflight/hal/`).
-4. **Dual-Topology Autonomous Prevention**: Topology A (Sidecar Actuator) and Topology B (Inline Transparent Bridge with 150 ms fail-open watchdog).
-5. **Cross-Platform Native Desktop GCS**: Tauri 2.0 (Rust) + React 18 + TypeScript (`frontend/src-tauri/`).
-6. **Immutable Forensic Hash Chain**: SQLite rolling block hash chain for tamper-evident audit logs.
+3. **Strict 3-mode separation (`#58`)**: Default `passive` posture on `InlineIpsBridge` is now strictly zero-TX on both `fc` and `gcs` links (0 B sent by the bridge itself) and still consumes uplink `compid 191` management commands at the boundary: they are counted, archived as `consumed`, never forwarded to the FC and never answered (`tests/unit/test_rotation_failure_and_upstream_gate.py::test_passive_consumes_compid191_never_forwards_and_transmits_zero_bytes`, `tests/unit/test_mode_separation.py`); keyed deployments that require in-band `passive -> advisory` remote promotion must pass `--mgmt-enable`.
+4. **Hardware Abstraction Layer (HAL)**: Auto-discovery across flight controllers, companion computers, and dynamic latency budgets (`src/aegisflight/hal/`).
+5. **Dual-Topology Autonomous Prevention**: Topology A (Sidecar Actuator) and Topology B (Inline Transparent Bridge with 150 ms fail-open watchdog).
+6. **Cross-Platform Native Desktop GCS**: Tauri 2.0 (Rust) + React 18 + TypeScript (`frontend/src-tauri/`).
+7. **Immutable Forensic Hash Chain**: SQLite rolling block hash chain for tamper-evident audit logs.
 
 ## Recommended Next Steps (Future Roadmap)
 1. Physical flight tests with companion computer mounted on an operational quadcopter. (The 2026-10-31 bench runs were disarmed with propellers removed; no flight has been done.)
