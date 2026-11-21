@@ -81,10 +81,18 @@ export function saveUrlSetting(key: string, value: string): string | null {
 }
 export function getUrlSetting(key: string): string { return lsGet(key) ?? ""; }
 
-async function jget<T>(path: string): Promise<T> {
-  const r = await fetch(backendBase() + path);
-  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+async function jget<T>(path: string, opts?: { signed?: boolean }): Promise<T> {
+  // Gated GET routes (bench setup) need the same token + signature headers as a POST.
+  const headers = opts?.signed ? await buildSignedAuthHeaders("GET", path) : undefined;
+  const r = await fetch(backendBase() + path, headers ? { headers } : undefined);
+  if (!r.ok) throw new Error(httpErrorMessage(path, r.status));
   return r.json();
+}
+
+function httpErrorMessage(path: string, status: number): string {
+  if (status === 401) return `${path}: 401 unauthorized - check the API token in Settings`;
+  if (status === 429) return `${path}: 429 too many invalid authentication attempts - wait and retry`;
+  return `${path}: ${status}`;
 }
 
 async function jpost<T>(path: string, body?: unknown): Promise<T> {
@@ -95,7 +103,16 @@ async function jpost<T>(path: string, body?: unknown): Promise<T> {
     headers,
     body: payload || undefined,
   });
-  return r.json();
+  let parsed: unknown = null;
+  try { parsed = await r.json(); } catch { /* non-JSON body */ }
+  if (!r.ok) {
+    // Backend rejections ({ok:false,error}) are returned so callers can show the message; anything else
+    // (401/429 without a body, framework 422, proxy errors) must not be silently treated as success.
+    const rec = parsed as { ok?: unknown; error?: unknown; message?: unknown } | null;
+    const hasMsg = !!rec && typeof rec === "object" && rec.ok === false && (rec.error || rec.message);
+    if (!hasMsg) throw new Error(httpErrorMessage(path, r.status));
+  }
+  return parsed as T;
 }
 
 export const api = {
@@ -111,7 +128,7 @@ export const api = {
     jpost("/api/simulation/attack", { attack, mode, drift_rate_ms }),
   forensic: (limit = 200) => jget<Record<string, unknown>>(`/api/events/forensic?limit=${limit}`),
   forensicReportJson: (limit = 500) => jget<Record<string, unknown>>(`/api/forensic/report?format=json&limit=${limit}`),
-  discoverPorts: () => jget<{ ok: boolean; zero_tx?: boolean; error?: string; ports?: DiscoveredPort[] }>("/api/setup/discover-ports"),
+  discoverPorts: () => jget<{ ok: boolean; zero_tx?: boolean; error?: string; ports?: DiscoveredPort[] }>("/api/setup/discover-ports", { signed: true }),
   runPreflight: (cfg: Record<string, unknown>) => jpost<Record<string, unknown>>("/api/setup/preflight", cfg),
   generateConfig: (cfg: Record<string, unknown>) => jpost<{ ok: boolean; yaml?: string; error?: string }>("/api/setup/generate-config", cfg),
   enrollFirmware: (port: string, baudrate: number) =>
