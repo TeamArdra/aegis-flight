@@ -498,10 +498,12 @@ def run_onboard(
 ) -> int:
     """Run the unified onboard companion service until ``SIGTERM``/``SIGINT`` or ``seconds``."""
     notifier = SystemdNotifier()
-    hw_watchdog = HardwareWatchdog.from_env(
-        health_check=lambda: bridge.threads_healthy() if hasattr(bridge, "threads_healthy") else True
-    )
     try:
+        # Opt-in watchdog env config is validated with the other onboard config so an
+        # invalid value fails closed (rc 2, clean message) instead of a raw traceback.
+        hw_watchdog = HardwareWatchdog.from_env(
+            health_check=lambda: bridge.threads_healthy() if hasattr(bridge, "threads_healthy") else True
+        )
         fc_port, fc_baud, gcs_port, gcs_baud = _resolve_ports_and_bauds(cfg)
         key, mgmt_key, token, allowlist = _validate_onboard(
             cfg, resolved_fc_port=fc_port, resolved_gcs_port=gcs_port
