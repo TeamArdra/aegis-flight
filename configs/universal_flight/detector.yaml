@@ -6,6 +6,8 @@
 features:
   learn_baro_offset: true
   baro_offset_alpha: 0.05
+  # |dv|/dt over at least 0.15 s: netem reorder/jitter delivered velocity samples ms apart (45-57 m/s2 ConstDet spikes).
+  accel_min_dt_s: 0.15
 protocol:
   auto_rate_baseline: true
   max_msg_rate_hz: 2000.0
