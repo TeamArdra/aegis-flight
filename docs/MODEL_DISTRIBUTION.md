@@ -77,10 +77,13 @@ gh release create models-v1 models/isoforest.joblib models/isoforest_px4.joblib 
 python scripts/fetch_models.py               # from a fresh clone: must verify
 ```
 
-CI does not fetch models.
+`ci-python` runs `python scripts/fetch_models.py` before pytest (a missing file or hash mismatch fails the job) and sets
+`AEGIS_REQUIRE_MODEL=1`, which turns every model-missing skip of the model-dependent tests (golden ML-on, the fused-GPS ML
+limitation test, extended-benchmark session 51, the fast-IsolationForest check on the repository model) into a failure.
+Local runs without the model still skip, with the reason in `pytest -r s`.
 
 ## Limits
 
-- The unit tests drive the fetch path with `file://` fixtures only (no network in CI). The live `models-v1`
+- The unit tests drive the fetch path with `file://` fixtures only (no network in the unit tests; the CI fetch step is the live check). The live `models-v1`
   download was verified separately: both assets matched the manifest hashes above.
-- Without the model the 9 model-dependent tests still skip on a clean clone.
+- Without the model the model-dependent tests still skip on a clean clone unless `AEGIS_REQUIRE_MODEL=1` is set (CI sets it).
