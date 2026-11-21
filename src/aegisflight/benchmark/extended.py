@@ -146,7 +146,8 @@ def _run_one(args: tuple[dict, str | None]) -> dict:
             "time_to_detect_s": res.time_to_detect_s,
             "compute_ms_mean": float(np.mean(res.compute_latency_ms)),
             "compute_ms_p95": float(np.percentile(res.compute_latency_ms, 95)),
-            "n_messages": res.n_messages, "wall_s": res.wall_time_s}
+            "n_messages": res.n_messages, "wall_s": res.wall_time_s,
+            "ml_loaded": res.ml_loaded, "ml_sha256": res.ml_sha256}
 
 
 # --------------------------------------------------------------------------- #
@@ -297,9 +298,16 @@ def run_extended(out_dir: str | Path = "artifacts/benchmarks_extended",
     with ProcessPoolExecutor(max_workers=workers) as ex:
         sessions = list(ex.map(_run_one, [(asdict(s), model_path) for s in specs]))
     result = summarise(sessions)
+    # what the pipelines actually loaded, not what was requested (same semantics as benchmark.harness)
+    hashes = {s["ml_sha256"] for s in sessions}
+    model_used = bool(sessions) and all(s["ml_loaded"] for s in sessions) and len(hashes) == 1 and None not in hashes
+    if model_path and not model_used:
+        logging.getLogger(__name__).warning(
+            "extended benchmark asked for ML (%s) but no model was loaded: ML was OFF", model_path)
     result["config"] = {"grid": dict(grid_kw) or "defaults",
                         "modes": MODES, "combos": COMBOS, "link_stress": LINK_STRESS,
-                        "known_gap_modes": sorted(KNOWN_GAP_MODES), "model_used": bool(model_path),
+                        "known_gap_modes": sorted(KNOWN_GAP_MODES), "model_used": model_used,
+                        "model_sha256": next(iter(hashes)) if model_used else "none",
                         "python": platform.python_version(), "workers": workers,
                         "wall_time_s": round(time.perf_counter() - t0, 1)}
     (out / "results.json").write_text(json.dumps(result, indent=2, default=_json), encoding="utf-8")

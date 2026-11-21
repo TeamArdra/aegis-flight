@@ -105,6 +105,29 @@ Nothing is tuned against v2: production thresholds and the committed model are u
 After adding v2 the baseline grid was re-run and reproduced **bit-identically**
 (same TP/FP/TN/FN, confusion matrix, per-attack metrics and latencies).
 
+## Link-stress sweep (`scripts/sweep_link_stress.py`, SIM)
+
+Benign sessions only: loss {0, 1, 2, 5, 10} % x {FIFO, reorder} x {ML off, ML on} x {Stage-1, `configs/px4_sitl`,
+`configs/ardupilot_copter`} (px4 cells are reported `n/a`, see below), 6 sessions per cell by default (issue #27 item 2; the tool, not a result). The full grid is
+one command on a clean, committed tree; `--allow-dirty` stamps the output NOT-REPRODUCIBLE (#25):
+
+```bash
+python scripts/sweep_link_stress.py --out artifacts/validation/final_<tag>/link_stress --workers 4
+```
+
+Flags select subsets (`--loss`, `--ordering`, `--ml`, `--profiles`, `--sessions`, `--seed`, `--duration-s`). Default `--out`
+is a temporary directory. Outputs: `decisions.csv.gz` (per-decision raw evidence, so the firing rule is attributable),
+`cell_summary.csv`, `sweep_table.md` (decision FPR, alert events/h, dominant evidence per cell, with the definitions) and
+`run_manifest.json`. An *alert event* is a maximal run of consecutive alarm decisions inside one session.
+
+Per profile: Stage-1 ML-on uses `models/isoforest.joblib`. **Every px4 cell is `n/a` and is never executed**: the
+`px4_sitl` profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s) and the simulator emits sysid 1 at ~28 msg/s, so
+"rogue telemetry source" would fire on every decision and the cell would measure the mismatch, not the profile; measure it
+on PX4 SITL replays (#27 items 3-4). ArduPilot ML-off runs on simulator traffic; ArduPilot ML-on is `n/a` (no ArduPilot
+model, the Stage-1 model does not transfer) unless `--model-ardupilot` is given. The `n/a` reasons are in `cell_summary.csv`,
+`sweep_table.md` and the manifest's `na_cells`. Models are gitignored. A smoke run is not evidence; evidence comes from the
+freeze-tag run.
+
 ## Stage 2 metrics
 
 `python scripts/make_stage2_metrics.py --tag <date>` reads committed artifacts only and writes
