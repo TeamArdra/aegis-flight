@@ -205,6 +205,7 @@ app.add_middleware(
     allow_headers=[
         "Content-Type",
         "X-Aegis-Token",
+        "X-Aegis-Key-Id",
         "X-Aegis-Nonce",
         "X-Aegis-Timestamp",
         "X-Aegis-Signature",
