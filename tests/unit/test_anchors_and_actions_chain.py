@@ -193,6 +193,7 @@ def test_actions_chain_logs_bridge_drops_and_actuator_commands(tmp_path: Path) -
             store.log_action("ips-run-1", 12.5, "actuator", action, target, detail),
         )
     )
+    actuator.set_vehicle_dialect(3, 2)  # explicit ArduCopter dialect (no heartbeat => fail-closed)
     actuator.encode_set_mode("AUTO")
     assert len(act_events) == 1
 
