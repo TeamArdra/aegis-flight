@@ -321,6 +321,11 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         anchor_writer = AnchorWriter(store)
     else:
         run_id = "ips-bridge"
+    model_path: str | None = None
+    if args.model:
+        from ..model_integrity import resolve_model_or_exit
+
+        model_path = resolve_model_or_exit(args.model, allow_unverified=args.allow_unverified_model)
     try:  # e.g. an unreadable / corrupt / unwritable --mgmt-state: refuse to start, never run without replay state
         bridge = InlineIpsBridge(fc, gcs, config_dir=args.config_dir, mode=args.defense_mode,
                                  trusted_sysids=tuple(args.trusted_sysid) if args.trusted_sysid else None,
@@ -340,6 +345,7 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                                  unsigned_acknowledged=args.allow_unsigned and key is None and args.defense_mode == "active-ips",
                                  vehicle_filter=args.vehicle_uplink_filter, filter_override_file=args.filter_override_file,
                                  filter_lockout_failopen_s=args.filter_lockout_failopen_s,
+                                 model_path=model_path, allow_unverified_model=args.allow_unverified_model,
                                  on_alarm=lambda m: print(f"aegis ips-bridge: ALARM {m}", flush=True), archive=archive)
     except ValueError as exc:
         print(f"aegis ips-bridge: {exc}", file=sys.stderr)
@@ -598,6 +604,10 @@ def build_parser() -> argparse.ArgumentParser:
                          "here (refuses a dirty tree unless --allow-dirty; the run is then stamped NOT-REPRODUCIBLE)")
     ib.add_argument("--allow-dirty", action="store_true", help="with --run-dir: run on a dirty tree, stamped NOT-REPRODUCIBLE")
     ib.add_argument("--config-dir", default=None)
+    ib.add_argument("--model", default=None,
+                    help="optional path to hash-verified Isolation Forest model (.joblib) for ML anomaly detection")
+    ib.add_argument("--allow-unverified-model", action="store_true",
+                    help="allow loading a model not listed in MODELS.sha256 (unsafe; for local dev only)")
     ib.add_argument("--db", default=None, help="log alerts to this SQLite hash-chain store")
     ib.add_argument("--seconds", type=float, default=None, help="run time (default: until Ctrl-C)")
     ib.add_argument("--status-interval", type=float, default=5.0)

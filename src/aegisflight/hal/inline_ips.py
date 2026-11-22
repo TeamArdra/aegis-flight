@@ -58,6 +58,9 @@ from ..mitigation.actuator import MavlinkActuator
 from ..mitigation.controller import MitigationController
 from ..mitigation.inline_policy import _COMMAND_MSGIDS, CONTROL_MSGIDS, InlinePolicy
 from ..mitigation.types import DefenseMode
+from ..model_integrity import MISSING as _MODEL_MISSING
+from ..model_integrity import OK as _MODEL_OK
+from ..model_integrity import check_model as _check_model
 from ..pipeline import IDSPipeline
 from ..proxy.hooks import FrameContext
 from ..proxy.transport import split_frames
@@ -161,6 +164,8 @@ class InlineIpsBridge:
         fail_closed_uplink_commands: bool = True,
         semantic_firewall_enabled: bool = True,
         actuator_ts_state_path: str | None = None,
+        model_path: str | None = None,
+        allow_unverified_model: bool = False,
     ) -> None:
         self.fc, self.gcs = fc, gcs
         self._mgmt_in_passive = bool(mgmt_enable)
@@ -184,11 +189,20 @@ class InlineIpsBridge:
         proto = self.cfg.detector.get("protocol", {})
         if proto.get("auto_rate_baseline") is None:  # unset = auto: on for a live link
             proto["auto_rate_baseline"] = True
-        # ML is simulation-only. A real firmware directory (files + manifest from `aegis fw-manifest`) is re-hashed every
-        # firmware_recheck_s; without one the integrity verdict stays UNKNOWN (nothing is checked)
+        if model_path is not None:
+            chk = _check_model(model_path)
+            if chk.status == _MODEL_MISSING or (chk.status != _MODEL_OK and not allow_unverified_model):
+                raise ValueError(f"ML model check failed ({chk.status}): {chk.message()}")
         recheck = max(1, int(firmware_recheck_s * float(self.cfg.detector.get("decision_rate_hz", 5.0))))
-        self.pipeline = IDSPipeline(self.cfg, model_path=None, firmware_dir=firmware_dir, firmware_real=firmware_dir is not None,
-                                    firmware_recheck_every=recheck, firmware_allowlist=firmware_allowlist)
+        self.pipeline = IDSPipeline(
+            self.cfg,
+            model_path=model_path,
+            firmware_dir=firmware_dir,
+            firmware_real=firmware_dir is not None,
+            firmware_recheck_every=recheck,
+            firmware_allowlist=firmware_allowlist,
+            allow_unverified_model=allow_unverified_model,
+        )
         self.firmware_allowlist = firmware_allowlist
         self.anchor_writer = anchor_writer
         self.fail_closed_uplink_commands = bool(fail_closed_uplink_commands)
