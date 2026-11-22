@@ -207,6 +207,9 @@ jobs:
         if: always() && steps.dedupe.outputs.skip != 'true' && steps.automation.outcome == 'success'
         env:
           RESULT: ${{ steps.review.outputs.structured_output }}
+          # Path to the action's execution log: lets the record say WHY no result came back
+          # (e.g. a usage limit before any model call; issue #119). Read as a file only.
+          EXECUTION_FILE: ${{ steps.review.outputs.execution_file }}
           OUTCOME: ${{ steps.review.outcome }}
           MODEL: ${{ steps.cfg.outputs.model }}
           MODE: ${{ steps.cfg.outputs.mode }}

@@ -514,6 +514,69 @@ def validate_record(record: Any) -> list[str]:
 
 
 # ---------------------------------------------------------------------------------------
+# Run diagnosis (issue #119): WHY a review produced no structured output.
+# Explanatory only: it never changes the verdict, the status or the record's validity.
+# ---------------------------------------------------------------------------------------
+# Credential-looking strings: Anthropic keys/OAuth tokens, bearer values, long opaque runs.
+_TOKENISH = re.compile(r"sk-ant-[A-Za-z0-9_\-]+|(?i:bearer)\s+\S+|[A-Za-z0-9_\-+/=]{32,}")
+
+
+def _redact(text: str) -> str:
+    return _TOKENISH.sub("[redacted]", text)
+
+
+def diagnose_execution(events: Any) -> tuple[str, str]:
+    """Classify the claude-code-action execution log (a list of SDK messages).
+
+    Returns (kind, detail) with kind one of: ok, api_error (the CLI failed before any model
+    call, e.g. a usage limit or a rejected credential), max_turns, run_error,
+    no_structured_output, no_result, unreadable. The CLI's own error text is echoed only for
+    api_error, where no model ran, so model-authored text never reaches the log.
+    """
+    if not isinstance(events, list):
+        return "unreadable", "the execution log is not a list of messages"
+    results = [e for e in events if isinstance(e, dict) and e.get("type") == "result"]
+    if not results:
+        return "no_result", "the CLI emitted no result message"
+    r = results[-1]
+    if r.get("structured_output") is not None:
+        return "ok", ""
+    turns = _int(r.get("num_turns"))
+    turns_text = f"{turns} turns" if turns is not None else "an unknown number of turns"
+    if str(r.get("subtype", "")).startswith("error_max_turns"):
+        return "max_turns", f"the review stopped at the turn limit after {turns_text}"
+    cost = r.get("total_cost_usd")
+    model_ran = bool(r.get("modelUsage")) or (isinstance(cost, (int, float)) and cost > 0)
+    if r.get("is_error") is True and not model_ran:
+        cli_text = safe_text(_redact(str(r.get("result") or "")), 160).strip()
+        detail = "the Claude CLI failed before any model call (no tokens used)"
+        return "api_error", f"{detail}: {cli_text}" if cli_text else detail
+    if r.get("is_error") is True:
+        return "run_error", f"the Claude CLI reported an error after {turns_text}"
+    return "no_structured_output", f"the model ran {turns_text} but returned no structured output"
+
+
+def diagnose_file(path: Path) -> tuple[str, str]:
+    """diagnose_execution() on a JSON-array or JSON-lines execution log; never raises."""
+    # ValueError covers UnicodeDecodeError and JSON errors; RecursionError a pathologically
+    # nested log. The build step must still write its (fail-closed) record.
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return "unreadable", "no execution log"
+    except ValueError:
+        return "unreadable", "the execution log is not UTF-8 text"
+    try:
+        return diagnose_execution(json.loads(text))
+    except (ValueError, RecursionError):
+        pass
+    try:
+        return diagnose_execution([json.loads(line) for line in text.splitlines() if line.strip()])
+    except (ValueError, RecursionError):
+        return "unreadable", "the execution log is not valid JSON"
+
+
+# ---------------------------------------------------------------------------------------
 # CLI (runs inside the review workflow)
 # ---------------------------------------------------------------------------------------
 def _env(name: str, default: str = "") -> str:
@@ -573,6 +636,17 @@ def cmd_build(out_dir: Path) -> int:
         return 2
     record = build_record(output_text=_env("RESULT") or None, outcome=_env("OUTCOME", "failure"),
                           meta=meta)
+    diagnosis = ""
+    if record["verdict"] in ("ERROR", "INCOMPLETE"):
+        exe = _env("EXECUTION_FILE")
+        try:
+            kind, detail = (diagnose_file(Path(exe)) if exe else
+                            ("unreadable", "no execution log; the review step was cancelled or skipped"))
+        except Exception as exc:  # explanatory only: never block writing the record
+            kind, detail = "unreadable", f"diagnosis failed ({type(exc).__name__})"
+        if kind != "ok":
+            diagnosis = safe_text(f"run diagnosis: {kind}" + (f" ({detail})" if detail else ""), 300)
+            record["problems"].append(diagnosis)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "review-record.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n",
                                                 encoding="utf-8")
@@ -587,6 +661,9 @@ def cmd_build(out_dir: Path) -> int:
     if summary:
         with open(summary, "a", encoding="utf-8") as fh:
             fh.write(_summary(record))
+    if diagnosis:
+        # safe_text removed newlines/control chars, so this is one workflow-command line.
+        print(f"::error::Automated review did not run to completion: {diagnosis}")
     print(f"review record: verdict={record['verdict']} state={state} desc={desc!r}")
     return 0
 
