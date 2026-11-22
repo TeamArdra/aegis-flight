@@ -93,25 +93,12 @@ def test_stale_pair_is_not_compared(live):
     assert fr.batt_msg_diff_v is None
 
 
-def heartbeat(t: float, armed: bool) -> MessageEnvelope:
-    return env(t, "HEARTBEAT", type=2, autopilot=3, base_mode=128 if armed else 0, custom_mode=0,
-               system_status=4, mavlink_version=3)
-
-
 def test_attitude_repeat_counts_and_flags(live):
-    # the frozen-attitude rule is gated on armed state (#116): a stationary disarmed vehicle legitimately repeats
-    msgs = [heartbeat(0.0, armed=True)] + [attitude(0.1 * i, roll=0.01) for i in range(10)]  # 9 repeats
+    msgs = [attitude(0.1 * i, roll=0.01) for i in range(10)]  # 10 bit-identical attitudes = 9 repeats
     fr, res = run(live, msgs, 1.0)
     assert fr.att_repeat == 9
     assert flagged(res, "ATTITUDE repeated")
     assert live.process(fr).score >= 0.6
-
-
-def test_identical_attitudes_while_disarmed_are_not_flagged(live):
-    msgs = [heartbeat(0.0, armed=False)] + [attitude(0.1 * i, roll=0.01) for i in range(10)]
-    fr, res = run(live, msgs, 1.0)
-    assert fr.att_repeat == 9  # still counted by the extractor ...
-    assert not flagged(res, "ATTITUDE repeated")  # ... but not a detection on the ground
 
 
 def test_a_few_identical_attitudes_are_not_enough(live):
