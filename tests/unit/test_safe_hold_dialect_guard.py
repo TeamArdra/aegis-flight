@@ -53,8 +53,10 @@ class Rig:
             self.t = round(self.t + 0.2, 6)
 
 
-# PX4 flight-mode names as decoded by sources.mavlink_live.decode_px4_mode.
-PX4_MODES = ["POSCTL", "ALTCTL", "AUTO/MISSION", "AUTO/LOITER", "OFFBOARD", "STABILIZED", "MANUAL"]
+# PX4 flight-mode names as decoded by sources.mavlink_live.decode_px4_mode, plus names that are not
+# ArduCopter modes at all: unknown/blank/padded strings must also never unlock the ArduCopter command.
+PX4_MODES = ["POSCTL", "ALTCTL", "AUTO/MISSION", "AUTO/LOITER", "OFFBOARD", "STABILIZED", "MANUAL",
+             "ACRO", "RATTITUDE", "MAIN_9", "UNKNOWN", "", " RTL", "RTL "]
 
 
 @pytest.mark.parametrize("attack_mode", PX4_MODES)
@@ -81,9 +83,11 @@ def test_copter_safe_hold_needs_a_known_armed_vehicle(armed):
     assert "ALT_HOLD" not in r.set_modes
 
 
-def test_copter_safe_hold_still_engages_alt_hold_when_armed():
-    """The ArduCopter behaviour the SAFE_HOLD escalation was built for is preserved."""
+@pytest.mark.parametrize("attack_mode", ["RTL", "rtl"])
+def test_copter_safe_hold_still_engages_alt_hold_when_armed(attack_mode):
+    """The ArduCopter behaviour the SAFE_HOLD escalation was built for is preserved (the actuator
+    matches mode names case-insensitively, so a lower-case report behaves the same)."""
     r = Rig(AttackSubMode.CMD_MODE_FLIP)
     r.run(5, AttackType.BENIGN, "LOITER", True)
-    r.run(40, AttackType.COMMAND_INJECTION, "RTL", True)
+    r.run(40, AttackType.COMMAND_INJECTION, attack_mode, True)
     assert "ALT_HOLD" in r.set_modes
