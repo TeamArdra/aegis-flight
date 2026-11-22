@@ -15,7 +15,8 @@ summaries and the per-run JSON in this directory; nothing is hand-edited.
 | AegisFlight tree, `p2_attacks/` and `signed_ips/sig_*`, `gnss_active` | local merge `2b9eab3` (this branch + #111 reorder window 48); local commit, not on a remote |
 | AegisFlight tree, `gnss_fix_active`, `gnss_mc_*` | local `375b2ab` = `2b9eab3` + the sub-mode classifier fix (branch `fix/px4-gnss-loss-submode`) |
 | Detector profile | `configs/px4_sitl` (trial batch), `configs/universal_flight` (bridge runs) |
-| ML model | none in the bridge (`aegis onboard` has no model option); trial batch used the PX4 profile |
+| ML model | none in the bridge (`aegis onboard` has no model option). The `p2_attacks/` trial batch ran with ML **on**, using the PX4-profile model `models/isoforest_px4.joblib` (sha256 `df540999dc6b43c3981d6ac6ecb91369b56ce1ba8cfdb894b76b195951260c7c`, not the Stage-1 `isoforest.joblib`), per `run_provenance` and `parameters.model_choice` in the 22 drift/delay/drop/gnss/gcsimp/replayv2/sign manifests. The older top-level `full_provenance.model_sha256` field in those same manifests reads `3fe74cdd...` (the Stage-1 model); it disagrees with `run_provenance` and was not corrected here. The 10 telemetry manifests record no model. |
+| Reproducibility caveat | The manifests carry `status: REPRODUCIBLE` and cite commits `2b9eab3` and `375b2ab`. Neither commit exists on any remote (`git cat-file -e` fails after `git fetch origin`, 2026-11-22), so a third party cannot check out the tree these runs used. Treat the status as unverified until those commits are pushed. |
 
 ## 1. Attack trials against PX4 (link-level detection, `p2_attacks/`)
 
@@ -25,10 +26,10 @@ boot per trial. Summaries were generated with `scripts/sitl/make_p2*_summary.py`
 
 | attack | trials | result (claim class: link-level detection unless noted) |
 |---|---|---|
-| gradual `GLOBAL_POSITION_INT` drift (downlink only) | 5 | `GPS_SPOOFING` raised in 5/5, 0 false alarms in 953 pre-onset decisions. PX4 never sees the modified frames. |
+| gradual `GLOBAL_POSITION_INT` drift (downlink only) | 5 | `GPS_SPOOFING` raised in 5/5, 0 false alarms in 953 pre-onset decisions. The decision fires at or after the attack window closes (0.22 to 0.66 s after the drift ends, `P2_drift_summary.md`): it is detection of the completed drift, not an alarm raised while the drift is in progress. PX4 never sees the modified frames. |
 | GNSS fix loss (`fix_type 0`, 2 sats, downlink only) | 3 | detected 3/3, 0/480 pre-onset false alarms, median latency 1.35 s |
 | GPS dropout (frames dropped) | 3 | detected 3/3, 0/599 pre-onset false alarms, median latency 2.30 s |
-| downlink delay | 3 | detected 3/3, 0/575 pre-onset false alarms, median latency 9.33 s (as `DOS` message-rate evidence) |
+| downlink delay | 3 | detected 3/3, 0/575 pre-onset false alarms, median latency 9.33 s (range 7.07 to 11.49 s from onset). Every detection is `DOS` message-rate-spike evidence (e.g. 724 msg/s against a 529 msg/s threshold), not a delay detector. Latency minus the delay-window duration (`P2_delay_summary.md`) is 0.63 to 0.97 s, so the spike appears only after the window closes (the 7 to 11 s latency is mostly the attack's own duration). |
 | replay of a legitimate unsigned force-disarm | 3 | PX4 accepted original and replay 3/3 (command-path effect); IDS sequence-gap detection 3/3 |
 | informed expected-GCS impersonation (forged force-disarm) | 3 | **PX4 accepted the forged command 3/3; the IDS raised no threat decision 0/3** |
 | telemetry (altitude bias, speed mismatch, battery jump, frozen attitude, firmware identity) | 2 each | threat decisions: altitude bias 1, battery jump 8, speed mismatch 0, frozen attitude 0, firmware identity 0 (no per-scenario scoring window; counts only) |
