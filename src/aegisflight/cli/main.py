@@ -605,9 +605,11 @@ def build_parser() -> argparse.ArgumentParser:
     ib.add_argument("--allow-dirty", action="store_true", help="with --run-dir: run on a dirty tree, stamped NOT-REPRODUCIBLE")
     ib.add_argument("--config-dir", default=None)
     ib.add_argument("--model", default=None,
-                    help="optional path to hash-verified Isolation Forest model (.joblib) for ML anomaly detection")
+                    help="optional path to hash-verified Isolation Forest model (.joblib) for ML anomaly detection "
+                         "(live/SITL drift evidence pending)")
     ib.add_argument("--allow-unverified-model", action="store_true",
-                    help="allow loading a model not listed in MODELS.sha256 (unsafe; for local dev only)")
+                    help="allow loading a model not listed in MODELS.sha256 (unsafe; local dev only, "
+                         "live/SITL drift evidence pending)")
     ib.add_argument("--db", default=None, help="log alerts to this SQLite hash-chain store")
     ib.add_argument("--seconds", type=float, default=None, help="run time (default: until Ctrl-C)")
     ib.add_argument("--status-interval", type=float, default=5.0)

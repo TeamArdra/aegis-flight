@@ -124,3 +124,21 @@ def test_bridge_cli_model_flag_and_fail_closed(tmp_path: Path) -> None:
     with pytest.raises(SystemExit) as exc_info:
         args.func(args)
     assert exc_info.value.code == 2
+
+
+def test_bridge_ml_model_corrupt_or_unloadable_fails_closed(tmp_path: Path) -> None:
+    model_file = _write_verified_model(tmp_path)
+    with patch("joblib.load", side_effect=RuntimeError("corrupt pickle")):
+        with pytest.raises(ValueError, match="ML model failed to load"):
+            InlineIpsBridge(_StubTransport(), _StubTransport(), model_path=str(model_file))
+
+    unlisted = tmp_path / "unlisted_corrupt.joblib"
+    unlisted.write_bytes(b"not-a-valid-joblib")
+    with patch("joblib.load", side_effect=RuntimeError("corrupt pickle")):
+        with pytest.raises(ValueError, match="ML model failed to load"):
+            InlineIpsBridge(
+                _StubTransport(),
+                _StubTransport(),
+                model_path=str(unlisted),
+                allow_unverified_model=True,
+            )

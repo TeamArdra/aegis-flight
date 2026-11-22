@@ -203,6 +203,10 @@ class InlineIpsBridge:
             firmware_allowlist=firmware_allowlist,
             allow_unverified_model=allow_unverified_model,
         )
+        if model_path is not None and self.pipeline.anomaly.bundle is None:
+            raise ValueError(
+                f"ML model failed to load: {self.pipeline.anomaly.load_error or 'unknown error'}"
+            )
         self.firmware_allowlist = firmware_allowlist
         self.anchor_writer = anchor_writer
         self.fail_closed_uplink_commands = bool(fail_closed_uplink_commands)
