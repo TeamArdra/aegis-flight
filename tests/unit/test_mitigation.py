@@ -312,6 +312,11 @@ def test_gnss_fix_loss_on_a_high_rate_link_is_not_a_flood():
         evidence=["GNSS fix lost: fix_type=0", "packet flood msg_rate=370Hz"],
     )
     assert clf.classify(frame, both) == AttackSubMode.DOS_FLOOD
+    spike = _make_dummy_assessment(
+        threat=True, attack_type=AttackType.DOS,
+        evidence=["message-rate spike: 724 msg/s > 1×nominal (529)", "GNSS fix lost: fix_type=0, satellites=2"],
+    )
+    assert clf.classify(_make_dummy_frame(_make_dummy_snapshot(), msg_rate=724.0), spike) == AttackSubMode.DOS_FLOOD
 
 
 # --- 9. Firmware Integrity Ground Disarm vs In-Flight Takeover ---
