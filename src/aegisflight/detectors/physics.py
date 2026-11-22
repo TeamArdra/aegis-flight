@@ -147,6 +147,7 @@ class PhysicsDetector(Detector):
         self.control_semantics_enabled = bool(p.get("control_semantics_enabled", False))
         self.control_accel_thresh_ms2 = float(p.get("control_accel_residual_ms2", 4.5))
         self.optflow_speed_diff_ms = float(p.get("optflow_gps_speed_diff_ms", 4.0))
+        self.pos_residual_min_streak = max(1, int(p.get("pos_residual_min_streak", 1)))
         self._init_sample_guards()
 
     def _init_sample_guards(self) -> None:
@@ -157,6 +158,7 @@ class PhysicsDetector(Detector):
         self._last_alt_t: float | None = None
         self._pos_valid_samples = 0
         self._last_pos_t: float | None = None
+        self._pos_resid_streak: int = 0
 
     @staticmethod
     def _advance_sample(count: int, last_t: float | None, t: float) -> tuple[int, float]:
@@ -507,6 +509,12 @@ class PhysicsDetector(Detector):
 
     def _residual_rule(self, pr: float, bump: Callable[..., None], evidence: list[str]) -> None:
         """The Stage-1 position-residual thresholds (soft / hard), unchanged."""
+        if pr <= self.pos_resid:
+            self._pos_resid_streak = 0
+            return
+        self._pos_resid_streak += 1
+        if self._pos_resid_streak < self.pos_residual_min_streak:
+            return
         if pr >= self.pos_resid_hard:
             bump(AttackType.GPS_SPOOFING, 1.0, hard_hit=True)
             evidence.append(f"position residual {pr:.1f} m ≥ hard {self.pos_resid_hard:.0f} m")

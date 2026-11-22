@@ -32,6 +32,8 @@ physics:
   # (SITL wind 12 m/s, turb 4, netem 40+-20 ms jitter) benign disagreement reached 11-15 deg, 10 alerts in 30 min.
   # Costs sensitivity to forged heading offsets below 20 deg. Calibrated on that one SITL condition only.
   heading_yaw_tolerance_deg: 20.0
+  # Require 3 consecutive frames > pos_resid (12 m) to suppress brief benign residual spikes (e.g. mode transitions).
+  pos_residual_min_streak: 3
   battery_rise_v: 1.05
 anomaly:
   enabled: false
