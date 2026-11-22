@@ -34,7 +34,8 @@ class MavlinkActuator:
     Only ArduCopter (autopilot 3 with a multicopter/heli ``mav_type``) is enabled for DO_SET_MODE actuation: the
     bridge has been verified on ArduCopter SITL only. The PX4/Plane/Rover/VTOL mapping tables are kept, but
     ``ALLOW_NON_COPTER_DIALECTS`` is False, so every other (or unknown) dialect is refused and audit-logged until a
-    maintainer-approved hardware qualification enables it.
+    maintainer-approved hardware qualification enables it. The dialect starts UNKNOWN: until a vehicle HEARTBEAT
+    has been observed (``set_vehicle_dialect``) no DO_SET_MODE is encoded (fail-closed).
     """
 
     # Frozen safety interlock: flipping this is a maintainer decision (see docs/HARDWARE_FLIGHT_READINESS.md).
@@ -48,8 +49,8 @@ class MavlinkActuator:
         link_id: int = 0,
         on_action: Callable[[str, str, str], None] | None = None,
         *,
-        autopilot_id: int | None = 3,
-        mav_type: int | None = 2,
+        autopilot_id: int | None = None,
+        mav_type: int | None = None,
         ts_state_path: str | Path | None = None,
     ) -> None:
         self.sysid = sysid
@@ -115,11 +116,12 @@ class MavlinkActuator:
         if key in self._refused_dialects:
             return
         self._refused_dialects.add(key)
+        no_hb = " [no vehicle HEARTBEAT has fixed the dialect yet: fail-closed]" if self.autopilot_id is None else ""
         self._emit_action(
             "refuse_set_mode",
             what,
             f"DO_SET_MODE refused: autopilot={self.autopilot_id} mav_type={self.mav_type} is not an enabled "
-            "ArduCopter dialect (non-Copter actuation is disabled)",
+            f"ArduCopter dialect (non-Copter actuation is disabled){no_hb}",
         )
 
     def _emit_action(self, action: str, target: str, detail: str) -> None:
