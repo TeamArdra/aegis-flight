@@ -5,7 +5,7 @@ from __future__ import annotations
 from aegisflight.config import load_config
 from aegisflight.core.enums import AttackType
 from aegisflight.core.types import TelemetrySnapshot
-from aegisflight.detectors.integrity import IntegrityDetector, IntegrityStatus
+from aegisflight.detectors.integrity import IntegrityDetector
 from aegisflight.detectors.physics import PhysicsDetector
 from aegisflight.features.extractor import FeatureFrame
 from aegisflight.integrity.allowlist import FirmwareAllowlist, FirmwareEntry
