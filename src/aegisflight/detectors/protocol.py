@@ -472,7 +472,7 @@ class ProtocolDetector(Detector):
                 if c.command == 400 and (not c.params or c.params[0] == 0.0):
                     is_force_disarm = len(c.params) >= 2 and c.params[1] == 21196.0
                     airborne = (snap.groundspeed or 0.0) > 1.0 or (snap.rel_alt or 0.0) > 0.5
-                    if snap.armed and (airborne or is_force_disarm):
+                    if snap.armed and (is_force_disarm or (self.cadence_guard_enabled and airborne)):
                         bump(AttackType.COMMAND_INJECTION, 0.95)
                         reason = "force-disarm (param2=21196)" if is_force_disarm else "mid-air motor disarm"
                         evidence.append(

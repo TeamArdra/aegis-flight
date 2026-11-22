@@ -67,7 +67,7 @@ def test_armed_force_disarm_at_zero_alt_triggers_alert() -> None:
 
 
 def test_hovering_normal_disarm_triggers_alert() -> None:
-    detector = ProtocolDetector({})
+    detector = ProtocolDetector({"cadence_guard_enabled": True})
     frame = _make_frame(
         armed=True,
         groundspeed=0.0,
@@ -82,7 +82,7 @@ def test_hovering_normal_disarm_triggers_alert() -> None:
 
 
 def test_ground_normal_disarm_does_not_trigger_alert() -> None:
-    detector = ProtocolDetector({})
+    detector = ProtocolDetector({"cadence_guard_enabled": True})
     frame = _make_frame(
         armed=True,
         groundspeed=0.0,
