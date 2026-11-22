@@ -88,6 +88,78 @@ CARRIER_SYSID, CARRIER_COMPID = 253, 192  # inert, always-unsigned -- delivery o
 IDS_SYSID, IDS_COMPID = 254, 191
 ONSET_S, BURST_COUNT, GAP_S = 8.0, 2, 1.5
 TAIL_S = 5.0
+MAV_MODE_FLAG_SAFETY_ARMED = 128
+
+
+class SigningProvisioningError(RuntimeError):
+    """Raised when PX4-side MAVLink 2 signing provisioning fails (fail-closed)."""
+
+
+def provision_px4_signing(
+    gcs: UdpMavlinkTransport,
+    target_sysid: int,
+    target_compid: int,
+    secret_key: bytes,
+    *,
+    initial_timestamp: int = 1000,
+    verify_timeout_s: float = 5.0,
+    record_fn: object | None = None,
+    is_armed: bool | None = None,
+) -> dict[str, object]:
+    """Provision PX4-side MAVLink 2 signing while disarmed and verify signed downlink.
+
+    Fail-closed: raises :class:`SigningProvisioningError` if the vehicle is armed,
+    ``SETUP_SIGNING`` fails to send, or no validly signed frame is received from
+    ``target_sysid`` within ``verify_timeout_s``. Never logs or returns key bytes.
+    """
+    if len(secret_key) != 32:
+        raise SigningProvisioningError("secret_key must be exactly 32 bytes")
+    if is_armed is True:
+        raise SigningProvisioningError("Cannot provision SETUP_SIGNING while vehicle is armed")
+
+    sent, seq = send_setup_signing(
+        gcs, target_sysid, target_compid, secret_key, initial_timestamp=initial_timestamp
+    )
+    if callable(record_fn):
+        record_fn("setup_signing_sent", sent=sent, seq=seq)
+    if not sent:
+        raise SigningProvisioningError("Failed to send SETUP_SIGNING frame")
+
+    gcs.enable_signing(secret_key, initial_timestamp=initial_timestamp)
+    if callable(record_fn):
+        record_fn("gcs_signing_enabled")
+
+    parser = MavlinkFrameParser(secret_key=secret_key)
+    deadline = time.monotonic() + verify_timeout_s
+    while time.monotonic() < deadline:
+        frames = gcs.poll()
+        if not frames:
+            time.sleep(0.02)
+            continue
+        now = time.monotonic()
+        for _, raw in frames:
+            for env in parser.parse(raw, now):
+                if (
+                    env.msgname == "HEARTBEAT"
+                    and env.sysid == target_sysid
+                    and (int(env.fields.get("base_mode", 0)) & MAV_MODE_FLAG_SAFETY_ARMED)
+                ):
+                    raise SigningProvisioningError(
+                        "Vehicle is armed; PX4 rejects SETUP_SIGNING while armed"
+                    )
+                if env.signed and env.sysid == target_sysid:
+                    info: dict[str, object] = {
+                        "verified": True,
+                        "msgname": env.msgname,
+                        "src_sysid": env.sysid,
+                    }
+                    if callable(record_fn):
+                        record_fn("px4_signing_verified", **info)
+                    return info
+
+    raise SigningProvisioningError(
+        f"Timed out after {verify_timeout_s:.1f}s waiting for signed frame from sysid {target_sysid}"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -163,11 +235,25 @@ def main(argv: list[str] | None = None) -> int:
     carrier.start()
     time.sleep(1.0)
 
-    sent, seq = send_setup_signing(gcs, PX4_VEHICLE_SYSID, PX4_VEHICLE_COMPID, secret_key, initial_timestamp=1000)
-    record("setup_signing_sent", sent=sent, seq=seq)
-    time.sleep(1.0)  # let PX4 process + broadcast its STATUSTEXT before anything else happens
-    gcs.enable_signing(secret_key, initial_timestamp=1000)
-    record("gcs_signing_enabled")
+    try:
+        provision_px4_signing(
+            gcs,
+            PX4_VEHICLE_SYSID,
+            PX4_VEHICLE_COMPID,
+            secret_key,
+            initial_timestamp=1000,
+            verify_timeout_s=5.0,
+            record_fn=record,
+        )
+    except SigningProvisioningError as exc:
+        record("px4_signing_provisioning_failed", reason=str(exc))
+        gcs.close()
+        carrier.close()
+        ids_transport.close()
+        relay.close()
+        frame_log.close()
+        print(f"ERROR: PX4 signing provisioning failed: {exc}", file=sys.stderr)
+        return 2
 
     # The GCS's own heartbeat loop starts only AFTER signing is enabled, so every heartbeat
     # this trial ever sends from the legitimate identity is genuinely signed, not a mix.
