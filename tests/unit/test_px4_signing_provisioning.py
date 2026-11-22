@@ -16,7 +16,12 @@ _SITL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "sitl"
 if str(_SITL_DIR) not in sys.path:
     sys.path.insert(0, str(_SITL_DIR))
 
-from run_p4_signing_trial import SigningProvisioningError, provision_px4_signing  # noqa: E402
+from run_p4_signing_trial import (  # noqa: E402
+    SigningProvisioningError,
+    observe_vehicle_armed_state,
+    provision_px4_signing,
+    require_disarmed,
+)
 
 
 def _make_signed_heartbeat(
@@ -153,3 +158,84 @@ def test_zero_key_byte_leakage_in_logs() -> None:
     assert secret_key.hex() not in serialized
     assert base64.b64encode(secret_key).decode("ascii") not in serialized
     assert repr(secret_key) not in serialized
+
+
+# --- MAC verification (the header bit alone is attacker-controlled) -------------------------
+
+
+def test_wrong_key_signed_heartbeat_is_not_verified() -> None:
+    """A HEARTBEAT that claims a signature but carries a MAC from another key must not verify."""
+    good_key = hashlib.sha256(b"unit-test-signing-key-good").digest()
+    wrong_key = hashlib.sha256(b"unit-test-signing-key-wrong").digest()
+    forged = _make_signed_heartbeat(wrong_key, sysid=1, compid=1, armed=False, sign=True)
+    gcs = _FakeGcsTransport(send_ok=True, rx_frames=[forged])
+    events: list[dict] = []
+
+    def record(event: str, **fields: object) -> None:
+        events.append({"event": event, **fields})
+
+    with pytest.raises(SigningProvisioningError, match="Timed out"):
+        provision_px4_signing(gcs, 1, 1, good_key, verify_timeout_s=0.2, record_fn=record, is_armed=False)
+
+    assert "px4_signing_verified" not in [e["event"] for e in events]
+
+
+def test_wrong_key_frame_does_not_hide_behind_a_valid_neighbour_in_one_datagram() -> None:
+    """A datagram with a valid frame from sysid 2 and a wrong-key frame from sysid 1 verifies nothing for sysid 1."""
+    good_key = hashlib.sha256(b"unit-test-signing-key-good-2").digest()
+    wrong_key = hashlib.sha256(b"unit-test-signing-key-wrong-2").digest()
+    datagram = (
+        _make_signed_heartbeat(good_key, sysid=2, compid=1, sign=True)
+        + _make_signed_heartbeat(wrong_key, sysid=1, compid=1, sign=True)
+    )
+    gcs = _FakeGcsTransport(send_ok=True, rx_frames=[datagram])
+
+    with pytest.raises(SigningProvisioningError, match="Timed out"):
+        provision_px4_signing(gcs, 1, 1, good_key, verify_timeout_s=0.2, is_armed=False)
+
+
+def test_correct_key_signed_heartbeat_is_verified_with_mac_flag() -> None:
+    key = hashlib.sha256(b"unit-test-signing-key-correct").digest()
+    gcs = _FakeGcsTransport(send_ok=True, rx_frames=[_make_signed_heartbeat(key, sysid=1, compid=1)])
+
+    result = provision_px4_signing(gcs, 1, 1, key, verify_timeout_s=0.5, is_armed=False)
+
+    assert result["verified"] is True
+    assert result["mac_verified"] is True
+
+
+class _HeartbeatGcs(_FakeGcsTransport):
+    """Fake whose poll() keeps returning the same frames (a vehicle heartbeating at the GCS)."""
+
+    def __init__(self, frames: list[bytes]) -> None:
+        super().__init__(send_ok=True)
+        self._frames = frames
+
+    def poll(self) -> list[tuple[float, bytes]]:
+        return [(0.0, raw) for raw in self._frames]
+
+
+def test_observe_vehicle_armed_state_reports_armed_and_disarmed() -> None:
+    key = hashlib.sha256(b"unit-test-signing-key-armed-obs").digest()
+    armed = _HeartbeatGcs([_make_signed_heartbeat(key, sysid=1, armed=True, sign=False)])
+    disarmed = _HeartbeatGcs([_make_signed_heartbeat(key, sysid=1, armed=False, sign=False)])
+    assert observe_vehicle_armed_state(armed, 1, timeout_s=0.5) is True
+    assert observe_vehicle_armed_state(disarmed, 1, timeout_s=0.5) is False
+
+
+def test_observe_vehicle_armed_state_unknown_without_heartbeat_from_target() -> None:
+    key = hashlib.sha256(b"unit-test-signing-key-armed-unk").digest()
+    other = _HeartbeatGcs([_make_signed_heartbeat(key, sysid=9, armed=False, sign=False)])
+    assert observe_vehicle_armed_state(other, 1, timeout_s=0.1) is None
+
+
+def test_require_disarmed_fails_closed_on_armed_and_on_unknown() -> None:
+    key = hashlib.sha256(b"unit-test-signing-key-require").digest()
+    armed = _HeartbeatGcs([_make_signed_heartbeat(key, sysid=1, armed=True, sign=False)])
+    with pytest.raises(SigningProvisioningError, match="armed"):
+        require_disarmed(armed, 1, timeout_s=0.5)
+    silent = _HeartbeatGcs([])
+    with pytest.raises(SigningProvisioningError, match="unknown"):
+        require_disarmed(silent, 1, timeout_s=0.1)
+    ok = _HeartbeatGcs([_make_signed_heartbeat(key, sysid=1, armed=False, sign=False)])
+    assert require_disarmed(ok, 1, timeout_s=0.5) is False
