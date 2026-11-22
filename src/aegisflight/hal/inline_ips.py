@@ -435,8 +435,12 @@ class InlineIpsBridge:
                     self.dropped_down += 1
                 else:
                     self.dropped_up += 1
+                lbl = drop_label(fr.raw, fr.sysid, fr.msgid, direction)
                 with contextlib.suppress(Exception):
-                    self.mgmt.note_drop(drop_label(fr.raw, fr.sysid, fr.msgid, direction))
+                    self.mgmt.note_drop(lbl)
+                if self.store is not None:
+                    with contextlib.suppress(Exception):
+                        self.store.log_action(self.run_id, stamp / 1e9, "inline_ips", "drop_frame", direction, lbl)
             if policy._observed_pending:
                 with contextlib.suppress(Exception):
                     for verdict, oraw, osys, omsg in policy.take_observed():
@@ -524,10 +528,21 @@ class InlineIpsBridge:
                 # corrective commands go to the flight controller; a STATUSTEXT warning is for the pilot's GCS
                 # (the FC does not relay a STATUSTEXT it receives), so it goes to the GCS side only
                 link = self.gcs if _is_statustext(frame) else self.fc
+                target_link = "gcs" if link is self.gcs else "fc"
                 t = self._clock_ns()
                 ok = link.send(frame)
                 if self.archive is not None:
-                    self.archive.action(t, "counter_frame", "gcs" if link is self.gcs else "fc", frame, sent=bool(ok))
+                    self.archive.action(t, "counter_frame", target_link, frame, sent=bool(ok))
+                if self.store is not None:
+                    with contextlib.suppress(Exception):
+                        self.store.log_action(
+                            self.run_id,
+                            t / 1e9,
+                            "inline_ips",
+                            "counter_frame",
+                            target_link,
+                            f"bytes={len(frame)} sent={bool(ok)}",
+                        )
                 if ok:
                     self.counter_frames_sent += 1
                 else:

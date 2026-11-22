@@ -37,7 +37,7 @@ from ..config import AegisConfig, load_config
 from ..core.enums import AttackType, IntegrityStatus
 from ..core.geo import haversine_m, offset_latlon
 from ..core.gps_health import GpsHealthObserver, satellites_or_none
-from ..logging import EventStore
+from ..logging import AnchorWriter, EventStore
 from ..mitigation import DefenseMode, MitigationController, MitigationState
 from ..mitigation.types import AttackSubMode
 from ..pipeline import IDSPipeline
@@ -240,15 +240,31 @@ class LiveEngine:
         if self.is_sim:
             self.store.start_run(self._run_id, label="live-demo")
         else:
+            meta = self.spec.run_meta()
+            if getattr(self, "_firmware_allowlist", None) is not None:
+                meta["firmware_allowlist_sha256"] = self._firmware_allowlist.sha256
+                meta["firmware_allowlist_signed"] = self._firmware_allowlist.signed
             self.store.start_run(self._run_id, label=f"{self.spec.environment.lower()}-{self.spec.kind}",
-                                 meta=self.spec.run_meta())
+                                 meta=meta)
 
     def _build(self) -> None:
         crossend = None
+        self._firmware_allowlist = None
         if not self.is_sim:  # inert until a bridge summary is seen; never used for SIM
             from ..detectors.crossend import CrossEndMonitor, load_signing_key
+            from ..integrity.allowlist import default_allowlist_path, load_firmware_allowlist
+
             crossend = CrossEndMonitor(load_signing_key(self.spec.signing_key_file) if self.spec.signing_key_file else None)
-        self.pipeline = IDSPipeline(self.cfg, model_path=self.model_path, firmware_dir=self.fw_dir, crossend=crossend)
+            al_path = default_allowlist_path(self.spec.config_dir)
+            if al_path is not None:
+                self._firmware_allowlist = load_firmware_allowlist(al_path)
+        self.pipeline = IDSPipeline(
+            self.cfg,
+            model_path=self.model_path,
+            firmware_dir=self.fw_dir,
+            crossend=crossend,
+            firmware_allowlist=self._firmware_allowlist,
+        )
         if self.is_sim:
             self.source = SimulatedTelemetrySource(self.cfg, NoAttack(), seed=42)
             self._gen = self.source.stream()
@@ -257,6 +273,10 @@ class LiveEngine:
             self.feed = LiveFeed(self.spec, 1.0 / self.dt,
                                  raw_tap=self.bridge_remote.feed_batch if self.spec.kind in ("serial", "udp") else None)
         self.store = EventStore(self.db_path)
+        self._anchor_writer = (
+            AnchorWriter(self.store) if str(self.db_path) != ":memory:" else None
+        )
+        self.mitigation.actuator.on_action = self._record_actuator_action
         self.gcs_notifier = None
         if getattr(self.spec, "gcs_notify", False):
             from ..mavlink.gcs_notifier import GcsNotifier
@@ -303,6 +323,12 @@ class LiveEngine:
             self.gcs_notifier.transport = self.feed.transport
         self._task = asyncio.create_task(self._live_loop())
 
+    def _record_actuator_action(self, action: str, target: str, detail: str) -> None:
+        if self._closed:
+            return
+        with contextlib.suppress(Exception):
+            self.store.log_action(self._run_id, self._sim_t, "actuator", action, target, detail)
+
     async def stop(self) -> None:
         """Stop the live loop and await the task's cancellation.
 
@@ -319,6 +345,9 @@ class LiveEngine:
         if self.feed is not None:
             # stop the producer, then close the transport (close alone would not stop the tick stream)
             await asyncio.to_thread(self.feed.close)
+        if getattr(self, "_anchor_writer", None) is not None:
+            with contextlib.suppress(Exception):
+                self._anchor_writer.write_now(self._run_id, force=True)
 
     async def close(self) -> None:
         """Final shutdown (app lifespan exit): stop the loop and the source (port released), close the event
@@ -676,6 +705,9 @@ class LiveEngine:
             if assessment.is_alert:
                 # persisted only: /api/events reads the run back from the store (no in-memory copy)
                 self.store.log_event(assessment, self._run_id)
+                if getattr(self, "_anchor_writer", None) is not None:
+                    with contextlib.suppress(Exception):
+                        self._anchor_writer.maybe_write(self._run_id)
                 if self.gcs_notifier is not None:
                     self.gcs_notifier.notify(assessment)
                 # First alert after an injection -> stamp live time-to-detect.
@@ -1100,6 +1132,7 @@ class LiveEngine:
 
     def metrics(self) -> dict:
         cs = self.store.verify_chain(self._run_id)
+        anchor = self._anchor_writer.snapshot() if getattr(self, "_anchor_writer", None) is not None else None
         return {
             "messages_processed": self._n_messages,
             "decisions": self._n_decisions,
@@ -1111,7 +1144,13 @@ class LiveEngine:
             # Attack-onset -> first-detection for the current session (or null).
             "time_to_detect_s": self._last_ttd_s,
             "distance_m": round(self._distance_m, 1),
-            "event_log": {"count": cs.length, "chain_ok": cs.ok},
+            "event_log": {
+                "count": cs.length,
+                "chain_ok": cs.ok,
+                "anchor_head_hash": anchor["head_hash"] if anchor else None,
+                "anchor_age_s": anchor["age_s"] if anchor else None,
+                "anchor_signed": anchor["signed"] if anchor else None,
+            },
             "ml_available": self.pipeline.ml_available,
             "environment": self.spec.environment,
         }
