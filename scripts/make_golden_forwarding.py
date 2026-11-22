@@ -588,6 +588,9 @@ def make_bridge(scn: Scn, posture: str, clk: Clk) -> tuple[InlineIpsBridge, Link
         # a management key requires persisted replay state; a fresh file per run, so no run sees another's state
         state_dir = tempfile.TemporaryDirectory(prefix="golden_mgmt_")
         kw["mgmt_state_path"] = str(Path(state_dir.name) / "mgmt_state.json")
+    if posture == "passive":
+        # Preserve pre-#58 golden forwarding corpus expectations where passive opted into GCS management TX.
+        kw.setdefault("mgmt_enable", True)
     bridge = InlineIpsBridge(fc, gcs, mode=posture, clock_ns=lambda: int(clk.t * 1e9), mgmt_clock=clk, **kw)
     bridge.policy._clock = clk  # the bridge does not take a policy clock
     if state_dir is not None:

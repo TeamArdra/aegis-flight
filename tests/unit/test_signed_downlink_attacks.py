@@ -210,7 +210,7 @@ def test_an_unsigned_vehicle_sysid_frame_from_the_gcs_side_is_reported_and_not_i
     clock = [1000.0]
     fc, gcs = _Link(), _Link()
     b = InlineIpsBridge(fc, gcs, mode=mode, secret_key=key, crossend_interval_s=0,  # type: ignore[arg-type]
-                        mgmt_status_interval_s=0, mgmt_clock=lambda: clock[0])
+                        mgmt_status_interval_s=0, mgmt_clock=lambda: clock[0], mgmt_enable=(mode == "passive"))
     genuine, forged = _unsigned_gpi(1, alt_mm=10000), _unsigned_gpi(1, alt_mm=90000)
     fc.inbox.append((1_000_000_000, genuine))   # the (unsigned) vehicle's own telemetry, FC side
     gcs.inbox.append((1_100_000_000, forged))   # the attacker's frame claiming sysid 1, GCS / radio side
@@ -372,7 +372,8 @@ def test_a_30_msgid_flood_claiming_the_vehicle_sysid_does_not_starve_the_status_
     clock = [1000.0]
     fc, gcs = _Link(), _Link()
     b = InlineIpsBridge(fc, gcs, mode="passive", secret_key=os.urandom(32), crossend_interval_s=0,  # type: ignore[arg-type]
-                        mgmt_status_interval_s=2.0, mgmt_clock=lambda: clock[0], clock_ns=lambda: int(clock[0] * 1e9))
+                        mgmt_status_interval_s=2.0, mgmt_clock=lambda: clock[0], clock_ns=lambda: int(clock[0] * 1e9),
+                        mgmt_enable=True)
     flood = _scalar_messages(30)
     for _step in range(200):  # 20 s, 30 message types every 0.1 s (300 frames/s)
         clock[0] += 0.1

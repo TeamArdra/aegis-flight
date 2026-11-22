@@ -33,8 +33,8 @@ def _asmt(t: float, attack: AttackType) -> ThreatAssessment:
 class Rig:
     """Real controller and classifier routing; only the actuator's encoders are recorded."""
 
-    def __init__(self, sub: AttackSubMode) -> None:
-        self.c = MitigationController(mode=DefenseMode.ACTIVE_IPS)
+    def __init__(self, sub: AttackSubMode, **ctrl_kwargs) -> None:
+        self.c = MitigationController(mode=DefenseMode.ACTIVE_IPS, **ctrl_kwargs)
         self.set_modes: list[str] = []
         a = self.c.actuator
         real_encode = a.encode_set_mode
@@ -87,7 +87,20 @@ def test_copter_safe_hold_needs_a_known_armed_vehicle(armed):
 def test_copter_safe_hold_still_engages_alt_hold_when_armed(attack_mode):
     """The ArduCopter behaviour the SAFE_HOLD escalation was built for is preserved (the actuator
     matches mode names case-insensitively, so a lower-case report behaves the same)."""
-    r = Rig(AttackSubMode.CMD_MODE_FLIP)
+    # The per-episode counter-command budget (#60) is lifted here so this test isolates the
+    # dialect/armed gate; the budget's own effect is pinned by the next test.
+    r = Rig(AttackSubMode.CMD_MODE_FLIP, max_counter_cmds_per_episode=100, max_counter_cmds_per_min=100)
     r.run(5, AttackType.BENIGN, "LOITER", True)
     r.run(40, AttackType.COMMAND_INJECTION, attack_mode, True)
     assert "ALT_HOLD" in r.set_modes
+
+
+def test_copter_safe_hold_alt_hold_respects_the_counter_command_budget():
+    """With the default per-episode budget (#60), the restore commands that precede the >30 s
+    escalation use it up, so SAFE_HOLD's ALT_HOLD is refused rather than sent: the bound wins."""
+    r = Rig(AttackSubMode.CMD_MODE_FLIP)
+    budget = r.c.max_counter_cmds_per_episode
+    r.run(5, AttackType.BENIGN, "LOITER", True)
+    r.run(40, AttackType.COMMAND_INJECTION, "RTL", True)
+    assert len(r.set_modes) <= budget
+    assert "ALT_HOLD" not in r.set_modes
