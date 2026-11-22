@@ -558,17 +558,21 @@ def diagnose_execution(events: Any) -> tuple[str, str]:
 
 def diagnose_file(path: Path) -> tuple[str, str]:
     """diagnose_execution() on a JSON-array or JSON-lines execution log; never raises."""
+    # ValueError covers UnicodeDecodeError and JSON errors; RecursionError a pathologically
+    # nested log. The build step must still write its (fail-closed) record.
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return "unreadable", "no execution log"
+    except ValueError:
+        return "unreadable", "the execution log is not UTF-8 text"
     try:
         return diagnose_execution(json.loads(text))
-    except ValueError:
+    except (ValueError, RecursionError):
         pass
     try:
         return diagnose_execution([json.loads(line) for line in text.splitlines() if line.strip()])
-    except ValueError:
+    except (ValueError, RecursionError):
         return "unreadable", "the execution log is not valid JSON"
 
 
@@ -635,7 +639,11 @@ def cmd_build(out_dir: Path) -> int:
     diagnosis = ""
     if record["verdict"] in ("ERROR", "INCOMPLETE"):
         exe = _env("EXECUTION_FILE")
-        kind, detail = diagnose_file(Path(exe)) if exe else ("unreadable", "no execution log")
+        try:
+            kind, detail = (diagnose_file(Path(exe)) if exe else
+                            ("unreadable", "no execution log; the review step was cancelled or skipped"))
+        except Exception as exc:  # explanatory only: never block writing the record
+            kind, detail = "unreadable", f"diagnosis failed ({type(exc).__name__})"
         if kind != "ok":
             diagnosis = safe_text(f"run diagnosis: {kind}" + (f" ({detail})" if detail else ""), 300)
             record["problems"].append(diagnosis)

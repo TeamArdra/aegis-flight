@@ -183,6 +183,26 @@ def test_diagnose_file_reads_json_arrays_and_jsonl_and_survives_garbage(tmp_path
     assert rr.diagnose_file(tmp_path / "missing.json")[0] == "unreadable"
 
 
+def test_diagnose_file_never_raises_on_non_utf8_or_deeply_nested_logs(tmp_path):
+    # Review R1 on #120: these used to escape as UnicodeDecodeError / RecursionError.
+    binary = tmp_path / "bin.json"
+    binary.write_bytes(b"\xff\xfe\x00garbage")
+    assert rr.diagnose_file(binary)[0] == "unreadable"
+    nested = tmp_path / "deep.json"
+    nested.write_text("[" * 100000 + "]" * 100000)
+    assert rr.diagnose_file(nested)[0] == "unreadable"
+
+
+def test_cli_build_survives_a_corrupt_execution_log(tmp_path, monkeypatch):
+    exe = tmp_path / "exe.json"
+    exe.write_bytes(b"\xff\xfe")
+    _build_env(tmp_path, monkeypatch, OUTCOME="failure", EXECUTION_FILE=str(exe))
+    assert rr.main(["build", "--out", str(tmp_path / "rec")]) == 0
+    record = json.loads((tmp_path / "rec" / "review-record.json").read_text())
+    assert record["verdict"] == "ERROR"
+    assert any(p.startswith("run diagnosis: unreadable") for p in record["problems"])
+
+
 def _build_env(tmp_path, monkeypatch, **extra):
     env = {"GITHUB_REPOSITORY": "TeamArdra/aegis-flight", "PR_NUMBER": "79", "HEAD_SHA": HEAD,
            "BASE_SHA": "b" * 40, "BASE_REF": "main", "GITHUB_RUN_ID": "300", "MODEL": "claude-sonnet-5-5",
@@ -227,7 +247,8 @@ def test_cli_build_without_an_execution_file_still_builds(tmp_path, monkeypatch)
     assert rr.main(["build", "--out", str(tmp_path / "rec")]) == 0
     record = json.loads((tmp_path / "rec" / "review-record.json").read_text())
     assert record["verdict"] == "ERROR"
-    assert any(p.startswith("run diagnosis: unreadable") for p in record["problems"])
+    assert any(p.startswith("run diagnosis: unreadable") and "cancelled or skipped" in p
+               for p in record["problems"])
 
 
 def test_cli_build_rejects_a_bad_head_sha(tmp_path, monkeypatch):
