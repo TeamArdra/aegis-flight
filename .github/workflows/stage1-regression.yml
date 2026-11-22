@@ -1,0 +1,82 @@
+# Stage-1 regression: re-run the full benchmark with the exact released model and assert the
+# committed headline numbers (issue #13). Slow (~9 min on a laptop), so it never runs on PRs:
+# manual dispatch and nightly only. It is deliberately NOT a required status check.
+#
+# Needs scripts/fetch_models.py and models/MODELS.sha256 (issue #11) on the checked-out ref.
+# The benchmark is written to $RUNNER_TEMP, never into the repo's artifacts/ (committed evidence).
+name: stage1-regression
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 03:17 UTC daily: off the top of the hour (GitHub delays/drops scheduled runs at :00 load
+    # peaks) and in a quiet window for both India and US working hours.
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage1-regression
+  # Let an in-flight run finish; a newer run waits (GitHub keeps at most one pending).
+  cancel-in-progress: false
+
+jobs:
+  stage1-regression:
+    name: stage1-regression
+    runs-on: ubuntu-24.04
+    # ~9 min on a laptop; allow a slower 2-vCPU runner, cold pip cache and the model download.
+    timeout-minutes: 45
+    env:
+      EXPECTED_TP_FP_TN_FN: "6535/4/16826/65"
+      EXPECTED_MODEL_SHA256: "3fe74cddf3689e169610ffd783b109b6539cc6c03629bd1e4bb8b1d3842939c4"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Fetch and verify the trained model
+        # Exits non-zero (failing the job) on a download error or SHA-256 mismatch.
+        run: python scripts/fetch_models.py
+
+      - name: Benchmark
+        # --no-figures: without it the command writes into the committed artifacts/figures/.
+        run: aegis benchmark --out "$RUNNER_TEMP/b" --no-figures
+
+      - name: Assert the Stage-1 baseline
+        run: |
+          python - <<'PY'
+          import os, re, sys
+          text = open(os.path.join(os.environ["RUNNER_TEMP"], "b", "summary.md"), encoding="utf-8").read()
+          m = re.search(r"\|\s*TP / FP / TN / FN\s*\|\s*(\d+)\s*/\s*(\d+)\s*/\s*(\d+)\s*/\s*(\d+)\s*\|", text)
+          s = re.search(r"model_sha256:\s*([0-9a-f]{64}|none)", text)
+          got = "/".join(m.groups()) if m else "<TP/FP/TN/FN line not found>"
+          sha = s.group(1) if s else "<model_sha256 not found>"
+          want, want_sha = os.environ["EXPECTED_TP_FP_TN_FN"], os.environ["EXPECTED_MODEL_SHA256"]
+          print(f"TP/FP/TN/FN  actual={got}  expected={want}")
+          print(f"model_sha256 actual={sha}  expected={want_sha}")
+          bad = [n for n, a, e in (("TP/FP/TN/FN", got, want), ("model_sha256", sha, want_sha)) if a != e]
+          if bad:
+              sys.exit(f"::error::Stage-1 baseline mismatch in {', '.join(bad)} (see actual vs expected above)")
+          print("Stage-1 baseline OK")
+          PY
+
+      - name: Upload benchmark output
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: stage1-benchmark
+          path: ${{ runner.temp }}/b
+          retention-days: 7
+          if-no-files-found: warn

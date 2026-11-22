@@ -43,6 +43,51 @@ class BridgeStatusServer:
                     self.send_header("Access-Control-Allow-Origin", origin)
                     self.send_header("Vary", "Origin")
 
+            # A stalled or slow-drip client may not hold a handler thread forever.
+            timeout = 5.0
+
+            def handle_one_request(self) -> None:
+                self._body_done = False
+                self.oversize = False
+                super().handle_one_request()
+
+            def _read_body(self, limit: int = 4096, budget: int = 65536) -> bytes | None:
+                """Consume a small request body so the socket closes cleanly (an unread body turns the close
+                into a TCP reset, which aborts the client's read on Windows). Returns the body if it is
+                1..limit bytes, else None. A declared length above ``budget`` is NOT read: the request is
+                flagged ``oversize`` and the connection is closed after the reply (an abusive client may
+                see a reset; it never ties up the handler)."""
+                if self._body_done:  # already consumed for this request
+                    return self._body
+                self._body_done, self._body = True, None
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                except ValueError:
+                    return None
+                if n <= 0:
+                    return None
+                if n > budget:
+                    self.oversize = True
+                    self.close_connection = True
+                    return None
+                try:
+                    data = self.rfile.read(min(n, limit))
+                    remaining = n - len(data)
+                    while remaining > 0:  # discard the excess (<= budget in total)
+                        chunk = self.rfile.read(min(remaining, 65536))
+                        if not chunk:
+                            break
+                        remaining -= len(chunk)
+                except OSError:  # timeout / reset while reading: drop the connection
+                    self.close_connection = True
+                    return None
+                self._body = data if n <= limit else None
+                return self._body
+
+            def _close_hdr(self) -> None:
+                if self.close_connection:
+                    self.send_header("Connection", "close")
+
             def _send(self, code: int, body: bytes, ctype: str = "application/json", extra_headers: dict[str, str] | None = None) -> None:
                 self.send_response(code)
                 self._cors()
@@ -54,6 +99,7 @@ class BridgeStatusServer:
                     for hk, hv in extra_headers.items():
                         self.send_header(hk, hv)
                 self.send_header("Content-Length", str(len(body)))
+                self._close_hdr()
                 self.end_headers()
                 self.wfile.write(body)
 
@@ -70,9 +116,11 @@ class BridgeStatusServer:
                     self._send(500, b'{"error":"status unavailable"}')
 
             def _refuse(self) -> None:
+                self._read_body()
                 self.send_response(405)
                 self.send_header("Allow", "GET, POST, OPTIONS")
                 self.send_header("Content-Length", "0")
+                self._close_hdr()
                 self.end_headers()
 
             def _token_ok(self) -> bool:
@@ -102,6 +150,10 @@ class BridgeStatusServer:
                 self.end_headers()
 
             def do_POST(self) -> None:  # noqa: N802
+                raw = self._read_body()  # always consume a small body, even when we are about to reject
+                if self.oversize:
+                    self._json(413, {"ok": False, "error": "payload_too_large"})
+                    return
                 if self.path.split("?", 1)[0] != "/posture":
                     self._refuse()
                     return
@@ -123,11 +175,7 @@ class BridgeStatusServer:
                     else:
                         self._json(401, {"ok": False, "error": "unauthorized"})
                     return
-                try:
-                    n = int(self.headers.get("Content-Length") or 0)
-                    raw_body = self.rfile.read(n) if 0 < n <= 4096 else b""
-                except OSError:
-                    raw_body = b""
+                raw_body = raw if raw is not None else b""  # already consumed and bounded by _read_body
                 nonce = self.headers.get("X-Aegis-Nonce", "").strip()
                 ts_str = self.headers.get("X-Aegis-Timestamp", "").strip()
                 sig = self.headers.get("X-Aegis-Signature", "").strip().lower()
