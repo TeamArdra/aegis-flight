@@ -322,7 +322,7 @@ class PhysicsDetector(Detector):
                     evidence.append(
                         f"SYS_STATUS and BATTERY_STATUS voltages disagree by {bm:.1f} V > {self.batt_msg_tol_v:.1f} V"
                     )
-            if frame.att_repeat >= self.att_repeat_n:
+            if frame.snapshot.armed and frame.att_repeat >= self.att_repeat_n:
                 signals["att_repeat"] = float(frame.att_repeat)
                 bump(AttackType.TELEMETRY_MANIPULATION, 0.6)
                 evidence.append(
