@@ -159,6 +159,7 @@ class PhysicsDetector(Detector):
         self._pos_valid_samples = 0
         self._last_pos_t: float | None = None
         self._pos_resid_streak: int = 0
+        self._pos_resid_evaluated: bool = False
 
     @staticmethod
     def _advance_sample(count: int, last_t: float | None, t: float) -> tuple[int, float]:
@@ -227,6 +228,7 @@ class PhysicsDetector(Detector):
         # ---- GPS position residual (spoofing) ----
         signals["pos_residual_m"] = frame.pos_residual_m
         nav_note: str | None = None
+        self._pos_resid_evaluated = False
         if not self.estimator_gate or frame.pos_residual_nav_m is None:
             # gate off, or no EKF_STATUS_REPORT ever received: the Stage-1 rule exactly
             if pos_ready:
@@ -276,6 +278,9 @@ class PhysicsDetector(Detector):
                 )
             elif pos_ready:
                 self._residual_rule(frame.pos_residual_nav_m, bump, evidence)
+        if not self._pos_resid_evaluated:
+            # no fix / estimator without a solution: the run of consecutive over-threshold frames is broken
+            self._pos_resid_streak = 0
 
         # ---- 2D Page-Hinkley / CUSUM micro-drift (< 0.3 m/s) ----
         cusum_val = max(frame.cusum_drift_m, self.cusum.magnitude_m)
@@ -509,6 +514,7 @@ class PhysicsDetector(Detector):
 
     def _residual_rule(self, pr: float, bump: Callable[..., None], evidence: list[str]) -> None:
         """The Stage-1 position-residual thresholds (soft / hard), unchanged."""
+        self._pos_resid_evaluated = True
         if pr <= self.pos_resid:
             self._pos_resid_streak = 0
             return

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from aegisflight.core.types import FlightState
 from aegisflight.detectors.physics import PhysicsDetector
 from aegisflight.features.extractor import FeatureFrame
@@ -72,3 +74,18 @@ def test_stage1_default_pos_residual_alerts_immediately() -> None:
     r = det.process(_make_frame(1.0, 15.0))
     assert r.score > 0.0
     assert any("position residual" in e for e in r.evidence)
+
+
+def test_streak_restarts_after_a_frame_where_the_residual_rule_did_not_run() -> None:
+    """Three over-threshold frames must be consecutive evaluations, not three spread over a no-fix gap."""
+    det = PhysicsDetector({"pos_residual_min_streak": 3})
+    det.process(_make_frame(0.9, 0.5))
+    assert det.process(_make_frame(1.0, 14.0)).score == 0.0  # streak 1
+    assert det.process(_make_frame(1.1, 14.0)).score == 0.0  # streak 2
+    no_fix = _make_frame(1.2, 14.0)  # fix lost: the rule is not evaluated for this frame
+    no_fix = replace(no_fix, snapshot=replace(no_fix.snapshot, gps_fix_type=1))
+    assert det.process(no_fix).score == 0.0
+    # the next valid frame is a new first excursion, not the third of a run
+    assert det.process(_make_frame(1.3, 14.0)).score == 0.0
+    assert det.process(_make_frame(1.4, 14.0)).score == 0.0
+    assert det.process(_make_frame(1.5, 14.0)).score > 0.0
