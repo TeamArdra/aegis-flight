@@ -36,9 +36,22 @@ A2's single alert is not related to the reorder window (no netem); it is the pro
 
 `scripts/hardware/seq_scramble_window_ab.py`, 20 seeds, ML off, `universal_flight` with and without the window line, `attacks.mavlink_anomaly.mode = seq_scramble`:
 
-| Window | Sessions with a detection | Mean time to detect | Mean decision recall | Benign mean FPR |
-|---|---|---|---|---|
-| 16 | 20/20 | 0.05 s | 0.966 | 0.0000 |
-| 48 | 20/20 | 0.09 s | 0.911 | 0.0000 |
+| Window | Sessions with a detection | Mean time to detect | Mean decision recall | Benign-session mean FPR | Attack-session mean FPR |
+|---|---|---|---|---|---|
+| 16 | 20/20 | 0.05 s | 0.966 | 0.0348 (5 of 20 seeds nonzero) | 0.0518 |
+| 48 | 20/20 | 0.09 s | 0.911 | 0.0348 (5 of 20 seeds nonzero) | 0.0518 |
 
 Cost of 48 on this attack: about 5.5 points of attack-decision recall and 0.04 s slower detection; every session still detects it. A scrambler that keeps jumps within 48 behind the high-water mark would not be flagged by the gap rule; not tested.
+
+### Correction (benign FPR)
+
+An earlier version of this README and of the PR body gave a benign mean FPR of 0.0000. That row does not reproduce with the `configs/universal_flight` this PR ships; it was reported to come from the profile of #82 (not verified here). Regenerated with the profile as committed here, the simulator benign sessions show mean FPR 0.0348 for window 16 **and** for window 48 (identical, so the window does not change it). In seed 1, 80 of 575 scored decisions are false alarms and all are `GPS_SPOOFING` (profile-level, not a sequence-gap alert); its cause was not investigated here. Attack time-to-detect and recall are unchanged by the regeneration. The value 48 is unchanged; whether to ship it is the maintainer's decision.
+
+Regenerate (SIM, link-level; run from the repo root at this PR's head, `PYTHONPATH=src`):
+
+```
+# window-16 profile = configs/universal_flight/detector.yaml minus the "reorder_window: 48" line
+mkdir <scratch>/prof16 && grep -v "^  reorder_window: 48" configs/universal_flight/detector.yaml > <scratch>/prof16/detector.yaml
+python scripts/hardware/seq_scramble_window_ab.py <scratch>/prof16 configs/universal_flight seq_scramble_e2e_sim.json
+```
+Regenerated at `37c9217` with Python 3.13, ML off; no PX4 run artifact (`runs/`, `tlog_sha256.txt`) was touched.
