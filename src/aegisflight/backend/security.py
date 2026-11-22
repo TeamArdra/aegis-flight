@@ -99,7 +99,9 @@ class ReplayCache:
                 return False, "nonce replay rejected"
             if len(self._seen) >= self.max_entries:
                 self._seen.popitem(last=False)
-            self._seen[nonce] = now
+            # A timestamp up to +ttl ahead is accepted, so remember the nonce until that timestamp
+            # is itself stale; keyed on receipt time alone it could be replayed after eviction.
+            self._seen[nonce] = max(now, float(timestamp_s))
         return True, "ok"
 
 

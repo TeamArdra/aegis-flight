@@ -250,3 +250,17 @@ def test_slow_drip_body_is_dropped_by_a_total_deadline(srv):
         elapsed = time.monotonic() - t0
     assert dropped and elapsed < 5, f"handler kept reading a dripped body for {elapsed:.1f}s"
     assert b.calls == []
+
+
+def test_future_dated_nonce_cannot_be_replayed_after_its_receipt_time_ages_out():
+    """A timestamp up to +ttl ahead is accepted, so its nonce must be remembered until the
+    timestamp itself is stale, not just until the receipt time is (independent review on #142)."""
+    cache = ReplayCache(ttl_s=60.0)
+    ok, _ = cache.check_and_record("nonce-future-1", 1059.0, now_s=1000.0)
+    assert ok
+    ok, why = cache.check_and_record("nonce-future-1", 1059.0, now_s=1061.0)
+    assert not ok and "replay" in why
+    ok, why = cache.check("nonce-future-1", 1059.0, now_s=1100.0)
+    assert not ok and "replay" in why
+    ok, why = cache.check_and_record("nonce-future-1", 1059.0, now_s=1120.0)  # the timestamp is now stale
+    assert not ok and "stale" in why
