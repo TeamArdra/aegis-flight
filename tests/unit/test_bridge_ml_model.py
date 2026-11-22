@@ -216,6 +216,34 @@ def test_run_manifest_without_model_still_says_ml_off(tmp_path: Path, monkeypatc
     assert "model_verification" not in m
 
 
+def test_run_manifest_records_the_hash_the_loader_verified_not_an_earlier_read(tmp_path: Path, monkeypatch) -> None:
+    """With --allow-unverified-model nothing pins the bytes: a file replaced after the manifest's own earlier read must
+    still be reported as the hash the loader's integrity check computed (the model the bridge really runs with)."""
+    import json
+
+    from aegisflight import run_provenance
+
+    cli_main = importlib.import_module("aegisflight.cli.main")
+    _clean_tree(monkeypatch)
+    model_file = tmp_path / "custom.joblib"
+    model_file.write_bytes(b"bytes-read-first")
+    orig_begin = run_provenance.begin_run
+
+    def begin_then_replace(**kw):
+        manifest = orig_begin(**kw)  # takes its own model hash here
+        model_file.write_bytes(b"bytes-the-loader-sees")  # replaced before the detector loads
+        return manifest
+
+    monkeypatch.setattr(run_provenance, "begin_run", begin_then_replace)
+    run_dir = tmp_path / "run"
+    with patch("joblib.load", return_value=_fake_bundle()):
+        rc = cli_main.main([*_RUN_ARGS, "--model", str(model_file), "--allow-unverified-model",
+                            "--run-dir", str(run_dir)])
+    assert rc == 0
+    m = json.loads((run_dir / "run_manifest.json").read_text())
+    assert m["model_sha256"] == hashlib.sha256(b"bytes-the-loader-sees").hexdigest()
+
+
 def test_refused_model_creates_no_run_dir(tmp_path: Path, monkeypatch) -> None:
     cli_main = importlib.import_module("aegisflight.cli.main")
 

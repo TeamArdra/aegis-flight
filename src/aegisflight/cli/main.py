@@ -356,6 +356,12 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
     except ValueError as exc:
         print(f"aegis ips-bridge: {exc}", file=sys.stderr)
         return 2
+    if run_prov is not None and model_path is not None:
+        # begin_run() hashed the file on its own, earlier read; the manifest must carry the hash the detector's loader
+        # actually verified (a --allow-unverified-model file is otherwise unpinned between the two reads)
+        loaded_sha = bridge.pipeline.anomaly.loaded_sha256
+        if loaded_sha is not None:
+            run_prov["model_sha256"] = loaded_sha
     fc.start()
     gcs.start()
     bridge.start()
