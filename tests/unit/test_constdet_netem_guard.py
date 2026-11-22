@@ -82,7 +82,7 @@ def test_constdet_netem_seq_gap_and_reorder_suppressed() -> None:
     assert "control_accel_residual_ms2" not in res_gap.signals
     assert not any("ConstDet" in e for e in res_gap.evidence)
 
-    # Case 2: packet reorder occurred (reorder_count incremented)
+    # Case 2: packet reorder occurred in this decision window (reorder_count is per window, not cumulative)
     res_reorder = det.process(
         _make_frame(t=1.1, control_accel_residual_ms2=15.0, max_seq_gap=0, reorder_count=1)
     )
@@ -91,7 +91,7 @@ def test_constdet_netem_seq_gap_and_reorder_suppressed() -> None:
 
     # Case 3: subsequent clean frame with no new reorder and no seq_gap still works
     res_clean = det.process(
-        _make_frame(t=1.2, control_accel_residual_ms2=10.0, max_seq_gap=0, reorder_count=1)
+        _make_frame(t=1.2, control_accel_residual_ms2=10.0, max_seq_gap=0, reorder_count=0)
     )
     assert "control_accel_residual_ms2" in res_clean.signals
     assert res_clean.score > 0.0

@@ -157,7 +157,6 @@ class PhysicsDetector(Detector):
         self._last_alt_t: float | None = None
         self._pos_valid_samples = 0
         self._last_pos_t: float | None = None
-        self._last_reorder_count: int = 0
 
     @staticmethod
     def _advance_sample(count: int, last_t: float | None, t: float) -> tuple[int, float]:
@@ -377,8 +376,9 @@ class PhysicsDetector(Detector):
             evidence.append(f"heading/course mismatch {yc:.0f}° (attitude inconsistent with track)")
 
         # ---- ConstDet: attitude vs horizontal acceleration control semantics ----
-        reordered = frame.reorder_count > self._last_reorder_count
-        self._last_reorder_count = frame.reorder_count
+        # reorder_count is per decision window (FeatureExtractor.clear_window_counts resets it), so any
+        # positive value means this window was reordered; comparing with the previous window missed it
+        reordered = frame.reorder_count > 0
         if (
             self.control_semantics_enabled
             and frame.snapshot.armed
