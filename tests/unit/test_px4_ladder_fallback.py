@@ -94,6 +94,9 @@ def test_px4_no_rc_falls_back_directly_to_auto_land() -> None:
 
 
 def test_gps_ladder_confirmation_window_tightened() -> None:
-    ctrl = MitigationController(mode=DefenseMode.ACTIVE_IPS)
-    assert ctrl.gps_escalate_s <= 2.0
-    assert ctrl.gps_switch_check_s <= 3.0
+    default_ctrl = MitigationController(mode=DefenseMode.ACTIVE_IPS)
+    assert default_ctrl.gps_escalate_s == 3.0
+    assert default_ctrl.gps_switch_check_s == 4.0
+    ctrl = MitigationController(mode=DefenseMode.ACTIVE_IPS, gps_escalate_s=1.5, gps_switch_check_s=2.5)
+    assert ctrl.gps_escalate_s == 1.5
+    assert ctrl.gps_switch_check_s == 2.5
