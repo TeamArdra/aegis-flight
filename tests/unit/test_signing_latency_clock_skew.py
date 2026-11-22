@@ -81,10 +81,17 @@ def test_real_replay_blocked_and_ts_state_path_monotonic(tmp_path: Path) -> None
     # Actuator ts_state_path persists monotonic timestamp across restarts
     ts_file = tmp_path / "signing.tx_ts"
     act1 = MavlinkActuator(secret_key=secret_key, ts_state_path=ts_file)
-    ts1 = act1._next_timestamp() if hasattr(act1, "_next_timestamp") else None
-    act1.close() if hasattr(act1, "close") else None
+    f_a = act1.encode_statustext("a")
+    act1.flush_state()
+    assert ts_file.is_file()
 
     act2 = MavlinkActuator(secret_key=secret_key, ts_state_path=ts_file)
-    assert act2._ts_state_path == ts_file
-    if ts1 is not None:
-        assert act2._next_timestamp() > ts1
+    f_b = act2.encode_statustext("b")
+
+    act_parser = MavlinkFrameParser(secret_key=secret_key)
+    assert len(act_parser.parse(f_a, 20.10)) == 1
+    assert len(act_parser.parse(f_b, 20.45)) == 1
+    assert act_parser.stats.sig_valid == 2
+    assert act_parser.stats.sig_invalid == 0
+    assert act_parser.parse(f_a, 20.60) == []
+    assert act_parser.stats.sig_invalid == 1
