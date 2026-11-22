@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import hmac
 import json
+import math
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -70,11 +72,14 @@ class BridgeStatusServer:
                     self.oversize = True
                     self.close_connection = True
                     return None
+                # The socket timeout is per recv(), so a client dripping one byte per few seconds would otherwise
+                # hold this thread for hours: bound the whole body read with one monotonic deadline.
+                deadline = time.monotonic() + (self.timeout or 5.0)
                 try:
-                    data = self.rfile.read(min(n, limit))
+                    data = self._read_until(min(n, limit), deadline)
                     remaining = n - len(data)
                     while remaining > 0:  # discard the excess (<= budget in total)
-                        chunk = self.rfile.read(min(remaining, 65536))
+                        chunk = self._read_until(min(remaining, 65536), deadline)
                         if not chunk:
                             break
                         remaining -= len(chunk)
@@ -83,6 +88,23 @@ class BridgeStatusServer:
                     return None
                 self._body = data if n <= limit else None
                 return self._body
+
+            def _read_until(self, n: int, deadline: float) -> bytes:
+                """Read up to n bytes (fewer only at EOF) before the deadline; raises TimeoutError past it."""
+                buf = bytearray()
+                try:
+                    while len(buf) < n:
+                        left = deadline - time.monotonic()
+                        if left <= 0:
+                            raise TimeoutError("request body not received within the deadline")
+                        self.connection.settimeout(left)
+                        chunk = self.rfile.read1(n - len(buf))
+                        if not chunk:
+                            break
+                        buf += chunk
+                finally:
+                    self.connection.settimeout(self.timeout)  # the reply is written under the normal timeout
+                return bytes(buf)
 
             def _close_hdr(self) -> None:
                 if self.close_connection:
@@ -183,10 +205,15 @@ class BridgeStatusServer:
                     try:
                         ts_val = float(ts_str)
                     except ValueError:
+                        ts_val = float("nan")
+                    if not math.isfinite(ts_val):  # float() accepts nan/inf; nan would defeat the freshness check
                         self._json(400, {"ok": False, "error": "invalid_timestamp"})
                         return
-                    ok_replay, detail = outer._replay.check_and_record(nonce, ts_val)
+                    # Read-only freshness/replay check first; the nonce is recorded only AFTER the HMAC verifies,
+                    # so a forged request cannot burn a nonce a legitimate client has yet to use (#89).
+                    ok_replay, detail = outer._replay.check(nonce, ts_val)
                     if not ok_replay:
+                        outer._limiter.record_failure(client_ip)
                         self._json(401, {"ok": False, "error": detail})
                         return
                     expected_sig = compute_request_hmac(
@@ -200,6 +227,11 @@ class BridgeStatusServer:
                     if not sig or not hmac.compare_digest(sig, expected_sig):
                         outer._limiter.record_failure(client_ip)
                         self._json(401, {"ok": False, "error": "invalid_signature"})
+                        return
+                    recorded, detail = outer._replay.record(nonce, ts_val)  # atomic: a concurrent twin loses here
+                    if not recorded:
+                        outer._limiter.record_failure(client_ip)
+                        self._json(401, {"ok": False, "error": detail})
                         return
                 outer._limiter.clear(client_ip)
                 try:
