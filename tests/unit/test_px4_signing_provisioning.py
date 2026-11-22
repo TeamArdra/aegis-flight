@@ -239,3 +239,42 @@ def test_require_disarmed_fails_closed_on_armed_and_on_unknown() -> None:
         require_disarmed(silent, 1, timeout_s=0.1)
     ok = _HeartbeatGcs([_make_signed_heartbeat(key, sysid=1, armed=False, sign=False)])
     assert require_disarmed(ok, 1, timeout_s=0.5) is False
+
+
+# --- forged pre-provisioning "disarmed" state and stale-timestamp replay (adversarial review of #132) ---------------
+
+
+class _SequencedGcs(_FakeGcsTransport):
+    """Fake whose successive poll() calls return successive batches (then nothing)."""
+
+    def __init__(self, batches: list[list[bytes]]) -> None:
+        super().__init__(send_ok=True)
+        self._batches = list(batches)
+
+    def poll(self) -> list[tuple[float, bytes]]:
+        return [(0.0, raw) for raw in self._batches.pop(0)] if self._batches else []
+
+
+def test_require_disarmed_refuses_when_a_forged_unsigned_disarmed_precedes_a_real_armed_heartbeat() -> None:
+    """Before provisioning the downlink is unsigned, so the FIRST heartbeat proves nothing: any armed one refuses."""
+    key = hashlib.sha256(b"unit-test-signing-key-forged-disarm").digest()
+    forged = _make_signed_heartbeat(key, sysid=1, armed=False, sign=False)
+    real = _make_signed_heartbeat(key, sysid=1, armed=True, sign=False)
+    same_datagram = _SequencedGcs([[forged, real]])
+    with pytest.raises(SigningProvisioningError, match="armed"):
+        require_disarmed(same_datagram, 1, timeout_s=0.5, settle_s=0.3)
+    later_datagram = _SequencedGcs([[forged], [], [real]])
+    with pytest.raises(SigningProvisioningError, match="armed"):
+        require_disarmed(later_datagram, 1, timeout_s=0.5, settle_s=0.3)
+
+
+def test_provision_rejects_a_correct_key_frame_older_than_the_provisioned_initial_timestamp() -> None:
+    """PX4 adopts the SETUP_SIGNING initial timestamp, so a frame stamped before it is a replay, not our provisioning."""
+    key = hashlib.sha256(b"unit-test-signing-key-stale-ts").digest()
+    m = mavlink2.MAVLink(None, srcSystem=1, srcComponent=1)
+    m.signing.secret_key, m.signing.link_id, m.signing.sign_outgoing = key, 0, True
+    m.signing.timestamp = 5  # before initial_timestamp=1000
+    stale = bytes(m.heartbeat_encode(2, 12, 0, 0, 3).pack(m))
+    gcs = _FakeGcsTransport(send_ok=True, rx_frames=[stale])
+    with pytest.raises(SigningProvisioningError, match="Timed out"):
+        provision_px4_signing(gcs, 1, 1, key, initial_timestamp=1000, verify_timeout_s=0.2, is_armed=False)

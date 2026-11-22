@@ -96,31 +96,46 @@ class SigningProvisioningError(RuntimeError):
 
 
 def observe_vehicle_armed_state(
-    gcs: UdpMavlinkTransport, target_sysid: int, *, timeout_s: float = 3.0
+    gcs: UdpMavlinkTransport, target_sysid: int, *, timeout_s: float = 3.0, settle_s: float = 1.5
 ) -> bool | None:
-    """Return True/False from the first HEARTBEAT of ``target_sysid`` seen on ``gcs``, or None if none arrives.
+    """Return the armed state of ``target_sysid`` seen on ``gcs``, or None if no HEARTBEAT arrives.
 
-    Pre-provisioning the vehicle's downlink is unsigned, so this is an observation, not an authenticated fact; it
-    can only make provisioning refuse (fail closed), never relax it.
+    True as soon as ANY HEARTBEAT of the target says armed. False only after ``settle_s`` (capped by ``timeout_s``)
+    of observation, from the first HEARTBEAT, in which every HEARTBEAT said disarmed.
+
+    Pre-provisioning the vehicle's downlink is unsigned, so this is an observation, not an authenticated fact: an
+    on-link attacker can forge a "disarmed" HEARTBEAT, and the first one proves nothing. Looking at the whole
+    settle window means a forged disarmed cannot mask the real armed state; the result can only make provisioning
+    refuse (fail closed), never relax it. A forger who silences the real heartbeats is out of scope here: PX4 also
+    refuses SETUP_SIGNING while armed (see ``provision_px4_signing``).
     """
     parser = MavlinkFrameParser()
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
+    start = time.monotonic()
+    deadline = start + timeout_s
+    seen_disarmed_at: float | None = None
+    while True:
+        now = time.monotonic()
+        if now >= deadline or (seen_disarmed_at is not None and now >= seen_disarmed_at + settle_s):
+            break
         frames = gcs.poll()
         if not frames:
             time.sleep(0.02)
             continue
-        now = time.monotonic()
         for _, raw in frames:
             for env in parser.parse(raw, now):
                 if env.msgname == "HEARTBEAT" and env.sysid == target_sysid:
-                    return bool(int(env.fields.get("base_mode", 0)) & MAV_MODE_FLAG_SAFETY_ARMED)
-    return None
+                    if int(env.fields.get("base_mode", 0)) & MAV_MODE_FLAG_SAFETY_ARMED:
+                        return True
+                    if seen_disarmed_at is None:
+                        seen_disarmed_at = now
+    return None if seen_disarmed_at is None else False
 
 
-def require_disarmed(gcs: UdpMavlinkTransport, target_sysid: int, *, timeout_s: float = 3.0) -> bool:
-    """Fail closed unless a HEARTBEAT shows the vehicle disarmed; returns False (the observed armed state)."""
-    armed = observe_vehicle_armed_state(gcs, target_sysid, timeout_s=timeout_s)
+def require_disarmed(
+    gcs: UdpMavlinkTransport, target_sysid: int, *, timeout_s: float = 3.0, settle_s: float = 1.5
+) -> bool:
+    """Fail closed unless HEARTBEATs show the vehicle disarmed (no armed one in the window); returns False."""
+    armed = observe_vehicle_armed_state(gcs, target_sysid, timeout_s=timeout_s, settle_s=settle_s)
     if armed is None:
         raise SigningProvisioningError(
             f"Vehicle armed state unknown: no HEARTBEAT from sysid {target_sysid} within {timeout_s:.1f}s"
@@ -181,6 +196,13 @@ def provision_px4_signing(
                 valid_before = parser.stats.sig_valid
                 for env in parser.parse(fr.raw, now):
                     mac_ok = parser.stats.sig_valid > valid_before
+                    # PX4 adopts SETUP_SIGNING's initial timestamp (mavlink_sign_control.cpp), so a genuine signed
+                    # frame is never stamped before it. The parser starts with no anti-replay state, so a correct-key
+                    # frame captured from an earlier run would otherwise verify; this only rejects the ones stamped
+                    # before ``initial_timestamp`` (a replay from a run with the same key and a LATER stamp is not
+                    # excluded: the key is a deterministic per-trial test value, see main()).
+                    stamp = int.from_bytes(fr.raw[-12:-6], "little") if env.signed else -1
+                    mac_ok = mac_ok and stamp >= initial_timestamp
                     if (
                         env.msgname == "HEARTBEAT"
                         and env.sysid == target_sysid
