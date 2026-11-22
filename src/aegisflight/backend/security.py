@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import ipaddress
+import math
 import os
 import threading
 import time
@@ -55,6 +56,8 @@ class ReplayCache:
     def _format_error(self, nonce: str, timestamp_s: float, now: float) -> str | None:
         if not nonce or len(nonce) < 8 or len(nonce) > 128:
             return "invalid nonce format"
+        if not math.isfinite(timestamp_s):  # nan compares False against every bound, so it would never look stale
+            return "invalid timestamp"
         if abs(now - timestamp_s) > self.ttl_s:
             return f"stale timestamp (skew {abs(now - timestamp_s):.1f}s > {self.ttl_s:.0f}s)"
         return None
