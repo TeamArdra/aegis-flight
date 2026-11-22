@@ -157,6 +157,7 @@ class PhysicsDetector(Detector):
         self._last_alt_t: float | None = None
         self._pos_valid_samples = 0
         self._last_pos_t: float | None = None
+        self._last_reorder_count: int = 0
 
     @staticmethod
     def _advance_sample(count: int, last_t: float | None, t: float) -> tuple[int, float]:
@@ -376,10 +377,14 @@ class PhysicsDetector(Detector):
             evidence.append(f"heading/course mismatch {yc:.0f}° (attitude inconsistent with track)")
 
         # ---- ConstDet: attitude vs horizontal acceleration control semantics ----
+        reordered = frame.reorder_count > self._last_reorder_count
+        self._last_reorder_count = frame.reorder_count
         if (
             self.control_semantics_enabled
             and frame.snapshot.armed
             and not frame.nav_gated
+            and frame.max_seq_gap == 0
+            and not reordered
             and frame.control_accel_residual_ms2 is not None
         ):
             cr = frame.control_accel_residual_ms2
