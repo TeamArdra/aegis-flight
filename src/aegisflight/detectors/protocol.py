@@ -447,7 +447,7 @@ class ProtocolDetector(Detector):
         signals["cmd_rate_hz"] = frame.cmd_rate_hz
 
         # ---- state-aware command cadence guard (unsigned replay & mid-air disarm protection) ----
-        if self.cadence_guard_enabled and frame.commands_recent:
+        if frame.commands_recent:
             high_risk_cmds = {400, 176, 20, 21}  # ARM_DISARM, DO_SET_MODE, RTL, LAND
             seen_in_window: dict[tuple[int, int], float] = {}
             for c in frame.commands_recent:
@@ -458,7 +458,11 @@ class ProtocolDetector(Detector):
                 if last is not None and c.recv_time <= last:
                     continue  # already evaluated on an earlier decision (commands_recent is a sliding window)
                 prev_t = seen_in_window.get(key, last)
-                if prev_t is not None and 0.0 < (c.recv_time - prev_t) < self.cadence_min_interval_s:
+                if (
+                    self.cadence_guard_enabled
+                    and prev_t is not None
+                    and 0.0 < (c.recv_time - prev_t) < self.cadence_min_interval_s
+                ):
                     bump(AttackType.COMMAND_INJECTION, 0.90)
                     evidence.append(
                         f"duplicate high-risk command {command_name_from_id(c.command)} "
@@ -466,11 +470,14 @@ class ProtocolDetector(Detector):
                         f"(Δt={c.recv_time - prev_t:.2f}s < {self.cadence_min_interval_s:.1f}s)"
                     )
                 if c.command == 400 and (not c.params or c.params[0] == 0.0):
-                    if (snap.groundspeed or 0.0) > 1.0 and snap.armed:
+                    is_force_disarm = len(c.params) >= 2 and c.params[1] == 21196.0
+                    airborne = (snap.groundspeed or 0.0) > 1.0 or (snap.rel_alt or 0.0) > 0.5
+                    if snap.armed and (airborne or is_force_disarm):
                         bump(AttackType.COMMAND_INJECTION, 0.95)
+                        reason = "force-disarm (param2=21196)" if is_force_disarm else "mid-air motor disarm"
                         evidence.append(
-                            f"state-aware cadence guard: mid-air motor disarm (sys{c.sysid}) "
-                            f"at groundspeed={snap.groundspeed:.1f} m/s"
+                            f"state-aware cadence guard: {reason} (sys{c.sysid}) "
+                            f"at groundspeed={snap.groundspeed or 0.0:.1f} m/s, rel_alt={snap.rel_alt or 0.0:.1f} m"
                         )
                 seen_in_window[key] = c.recv_time
                 if key not in self._last_cmd_seen and len(self._last_cmd_seen) >= 512:
