@@ -56,6 +56,8 @@ class ProtocolDetector(Detector):
         self.semantic_link_attribution = bool(p.get("semantic_link_attribution", False))
         self.semantic_link_min_rate_hz = float(p.get("semantic_link_min_rate_hz", 5.0))
         self._last_cmd_seen: dict[tuple[int, int], float] = {}
+        # (sysid, recv_time) of disarm commands not yet checkable (armed state not confirmed True).
+        self._disarm_pending: set[tuple[int, float]] = set()
         # GNSS fix loss (jamming / receiver denial): fix_type < min_fix_type or
         # satellites < min_satellites for >= gnss_loss_ticks consecutive decisions.
         self.min_fix_type = int(p.get("min_gnss_fix_type", 3))
@@ -447,6 +449,11 @@ class ProtocolDetector(Detector):
         signals["cmd_rate_hz"] = frame.cmd_rate_hz
 
         # ---- state-aware command cadence guard (unsigned replay & mid-air disarm protection) ----
+        # A disarm held back because the armed state was not yet confirmed True is re-checked on
+        # later decisions, but only while the command is still in the sliding window.
+        if self._disarm_pending:
+            live = {(c.sysid, c.recv_time) for c in frame.commands_recent}
+            self._disarm_pending &= live
         if frame.commands_recent:
             high_risk_cmds = {400, 176, 20, 21}  # ARM_DISARM, DO_SET_MODE, RTL, LAND
             seen_in_window: dict[tuple[int, int], float] = {}
@@ -454,12 +461,15 @@ class ProtocolDetector(Detector):
                 if c.command not in high_risk_cmds:
                     continue
                 key = (c.sysid, c.command)
+                pend_key = (c.sysid, c.recv_time)
                 last = self._last_cmd_seen.get(key)
-                if last is not None and c.recv_time <= last:
+                already = last is not None and c.recv_time <= last
+                if already and pend_key not in self._disarm_pending:
                     continue  # already evaluated on an earlier decision (commands_recent is a sliding window)
                 prev_t = seen_in_window.get(key, last)
                 if (
-                    self.cadence_guard_enabled
+                    not already
+                    and self.cadence_guard_enabled
                     and prev_t is not None
                     and 0.0 < (c.recv_time - prev_t) < self.cadence_min_interval_s
                 ):
@@ -472,13 +482,21 @@ class ProtocolDetector(Detector):
                 if c.command == 400 and (not c.params or c.params[0] == 0.0):
                     is_force_disarm = len(c.params) >= 2 and c.params[1] == 21196.0
                     airborne = (snap.groundspeed or 0.0) > 1.0 or (snap.rel_alt or 0.0) > 0.5
-                    if snap.armed and (is_force_disarm or (self.cadence_guard_enabled and airborne)):
-                        bump(AttackType.COMMAND_INJECTION, 0.95)
-                        reason = "force-disarm (param2=21196)" if is_force_disarm else "mid-air motor disarm"
-                        evidence.append(
-                            f"state-aware cadence guard: {reason} (sys{c.sysid}) "
-                            f"at groundspeed={snap.groundspeed or 0.0:.1f} m/s, rel_alt={snap.rel_alt or 0.0:.1f} m"
-                        )
+                    if not snap.armed:
+                        # Armed state unknown (None) or possibly stale-False (heartbeat is ~1 Hz):
+                        # do not consume this command; re-check while it is in the window.
+                        self._disarm_pending.add(pend_key)
+                    else:
+                        self._disarm_pending.discard(pend_key)
+                        if is_force_disarm or (self.cadence_guard_enabled and airborne):
+                            bump(AttackType.COMMAND_INJECTION, 0.95)
+                            reason = "force-disarm (param2=21196)" if is_force_disarm else "mid-air motor disarm"
+                            evidence.append(
+                                f"state-aware cadence guard: {reason} (sys{c.sysid}) "
+                                f"at groundspeed={snap.groundspeed or 0.0:.1f} m/s, rel_alt={snap.rel_alt or 0.0:.1f} m"
+                            )
+                if already:
+                    continue
                 seen_in_window[key] = c.recv_time
                 if key not in self._last_cmd_seen and len(self._last_cmd_seen) >= 512:
                     self._last_cmd_seen.pop(next(iter(self._last_cmd_seen)))
@@ -611,6 +629,7 @@ class ProtocolDetector(Detector):
         self._sig_verified_streams.clear()
         self._signing_ctx = None
         self._last_cmd_seen.clear()
+        self._disarm_pending.clear()
         self.nominal_rate, self.max_rate = self._cfg_nominal, self._cfg_max
         self._learn_t0 = None
         self._learn_samples.clear()
