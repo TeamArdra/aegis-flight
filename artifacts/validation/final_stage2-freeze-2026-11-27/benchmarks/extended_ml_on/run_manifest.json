@@ -25,7 +25,7 @@
     "fastapi": "0.142.2",
     "pyserial": "3.5"
   },
-  "command_line": "D:/Ardra/techfest-2026/aegisflight/.venv/Scripts/python.exe scripts/benchmark_extended.py --model models/isoforest.joblib --workers 4 --out artifacts/validation/final_stage2-freeze-2026-11-27/benchmarks/extended_ml_on",
+  "command_line": "<repo>/.venv/Scripts/python.exe scripts/benchmark_extended.py --model models/isoforest.joblib --workers 4 --out artifacts/validation/final_stage2-freeze-2026-11-27/benchmarks/extended_ml_on",
   "started_utc": "2026-11-23T17:38:09.277029+00:00",
   "ended_utc": "2026-11-23T17:38:43.916769+00:00",
   "not_reproducible_reason": null,

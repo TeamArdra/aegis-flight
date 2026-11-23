@@ -202,7 +202,43 @@ benchmarks/tools/             run_with_prov.py, cmp_runs.py, cmp_sessions.py, bi
 heldout/                      evaluation_heldout.json, run_manifest.json, heldout_lock.json (by-product), derivation.json (copy), comparison_with_committed.txt, helper scripts
 ```
 
-## 9. Placeholders for the companion branch (lead fills in)
-* `sweep/` : link-stress sweep (loss x FIFO/reorder x ML on/off x Stage-1/PX4/ArduPilot profiles; decision FPR, alert events per hour, dominant evidence string). **Not in this PR.**
-* `replays/` : bench captures 005-009 and the 28 Oct run, #29 walk/range captures, the 5 ArduCopter benign tlogs, ALFA, PX4 Flight Review. **Not in this PR.**
-* Final `aegis-reviewer` verdict ("supported") : **pending**.
+## 9. Link-stress sweep and replays (merged from `evidence/27-sweep-replays`, `dc0989d`)
+
+Details, commands and per-cell/per-log tables are in [`sweep/README.md`](sweep/README.md) and [`replays/README.md`](replays/README.md). Both ran on the same tag, on a clean tree, with `isoforest.joblib` `3fe74cdd…`.
+
+**Sweep (SIM)**, `scripts/sweep_link_stress.py` (unchanged), 6 sessions per cell. A second run gave an identical `decisions.csv.gz`.
+- Grid: loss {0,1,2,5,10}% × {FIFO, reorder} × {ML on, ML off} × {Stage-1, PX4, ArduPilot}. Of 60 cells, 30 ran and 30 are `n/a` as the tool marks them:
+  - all 20 PX4 cells: by design, PX4 has no simulator traffic;
+  - the 10 ArduPilot ML-on cells: no ArduPilot benign model exists.
+- **ML off** (20 cells, 69,000 decisions): 4 alarm decisions in total. Decision FPR ≤ 0.0003.
+- **ML on** (Stage-1 profile, 10 cells): decision FPR 0.62–0.67 (FIFO) and 0.90–0.99 (reorder). It is already 0.6455 at 0% loss, and the dominant evidence is the `interarrival_jitter_ms` ML score.
+  - Worst by FPR: reorder 0% ML on, 0.9881.
+  - Worst by events per hour: FIFO 10% ML on, 2655.7/h.
+  - This is the ML-only behaviour that D13 keeps from acting in ACTIVE_IPS.
+
+**Replays (REPLAY)**, default live profile. Per-log sha256, decisions, alerts, exposure, events per hour and dominant evidence are in `replays/replay_table.csv`.
+
+| Data | ML off | ML on |
+|---|---|---|
+| Bench captures 005–009 | 433 threat decisions of 1,505 (23.9 events/h). Only 007 (no GNSS receiver) and 008 (fix lost) alarm | 1,424 of 1,505 (59.8 events/h) |
+| 28 Oct run | 0 of 450 | 431 of 450 |
+| 5 ArduCopter benign tlogs | 184 of 3,495 (start-up GNSS rule, 25.8 events/h) | 3,042 of 3,495 (664 events/h) |
+| 10 PX4 SITL benign | 5,565 of 5,565 (message-rate rule) | – |
+| ALFA E2, 35 non-empty tlogs | 137,836 of 137,926 (message-rate rule) | – |
+| ALFA E2b, ML off, calibrated profile, 21 logs | benign 17 of 11,545 (0.15%, about 3 events/h); fault 0.73%; unlabelled 6.28% | – |
+| PX4 Flight Review E1, 24 usable of 40 ULogs | `px4_telemetry` physics trigger rate 5.43% over 2.18 airborne hours (no decision stream, so no events/h) | – |
+
+Not run: the #29 walk and range captures do not exist yet.
+
+Datasets: ALFA and PX4 Flight Review were already on this host (retrieved 2026-09-23). They were not re-downloaded, and every file was verified against `data/external/manifests/` (`replays/data_verification.json`). No raw log or capture is committed.
+
+Problems recorded (not tuned or patched):
+- `external_validation.py` raises `MemoryError` at 8 workers; it ran at 2.
+- `pyulog` is missing from the venv; it was installed into a scratch target only.
+- **`scripts/ardupilot/replay_ap_tlog.py` defect:** on a `MemoryError` loading the model it silently runs ML off and still writes `ml_enabled: true`. The affected replay was re-run, and the bad JSON is kept under `replays/local/discarded/`.
+- ALFA de-duplication changes the headline. The dropped overlapping recordings alarm at 7.0% on benign periods, against 0.15% for the kept ones.
+- Freeze-tag ALFA and E1 rates differ slightly from the committed `artifacts/external/`.
+
+## 10. Path redaction
+
+Recorded command lines and paths originally contained absolute paths of the producing machine. These were replaced with `<repo>` (the repository checkout), `<scratch>` (the session scratch directory) and `<home>`. Only those prefixes changed (39 replacements in 34 files; every JSON file re-validated). No number, hash or result changed. None of the redacted files is referenced by a hash elsewhere.

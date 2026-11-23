@@ -98,7 +98,7 @@
       "fastapi": "0.142.2",
       "pyserial": "3.5"
     },
-    "command_line": "scripts/ardupilot/replay_ap_tlog.py data/hardware/raw/telemetry_radio_007.tlog --json C:/Users/RajTi/AppData/Local/Temp/claude/0129e7f4bbbc24cd/28be6b14-8f09-48f4-9d54-f0b45e606fc7/scratchpad/w27b/local/telemetry_radio_007.ml_on.json",
+    "command_line": "scripts/ardupilot/replay_ap_tlog.py data/hardware/raw/telemetry_radio_007.tlog --json <scratch>/w27b/local/telemetry_radio_007.ml_on.json",
     "started_utc": "2026-11-23T17:42:32.265025+00:00",
     "ended_utc": "2026-11-23T17:42:32.280704+00:00",
     "not_reproducible_reason": null

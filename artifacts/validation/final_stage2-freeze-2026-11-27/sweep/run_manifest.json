@@ -25,7 +25,7 @@
     "fastapi": "0.142.2",
     "pyserial": "3.5"
   },
-  "command_line": "python scripts/sweep_link_stress.py --out C:/Users/RajTi/AppData/Local/Temp/claude/0129e7f4bbbc24cd/28be6b14-8f09-48f4-9d54-f0b45e606fc7/scratchpad/w27b/sweep --workers 6",
+  "command_line": "python scripts/sweep_link_stress.py --out <scratch>/w27b/sweep --workers 6",
   "started_utc": "2026-11-23T17:36:12.083792+00:00",
   "ended_utc": "2026-11-23T17:36:53.934808+00:00",
   "not_reproducible_reason": null,
@@ -33,7 +33,7 @@
   "environment": "SIM",
   "models": {
     "stage1": {
-      "path": "D:/Ardra/techfest-2026/aegisflight/.claude/worktrees/agent-a323d823db62f47d7/models/isoforest.joblib",
+      "path": "<repo>/models/isoforest.joblib",
       "sha256": "3fe74cddf3689e169610ffd783b109b6539cc6c03629bd1e4bb8b1d3842939c4"
     }
   },
@@ -52,7 +52,7 @@
     }
   },
   "cli_args": {
-    "out": "C:/Users/RajTi/AppData/Local/Temp/claude/0129e7f4bbbc24cd/28be6b14-8f09-48f4-9d54-f0b45e606fc7/scratchpad/w27b/sweep",
+    "out": "<scratch>/w27b/sweep",
     "loss": [
       0.0,
       1.0,
