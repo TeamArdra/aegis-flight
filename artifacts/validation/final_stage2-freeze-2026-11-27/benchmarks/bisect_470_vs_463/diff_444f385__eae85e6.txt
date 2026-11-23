@@ -1,0 +1,7 @@
+# 444f385 (= eae85e6^)  vs  eae85e6
+session  76 dos:blackout                             differing rows  14  no-grace FP-rows 11 -> 12  in_grace-only changes 1
+session  77 dos:blackout                             differing rows 128  no-grace FP-rows 15 -> 5  in_grace-only changes 14
+session  78 dos:blackout                             differing rows  68  no-grace FP-rows 6 -> 8  in_grace-only changes 5
+session  79 dos:blackout                             differing rows  18  no-grace FP-rows 8 -> 8  in_grace-only changes 0
+total differing rows: 228 sessions 116 116
+no-grace FP-rows (all sessions, incl. combo):  6105 -> 6098

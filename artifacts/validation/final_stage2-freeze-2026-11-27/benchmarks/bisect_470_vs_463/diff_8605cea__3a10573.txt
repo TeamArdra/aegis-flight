@@ -1,0 +1,25 @@
+# 8605cea  vs  3a10573
+session  28 mavlink_anomaly:rate_spike               differing rows   2  no-grace FP-rows 4 -> 4  in_grace-only changes 0
+session  29 mavlink_anomaly:rate_spike               differing rows   2  no-grace FP-rows 6 -> 6  in_grace-only changes 0
+session  30 mavlink_anomaly:rate_spike               differing rows   2  no-grace FP-rows 7 -> 7  in_grace-only changes 0
+session  31 mavlink_anomaly:rate_spike               differing rows   2  no-grace FP-rows 5 -> 5  in_grace-only changes 0
+session  32 mavlink_anomaly:seq_scramble             differing rows   4  no-grace FP-rows 0 -> 0  in_grace-only changes 0
+session  33 mavlink_anomaly:seq_scramble             differing rows   2  no-grace FP-rows 0 -> 0  in_grace-only changes 0
+session  35 mavlink_anomaly:seq_scramble             differing rows   2  no-grace FP-rows 3 -> 3  in_grace-only changes 0
+session  74 dos:flood                                differing rows   1  no-grace FP-rows 5 -> 5  in_grace-only changes 0
+session  75 dos:flood                                differing rows   1  no-grace FP-rows 5 -> 5  in_grace-only changes 0
+session  76 dos:blackout                             differing rows  54  no-grace FP-rows 12 -> 12  in_grace-only changes 1
+session  79 dos:blackout                             differing rows  20  no-grace FP-rows 8 -> 8  in_grace-only changes 0
+session  80 dos:latency                              differing rows  96  no-grace FP-rows 6 -> 6  in_grace-only changes 1
+session  81 dos:latency                              differing rows 127  no-grace FP-rows 6 -> 6  in_grace-only changes 1
+session  82 dos:latency                              differing rows 101  no-grace FP-rows 6 -> 5  in_grace-only changes 1
+session  83 dos:latency                              differing rows 105  no-grace FP-rows 6 -> 6  in_grace-only changes 0
+session 100 dos+telemetry_manipulation               differing rows   1  no-grace FP-rows 0 -> 0  in_grace-only changes 0
+session 110 benign                                   differing rows 576  no-grace FP-rows 575 -> 558  in_grace-only changes 0
+session 111 benign                                   differing rows 576  no-grace FP-rows 575 -> 568  in_grace-only changes 0
+session 112 benign                                   differing rows 581  no-grace FP-rows 575 -> 562  in_grace-only changes 0
+session 113 benign                                   differing rows 582  no-grace FP-rows 575 -> 561  in_grace-only changes 0
+session 114 benign                                   differing rows 582  no-grace FP-rows 575 -> 567  in_grace-only changes 0
+session 115 benign                                   differing rows 573  no-grace FP-rows 574 -> 553  in_grace-only changes 0
+total differing rows: 3992 sessions 116 116
+no-grace FP-rows (all sessions, incl. combo):  6098 -> 6017
