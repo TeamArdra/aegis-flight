@@ -127,7 +127,8 @@ class GitHubAPI:
         raise GitHubError(0, f"exhausted retries ({type(last).__name__})", _redact(path))
 
     def _json(self, method: str, path: str, *, retry: bool, **kw: Any) -> Any:
-        _status, _headers, payload = self._send(method, path, retry=retry, **kw)
+        status, headers, payload = self._send(method, path, retry=retry, **kw)
+        _raise_if_redirect(status, headers, payload, path)
         if not payload:
             return None
         return json.loads(payload)
@@ -155,9 +156,14 @@ class GitHubAPI:
         items: list[Any] = []
         pages = 0
         while url and pages < max_pages:
-            _status, headers, payload = self._send("GET", url)
+            status, headers, payload = self._send("GET", url)
+            _raise_if_redirect(status, headers, payload, path)
             data = json.loads(payload) if payload else []
-            items.extend(data[item_key] if item_key else data)
+            page = data[item_key] if item_key else data
+            if not isinstance(page, list):
+                raise GitHubError(status, f"expected a JSON list page, got {type(page).__name__}",
+                                  _redact(path))
+            items.extend(page)
             url = _next_link(headers.get("Link") or headers.get("link") or "")
             pages += 1
         return items
@@ -183,6 +189,22 @@ class GitHubAPI:
         if len(payload) > _MAX_DOWNLOAD_BYTES:
             raise GitHubError(413, "artifact larger than the review-record limit", _redact(path))
         return payload
+
+
+def _raise_if_redirect(status: int, headers: dict[str, str], payload: bytes, path: str) -> None:
+    """JSON calls never follow a redirect (the token must not leave the API host) and never parse a
+    3xx body as data. A renamed or transferred repository answers 301 "Moved Permanently"."""
+    if not 300 <= status < 400:
+        return
+    location = headers.get("Location") or headers.get("location") or ""
+    if not location:
+        try:
+            location = str(json.loads(payload).get("url") or "")
+        except (ValueError, UnicodeDecodeError, AttributeError):
+            location = ""
+    where = urllib.parse.urlsplit(location).path or "an unknown location"
+    raise GitHubError(status, f"resource moved to {where} (renamed or transferred repository?); "
+                              "redirects are not followed", _redact(path))
 
 
 def _next_link(link_header: str) -> str | None:
