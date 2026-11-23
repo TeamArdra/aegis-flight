@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS events (
     prev_hash TEXT NOT NULL,
     hash TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_events_run ON events(run_id);
+CREATE INDEX IF NOT EXISTS idx_events_run ON events(run_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_events_t ON events(t);
 
 CREATE TABLE IF NOT EXISTS runs (
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS actions (
     prev_hash TEXT NOT NULL,
     hash TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_actions_run ON actions(run_id);
+CREATE INDEX IF NOT EXISTS idx_actions_run ON actions(run_id, id DESC);
 """
 
 
@@ -94,6 +94,10 @@ class EventStore:
         else:
             self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self.conn.row_factory = sqlite3.Row
+            if self.db_path != ":memory:":
+                self.conn.execute("PRAGMA journal_mode=WAL;")
+                self.conn.execute("PRAGMA synchronous=NORMAL;")
+                self.conn.execute("PRAGMA busy_timeout=5000;")
             self.conn.executescript(_SCHEMA)
             self.conn.commit()
 

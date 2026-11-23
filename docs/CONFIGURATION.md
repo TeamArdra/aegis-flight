@@ -28,7 +28,10 @@ feature distribution → **retrain the ML model** (`aegis train`) and re-benchma
   reorder tolerance behind the high-water mark. Late frames within `1..R` steps
   increment `FeatureFrame.reorder_count` instead of recording a `256 - k` gap.
   Security note: replays within `R` frames are counted as reorder; MAVLink-2 signing
-  and command-cadence checks still apply.
+  and command-cadence checks still apply. `configs/universal_flight` sets 24 as a **candidate (24); not validated until a fresh
+  SITL rerun**. The only evidence, `artifacts/sitl/px4_netem_reorder_window/README.md`, was computed at 48 and is
+  superseded pending that rerun (PX4 SITL under 40 +/- 20 ms jitter: 195 and 112 benign alerts at 16, 0 and 0 at 48;
+  simulator `seq_scramble` recall 0.966 -> 0.911 at 48); nothing was measured at 24.
 - `protocol.*` — expected sysids/compids, `max_msg_rate_hz` (400),
   `nominal_msg_rate_hz` (28), `msg_rate_spike_factor` (3), `max_seq_gap` (30),
   `heartbeat_timeout_s` (3), `gps_dropout_s` (2), sensitive commands, burst
@@ -92,3 +95,6 @@ hardware IDs are pinned and HMAC signing (`AEGIS_ALLOWLIST_KEY`) is enabled.
 - Config is **not** hot-reloaded: restart the process / re-run after edits.
 - Built-in defaults in `config.py` mirror the YAML exactly, so deleting a YAML
   file falls back to the documented default rather than breaking.
+- `configs/universal_flight/detector.yaml` enables hardware-agnostic online ground baro bias calibration,
+  Control Semantics (*ConstDet*), GNSS clock-skew detection, airborne semantic firewall detection,
+  and `yaw_course_auto` while leaving base `configs/detector.yaml` untouched for Stage-1 equivalence.

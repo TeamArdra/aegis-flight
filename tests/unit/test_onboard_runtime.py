@@ -36,6 +36,7 @@ def _free_port() -> int:
 
 def test_default_config_is_safe_passive_and_blocks_active_on_serial() -> None:
     cfg = load_onboard_config(REPO_ROOT / "configs" / "onboard_default.yaml")
+    assert cfg.topology == "side-tap"
     assert cfg.defense_mode == "passive"
     assert cfg.mgmt_enable is False
     assert cfg.allow_url is False
@@ -43,9 +44,22 @@ def test_default_config_is_safe_passive_and_blocks_active_on_serial() -> None:
     assert cfg.retention.max_db_bytes > 0
     assert cfg.retention.max_total_disk_bytes > 0
 
-    bad = OnboardConfig(fc_port="/dev/ttyAMA0", gcs_port="/dev/ttyUSB0", defense_mode="active-ips")
+    bad = OnboardConfig(topology="inline", fc_port="/dev/ttyAMA0", gcs_port="/dev/ttyUSB0", defense_mode="active-ips")
     with pytest.raises(ValueError, match="receive-only"):
         _validate_onboard(bad)
+
+
+def test_missing_topology_defaults_to_side_tap_and_never_silently_goes_inline(tmp_path: Path) -> None:
+    """R8: topology is new in #81 (the #80 onboard runtime was inline-only). A config without the key must pick the
+    receive-only side-tap, and an old config that asks for active-ips without naming a topology must fail loudly."""
+    plain = tmp_path / "plain.yaml"
+    plain.write_text("fc_port: /dev/ttyAMA0\n", encoding="utf-8")
+    assert load_onboard_config(plain).topology == "side-tap"
+
+    legacy = tmp_path / "legacy.yaml"
+    legacy.write_text("fc_port: socket://127.0.0.1:5762\nallow_url: true\ndefense_mode: active-ips\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="side-tap topology is strictly receive-only"):
+        _validate_onboard(load_onboard_config(legacy))
 
 
 def test_scripts_and_systemd_unit_have_safe_parameterized_defaults() -> None:

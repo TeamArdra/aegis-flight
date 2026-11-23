@@ -71,7 +71,13 @@ def get(url):
 
 
 def post(url, body, headers=None):
-    req = urllib.request.Request(url, json.dumps(body).encode(), {"Content-Type": "application/json", **(headers or {})})
+    data = json.dumps(body).encode()
+    hdrs = {"Content-Type": "application/json", **(headers or {})}
+    gcs_token = os.environ.get("AEGIS_API_TOKEN", "").strip()  # only set when the ground `aegis serve` is token-gated
+    if gcs_token and url.startswith(GCS):
+        from aegisflight.backend.client_auth import signed_headers  # noqa: PLC0415
+        hdrs.update(signed_headers(gcs_token, "POST", url[len(GCS):], data))
+    req = urllib.request.Request(url, data, hdrs)
     try:
         return json.load(urllib.request.urlopen(req, timeout=4))
     except urllib.error.HTTPError as exc:

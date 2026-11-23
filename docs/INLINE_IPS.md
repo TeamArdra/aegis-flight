@@ -507,3 +507,9 @@ delay a frame; if the queue overflows the rows are dropped and counted (`bridge.
 (`bridge.archive.write_errors`, the first error in `writer_error`, `complete: false`); the writer keeps going, and an
 archive error on close never stops the bridge closing its links or writing `run_manifest.json`. Environment tag and claim class are those of the run's wire (SITL loopback);
 the archive adds no claim.
+
+## Airborne Semantic Firewall, Asymmetric Fail-Safe & Multi-Dialect Mitigation (W1, W2, W4, W6)
+
+- **Semantic Firewall (`mitigation/semantic_firewall.py`):** Enabled in `InlinePolicy` (`semantic_firewall_enabled=True`) to drop syntactically valid `PARAM_SET` writes targeting safety-critical prefixes (`FENCE_`, `FS_`, `BRD_SAFETY`, `SYSID_`, `EK*`, `GPS*`, `ATC_*`, etc.) and armed geofence `MISSION_CLEAR_ALL`/`MISSION_COUNT`/`MISSION_ITEM_INT` (`mission_type=1`) changes (including home-exclusion checks) prior to FC forwarding.
+- **Asymmetric Fail-Safe (`InlineIpsBridge`):** When `fail_closed_uplink_commands=True` in `ACTIVE_IPS`, any internal hook exception while evaluating an uplink control/command frame (`CONTROL_MSGIDS | COMMAND_LONG/INT`) drops the frame fail-closed (`uplink_fail_closed_drops`), while downlink telemetry continues fail-open so the pilot never loses instrument situational awareness.
+- **Multi-Autopilot Dialect & Persisted TX Timestamp (`MavlinkActuator`):** Dynamically binds `DO_SET_MODE` mappings (`ArduCopter`, `ArduPlane`, `ArduRover`, `PX4`) from observed `HEARTBEAT` (`autopilot`, `type`) and persists monotonic MAVLink-2 signing timestamp floors (`tx_ts.json`) across companion restarts. Direct pilot RC mode-switch transitions (`MANUAL`, `STABILIZE`, `ALT_HOLD`, `FBWA`, `HOLD`, `ALTCTL`, etc.) immediately cancel active IPS mode escalation and transition the controller to `GCS_TAKEOVER`.

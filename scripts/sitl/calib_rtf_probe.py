@@ -22,13 +22,18 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import calib_common as cc  # noqa: E402
-import joblib  # noqa: E402
 
 from aegisflight.config import load_config  # noqa: E402
 from aegisflight.detectors.anomaly import combined_anomaly_raw  # noqa: E402
 from aegisflight.features.extractor import ML_FEATURES  # noqa: E402
+from aegisflight.model_integrity import load_verified_bundle  # noqa: E402
 
 TARGETS = (0.60, 0.70, 0.80, 0.90, 1.00, 1.25, 1.50, 2.00, 3.00)  # > 1.0: hypothetical faster-than-real-time OR a proportional rate flood
+
+
+def _load_bundle():
+    """The PX4-benign model, hash-verified against models/MODELS.sha256 before it is unpickled (#155)."""
+    return load_verified_bundle(cc.resolve(cc.PX4_MODEL))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -37,7 +42,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = cc.cfg_for("px4_sitl")
     prot = cfg.detector["protocol"]
     spike = prot["nominal_msg_rate_hz"] * prot["msg_rate_spike_factor"]
-    bundle = joblib.load(cc.resolve(cc.PX4_MODEL))
+    bundle = _load_bundle()
     thr, scale = bundle["score_thr"], bundle["score_scale"]
     ml_thr = float(load_config(cc.resolve(cc.PROFILE_DIR)).detector["anomaly"]["score_threshold"])
     der = json.loads((cc.OUT_DIR / "derivation.json").read_text())
