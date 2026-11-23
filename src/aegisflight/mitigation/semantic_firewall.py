@@ -223,8 +223,8 @@ class SemanticFirewall:
             return SemanticVerdict(True, "airborne_fence_clear", "geofence_hijack", 0.95)
         if ev.action == "upload_fence" and (armed is True or (armed is None and self.block_when_arm_unknown)):
             return SemanticVerdict(True, "airborne_fence_overwrite", "geofence_hijack", 0.90)
-        # Only while armed, and only against a trustworthy home (HOME_POSITION or the armed-at position, supplied by
-        # the caller): a disarmed or unknown-home circle is forwarded, never judged against the first GPS fix.
+        # Only while armed: home is the first GPS fix the bridge saw, which is a trustworthy takeoff point only for a
+        # flight the bridge watched from the ground. A disarmed operator may legitimately plan any fence (review R13).
         if (armed is True and ev.action == "fence_item" and ev.command == MAV_CMD_NAV_FENCE_CIRCLE_INCLUSION
                 and home_lat_lon is not None and ev.lat_deg is not None and ev.lon_deg is not None
                 and ev.radius_m is not None and ev.radius_m > 0.0):

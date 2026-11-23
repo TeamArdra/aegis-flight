@@ -107,8 +107,10 @@ telemetry-second; run the same command on the target and compare it with 1.0 per
 ## 9. Universal Companion Hardening (`aegis onboard`, W5–W10)
 
 - **Dual topologies:** `topology: inline` (Radio <-> Companion <-> FC) and `topology: side-tap`
-  (single RX-only Y-tap port, strictly locked to `passive` mode, 0 B TX by design). `inline` has been exercised in `SIM`/`SITL` (socket/UDP links) only; `inline` on a real serial flight controller is not qualified, and `active-ips` is refused on any OS serial device (`docs/HARDWARE_FLIGHT_READINESS.md` §3).
-  **A config file must state `topology` explicitly** (`side-tap` or `inline`): `load_onboard_config` refuses a file with no `topology` key (or an empty/null value) with an error naming both options, so a legacy key-less file can no longer silently change wiring semantics. `configs/onboard_default.yaml` states `topology: side-tap`. Running `aegis onboard` with no `--config` at all still uses the built-in receive-only `side-tap`/`passive` defaults. Tested with synthetic configs only (`tests/unit/test_onboard_runtime.py`); no vehicle or bench run is implied.
+  (single RX-only Y-tap port, strictly locked to `passive` mode, 0 B TX). **The default is `side-tap`** (receive-only);
+  `inline` must be chosen explicitly (`topology: inline` or `--topology inline`). A config that asks for `advisory` or
+  `active-ips` without naming a topology fails validation instead of silently becoming an inline bridge.
+  `inline` has been exercised in `SIM`/`SITL` (socket/UDP links) only; `inline` on a real serial flight controller is not qualified, and `active-ips` is refused on any OS serial device (`docs/HARDWARE_FLIGHT_READINESS.md` §3).
 - **Zero-TX Port & Autobaud Discovery:** Set `fc_port: auto` / `fc_baud: auto` (or run
   `aegis onboard --preflight`) to passively detect connected MAVLink ports across standard baud rates, designed to transmit 0 B (asserted in `SIM` tests with virtual ports; the `BENCH` check is `docs/HARDWARE_FLIGHT_READINESS.md` §2).
 - **Firmware Enrollment:** Run `aegis onboard --enroll-firmware <allowlist.yaml>` while disarmed to passively capture `AUTOPILOT_VERSION` (0 B TX by design; `SIM`/unit-tested, not run against a real board) and write an optional HMAC-signed (`AEGIS_ALLOWLIST_KEY`) allowlist entry.

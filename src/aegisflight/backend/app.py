@@ -21,6 +21,7 @@ real position) must not be readable by an arbitrary web page.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import hmac
 import json
@@ -426,6 +427,29 @@ async def defense_override(request: Request) -> JSONResponse:
     return JSONResponse(content={"ok": True, "action": action, "mitigation": res})
 
 
+class _TxMeter:
+    """Wraps a serial opener and counts the bytes written through the ports it opens, so a setup route reports a
+    measured ``zero_tx`` instead of a constant."""
+
+    def __init__(self, opener):
+        self._opener = opener
+        self.tx_bytes = 0
+
+    def __call__(self, device, baud, timeout):
+        ser = self._opener(device, baud, timeout)
+        meter = self
+
+        class _Counted:
+            def __getattr__(self, name):
+                return getattr(ser, name)
+
+            def write(self, data):
+                meter.tx_bytes += len(data)
+                return ser.write(data)
+
+        return _Counted()
+
+
 @app.get("/api/forensic/report", response_model=None)
 async def forensic_report(
     format: str = Query("json", pattern="^(json|html)$"),
@@ -436,9 +460,11 @@ async def forensic_report(
 
     eng = get_engine()
     db_str = str(getattr(eng, "db_path", ":memory:"))
-    if db_str != ":memory:" and Path(db_str).is_file():
-        rep = build_forensic_report(db_str, run_id=eng._run_id, limit=limit)
-    else:
+
+    def _build() -> dict:
+        # SQLite reads and hash-chain verification: kept off the event loop
+        if db_str != ":memory:" and Path(db_str).is_file():
+            return build_forensic_report(db_str, run_id=eng._run_id, limit=limit)
         bundle = eng.forensic_bundle(limit=limit)
         ev_c = bundle.get("chain") or {}
         act_c = bundle.get("actions_chain") or {"ok": True, "length": 0, "detail": "in-memory"}
@@ -461,6 +487,9 @@ async def forensic_report(
             "events": bundle.get("events", []),
             "actions": bundle.get("actions", []),
         }
+        return rep
+
+    rep = await asyncio.to_thread(_build)
     if format == "html":
         return HTMLResponse(content=render_forensic_html(rep))
     return JSONResponse(content=rep)
@@ -483,7 +512,7 @@ async def run_shadow_drill(request: Request) -> JSONResponse:
         return JSONResponse(status_code=400, content={"ok": False, "error": "invalid JSON body"})
     scenario = (payload or {}).get("scenario", "all") if isinstance(payload, dict) else "all"
     try:
-        res = run_field_drill(str(scenario))
+        res = await asyncio.to_thread(run_field_drill, str(scenario))
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
     _audit_control_action("shadow_drill", str(scenario), f"passed={res['passed']}/{res['total']}")
@@ -499,8 +528,11 @@ def setup_discover_ports(request: Request) -> JSONResponse:
 
     if (gate_err := _require_bench_setup_gate(request)) is not None:
         return gate_err
-    ports = [asdict(p) for p in discover_mavlink_ports(probe_window_s=0.6)]
-    return JSONResponse(content={"ok": True, "zero_tx": True, "ports": ports})
+    from ..hal.auto_port import _open_passive_serial
+
+    meter = _TxMeter(_open_passive_serial)
+    ports = [asdict(p) for p in discover_mavlink_ports(probe_window_s=0.6, serial_opener=meter)]
+    return JSONResponse(content={"ok": True, "zero_tx": meter.tx_bytes == 0, "tx_bytes": meter.tx_bytes, "ports": ports})
 
 
 @app.post("/api/setup/preflight", response_model=None)
@@ -528,8 +560,10 @@ async def setup_preflight(request: Request) -> JSONResponse:
         yaml.safe_dump(payload, fh)
         tmp_path = fh.name
     try:
-        cfg = load_onboard_config(tmp_path)
-        rep = run_preflight(cfg)
+        def _preflight() -> dict:
+            return run_preflight(load_onboard_config(tmp_path))
+
+        rep = await asyncio.to_thread(_preflight)
     except (OSError, ValueError) as exc:
         return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
     finally:
@@ -576,7 +610,7 @@ async def setup_generate_config(request: Request) -> JSONResponse:
 @app.post("/api/setup/enroll-firmware", response_model=None)
 async def setup_enroll_firmware(request: Request) -> JSONResponse:
     """Passively capture AUTOPILOT_VERSION (0 B TX) on a local serial port for allowlist enrollment."""
-    from ..hal.auto_port import capture_autopilot_version_passive
+    from ..hal.auto_port import _open_passive_serial, capture_autopilot_version_passive
 
     try:
         raw = await read_bounded_body(request)
@@ -594,7 +628,10 @@ async def setup_enroll_firmware(request: Request) -> JSONResponse:
     if not port:
         return JSONResponse(status_code=400, content={"ok": False, "error": "port is required"})
     try:
-        entry = capture_autopilot_version_passive(port, baudrate=baud, timeout_s=timeout_s)
+        meter = _TxMeter(_open_passive_serial)
+        entry = await asyncio.to_thread(
+            capture_autopilot_version_passive, port, baudrate=baud, timeout_s=timeout_s, serial_opener=meter
+        )
     except (OSError, ValueError) as exc:
         return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
     if entry is None:
@@ -602,7 +639,7 @@ async def setup_enroll_firmware(request: Request) -> JSONResponse:
             status_code=504,
             content={"ok": False, "error": f"timed out waiting for AUTOPILOT_VERSION on {port}@{baud}"},
         )
-    return JSONResponse(content={"ok": True, "zero_tx": True, "entry": entry})
+    return JSONResponse(content={"ok": True, "zero_tx": meter.tx_bytes == 0, "tx_bytes": meter.tx_bytes, "entry": entry})
 
 
 @app.get("/api/topology")

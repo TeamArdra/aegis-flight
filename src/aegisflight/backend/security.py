@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import ipaddress
+import math
 import os
 import threading
 import time
@@ -52,24 +53,55 @@ class ReplayCache:
         self._lock = threading.Lock()
         self._seen: OrderedDict[str, float] = OrderedDict()
 
+    def _format_error(self, nonce: str, timestamp_s: float, now: float) -> str | None:
+        if not nonce or len(nonce) < 8 or len(nonce) > 128:
+            return "invalid nonce format"
+        if not math.isfinite(timestamp_s):  # nan compares False against every bound, so it would never look stale
+            return "invalid timestamp"
+        if abs(now - timestamp_s) > self.ttl_s:
+            return f"stale timestamp (skew {abs(now - timestamp_s):.1f}s > {self.ttl_s:.0f}s)"
+        return None
+
+    def _evict(self, now: float) -> None:
+        cutoff = now - self.ttl_s
+        while self._seen:
+            _oldest_k, oldest_t = next(iter(self._seen.items()))
+            if oldest_t >= cutoff:
+                break
+            self._seen.popitem(last=False)
+
+    def check(self, nonce: str, timestamp_s: float, *, now_s: float | None = None) -> tuple[bool, str]:
+        """Validate format, freshness and novelty WITHOUT recording the nonce.
+
+        Used before signature verification so an unauthenticated request cannot burn a nonce
+        that a legitimate client may still use. Call :meth:`record` after the signature verifies.
+        """
+        now = time.time() if now_s is None else float(now_s)
+        if (err := self._format_error(nonce, timestamp_s, now)) is not None:
+            return False, err
+        with self._lock:
+            self._evict(now)
+            if nonce in self._seen:
+                return False, "nonce replay rejected"
+        return True, "ok"
+
+    def record(self, nonce: str, timestamp_s: float, *, now_s: float | None = None) -> tuple[bool, str]:
+        """Atomically record a nonce; False if it was already seen (closes the check/record race)."""
+        return self.check_and_record(nonce, timestamp_s, now_s=now_s)
+
     def check_and_record(self, nonce: str, timestamp_s: float, *, now_s: float | None = None) -> tuple[bool, str]:
         now = time.time() if now_s is None else float(now_s)
-        if not nonce or len(nonce) < 8 or len(nonce) > 128:
-            return False, "invalid nonce format"
-        if abs(now - timestamp_s) > self.ttl_s:
-            return False, f"stale timestamp (skew {abs(now - timestamp_s):.1f}s > {self.ttl_s:.0f}s)"
+        if (err := self._format_error(nonce, timestamp_s, now)) is not None:
+            return False, err
         with self._lock:
-            cutoff = now - self.ttl_s
-            while self._seen:
-                oldest_k, oldest_t = next(iter(self._seen.items()))
-                if oldest_t >= cutoff:
-                    break
-                self._seen.popitem(last=False)
+            self._evict(now)
             if nonce in self._seen:
                 return False, "nonce replay rejected"
             if len(self._seen) >= self.max_entries:
                 self._seen.popitem(last=False)
-            self._seen[nonce] = now
+            # A timestamp up to +ttl ahead is accepted, so remember the nonce until that timestamp
+            # is itself stale; keyed on receipt time alone it could be replayed after eviction.
+            self._seen[nonce] = max(now, float(timestamp_s))
         return True, "ok"
 
 
@@ -200,7 +232,9 @@ def verify_signed_headers(
             content={"ok": False, "error": "too many invalid authentication attempts"},
         )
 
-    ok, detail = GLOBAL_REPLAY_CACHE.check_and_record(nonce, ts_val)
+    # Read-only freshness/replay check first; the nonce is recorded only AFTER the HMAC verifies, so a
+    # forged or corrupted request cannot burn a nonce that a legitimate client has yet to use.
+    ok, detail = GLOBAL_REPLAY_CACHE.check(nonce, ts_val)
     if not ok:
         GLOBAL_RATE_LIMITER.record_failure(ip)
         return JSONResponse(status_code=401, content={"ok": False, "error": detail})
@@ -221,5 +255,10 @@ def verify_signed_headers(
             headers=headers,
             content={"ok": False, "error": "invalid request HMAC signature"},
         )
+    # Atomic record: a concurrent request with the same (validly signed) nonce loses here.
+    recorded, detail = GLOBAL_REPLAY_CACHE.record(nonce, ts_val)
+    if not recorded:
+        GLOBAL_RATE_LIMITER.record_failure(ip)
+        return JSONResponse(status_code=401, content={"ok": False, "error": detail})
     GLOBAL_RATE_LIMITER.clear(ip)
     return None

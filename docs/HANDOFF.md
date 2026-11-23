@@ -84,7 +84,10 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
 ## Do NOT change casually
 - **`ML_FEATURES` order/content** (`features/extractor.py`) — the saved model
   depends on it exactly; changing it silently breaks inference. Retrain.
-  *Frozen-contract migration note (issue #14, 2026-11-18):* `ML_FEATURES` order and
+  *Frozen-contract migration note (issue #14, 2026-11-18). Maintainer approval (decision D1)
+  is recorded by RajTib in https://github.com/TeamArdra/aegis-flight/issues/14#issuecomment-7060961736;
+  the code is by madhavchoudhary2007-netizen in PR #79. The same account (RajTib) wrote that
+  approval and this note, so it is a single maintainer's approval, not a second-maintainer review:* `ML_FEATURES` order and
   content are unchanged (`len == 11`). `FeatureExtractor` now tracks per-source
   sequence numbers against a high-water mark with `features.reorder_window` (default
   `16`), counting late packets within `1..R` steps in the new additive `FeatureFrame.reorder_count`
@@ -116,7 +119,10 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
   - Extended 2026-10-28, additive: EKF_STATUS_REPORT variances, GPS_RAW_INT eph/vel, GPS_STATUS read by the extractor; user requested the EKF-health and receiver-signature rules in chat on 2026-10-28; ML_FEATURES unchanged.
   - See `docs/DETECTION.md` "Estimator-aware position residual".
 - **The event schema / hash-chain canonicalisation** — breaks existing logs.
-  *Extended 2026-11-18 (#21, offline maintainer approval confirmed; additive only):*
+  *Extended 2026-11-18 (#21, additive only). Maintainer approval (decision D1) is recorded by
+  RajTib in https://github.com/TeamArdra/aegis-flight/issues/21#issuecomment-7060964181; the code
+  is by madhavchoudhary2007-netizen in PR #79. The same account (RajTib) wrote that approval and
+  this note, so it is a single maintainer's approval, not a second-maintainer review:*
   - `events` table columns, `_canonical`, `_hash`, `verify_chain()`, and default `aegis verify-log <db>` output are **byte-identical** (`read_only=True` verification leaves legacy fixture DBs untouched on disk).
   - Additive `<db>.anchors.jsonl` external head anchoring (`logging/anchors.py`, optional `AEGIS_ANCHOR_KEY` HMAC-SHA256) and additive `actions` table (`EventStore.log_action`, `verify_actions_chain`) added without changing any `events` canonical bytes.
 - **The benchmark scoring policy** (warmup/grace) — changing it changes reported
@@ -131,11 +137,11 @@ Demo script: `docs/DEMO_RUNBOOK.md`.
 ## Completed in Stage 2
 1. **MAVLink 2 message signing & cryptographic attestation**: Implemented in `src/aegisflight/mavlink/signing.py`.
 2. **Serial & UDP transports & SITL integration**: Fully verified with ArduPilot 4.7.1 and PX4 1.14 (`docs/ARDUPILOT_SITL.md`, `docs/STAGE2_RUNBOOK.md`).
-3. **Strict 3-mode separation (`#58`)**: Default `passive` posture on `InlineIpsBridge` is now strictly zero-TX on both `fc` and `gcs` links and forwards `compid 191` frames transparently; keyed deployments that require in-band `passive -> advisory` remote promotion must pass `--mgmt-enable`.
-3. **Hardware Abstraction Layer (HAL)**: Auto-discovery across flight controllers, companion computers, and dynamic latency budgets (`src/aegisflight/hal/`).
-4. **Dual-Topology Autonomous Prevention**: Topology A (Sidecar Actuator) and Topology B (Inline Transparent Bridge with 150 ms fail-open watchdog).
-5. **Cross-Platform Native Desktop GCS**: Tauri 2.0 (Rust) + React 18 + TypeScript (`frontend/src-tauri/`).
-6. **Immutable Forensic Hash Chain**: SQLite rolling block hash chain for tamper-evident audit logs.
+3. **Strict 3-mode separation (`#58`)**: Default `passive` posture on `InlineIpsBridge` is now strictly zero-TX on both `fc` and `gcs` links (0 B sent by the bridge itself) and still consumes uplink `compid 191` management commands at the boundary: they are counted, archived as `consumed`, never forwarded to the FC and never answered (`tests/unit/test_rotation_failure_and_upstream_gate.py::test_passive_consumes_compid191_never_forwards_and_transmits_zero_bytes`, `tests/unit/test_mode_separation.py`); keyed deployments that require in-band `passive -> advisory` remote promotion must pass `--mgmt-enable`.
+4. **Hardware Abstraction Layer (HAL)**: Auto-discovery across flight controllers, companion computers, and dynamic latency budgets (`src/aegisflight/hal/`).
+5. **Dual-Topology Autonomous Prevention**: Topology A (Sidecar Actuator) and Topology B (Inline Transparent Bridge with 150 ms fail-open watchdog).
+6. **Cross-Platform Native Desktop GCS**: Tauri 2.0 (Rust) + React 18 + TypeScript (`frontend/src-tauri/`).
+7. **Immutable Forensic Hash Chain**: SQLite rolling block hash chain for tamper-evident audit logs.
 
 ## Recommended Next Steps (Future Roadmap)
 1. Physical flight tests with companion computer mounted on an operational quadcopter. (The 2026-10-31 bench runs were disarmed with propellers removed; no flight has been done.)

@@ -1,3 +1,9 @@
+> **UNSUPPORTED: not reproducible, not validated evidence. Read [`UNSUPPORTED.md`](UNSUPPORTED.md) before using any number below; it may not be cited for any detection, false-positive-rate or reproducibility claim.**
+> **Environment:** SITL (PX4 SITL behind the loopback attack proxy). **Claim class:** link-level only (no estimator, physical or real-world claim).
+> **Status: DRY RUN. Not a detection result.** 8 of 9 scenarios had 0 threats (only `rogue_force_disarm` flagged, 10 of 75 decisions); no detection-rate or false-positive figure may be quoted from this table.
+> **Generating command (from each manifest's `command_line`):** `python scripts/sitl/run_p2_telemetry_trial.py --scenario <scenario> --px4-host 127.0.0.1 --px4-port 14580 --relay-listen-port <1868x> --seed 1001 --trial-index 0 --seconds 15 --warmup-s 0 --onset-s 3 --expected-sysid 1 --px4-git-describe bce8453e-dirty --out <dir>/p2t_<scenario>_001` (the run used the author's local path as `--out`; see the provenance notes in the PR that added this label).
+> Labelling added after the run; the manifests and the table below are unchanged.
+
 # SITL Proxy Telemetry / Firmware / Restricted-Visibility Trial Summary
 
 | Trial | Scenario | Seed | Frames Seen | Modified | Injected | Signed Skipped | Decisions | Threats |

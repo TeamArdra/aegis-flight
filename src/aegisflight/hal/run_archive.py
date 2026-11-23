@@ -139,6 +139,8 @@ class BridgeRunArchive:
             self.rows[name] += 1
         for name, f in list(self._files.items()):
             try:
+                if getattr(f, "closed", False):  # an earlier reopen failed: try again rather than stop this stream silently
+                    f = self._files[name] = open(self.dir / name, "a", encoding="utf-8")  # noqa: SIM115
                 f.flush()
                 if self._max_file_bytes > 0 and f.tell() >= self._max_file_bytes:
                     f.close()
@@ -148,16 +150,24 @@ class BridgeRunArchive:
                     else:
                         oldest_p = active_p.with_name(f"{active_p.stem}.{self._max_rotations}{active_p.suffix}")
                     oldest_sz = oldest_p.stat().st_size if oldest_p.exists() else 0
-                    if rotate_file_series(
-                        active_p,
-                        max_bytes=self._max_file_bytes,
-                        max_rotations=self._max_rotations,
-                    ):
+                    rotated = False
+                    try:
+                        rotated = rotate_file_series(
+                            active_p,
+                            max_bytes=self._max_file_bytes,
+                            max_rotations=self._max_rotations,
+                        )
+                    except OSError as exc:  # noqa: BLE001 - counted; the stream must keep running
+                        self._error(exc)
+                    finally:
+                        # Always reopen: after a failed rotation the active file still holds the rows, so append.
+                        self._files[name] = open(active_p, "a" if active_p.exists() else "w",  # noqa: SIM115
+                                                 encoding="utf-8")
+                    if rotated:
                         self.rotations[name] += 1
                         if oldest_sz > 0:
                             self.rotated_out_files += 1
                             self.discarded_bytes += oldest_sz
-                    self._files[name] = open(active_p, "w", encoding="utf-8")  # noqa: SIM115
             except Exception as exc:  # noqa: BLE001 - buffered rows may be lost: the archive is incomplete
                 self._error(exc)
         if self._max_total_bytes > 0:

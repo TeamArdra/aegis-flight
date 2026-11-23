@@ -49,6 +49,19 @@ def test_default_config_is_safe_passive_and_blocks_active_on_serial() -> None:
         _validate_onboard(bad)
 
 
+def test_missing_topology_defaults_to_side_tap_and_never_silently_goes_inline(tmp_path: Path) -> None:
+    """R8: topology is new in #81 (the #80 onboard runtime was inline-only). A config without the key must pick the
+    receive-only side-tap, and an old config that asks for active-ips without naming a topology must fail loudly."""
+    plain = tmp_path / "plain.yaml"
+    plain.write_text("fc_port: /dev/ttyAMA0\n", encoding="utf-8")
+    assert load_onboard_config(plain).topology == "side-tap"
+
+    legacy = tmp_path / "legacy.yaml"
+    legacy.write_text("fc_port: socket://127.0.0.1:5762\nallow_url: true\ndefense_mode: active-ips\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="side-tap topology is strictly receive-only"):
+        _validate_onboard(load_onboard_config(legacy))
+
+
 def test_scripts_and_systemd_unit_have_safe_parameterized_defaults() -> None:
     unit = (REPO_ROOT / "deploy" / "aegis-onboard.service").read_text(encoding="utf-8")
     assert "KillSignal=SIGTERM" in unit
@@ -200,7 +213,13 @@ def test_archive_marks_complete_false_when_segments_rotated_out_and_missing_jobl
     assert det.load_error is not None and "ImportError" in det.load_error
 
 
-@pytest.mark.skipif(not hasattr(signal, "SIGTERM"), reason="SIGTERM requires POSIX")
+# On Windows ``signal.SIGTERM`` exists but ``Popen.send_signal(SIGTERM)`` is ``TerminateProcess``: the child
+# is killed unconditionally (exit code 1) and its handler never runs, so graceful shutdown cannot be
+# exercised there. ``hasattr(signal, "SIGTERM")`` is therefore not a POSIX check.
+@pytest.mark.skipif(
+    sys.platform == "win32" or not hasattr(signal, "SIGTERM"),
+    reason="Windows has no deliverable SIGTERM (send_signal terminates the process hard)",
+)
 def test_sigterm_shuts_down_onboard_cleanly_with_valid_sqlite_and_manifest(tmp_path: Path) -> None:
     fc_port = _free_port()
     gcs_port = _free_port()

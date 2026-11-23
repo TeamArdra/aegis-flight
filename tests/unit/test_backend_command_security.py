@@ -122,3 +122,51 @@ def test_bench_setup_routes_locked_when_armed_and_non_loopback(monkeypatch) -> N
         r_rep = client.get("/api/forensic/report?format=json")
         assert r_rep.status_code == 200 and r_rep.json()["schema"] == "aegisflight.forensic_report/1"
     assert GLOBAL_REPLAY_CACHE.ttl_s > 0
+
+
+def test_bad_hmac_does_not_burn_a_valid_nonce(monkeypatch) -> None:
+    """R3 P3: the nonce is recorded only after the signature verifies."""
+    GLOBAL_RATE_LIMITER.clear("testclient")
+    GLOBAL_RATE_LIMITER.clear("unknown")
+    token = "test-secret-hmac-key-2026"
+    monkeypatch.setenv("AEGIS_API_TOKEN", token)
+    eng = LiveEngine(spec=SourceSpec(kind="sim"))
+    monkeypatch.setattr(backend_app, "engine", eng)
+    try:
+        with TestClient(backend_app.app) as client:
+            body = json.dumps({"mode": "advisory"}).encode()
+            ts = f"{time.time():.3f}"
+            nonce = "nonce-burn-test-1234567"
+            good = compute_request_hmac(
+                token, method="POST", path="/api/defense/mode", timestamp=ts, nonce=nonce, body=body
+            )
+            base = {"Content-Type": "application/json", "X-Aegis-Token": token,
+                    "X-Aegis-Timestamp": ts, "X-Aegis-Nonce": nonce}
+            # forged signature with the same nonce: rejected as a bad HMAC (not as a replay)
+            bad = client.post("/api/defense/mode", content=body, headers={**base, "X-Aegis-Signature": "0" * 64})
+            assert bad.status_code == 401
+            assert "hmac" in bad.json()["error"].lower()
+            # the legitimate request with that nonce still succeeds
+            ok = client.post("/api/defense/mode", content=body, headers={**base, "X-Aegis-Signature": good})
+            assert ok.status_code == 200
+            # and a replay of the now-recorded valid nonce is still rejected
+            again = client.post("/api/defense/mode", content=body, headers={**base, "X-Aegis-Signature": good})
+            assert again.status_code == 401
+            assert "replay" in again.json()["error"].lower()
+    finally:
+        GLOBAL_RATE_LIMITER.clear("testclient")
+        GLOBAL_RATE_LIMITER.clear("unknown")
+        GLOBAL_REPLAY_CACHE._seen.clear()
+        monkeypatch.delenv("AEGIS_API_TOKEN", raising=False)
+
+
+def test_replay_cache_check_is_read_only_and_record_is_atomic() -> None:
+    from aegisflight.backend.security import ReplayCache
+
+    cache = ReplayCache(ttl_s=60.0)
+    now = 1000.0
+    assert cache.check("nonce-12345678", now, now_s=now) == (True, "ok")
+    assert cache.check("nonce-12345678", now, now_s=now) == (True, "ok")  # check never records
+    assert cache.record("nonce-12345678", now, now_s=now) == (True, "ok")
+    assert cache.record("nonce-12345678", now, now_s=now)[0] is False  # second record loses
+    assert cache.check("nonce-12345678", now, now_s=now)[0] is False

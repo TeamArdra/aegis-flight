@@ -980,6 +980,22 @@ class FeatureExtractor:
         self._accel_prev = (t1, accel)
         return accel, jerk
 
+    @property
+    def signing_context(self) -> dict[str, object]:
+        """Read-only view of the per-decision-window signing/source state for ``ProtocolDetector``.
+
+        Keys: ``unsigned_events``, ``sig_invalid_streams`` / ``sig_verified_streams`` (``None`` when the source
+        reports no per-stream signing data), ``source_msgs``. The live window containers are returned, not
+        copies; callers must not mutate them (``clear_window_counts`` rebinds them each decision).
+        """
+        tracked = self._sig_streams_tracked
+        return {
+            "unsigned_events": self._unsigned_window,
+            "sig_invalid_streams": self._sig_invalid_streams_window if tracked else None,
+            "sig_verified_streams": self._sig_verified_streams_window if tracked else None,
+            "source_msgs": self._source_msgs_window,
+        }
+
     # window reset between the rate window drops handled by deque + filtering
     def clear_window_counts(self) -> None:
         """Reset per-window source counts (called by the pipeline each decision)."""
