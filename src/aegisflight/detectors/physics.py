@@ -376,15 +376,10 @@ class PhysicsDetector(Detector):
             evidence.append(f"heading/course mismatch {yc:.0f}° (attitude inconsistent with track)")
 
         # ---- ConstDet: attitude vs horizontal acceleration control semantics ----
-        # reorder_count is per decision window (FeatureExtractor.clear_window_counts resets it), so any
-        # positive value means this window was reordered; comparing with the previous window missed it
-        reordered = frame.reorder_count > 0
         if (
             self.control_semantics_enabled
             and frame.snapshot.armed
             and not frame.nav_gated
-            and frame.max_seq_gap == 0
-            and not reordered
             and frame.control_accel_residual_ms2 is not None
         ):
             cr = frame.control_accel_residual_ms2

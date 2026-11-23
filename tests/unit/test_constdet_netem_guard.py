@@ -1,4 +1,9 @@
-"""Paired regression tests for ConstDet netem seq-gap/reorder guard."""
+"""ConstDet keeps the conservative base behaviour (maintainer decision D14 on #4, applying to #125).
+
+ConstDet is NOT muted on a window with a sequence gap or a reorder. A narrower guard needs benign
+link-stress evidence first. These tests pin that ConstDet's output is independent of the link-stress
+features, i.e. identical to the #82 base, which never read them.
+"""
 
 from __future__ import annotations
 
@@ -64,8 +69,11 @@ def _make_frame(
     )
 
 
+def _signature(res) -> tuple:
+    return (res.score, sorted(res.signals), list(res.evidence))
+
+
 def test_constdet_true_accel_spike_still_alerts() -> None:
-    """An injected true acceleration residual spike with clean link still alerts."""
     det = _make_detector()
     res = det.process(_make_frame(t=1.0, control_accel_residual_ms2=10.0))
     assert "control_accel_residual_ms2" in res.signals
@@ -73,25 +81,27 @@ def test_constdet_true_accel_spike_still_alerts() -> None:
     assert any("ConstDet" in e for e in res.evidence)
 
 
-def test_constdet_netem_seq_gap_and_reorder_suppressed() -> None:
-    """Netem seq-gap and reordered frames do not trigger ConstDet false alarms."""
+def test_constdet_output_ignores_seq_gap_and_reorder() -> None:
+    """Same inputs but for max_seq_gap / reorder_count: ConstDet output must be identical (not muted).
+
+    Fails on #125's head, which muted ConstDet whenever max_seq_gap > 0 or reorder_count > 0.
+    """
+    for residual in (3.0, 10.0, 15.0):  # below, above and well above the 4.5 m/s^2 threshold
+        clean = _signature(_make_detector().process(_make_frame(t=1.0, control_accel_residual_ms2=residual)))
+        for gap, reorder in ((2, 0), (0, 1), (3, 2)):
+            link_stressed = _signature(
+                _make_detector().process(
+                    _make_frame(t=1.0, control_accel_residual_ms2=residual, max_seq_gap=gap, reorder_count=reorder)
+                )
+            )
+            assert link_stressed == clean, (residual, gap, reorder)
+
+
+def test_constdet_fires_on_gap_and_reorder_windows() -> None:
     det = _make_detector()
-
-    # Case 1: seq-gap present (e.g. packet loss)
-    res_gap = det.process(_make_frame(t=1.0, control_accel_residual_ms2=15.0, max_seq_gap=2))
-    assert "control_accel_residual_ms2" not in res_gap.signals
-    assert not any("ConstDet" in e for e in res_gap.evidence)
-
-    # Case 2: packet reorder occurred in this decision window (reorder_count is per window, not cumulative)
-    res_reorder = det.process(
-        _make_frame(t=1.1, control_accel_residual_ms2=15.0, max_seq_gap=0, reorder_count=1)
-    )
-    assert "control_accel_residual_ms2" not in res_reorder.signals
-    assert not any("ConstDet" in e for e in res_reorder.evidence)
-
-    # Case 3: subsequent clean frame with no new reorder and no seq_gap still works
-    res_clean = det.process(
-        _make_frame(t=1.2, control_accel_residual_ms2=10.0, max_seq_gap=0, reorder_count=0)
-    )
-    assert "control_accel_residual_ms2" in res_clean.signals
-    assert res_clean.score > 0.0
+    for k, (gap, reorder) in enumerate(((2, 0), (0, 1), (2, 1))):
+        res = det.process(
+            _make_frame(t=1.0 + 0.1 * k, control_accel_residual_ms2=15.0, max_seq_gap=gap, reorder_count=reorder)
+        )
+        assert "control_accel_residual_ms2" in res.signals, (gap, reorder)
+        assert any("ConstDet" in e for e in res.evidence), (gap, reorder)
