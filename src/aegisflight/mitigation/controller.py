@@ -12,7 +12,7 @@ from .actuator import MavlinkActuator
 from .golden_state import GoldenFlightState
 from .parameter_estimator import ParameterEstimator
 from .sanitizer import FrameSanitizer
-from .submode_classifier import AttackSubModeClassifier
+from .submode_classifier import FLOOD_MSG_RATE_HZ, AttackSubModeClassifier
 from .types import AttackParameters, AttackSubMode, DefenseMode, MitigationAction, MitigationState
 
 _POSITION_DEPENDENT_MODES = frozenset({
@@ -345,7 +345,13 @@ class MitigationController:
         rate_limit_active = False
 
         if self.mode == DefenseMode.ACTIVE_IPS:
-            if sub_mode.value.startswith("gps_spoofing") or sub_mode == AttackSubMode.DOS_GNSS_JAMMING:
+            # D10 (#112): the GNSS-loss relabel above the flood rate is accepted as classification only. Before
+            # #112 that case was DOS_FLOOD and never ran the GPS ladder; it still does not, so no new
+            # DO_SET_MODE (ladder ALT_HOLD, SAFE_HOLD ALT_HOLD) and no GPS episode that would suppress the
+            # recovery mode restore. Only a GNSS-loss threat at or below the flood rate drives the ladder.
+            if sub_mode.value.startswith("gps_spoofing") or (
+                sub_mode == AttackSubMode.DOS_GNSS_JAMMING and frame.msg_rate_hz <= FLOOD_MSG_RATE_HZ
+            ):
                 self._gps_ladder(frame, t, counter_frames)
             elif self._gps_confirm_t is None:
                 self._gps_ticks = 0
@@ -403,7 +409,11 @@ class MitigationController:
 
             # 5. DoS Flood / Jamming / Latency Blackout Playbook
             elif asmt.attack_type == AttackType.DOS or sub_mode == AttackSubMode.DOS_BLACKOUT:
-                if sub_mode in (AttackSubMode.DOS_FLOOD, AttackSubMode.MAV_RATE_SPIKE):
+                # D10 (#112): above the flood rate the GNSS-loss relabel is classification only, so the link
+                # gets main's flood actions (rate limiter), not the GNSS anti-jam downlink rewrite.
+                high_rate_gnss = (sub_mode == AttackSubMode.DOS_GNSS_JAMMING
+                                  and frame.msg_rate_hz > FLOOD_MSG_RATE_HZ)
+                if sub_mode in (AttackSubMode.DOS_FLOOD, AttackSubMode.MAV_RATE_SPIKE) or high_rate_gnss:
                     rate_limit_active = self._dos_streak >= 3
                     self._add_action(t, "RATE_LIMIT", "Hostile frame rate flooding gatekeeper engaged (100Hz cap)")
                 elif sub_mode == AttackSubMode.DOS_GNSS_JAMMING:
