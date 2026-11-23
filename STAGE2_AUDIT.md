@@ -31,7 +31,7 @@ then were re-checked. The report was checked against the 11-06 build in report-r
 | False-alarm rate with an upper bound | not established | LIMITATION. State "not established" |
 | Tamper-evident log | `logging/store.py` hash chain; `aegis verify-log` | SATISFIED. LIMITATION: deleting the newest rows goes undetected until #21's anchoring lands (it is in the stack) |
 | Alerting cannot interfere with flight | serial links are receive-only (`may_reach_vehicle()`); PASSIVE sends 0 bytes (#58 tests) | SATISFIED in software. LIMITATION: never flown; TX-line isolation not measured |
-| IPS actuation safety | SAFE_HOLD gate #140; D4 dialect gate (heartbeat-bound, fail-closed); armed-only, one-shot, budgeted (#60) | SATISFIED. **Open decisions to implement: D12 (no restore on emergency stop), D13 (ML-only needs corroboration).** LIMITATION: restore paths have no armed check |
+| IPS actuation safety | SAFE_HOLD gate #140; D4 dialect gate (heartbeat-bound, fail-closed); armed-only, one-shot, budgeted (#60) | SATISFIED. D12 (no counter-command on a genuine emergency stop) and D13 (ML-only cannot act in ACTIVE_IPS) are implemented in #114 and #115 (fix-ups #162 and #165 merged). D10 (#112): mode commands and flood actions identical to main. LIMITATION: restore paths have no armed check |
 | Safe failure | passive tap is safe; inline bridge has no hardware bypass | LIMITATION: do not fly the bridge (documented) |
 
 ## 3. Validation and reproducibility (§8, 14 marks)
