@@ -60,7 +60,7 @@ def _git(*args: str) -> str:
         return "unknown"
 
 
-def collect(model: str = "models/isoforest.joblib", configs: str = "configs", **extra) -> dict:
+def collect(model: str | None = "models/isoforest.joblib", configs: str = "configs", **extra) -> dict:
     cfg_hash = hashlib.sha256()
     for p in sorted(Path(configs).glob("*.yaml")):
         cfg_hash.update(p.name.encode() + p.read_bytes())
@@ -78,7 +78,7 @@ def collect(model: str = "models/isoforest.joblib", configs: str = "configs", **
         "dirty_paths_count": len(dirty),
         "python": sys.version.split()[0],
         "packages": pk,
-        "model_sha256": sha256_file(model) if Path(model).exists() else None,
+        "model_sha256": sha256_file(model) if model and Path(model).exists() else None,  # model=None: ML was off
         "configs_sha256": cfg_hash.hexdigest(),
         "command_line": " ".join(sys.argv),
         **extra,

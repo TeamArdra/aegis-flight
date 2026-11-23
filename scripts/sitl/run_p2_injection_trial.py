@@ -193,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
         frame_log.close()
 
     effect = compute_command_injection_effect(out.with_suffix(".frames.jsonl"))
-    prov_raw = collect(python_version=sys.version.split()[0])
+    prov_raw = collect(model=model, python_version=sys.version.split()[0])
     run_prov = finish_run(begin_run(allow_dirty=a.allow_dirty, profile_dir=a.profile or None, model_path=model,
                                     px4_git_describe=px4_describe(), started_utc=run_started,
                                     start_state=start_state))
