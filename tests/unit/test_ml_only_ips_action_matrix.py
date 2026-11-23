@@ -1,6 +1,7 @@
-"""PROPOSAL evidence: what an ML-ONLY score can make the inline bridge do in ACTIVE_IPS (needs a maintainer decision).
+"""What an ML-ONLY score can make the inline bridge do in ACTIVE_IPS: nothing (maintainer decision D13).
 
-This is a characterisation test, not a statement that the behaviour is right. It drives the real ``AnomalyDetector``
+History: this test first characterised the pre-decision behaviour (a saturated lone ML score on the default profile
+sent a DO_SET_MODE to the FC and switched the sanitizer on). It now pins the decided behaviour. It drives the real ``AnomalyDetector``
 (stub Isolation-Forest bundle, one ML feature at a time far from baseline), the real ``FusionEngine`` (the other three
 detectors score 0.0) and the real ``MitigationController`` in ``ACTIVE_IPS``, and records the frames the controller
 emits (what ``InlineIpsBridge.analyse_tick`` would write to the flight controller / GCS) and the inline sanitizer flags.
@@ -114,31 +115,18 @@ def test_ml_only_score_to_active_ips_action_matrix(tmp_path: Path) -> None:
     for (label, feature), r in rows.items():
         print(f"{label} | {feature} | {r['first']} | {r['frames']} | {r['sanitizer']}")
 
-    # --- default CLI config (Stage-1 configs/, ml_require_corroboration: false) ---------------------------------
-    # 0.16/0.34 = 0.4706 max-normalised ML weight: a saturated ML score alone reaches SUSPICIOUS (>= 0.45), which is
-    # the controller's is_threat floor.
-    gps = [("STATUSTEXT"), ("COMMAND_LONG cmd=176 param2=2")]  # DO_SET_MODE, PX4 main mode 2 = ALTCTL
-    for feature in ("pos_residual_m", "accel_ms2"):
+    # --- D13 (maintainer decision): ML alone never makes ACTIVE_IPS act, on ANY profile -------------------------
+    # Default CLI config (Stage-1 configs/, ml_require_corroboration: false): a saturated lone ML score is 0.16/0.34 =
+    # 0.4706 >= 0.45 and still fuses to a threat (the alert stream is unchanged), but the controller no longer acts on it.
+    for feature in ML_FEATURES:
         r = rows[("base", feature)]
-        assert r["first"][:3] == (True, "SUSPICIOUS", "GPS_SPOOFING")
-        assert [c for _, c in r["frames"]] == gps  # one GCS STATUSTEXT, then a mode change sent to the FC
-        assert r["sanitizer"] == ["sanitize_gps"]  # downlink position rewrite
-    for feature in ("gps_vfr_speed_diff_ms", "gps_baro_alt_diff_m", "alt_rate_ms", "yaw_course_diff_deg", "cmd_rate_hz",
-                    "interarrival_jitter_ms", "max_seq_gap", "loss_ratio", "msg_rate_hz"):
-        assert rows[("base", feature)]["frames"] == []  # nothing is written to the FC or the GCS
-    assert rows[("base", "gps_baro_alt_diff_m")]["sanitizer"] == ["sanitize_alt"]
-    assert rows[("base", "alt_rate_ms")]["sanitizer"] == ["sanitize_alt"]
-    assert rows[("base", "msg_rate_hz")]["sanitizer"] == ["rate_limit"]
-    for feature in ("gps_vfr_speed_diff_ms", "yaw_course_diff_deg", "cmd_rate_hz", "interarrival_jitter_ms",
-                    "max_seq_gap", "loss_ratio"):
-        assert rows[("base", feature)]["sanitizer"] == []  # logged in the action history only
-    # ML can never attribute MAVLINK_ANOMALY or FIRMWARE_INTEGRITY (FEATURE_ATTACK_MAP), so those playbooks
-    # (quarantine, pre-arm lock, takeover escalation) are unreachable from ML alone
-    assert {r["first"][2] for (lab, _), r in rows.items() if lab == "base"} == {
+        assert r["frames"] == []  # no DO_SET_MODE to the FC, no STATUSTEXT to the GCS: nothing is written
+        assert r["sanitizer"] == []  # no downlink rewrite, no rate limit, no quarantine
+    # the alert itself is untouched on the default profile: ML can still raise (non-actionable) threat assessments
+    assert {r["first"][2] for (lab, _), r in rows.items() if lab == "base" and r["first"][0]} == {
         "DOS", "GPS_SPOOFING", "TELEMETRY_MANIPULATION", "COMMAND_INJECTION"}
-    assert all("quarantine" not in r["sanitizer"] for r in rows.values())
 
-    # --- px4_sitl profile (ml_require_corroboration: true): the lone-ML score is capped below the threat threshold ---
+    # px4_sitl profile (ml_require_corroboration: true): the lone-ML score is also capped below the threat threshold
     for feature in ML_FEATURES:
         r = rows[("px4_sitl", feature)]
         assert r["first"][0] is False and r["first"][1] == "NORMAL"
