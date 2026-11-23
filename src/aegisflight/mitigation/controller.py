@@ -409,7 +409,11 @@ class MitigationController:
 
             # 5. DoS Flood / Jamming / Latency Blackout Playbook
             elif asmt.attack_type == AttackType.DOS or sub_mode == AttackSubMode.DOS_BLACKOUT:
-                if sub_mode in (AttackSubMode.DOS_FLOOD, AttackSubMode.MAV_RATE_SPIKE):
+                # D10 (#112): above the flood rate the GNSS-loss relabel is classification only, so the link
+                # gets main's flood actions (rate limiter), not the GNSS anti-jam downlink rewrite.
+                high_rate_gnss = (sub_mode == AttackSubMode.DOS_GNSS_JAMMING
+                                  and frame.msg_rate_hz > FLOOD_MSG_RATE_HZ)
+                if sub_mode in (AttackSubMode.DOS_FLOOD, AttackSubMode.MAV_RATE_SPIKE) or high_rate_gnss:
                     rate_limit_active = self._dos_streak >= 3
                     self._add_action(t, "RATE_LIMIT", "Hostile frame rate flooding gatekeeper engaged (100Hz cap)")
                 elif sub_mode == AttackSubMode.DOS_GNSS_JAMMING:

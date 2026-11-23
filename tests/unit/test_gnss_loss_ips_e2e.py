@@ -92,6 +92,15 @@ class Run:
         return [t for t, f in self.frames() if _msgid(f) == MSGID_STATUSTEXT]
 
 
+def _assert_main_flood_actions(r: Run) -> None:
+    """D10 (classification only): above the flood rate the relabelled GNSS-loss tick takes main's DOS_FLOOD
+    actions. The rate limiter engages and the GNSS anti-jam downlink rewrite (sanitize_gps) does not."""
+    tags = {a["tag"] for a in r.c.action_history}
+    assert "RATE_LIMIT" in tags and "ANTI_JAM_DR" not in tags, tags
+    assert r.c._sanitize_gps_latched is False
+    assert r.c.sanitizer is not None and r.c.sanitizer.sanitize_gps is False
+
+
 # --- PX4 mode names at ~370 msg/s ---------------------------------------------------------------
 
 PX4_MODES = ["AUTO_LOITER", "POSCTL", "AUTO_MISSION", "AUTO_RTL", "OFFBOARD"]
@@ -107,7 +116,7 @@ def test_px4_gnss_loss_at_370hz_is_classified_gnss_and_sends_no_do_set_mode_with
     # reclassified high-rate tick, exactly as on main, where this was DOS_FLOOD.
     assert r.statustexts() == []
     assert all(st != MitigationState.SAFE_HOLD for _t, _s, st, _f in r.log)
-    assert r.c.sanitizer is not None and r.c._sanitize_gps_latched is True  # ANTI_JAM_DR path engaged
+    _assert_main_flood_actions(r)  # D10: main's flood actions, not the GNSS anti-jam downlink rewrite
 
 
 def test_px4_sustained_gnss_loss_past_30s_reaches_SAFE_HOLD_but_sends_no_do_set_mode():
@@ -149,7 +158,7 @@ def test_arducopter_high_rate_gnss_loss_sends_no_alt_hold_that_main_would_not_se
     r.run(secs, AttackType.DOS, GNSS_EVIDENCE, mode=ac_mode)
     assert {s for _t, s, _st, _f in r.log} == {AttackSubMode.DOS_GNSS_JAMMING}  # label kept
     assert r.set_modes() == []  # == what main sent
-    assert r.c.sanitizer is not None and r.c._sanitize_gps_latched is True  # ANTI_JAM_DR alert path kept
+    _assert_main_flood_actions(r)  # D10: main's flood actions, not the GNSS anti-jam downlink rewrite
 
 
 def test_arducopter_high_rate_gnss_loss_recovery_restores_the_trusted_mode_like_main():
