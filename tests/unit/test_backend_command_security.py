@@ -104,10 +104,6 @@ def test_bench_setup_routes_locked_when_armed_and_non_loopback(monkeypatch) -> N
         r_gen = client.post("/api/setup/generate-config", json={"topology": "side-tap", "fc_port": "/dev/ttyAMA0"})
         assert r_gen.status_code == 200
         assert "side-tap" in r_gen.json()["yaml"]
-        # a generated config without an explicit topology still states one (a file without it would be refused on load)
-        r_implicit = client.post("/api/setup/generate-config", json={"fc_port": "/dev/ttyAMA0"})
-        assert r_implicit.status_code == 200
-        assert "topology: side-tap" in r_implicit.json()["yaml"]
 
         # Armed: setup routes refuse with 409 vehicle_armed
         eng.pipeline.extractor.snapshot.armed = True

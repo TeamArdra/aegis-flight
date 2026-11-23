@@ -1,6 +1,6 @@
 # Default unified onboard companion configuration (safe passive side-tap defaults).
 # Load with: aegis onboard --config configs/onboard_default.yaml
-topology: side-tap              # REQUIRED, no default for a config file: side-tap (single RX-only port, passive) or inline (FC <-> companion <-> radio)
+topology: side-tap              # side-tap (single RX-only port, safe default) or inline (FC <-> companion <-> radio)
 fc_port: /dev/ttyAMA0           # serial device, socket://..., or "auto" (receive-only discovery)
 fc_baud: 921600                 # integer baud rate or "auto" (passive autobaud)
 fc_rtscts: false                # hardware flow control on UART FC link

@@ -72,9 +72,7 @@ from .semantic_firewall import (
 _MSG_HEARTBEAT = 0
 _MSG_SET_MODE = 11
 _MSG_PARAM_SET = 23
-_MSG_GPS_RAW_INT = 24
 _MSG_GLOBAL_POSITION_INT = 33
-_MSG_HOME_POSITION = 242
 _MSG_MISSION_ITEM = 39
 _MSG_MISSION_COUNT = 44
 _MSG_MISSION_CLEAR_ALL = 45
@@ -323,13 +321,7 @@ class InlinePolicy:
         self.dropped_semantic_param = 0
         self.dropped_semantic_fence = 0
         self.last_semantic_reason: str | None = None
-        # Home for the fence home-exclusion rule: HOME_POSITION when seen, else the position at the arming transition
-        # (3D-fix GPS_RAW_INT required); never the first GLOBAL_POSITION_INT.
         self._home_lat_lon: tuple[float, float] | None = None
-        self._home_src: str | None = None  # "home_position" | "arming" | None
-        self._last_gpi_pos: tuple[float, float, float] | None = None  # (lat, lon, t_s)
-        self._last_fix3d_t: float | None = None
-        self._home_pending_arm = False
 
     def semantic_stats(self) -> dict[str, Any]:
         return {
@@ -824,17 +816,6 @@ class InlinePolicy:
             return []
         return [ctx.raw]
 
-    _HOME_FIX_MAX_AGE_S = 5.0
-
-    def _capture_arming_home(self, now_s: float) -> None:
-        """Fallback home = a recent GLOBAL_POSITION_INT taken while armed, accepted only with a recent 3D fix."""
-        pos, fix_t = self._last_gpi_pos, self._last_fix3d_t
-        if (pos is None or fix_t is None or abs(now_s - pos[2]) > self._HOME_FIX_MAX_AGE_S
-                or abs(now_s - fix_t) > self._HOME_FIX_MAX_AGE_S):
-            return  # keep pending: no trustworthy home yet, so the fence rule stays off
-        self._home_lat_lon, self._home_src = (pos[0], pos[1]), "arming"
-        self._home_pending_arm = False
-
     def _learn_state(self, ctx: FrameContext) -> None:
         if ctx.sysid not in self.vehicle_sysids:
             return
@@ -842,35 +823,12 @@ class InlinePolicy:
             p = _payload(ctx.raw)
             # Ignore GCS (type=6) and non-autopilot peripheral/companion heartbeats (autopilot=8)
             if p is not None and len(ctx.raw) >= 12 and p[4] != 6 and p[5] != 8:
-                was_armed = self.armed is True
                 self.armed = bool(p[6] & 0x80)  # base_mode SAFETY_ARMED
-                if self.armed and not was_armed:
-                    if self._home_src != "home_position":
-                        self._home_lat_lon, self._home_src = None, None
-                        self._home_pending_arm = True
-                        self._capture_arming_home(ctx.recv_ns / 1e9)
-                elif not self.armed:
-                    self._home_pending_arm = False
-                    if self._home_src == "arming":
-                        self._home_lat_lon, self._home_src = None, None
-        elif ctx.msgid == _MSG_GPS_RAW_INT:
-            p = _payload(ctx.raw)
-            if p is not None and len(ctx.raw) >= 12 and p[28] >= 3:  # fix_type >= 3D
-                self._last_fix3d_t = ctx.recv_ns / 1e9
-        elif ctx.msgid == _MSG_HOME_POSITION:
-            p = _payload(ctx.raw)
-            if p is not None:
-                h_lat, h_lon = struct.unpack_from("<ii", p, 0)
-                if h_lat != 0 or h_lon != 0:
-                    self._home_lat_lon, self._home_src = (h_lat / 1e7, h_lon / 1e7), "home_position"
-                    self._home_pending_arm = False
         elif ctx.msgid == _MSG_GLOBAL_POSITION_INT:
             p = _payload(ctx.raw)
             if p is not None:
                 _, lat_i, lon_i, _, rel_alt, vx, vy, _, _ = struct.unpack_from("<IiiiihhhH", p, 0)
-                if lat_i != 0 or lon_i != 0:
-                    self._last_gpi_pos = (lat_i / 1e7, lon_i / 1e7, ctx.recv_ns / 1e9)
-                    if self._home_pending_arm:
-                        self._capture_arming_home(ctx.recv_ns / 1e9)
+                if self._home_lat_lon is None and (lat_i != 0 or lon_i != 0):
+                    self._home_lat_lon = (lat_i / 1e7, lon_i / 1e7)
                 self.rel_alt_m = rel_alt / 1000.0
                 self.groundspeed_ms = ((vx / 100.0) ** 2 + (vy / 100.0) ** 2) ** 0.5
