@@ -219,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
         "client": {"python": sys.version.split()[0]},
         "flight_events": events,
         "gazebo_note": "installed version (gz sim --versions), not queried from the running server",
-        "provenance": collect(tlog_sha256=sha256_file(out.with_suffix(".tlog"))),
+        "provenance": collect(model=None, tlog_sha256=sha256_file(out.with_suffix(".tlog"))),
     }
     manifest["run_provenance"] = finish_run(begin_run(
         allow_dirty=a.allow_dirty, profile_dir=None, model_path=None, ml_enabled=False,

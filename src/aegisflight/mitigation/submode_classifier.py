@@ -12,6 +12,7 @@ from ..features.extractor import FeatureFrame
 from .types import AttackSubMode
 
 HIGH_RISK_COMMANDS = frozenset({400, 176, 20, 21})  # ARM_DISARM, DO_SET_MODE, NAV_RTL, NAV_LAND
+FLOOD_MSG_RATE_HZ = 84.0  # above this a DoS threat is a flood unless named GNSS loss says otherwise
 
 
 class AttackSubModeClassifier:
@@ -210,7 +211,12 @@ class AttackSubModeClassifier:
         if atk == AttackType.DOS:
             if "message-rate spike" in ev_text and frame.msg_rate_hz < 250.0:
                 return AttackSubMode.MAV_RATE_SPIKE
-            if frame.msg_rate_hz > 84.0 or "flood" in ev_text:
+            # Named GNSS evidence wins over the rate test: PX4 streams ~370 msg/s, so with only the rate test every
+            # fix-loss threat on PX4 was DOS_FLOOD and never reached the GPS response ladder.
+            # A rate spike or flood alongside the GNSS loss stays a flood: the rate limiter still has to act.
+            if "gnss" in ev_text and "flood" not in ev_text and "message-rate spike" not in ev_text:
+                return AttackSubMode.DOS_GNSS_JAMMING
+            if frame.msg_rate_hz > FLOOD_MSG_RATE_HZ or "flood" in ev_text:
                 return AttackSubMode.DOS_FLOOD
             if (snap.gps_fix_type is not None and snap.gps_fix_type < 3) or "gnss" in ev_text:
                 return AttackSubMode.DOS_GNSS_JAMMING

@@ -33,6 +33,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from p2_trial_common import resolve_model
 from provenance import (
     add_provenance_args,
     begin_run,
@@ -53,9 +54,6 @@ from aegisflight.proxy import (
 )
 from aegisflight.proxy.transport import make_udp_relay
 from aegisflight.sources.mavlink_live import LiveMavlinkSource, UdpMavlinkTransport
-
-MODEL_PX4 = "models/isoforest_px4.joblib"
-MODEL_STAGE1 = "models/isoforest.joblib"
 
 
 def wsl_ip(distro: str = "Ubuntu-24.04") -> str:
@@ -137,12 +135,13 @@ def main(argv: list[str] | None = None) -> int:
         print("ERROR: PX4 never answered the relay's heartbeat within 15s", file=sys.stderr)
         return 2
 
-    model_choice = a.model or ("px4" if a.profile else "stage1")
-    if model_choice == "px4" and not a.profile:
-        print("ERROR: --model px4 without --profile is the untested B2 cross-pairing", file=sys.stderr)
-        return 2
-    model_path = {"px4": MODEL_PX4, "stage1": MODEL_STAGE1, "none": None}[model_choice]
-    model = model_path if model_path and Path(model_path).exists() else None
+    # the shared resolver refuses the B2 cross-pairing and a requested model file that is missing (#26):
+    # the run must not go ahead with ML silently off while the manifest records the requested model
+    try:
+        model, model_choice = resolve_model(a.profile, a.model)
+    except SystemExit as exc:
+        frame_log.close()
+        return int(exc.code or 2)
     cfg = load_config(a.profile or None)
     pipe = IDSPipeline(cfg, model_path=model, firmware_dir=None)
 
@@ -193,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         frame_log.close()
 
     effect = compute_command_injection_effect(out.with_suffix(".frames.jsonl"))
-    prov_raw = collect(python_version=sys.version.split()[0])
+    prov_raw = collect(model=model, python_version=sys.version.split()[0])
     run_prov = finish_run(begin_run(allow_dirty=a.allow_dirty, profile_dir=a.profile or None, model_path=model,
                                     px4_git_describe=px4_describe(), started_utc=run_started,
                                     start_state=start_state))
