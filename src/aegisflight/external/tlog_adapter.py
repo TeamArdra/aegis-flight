@@ -34,6 +34,8 @@ def iter_tlog(path: str | Path, dialect: str = "ardupilotmega") -> Iterator[Mess
         name = msg.get_type()
         if name == "BAD_DATA":
             continue
+        if name.startswith("UNKNOWN_") and msg.get_srcSystem() == 0 and msg.get_srcComponent() == 0:
+            continue
         fields = msg.to_dict()
         fields.pop("mavpackettype", None)
         try:
