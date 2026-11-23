@@ -1,0 +1,35 @@
+# Pinned autopilot firmware identity allowlist for live MAVLink links (#20).
+#
+# IMPORTANT (unsigned-in-this-PoC disclaimer):
+#   This repository ships an UNSIGNED, empty (`vehicles: []`) PoC template.
+#   Do NOT treat an empty or unsigned allowlist as verified autopilot firmware:
+#   AUTOPILOT_VERSION fields on an unsigned MAVLink link are unauthenticated
+#   telemetry claims. Populate `vehicles` for your bench/vehicle hardware, add
+#   top-level `hmac_sha256: "<hex>"`, and export `AEGIS_ALLOWLIST_KEY` before
+#   operational use.
+#
+# When AUTOPILOT_VERSION is observed on a live/replay link, AegisFlight compares
+# its fields against the matching vehicle entry below. If no entry matches (for
+# example before the bench autopilot hardware IDs are recorded in #29), only a
+# coverage note is emitted and no FIRMWARE_INTEGRITY alert is raised.
+#
+# Optional HMAC-SHA256 signing:
+#   Add top-level `hmac_sha256: "<hex>"` computed over canonical JSON of the
+#   unsigned mapping and export `AEGIS_ALLOWLIST_KEY`. Signed allowlists fail
+#   closed if the key is absent or the HMAC does not match; unsigned allowlists
+#   load with a warning.
+#
+# Example entry:
+# vehicles:
+#   - name: bench-pixhawk
+#     sysid: 1
+#     compid: 1
+#     flight_sw_version: "4.5.7"          # or raw uint32 int
+#     flight_custom_version: "a1b2c3d4"   # 8-byte ASCII hash or 16-hex string
+#     board_version: 0
+#     vendor_id: 9900
+#     product_id: 0
+#     uid: 123456789
+
+schema: aegisflight.firmware_allowlist/1
+vehicles: []

@@ -64,3 +64,29 @@ a row, or inserting one recomputes to a different hash → `verify_chain` return
 `ok=False` with the offending index. This gives the forensic log the integrity a
 UAV incident investigation needs. Tested by
 `tests/unit/test_integrity_and_logging.py::test_hash_chain_detects_tamper`.
+
+## External Chain-Head Anchors (`<db>.anchors.jsonl`, #21)
+To detect **tail truncation** (deleting the newest `k` rows or an entire run),
+`AnchorWriter` (`logging/anchors.py`) periodically (default 5 s) and at shutdown
+atomically appends an anchor JSONL record to `<db>.anchors.jsonl` with
+`{run_id, last_id, row_count, head_hash, wall_time}`:
+- When env `AEGIS_ANCHOR_KEY` is set, each anchor is authenticated with `hmac_sha256`
+  over the canonical JSON of those five fields.
+- When `AEGIS_ANCHOR_KEY` is unset, anchors are written unsigned (`signed: false`)
+  with a warning.
+- `aegis verify-log <db> --anchors <db>.anchors.jsonl` checks every anchor's HMAC
+  and verifies that no anchored run or tail rows after the anchored head were deleted.
+
+**Residual risk:** if both the SQLite database and `<db>.anchors.jsonl` reside on
+the same companion host and a host-level attacker holds `AEGIS_ANCHOR_KEY` (or
+root write access to both files), that attacker can rewrite both the database and
+the local anchor file consistently. Off-box replication or hardware-backed key
+storage is required to defeat a full host compromise.
+
+## Tamper-Evident `actions` Chain
+An additive `actions` table (`{id, run_id, t, actor, action, target, detail, prev_hash, hash}`)
+records bridge drops, counter-frames (`hal/inline_ips.py`), and encoded actuator
+commands (`mitigation/actuator.py`) in an independent per-run SHA-256 chain.
+Verify it with `EventStore.verify_actions_chain()` or `aegis verify-log <db> --verify-actions`.
+The `events` schema, canonicalisation, and default `aegis verify-log <db>` output
+remain byte-identical for pre-`#21` databases.

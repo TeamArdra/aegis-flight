@@ -22,6 +22,8 @@ protocol:
   # NEW additive key (default 0 = Stage-1 behaviour): ignore only the never-seen-yet heartbeat/GPS
   # sentinel during the first 1.4 s (derivation.json -> startup_grace_s)
   startup_grace_s: 1.4
+  # Explicit live-profile GNSS policy (Decision D3): never-acquired fix reports score-0 coverage.
+  gnss_never_acquired_policy: coverage
 
 physics:
   # battery_v_rise: Stage-1 0.4, calibration max 0.810, M x max = 1.013 (derivation.json -> physics.battery_rise_v)
@@ -29,3 +31,7 @@ physics:
   # yaw_course_diff_deg: Stage-1 25.0, calibration max 85.233, M x max = 106.541 (derivation.json -> physics.yaw_course_deg)
   # NEW additive key (default 25 = Stage-1 value)
   yaw_course_deg: 110.0
+
+fusion:
+  # Decision D5 (#49): require protocol/physics/integrity corroboration before ML triggers alerts on PX4 SITL.
+  ml_require_corroboration: true

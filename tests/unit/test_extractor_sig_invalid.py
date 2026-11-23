@@ -34,3 +34,16 @@ def test_reset_also_clears_sig_invalid():
     ext.reset()
     frame = ext.extract(1.0)
     assert frame.sig_invalid_count == 0
+
+
+def test_signing_context_accessor_matches_private_window_state():
+    from aegisflight.features.extractor import FeatureExtractor
+
+    fx = FeatureExtractor()
+    ctx = fx.signing_context
+    assert set(ctx) == {"unsigned_events", "sig_invalid_streams", "sig_verified_streams", "source_msgs"}
+    assert ctx["sig_invalid_streams"] is None and ctx["sig_verified_streams"] is None  # untracked source
+    assert ctx["unsigned_events"] is fx._unsigned_window and ctx["source_msgs"] is fx._source_msgs_window
+    fx.note_signing_streams({(1, 1, 0): 2}, {(1, 1, 1)})
+    ctx = fx.signing_context
+    assert ctx["sig_invalid_streams"] == {(1, 1, 0): 2} and ctx["sig_verified_streams"] == {(1, 1, 1)}

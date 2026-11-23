@@ -41,6 +41,7 @@ artifacts/external/**/feature_samples.npz
 *.sqlite
 *.sqlite3
 *.db
+*.anchors.jsonl
 *.log
 
 # ---- Trained models (regenerable via scripts/train_models.py / aegis train) ----
