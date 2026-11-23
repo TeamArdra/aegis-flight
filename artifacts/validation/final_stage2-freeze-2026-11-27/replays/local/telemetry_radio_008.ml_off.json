@@ -1,0 +1,103 @@
+{
+  "tlog": "data/hardware/raw/telemetry_radio_008.tlog",
+  "config_dir": "configs (Stage-1 default)",
+  "ml_enabled": false,
+  "clock_offset_s_used_for_phases": 0.0,
+  "decisions": 313,
+  "threat_decisions": 138,
+  "alert_decisions": 8,
+  "alert_rate_per_decision": 0.02556,
+  "by_phase": {
+    "boot": {
+      "decisions": 313,
+      "threat": 138,
+      "alerts": 8
+    }
+  },
+  "detector_ge_0.5": {
+    "protocol_rule": 138,
+    "physics_consistency": 5
+  },
+  "alert_types": {
+    "DOS": 7,
+    "TELEMETRY_MANIPULATION": 1
+  },
+  "alert_evidence_top": [
+    [
+      "navigation: estimator reports no horizontal position solution (EKF_STATUS_REPORT",
+      7
+    ],
+    [
+      "GNSS fix lost: fix_type=2, satellites=3 for 5 decisions",
+      1
+    ],
+    [
+      "GNSS fix lost: fix_type=2, satellites=3 for 25 decisions",
+      1
+    ],
+    [
+      "GNSS fix lost: fix_type=2, satellites=3 for 45 decisions",
+      1
+    ],
+    [
+      "GPS/baro altitude mismatch 19.2 m > 8 m",
+      1
+    ],
+    [
+      "implausible altitude rate -96.0 m/s",
+      1
+    ],
+    [
+      "GNSS fix lost: fix_type=2, satellites=3 for 49 decisions",
+      1
+    ],
+    [
+      "GNSS fix lost: fix_type=2, satellites=3 for 65 decisions",
+      1
+    ],
+    [
+      "GNSS fix lost: fix_type=2, satellites=3 for 85 decisions",
+      1
+    ],
+    [
+      "GNSS fix lost: fix_type=2, satellites=3 for 105 decisions",
+      1
+    ],
+    [
+      "GNSS fix lost: fix_type=1, satellites=0 for 125 decisions",
+      1
+    ]
+  ],
+  "run_provenance": {
+    "schema": "aegisflight.run_manifest/1",
+    "status": "REPRODUCIBLE",
+    "reproducible": true,
+    "commit": "8e5800381c4abddc970cbf134d1e95e035a3becf",
+    "working_tree_dirty": false,
+    "dirty_paths": [],
+    "detector_profile_dir": "configs",
+    "detector_profile_sha256": "ff7ed01ac5cfbf8310aa17ddefd4ed3269b3f99334c7132894a48e40ad2f7bf4",
+    "firmware_allowlist_sha256": "63b01f5fe0cbb69e11b7e5a4fd1fe944bbe1756e3dcbe7e0113d63fd104788ad",
+    "model_path": "none",
+    "model_sha256": null,
+    "ml_enabled": false,
+    "px4_git_describe": null,
+    "ardupilot_version": null,
+    "python": "3.13.15",
+    "packages": {
+      "aegisflight": "0.1.0",
+      "pymavlink": "2.4.50",
+      "numpy": "2.5.3",
+      "scikit-learn": "1.9.1",
+      "joblib": "1.6.0",
+      "scipy": "1.18.1",
+      "pyyaml": "6.0.3",
+      "fastapi": "0.142.2",
+      "pyserial": "3.5"
+    },
+    "command_line": "scripts/ardupilot/replay_ap_tlog.py data/hardware/raw/telemetry_radio_008.tlog --no-ml --json C:/Users/RajTi/AppData/Local/Temp/claude/0129e7f4bbbc24cd/28be6b14-8f09-48f4-9d54-f0b45e606fc7/scratchpad/w27b/local/telemetry_radio_008.ml_off.json",
+    "started_utc": "2026-11-23T17:42:35.883529+00:00",
+    "ended_utc": "2026-11-23T17:42:35.898853+00:00",
+    "not_reproducible_reason": null
+  }
+}

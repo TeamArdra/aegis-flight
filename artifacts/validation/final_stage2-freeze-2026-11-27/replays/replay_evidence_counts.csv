@@ -1,0 +1,492 @@
+group,log,ml,evidence,threat_decisions
+alfa,telemetry/telemetry/2018-07-18/flight1/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),752
+alfa,telemetry/telemetry/2018-07-18/flight1/flight.tlog,off,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-07-18/flight1/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),752
+alfa,telemetry/telemetry/2018-07-18/flight1/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",637
+alfa,telemetry/telemetry/2018-07-18/flight1/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",103
+alfa,telemetry/telemetry/2018-07-18/flight1/flight.tlog,on,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),9420
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,off,implausible acceleration # m/s²,16
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,off,satellites_visible changed by # between reports (≥ #) with the fix still valid,6
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,off,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,off,sequence gap # > #,5
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),9420
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",9217
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",192
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,on,implausible acceleration # m/s²,16
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,on,satellites_visible changed by # between reports (≥ #) with the fix still valid,6
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,on,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,on,sequence gap # > #,5
+alfa,telemetry/telemetry/2018-07-18/flight4/flight.tlog,off,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",369
+alfa,telemetry/telemetry/2018-07-18/flight4/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),365
+alfa,telemetry/telemetry/2018-07-18/flight4/flight.tlog,off,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-07-18/flight4/flight.tlog,on,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",369
+alfa,telemetry/telemetry/2018-07-18/flight4/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),365
+alfa,telemetry/telemetry/2018-07-18/flight4/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",192
+alfa,telemetry/telemetry/2018-07-18/flight4/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",166
+alfa,telemetry/telemetry/2018-07-18/flight4/flight.tlog,on,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-07-18/flight6/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),938
+alfa,telemetry/telemetry/2018-07-18/flight6/flight.tlog,off,message flood: # msg/s ≥ hard limit #,6
+alfa,telemetry/telemetry/2018-07-18/flight6/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),938
+alfa,telemetry/telemetry/2018-07-18/flight6/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",842
+alfa,telemetry/telemetry/2018-07-18/flight6/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",86
+alfa,telemetry/telemetry/2018-07-18/flight6/flight.tlog,on,message flood: # msg/s ≥ hard limit #,6
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),4636
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,off,implausible acceleration # m/s²,24
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),9
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,off,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,off,sequence gap # > #,4
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,off,EKF innovation ratio # ≥ # (warning level),2
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,off,implausible altitude rate # m/s,1
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),4636
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",4511
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",114
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,on,implausible acceleration # m/s²,24
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,on,heading/course mismatch #° (attitude inconsistent with track),9
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,on,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,on,sequence gap # > #,4
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,on,EKF innovation ratio # ≥ # (warning level),2
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),9153
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,off,implausible acceleration # m/s²,7
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,off,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,off,sequence gap # > #,1
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),9153
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",8957
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",185
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,on,implausible acceleration # m/s²,7
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,on,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,on,sequence gap # > #,1
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),9370
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,off,implausible acceleration # m/s²,81
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,off,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,4
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,off,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),3
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,off,implausible altitude rate # m/s,3
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),9370
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",9180
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",178
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,on,implausible acceleration # m/s²,81
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,on,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,4
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,on,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,on,heading/course mismatch #° (attitude inconsistent with track),3
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,on,implausible altitude rate # m/s,3
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),3015
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,off,implausible acceleration # m/s²,16
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,off,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),3015
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",2839
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",164
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,on,implausible acceleration # m/s²,16
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,on,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-07-30/flight3/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),2516
+alfa,telemetry/telemetry/2018-07-30/flight3/flight.tlog,off,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-07-30/flight3/flight.tlog,off,implausible acceleration # m/s²,4
+alfa,telemetry/telemetry/2018-07-30/flight3/flight.tlog,off,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,1
+alfa,telemetry/telemetry/2018-07-30/flight3/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),2516
+alfa,telemetry/telemetry/2018-07-30/flight3/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",2206
+alfa,telemetry/telemetry/2018-07-30/flight3/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",283
+alfa,telemetry/telemetry/2018-07-30/flight3/flight.tlog,on,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-07-30/flight3/flight.tlog,on,implausible acceleration # m/s²,4
+alfa,telemetry/telemetry/2018-07-30/flight3/flight.tlog,on,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,1
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),9114
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,off,implausible acceleration # m/s²,42
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,off,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,off,implausible altitude rate # m/s,4
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,off,EKF innovation ratio # ≥ # (warning level),2
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,off,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,1
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),1
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),9114
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",8934
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",169
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,on,implausible acceleration # m/s²,42
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,on,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,on,implausible altitude rate # m/s,4
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,on,EKF innovation ratio # ≥ # (warning level),2
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,on,heading/course mismatch #° (attitude inconsistent with track),1
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),2885
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),20
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,off,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,5
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,off,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,off,implausible acceleration # m/s²,1
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),2885
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",2783
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",92
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,on,heading/course mismatch #° (attitude inconsistent with track),20
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,on,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,5
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,on,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,on,implausible acceleration # m/s²,1
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),2085
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,off,implausible acceleration # m/s²,6
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,off,message flood: # msg/s ≥ hard limit #,3
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),1
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),2085
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",1895
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",177
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,on,implausible acceleration # m/s²,6
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,on,message flood: # msg/s ≥ hard limit #,3
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,on,heading/course mismatch #° (attitude inconsistent with track),1
+alfa,telemetry/telemetry/2018-09-11/flight1/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),689
+alfa,telemetry/telemetry/2018-09-11/flight1/flight.tlog,off,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-09-11/flight1/flight.tlog,off,sequence gap # > #,1
+alfa,telemetry/telemetry/2018-09-11/flight1/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),689
+alfa,telemetry/telemetry/2018-09-11/flight1/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",593
+alfa,telemetry/telemetry/2018-09-11/flight1/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",85
+alfa,telemetry/telemetry/2018-09-11/flight1/flight.tlog,on,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-09-11/flight1/flight.tlog,on,sequence gap # > #,1
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),4487
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,off,implausible acceleration # m/s²,5
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,off,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),4487
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",4358
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",117
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,on,implausible acceleration # m/s²,5
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,on,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),11488
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),28
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,position residual # m > # m (reported track diverges from velocity),14
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,EKF innovation ratio # ≥ # (warning level),8
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,6
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,implausible acceleration # m/s²,5
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,implausible altitude rate # m/s,2
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),11488
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",11218
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",259
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,on,heading/course mismatch #° (attitude inconsistent with track),28
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,on,position residual # m > # m (reported track diverges from velocity),14
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,on,EKF innovation ratio # ≥ # (warning level),8
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,on,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,6
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,on,implausible acceleration # m/s²,5
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),11302
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,off,implausible acceleration # m/s²,27
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,off,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,off,sequence gap # > #,4
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),11302
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",11111
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",177
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,on,implausible acceleration # m/s²,27
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,on,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,on,sequence gap # > #,4
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,on,"ML anomaly score # ≥ # (driver: max_seq_gap, z=+#)",3
+alfa,telemetry/telemetry/2018-09-11/flight5/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),89
+alfa,telemetry/telemetry/2018-09-11/flight5/flight.tlog,off,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-09-11/flight5/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),89
+alfa,telemetry/telemetry/2018-09-11/flight5/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",49
+alfa,telemetry/telemetry/2018-09-11/flight5/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",29
+alfa,telemetry/telemetry/2018-09-11/flight5/flight.tlog,on,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),14395
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,implausible acceleration # m/s²,20
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,14
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,position residual # m > # m (reported track diverges from velocity),12
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),11
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,EKF innovation ratio # ≥ # (warning level),10
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,EKF innovation ratio # ≥ # (velocity/position variance: estimator rejecting its inputs),3
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),14395
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",14218
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",167
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,on,implausible acceleration # m/s²,20
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,on,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,14
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,on,position residual # m > # m (reported track diverges from velocity),12
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,on,heading/course mismatch #° (attitude inconsistent with track),11
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,on,EKF innovation ratio # ≥ # (warning level),10
+alfa,telemetry/telemetry/2018-09-11/flight8/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),346
+alfa,telemetry/telemetry/2018-09-11/flight8/flight.tlog,off,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",344
+alfa,telemetry/telemetry/2018-09-11/flight8/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),346
+alfa,telemetry/telemetry/2018-09-11/flight8/flight.tlog,on,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",344
+alfa,telemetry/telemetry/2018-09-11/flight8/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",218
+alfa,telemetry/telemetry/2018-09-11/flight8/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",113
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),9547
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),36
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,"GNSS fix lost: fix_type=#, satellites=# for # decisions",7
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,implausible acceleration # m/s²,6
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,sequence gap # > #,3
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),9547
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",9343
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",192
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,on,heading/course mismatch #° (attitude inconsistent with track),36
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,on,"GNSS fix lost: fix_type=#, satellites=# for # decisions",7
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,on,implausible acceleration # m/s²,6
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,on,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,on,sequence gap # > #,3
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),9168
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",3722
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,navigation: estimator reports no horizontal position solution (EKF_STATUS_REPORT flags #x#,180
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,implausible acceleration # m/s²,48
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),4
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,sequence gap # > #,4
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,EKF innovation ratio # ≥ # (warning level),3
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),9168
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",9006
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,on,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",3722
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,on,navigation: estimator reports no horizontal position solution (EKF_STATUS_REPORT flags #x#,180
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",148
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,on,implausible acceleration # m/s²,48
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,on,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,on,sequence gap # > #,4
+alfa,telemetry/telemetry/2018-10-05/flight2/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),5562
+alfa,telemetry/telemetry/2018-10-05/flight2/flight.tlog,off,implausible acceleration # m/s²,28
+alfa,telemetry/telemetry/2018-10-05/flight2/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),5562
+alfa,telemetry/telemetry/2018-10-05/flight2/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",5443
+alfa,telemetry/telemetry/2018-10-05/flight2/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",103
+alfa,telemetry/telemetry/2018-10-05/flight2/flight.tlog,on,implausible acceleration # m/s²,28
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),7132
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,off,implausible acceleration # m/s²,11
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),4
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,off,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),7132
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",6957
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",164
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,on,implausible acceleration # m/s²,11
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,on,heading/course mismatch #° (attitude inconsistent with track),4
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,on,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-10-05/flight4/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),831
+alfa,telemetry/telemetry/2018-10-05/flight4/flight.tlog,off,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-10-05/flight4/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),831
+alfa,telemetry/telemetry/2018-10-05/flight4/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",647
+alfa,telemetry/telemetry/2018-10-05/flight4/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",172
+alfa,telemetry/telemetry/2018-10-05/flight4/flight.tlog,on,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-10-18/flight10/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),60
+alfa,telemetry/telemetry/2018-10-18/flight10/flight.tlog,off,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-10-18/flight10/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),60
+alfa,telemetry/telemetry/2018-10-18/flight10/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",45
+alfa,telemetry/telemetry/2018-10-18/flight10/flight.tlog,on,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-10-18/flight10/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",4
+alfa,telemetry/telemetry/2018-10-18/flight12/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),1
+alfa,telemetry/telemetry/2018-10-18/flight12/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",1
+alfa,telemetry/telemetry/2018-10-18/flight12/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),1
+alfa,telemetry/telemetry/2018-10-18/flight5/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),60
+alfa,telemetry/telemetry/2018-10-18/flight5/flight.tlog,off,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-10-18/flight5/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),60
+alfa,telemetry/telemetry/2018-10-18/flight5/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",46
+alfa,telemetry/telemetry/2018-10-18/flight5/flight.tlog,on,message flood: # msg/s ≥ hard limit #,5
+alfa,telemetry/telemetry/2018-10-18/flight5/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",3
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),8312
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,implausible acceleration # m/s²,36
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),32
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,implausible altitude rate # m/s,6
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,"GNSS fix lost: fix_type=#, satellites=# for # decisions",5
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,message flood: # msg/s ≥ hard limit #,4
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,EKF innovation ratio # ≥ # (warning level),2
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,on,message#rate spike: # msg/s > #×nominal (#),8312
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",8120
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",180
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,on,implausible acceleration # m/s²,36
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,on,heading/course mismatch #° (attitude inconsistent with track),32
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,on,implausible altitude rate # m/s,6
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,on,"GNSS fix lost: fix_type=#, satellites=# for # decisions",5
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,on,message flood: # msg/s ≥ hard limit #,4
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight1/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),4
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight1/flight.tlog,off,sequence gap # > #,1
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight10/flight.tlog,off,implausible acceleration # m/s²,4
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight10/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),4
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),25
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,position residual # m > # m (reported track diverges from velocity),13
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,5
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,implausible acceleration # m/s²,3
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight4/flight.tlog,off,implausible acceleration # m/s²,19
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight4/flight.tlog,off,sequence gap # > #,4
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight4/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),1
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight5/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),3
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,implausible acceleration # m/s²,17
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,11
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,position residual # m > # m (reported track diverges from velocity),11
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),7
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,EKF innovation ratio # ≥ # (warning level),5
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,EKF innovation ratio # ≥ # (velocity/position variance: estimator rejecting its inputs),3
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),2
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight8/flight.tlog,off,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",344
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),34
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,"GNSS fix lost: fix_type=#, satellites=# for # decisions",7
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,implausible acceleration # m/s²,4
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),3
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,sequence gap # > #,3
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",3722
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,implausible acceleration # m/s²,34
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,sequence gap # > #,4
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),3
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),1
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,implausible altitude rate # m/s,1
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight2/flight.tlog,off,implausible acceleration # m/s²,24
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight3/flight.tlog,off,implausible acceleration # m/s²,8
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight3/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),2
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight3/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),2
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight4/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),3
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-18/flight10/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),3
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-18/flight5/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),3
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,implausible acceleration # m/s²,28
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,heading/course mismatch #° (attitude inconsistent with track),22
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,"GNSS fix lost: fix_type=#, satellites=# for # decisions",5
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,message#rate spike: # msg/s > #×nominal (#),3
+arducopter_benign,ap_benign_groups_001.clean.tlog,off,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",36
+arducopter_benign,ap_benign_groups_001.clean.tlog,off,battery voltage rose # V (implausible),1
+arducopter_benign,ap_benign_groups_001.clean.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",373
+arducopter_benign,ap_benign_groups_001.clean.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",307
+arducopter_benign,ap_benign_groups_001.clean.tlog,on,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",36
+arducopter_benign,ap_benign_groups_001.clean.tlog,on,"ML anomaly score # ≥ # (driver: alt_rate_ms, z=+#)",1
+arducopter_benign,ap_benign_groups_001.clean.tlog,on,battery voltage rose # V (implausible),1
+arducopter_benign,ap_benign_six_001.clean.tlog,off,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",37
+arducopter_benign,ap_benign_six_001.clean.tlog,off,battery voltage rose # V (implausible),1
+arducopter_benign,ap_benign_six_001.clean.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=+#)",514
+arducopter_benign,ap_benign_six_001.clean.tlog,on,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",37
+arducopter_benign,ap_benign_six_001.clean.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=#)",17
+arducopter_benign,ap_benign_six_001.clean.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",10
+arducopter_benign,ap_benign_six_001.clean.tlog,on,"ML anomaly score # ≥ # (driver: alt_rate_ms, z=+#)",1
+arducopter_benign,ap_benign_six_001.clean.tlog,on,battery voltage rose # V (implausible),1
+arducopter_benign,ap_benign_six_002.clean.tlog,off,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",37
+arducopter_benign,ap_benign_six_002.clean.tlog,off,battery voltage rose # V (implausible),1
+arducopter_benign,ap_benign_six_002.clean.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=+#)",566
+arducopter_benign,ap_benign_six_002.clean.tlog,on,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",37
+arducopter_benign,ap_benign_six_002.clean.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=#)",11
+arducopter_benign,ap_benign_six_002.clean.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",10
+arducopter_benign,ap_benign_six_002.clean.tlog,on,"ML anomaly score # ≥ # (driver: alt_rate_ms, z=+#)",1
+arducopter_benign,ap_benign_six_002.clean.tlog,on,battery voltage rose # V (implausible),1
+arducopter_benign,ap_benign_six_003.clean.tlog,off,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",37
+arducopter_benign,ap_benign_six_003.clean.tlog,off,battery voltage rose # V (implausible),1
+arducopter_benign,ap_benign_six_003.clean.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=+#)",576
+arducopter_benign,ap_benign_six_003.clean.tlog,on,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",37
+arducopter_benign,ap_benign_six_003.clean.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=#)",10
+arducopter_benign,ap_benign_six_003.clean.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",9
+arducopter_benign,ap_benign_six_003.clean.tlog,on,"ML anomaly score # ≥ # (driver: alt_rate_ms, z=+#)",1
+arducopter_benign,ap_benign_six_003.clean.tlog,on,battery voltage rose # V (implausible),1
+arducopter_benign,ap_benign_six_004.clean.tlog,off,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",37
+arducopter_benign,ap_benign_six_004.clean.tlog,off,battery voltage rose # V (implausible),1
+arducopter_benign,ap_benign_six_004.clean.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=+#)",571
+arducopter_benign,ap_benign_six_004.clean.tlog,on,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",37
+arducopter_benign,ap_benign_six_004.clean.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=#)",16
+arducopter_benign,ap_benign_six_004.clean.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",10
+arducopter_benign,ap_benign_six_004.clean.tlog,on,"ML anomaly score # ≥ # (driver: alt_rate_ms, z=+#)",1
+arducopter_benign,ap_benign_six_004.clean.tlog,on,battery voltage rose # V (implausible),1
+bench_28oct_run,gps_hw_verify_20261029.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",431
+bench_28oct_run,gps_hw_verify_20261029.tlog,on,navigation: estimator reports no horizontal position solution (EKF_STATUS_REPORT flags #x#,431
+bench_capture,telemetry_radio_005.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",277
+bench_capture,telemetry_radio_006.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",277
+bench_capture,telemetry_radio_007.tlog,off,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",295
+bench_capture,telemetry_radio_007.tlog,on,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni",295
+bench_capture,telemetry_radio_007.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=+#)",281
+bench_capture,telemetry_radio_008.tlog,off,"GNSS fix lost: fix_type=#, satellites=# for # decisions",138
+bench_capture,telemetry_radio_008.tlog,off,navigation: estimator reports no horizontal position solution (EKF_STATUS_REPORT flags #x#,131
+bench_capture,telemetry_radio_008.tlog,off,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,5
+bench_capture,telemetry_radio_008.tlog,off,GPS/baro altitude mismatch # m > # m,2
+bench_capture,telemetry_radio_008.tlog,off,implausible altitude rate # m/s,1
+bench_capture,telemetry_radio_008.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",294
+bench_capture,telemetry_radio_008.tlog,on,navigation: estimator reports no horizontal position solution (EKF_STATUS_REPORT flags #x#,287
+bench_capture,telemetry_radio_008.tlog,on,"GNSS fix lost: fix_type=#, satellites=# for # decisions",138
+bench_capture,telemetry_radio_008.tlog,on,GPS_RAW_INT velocity differs from EKF velocity by # m/s > # m/s,5
+bench_capture,telemetry_radio_008.tlog,on,GPS/baro altitude mismatch # m > # m,2
+bench_capture,telemetry_radio_008.tlog,on,implausible altitude rate # m/s,1
+bench_capture,telemetry_radio_009.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",281
+bench_capture,telemetry_radio_009.tlog,on,navigation: estimator reports no horizontal position solution (EKF_STATUS_REPORT flags #x#,281
+px4_sitl_benign,benign_001.tlog,off,message#rate spike: # msg/s > #×nominal (#),517
+px4_sitl_benign,benign_001.tlog,off,rogue telemetry source(s): sys#/comp#,497
+px4_sitl_benign,benign_001.tlog,off,heading/course mismatch #° (attitude inconsistent with track),26
+px4_sitl_benign,benign_001.tlog,off,# command(s) from unexpected source sys#/comp#,22
+px4_sitl_benign,benign_001.tlog,off,battery voltage rose # V (implausible),5
+px4_sitl_benign,benign_001.tlog,on,message#rate spike: # msg/s > #×nominal (#),517
+px4_sitl_benign,benign_001.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",500
+px4_sitl_benign,benign_001.tlog,on,rogue telemetry source(s): sys#/comp#,497
+px4_sitl_benign,benign_001.tlog,on,heading/course mismatch #° (attitude inconsistent with track),26
+px4_sitl_benign,benign_001.tlog,on,# command(s) from unexpected source sys#/comp#,22
+px4_sitl_benign,benign_001.tlog,on,battery voltage rose # V (implausible),5
+px4_sitl_benign,benign_002.tlog,off,message#rate spike: # msg/s > #×nominal (#),529
+px4_sitl_benign,benign_002.tlog,off,rogue telemetry source(s): sys#/comp#,518
+px4_sitl_benign,benign_002.tlog,off,heading/course mismatch #° (attitude inconsistent with track),27
+px4_sitl_benign,benign_002.tlog,off,# command(s) from unexpected source sys#/comp#,19
+px4_sitl_benign,benign_002.tlog,off,battery voltage rose # V (implausible),5
+px4_sitl_benign,benign_002.tlog,on,message#rate spike: # msg/s > #×nominal (#),529
+px4_sitl_benign,benign_002.tlog,on,rogue telemetry source(s): sys#/comp#,518
+px4_sitl_benign,benign_002.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",508
+px4_sitl_benign,benign_002.tlog,on,heading/course mismatch #° (attitude inconsistent with track),27
+px4_sitl_benign,benign_002.tlog,on,# command(s) from unexpected source sys#/comp#,19
+px4_sitl_benign,benign_002.tlog,on,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",10
+px4_sitl_benign,benign_002.tlog,on,battery voltage rose # V (implausible),5
+px4_sitl_benign,benign_003.tlog,off,message#rate spike: # msg/s > #×nominal (#),660
+px4_sitl_benign,benign_003.tlog,off,rogue telemetry source(s): sys#/comp#,641
+px4_sitl_benign,benign_003.tlog,off,heading/course mismatch #° (attitude inconsistent with track),27
+px4_sitl_benign,benign_003.tlog,off,# command(s) from unexpected source sys#/comp#,21
+px4_sitl_benign,benign_003.tlog,off,battery voltage rose # V (implausible),6
+px4_sitl_benign,benign_003.tlog,on,message#rate spike: # msg/s > #×nominal (#),660
+px4_sitl_benign,benign_003.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",643
+px4_sitl_benign,benign_003.tlog,on,rogue telemetry source(s): sys#/comp#,641
+px4_sitl_benign,benign_003.tlog,on,heading/course mismatch #° (attitude inconsistent with track),27
+px4_sitl_benign,benign_003.tlog,on,# command(s) from unexpected source sys#/comp#,21
+px4_sitl_benign,benign_003.tlog,on,battery voltage rose # V (implausible),6
+px4_sitl_benign,benign_004.tlog,off,message#rate spike: # msg/s > #×nominal (#),447
+px4_sitl_benign,benign_004.tlog,off,rogue telemetry source(s): sys#/comp#,430
+px4_sitl_benign,benign_004.tlog,off,heading/course mismatch #° (attitude inconsistent with track),27
+px4_sitl_benign,benign_004.tlog,off,# command(s) from unexpected source sys#/comp#,19
+px4_sitl_benign,benign_004.tlog,off,battery voltage rose # V (implausible),5
+px4_sitl_benign,benign_004.tlog,on,message#rate spike: # msg/s > #×nominal (#),447
+px4_sitl_benign,benign_004.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",430
+px4_sitl_benign,benign_004.tlog,on,rogue telemetry source(s): sys#/comp#,430
+px4_sitl_benign,benign_004.tlog,on,heading/course mismatch #° (attitude inconsistent with track),27
+px4_sitl_benign,benign_004.tlog,on,# command(s) from unexpected source sys#/comp#,19
+px4_sitl_benign,benign_004.tlog,on,battery voltage rose # V (implausible),5
+px4_sitl_benign,benign_005.tlog,off,message#rate spike: # msg/s > #×nominal (#),591
+px4_sitl_benign,benign_005.tlog,off,rogue telemetry source(s): sys#/comp#,572
+px4_sitl_benign,benign_005.tlog,off,heading/course mismatch #° (attitude inconsistent with track),26
+px4_sitl_benign,benign_005.tlog,off,# command(s) from unexpected source sys#/comp#,21
+px4_sitl_benign,benign_005.tlog,off,battery voltage rose # V (implausible),6
+px4_sitl_benign,benign_005.tlog,on,message#rate spike: # msg/s > #×nominal (#),591
+px4_sitl_benign,benign_005.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",574
+px4_sitl_benign,benign_005.tlog,on,rogue telemetry source(s): sys#/comp#,572
+px4_sitl_benign,benign_005.tlog,on,heading/course mismatch #° (attitude inconsistent with track),26
+px4_sitl_benign,benign_005.tlog,on,# command(s) from unexpected source sys#/comp#,21
+px4_sitl_benign,benign_005.tlog,on,battery voltage rose # V (implausible),6
+px4_sitl_benign,benign_006.tlog,off,message#rate spike: # msg/s > #×nominal (#),481
+px4_sitl_benign,benign_006.tlog,off,rogue telemetry source(s): sys#/comp#,465
+px4_sitl_benign,benign_006.tlog,off,heading/course mismatch #° (attitude inconsistent with track),28
+px4_sitl_benign,benign_006.tlog,off,# command(s) from unexpected source sys#/comp#,18
+px4_sitl_benign,benign_006.tlog,off,battery voltage rose # V (implausible),6
+px4_sitl_benign,benign_006.tlog,on,message#rate spike: # msg/s > #×nominal (#),481
+px4_sitl_benign,benign_006.tlog,on,rogue telemetry source(s): sys#/comp#,465
+px4_sitl_benign,benign_006.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",464
+px4_sitl_benign,benign_006.tlog,on,heading/course mismatch #° (attitude inconsistent with track),28
+px4_sitl_benign,benign_006.tlog,on,# command(s) from unexpected source sys#/comp#,18
+px4_sitl_benign,benign_006.tlog,on,battery voltage rose # V (implausible),6
+px4_sitl_benign,benign_007.tlog,off,message#rate spike: # msg/s > #×nominal (#),734
+px4_sitl_benign,benign_007.tlog,off,rogue telemetry source(s): sys#/comp#,715
+px4_sitl_benign,benign_007.tlog,off,heading/course mismatch #° (attitude inconsistent with track),26
+px4_sitl_benign,benign_007.tlog,off,# command(s) from unexpected source sys#/comp#,21
+px4_sitl_benign,benign_007.tlog,off,battery voltage rose # V (implausible),6
+px4_sitl_benign,benign_007.tlog,on,message#rate spike: # msg/s > #×nominal (#),734
+px4_sitl_benign,benign_007.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",717
+px4_sitl_benign,benign_007.tlog,on,rogue telemetry source(s): sys#/comp#,715
+px4_sitl_benign,benign_007.tlog,on,heading/course mismatch #° (attitude inconsistent with track),26
+px4_sitl_benign,benign_007.tlog,on,# command(s) from unexpected source sys#/comp#,21
+px4_sitl_benign,benign_007.tlog,on,battery voltage rose # V (implausible),6
+px4_sitl_benign,benign_008.tlog,off,message#rate spike: # msg/s > #×nominal (#),549
+px4_sitl_benign,benign_008.tlog,off,rogue telemetry source(s): sys#/comp#,529
+px4_sitl_benign,benign_008.tlog,off,heading/course mismatch #° (attitude inconsistent with track),27
+px4_sitl_benign,benign_008.tlog,off,# command(s) from unexpected source sys#/comp#,21
+px4_sitl_benign,benign_008.tlog,off,battery voltage rose # V (implausible),5
+px4_sitl_benign,benign_008.tlog,on,message#rate spike: # msg/s > #×nominal (#),549
+px4_sitl_benign,benign_008.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",531
+px4_sitl_benign,benign_008.tlog,on,rogue telemetry source(s): sys#/comp#,529
+px4_sitl_benign,benign_008.tlog,on,heading/course mismatch #° (attitude inconsistent with track),27
+px4_sitl_benign,benign_008.tlog,on,# command(s) from unexpected source sys#/comp#,21
+px4_sitl_benign,benign_008.tlog,on,battery voltage rose # V (implausible),5
+px4_sitl_benign,benign_009.tlog,off,message#rate spike: # msg/s > #×nominal (#),629
+px4_sitl_benign,benign_009.tlog,off,rogue telemetry source(s): sys#/comp#,610
+px4_sitl_benign,benign_009.tlog,off,heading/course mismatch #° (attitude inconsistent with track),26
+px4_sitl_benign,benign_009.tlog,off,# command(s) from unexpected source sys#/comp#,21
+px4_sitl_benign,benign_009.tlog,off,battery voltage rose # V (implausible),6
+px4_sitl_benign,benign_009.tlog,on,message#rate spike: # msg/s > #×nominal (#),629
+px4_sitl_benign,benign_009.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",612
+px4_sitl_benign,benign_009.tlog,on,rogue telemetry source(s): sys#/comp#,610
+px4_sitl_benign,benign_009.tlog,on,heading/course mismatch #° (attitude inconsistent with track),26
+px4_sitl_benign,benign_009.tlog,on,# command(s) from unexpected source sys#/comp#,21
+px4_sitl_benign,benign_009.tlog,on,battery voltage rose # V (implausible),6
+px4_sitl_benign,benign_010.tlog,off,message#rate spike: # msg/s > #×nominal (#),403
+px4_sitl_benign,benign_010.tlog,off,rogue telemetry source(s): sys#/comp#,387
+px4_sitl_benign,benign_010.tlog,off,heading/course mismatch #° (attitude inconsistent with track),27
+px4_sitl_benign,benign_010.tlog,off,# command(s) from unexpected source sys#/comp#,18
+px4_sitl_benign,benign_010.tlog,off,battery voltage rose # V (implausible),6
+px4_sitl_benign,benign_010.tlog,on,message#rate spike: # msg/s > #×nominal (#),403
+px4_sitl_benign,benign_010.tlog,on,rogue telemetry source(s): sys#/comp#,387
+px4_sitl_benign,benign_010.tlog,on,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)",386
+px4_sitl_benign,benign_010.tlog,on,heading/course mismatch #° (attitude inconsistent with track),27
+px4_sitl_benign,benign_010.tlog,on,# command(s) from unexpected source sys#/comp#,18
+px4_sitl_benign,benign_010.tlog,on,battery voltage rose # V (implausible),6

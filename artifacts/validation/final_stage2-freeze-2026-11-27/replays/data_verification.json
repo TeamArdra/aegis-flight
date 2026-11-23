@@ -1,0 +1,41 @@
+{
+  "manifests": {
+    "alfa": {
+      "manifest_sha256": "b96f0a768a20cb4ac68fa7ac4e1086e95b06a15670130d7d53f8523f42186611",
+      "n_files": 3,
+      "ok": 3,
+      "missing": [],
+      "size_mismatch": [],
+      "hash_mismatch": [],
+      "all_ok": true
+    },
+    "px4_review_v1": {
+      "manifest_sha256": "4d01a56ce07d9a1c06bf9324f6712c42db38ae5654e7c75d56635f666bc947d2",
+      "n_files": 40,
+      "ok": 40,
+      "missing": [],
+      "size_mismatch": [],
+      "hash_mismatch": [],
+      "all_ok": true
+    },
+    "px4_review_v2": {
+      "manifest_sha256": "a03745835521600e035be4cad94d80fdd4fe8186b7c8c715d9294a07b0fd9280",
+      "n_files": 40,
+      "ok": 40,
+      "missing": [],
+      "size_mismatch": [],
+      "hash_mismatch": [],
+      "all_ok": true
+    }
+  },
+  "alfa_extracted_vs_zip": {
+    "zip": "data/external/raw/alfa/telemetry.zip",
+    "members_compared": 41,
+    "mismatch": [],
+    "extracted_not_in_zip": [],
+    "n_extracted": 41,
+    "n_zip_tlog_members": 41,
+    "all_ok": true
+  },
+  "all_ok": true
+}

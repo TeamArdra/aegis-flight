@@ -1,0 +1,52 @@
+{
+  "tlog": "data/hardware/raw/telemetry_radio_006.tlog",
+  "config_dir": "configs (Stage-1 default)",
+  "ml_enabled": false,
+  "clock_offset_s_used_for_phases": 0.0,
+  "decisions": 296,
+  "threat_decisions": 0,
+  "alert_decisions": 0,
+  "alert_rate_per_decision": 0.0,
+  "by_phase": {
+    "boot": {
+      "decisions": 296,
+      "threat": 0,
+      "alerts": 0
+    }
+  },
+  "detector_ge_0.5": {},
+  "alert_types": {},
+  "alert_evidence_top": [],
+  "run_provenance": {
+    "schema": "aegisflight.run_manifest/1",
+    "status": "REPRODUCIBLE",
+    "reproducible": true,
+    "commit": "8e5800381c4abddc970cbf134d1e95e035a3becf",
+    "working_tree_dirty": false,
+    "dirty_paths": [],
+    "detector_profile_dir": "configs",
+    "detector_profile_sha256": "ff7ed01ac5cfbf8310aa17ddefd4ed3269b3f99334c7132894a48e40ad2f7bf4",
+    "firmware_allowlist_sha256": "63b01f5fe0cbb69e11b7e5a4fd1fe944bbe1756e3dcbe7e0113d63fd104788ad",
+    "model_path": "none",
+    "model_sha256": null,
+    "ml_enabled": false,
+    "px4_git_describe": null,
+    "ardupilot_version": null,
+    "python": "3.13.15",
+    "packages": {
+      "aegisflight": "0.1.0",
+      "pymavlink": "2.4.50",
+      "numpy": "2.5.3",
+      "scikit-learn": "1.9.1",
+      "joblib": "1.6.0",
+      "scipy": "1.18.1",
+      "pyyaml": "6.0.3",
+      "fastapi": "0.142.2",
+      "pyserial": "3.5"
+    },
+    "command_line": "scripts/ardupilot/replay_ap_tlog.py data/hardware/raw/telemetry_radio_006.tlog --no-ml --json C:/Users/RajTi/AppData/Local/Temp/claude/0129e7f4bbbc24cd/28be6b14-8f09-48f4-9d54-f0b45e606fc7/scratchpad/w27b/local/telemetry_radio_006.ml_off.json",
+    "started_utc": "2026-11-23T17:42:04.728631+00:00",
+    "ended_utc": "2026-11-23T17:42:04.857072+00:00",
+    "not_reproducible_reason": null
+  }
+}

@@ -1,0 +1,10 @@
+group,ml,gt,decisions_before_dedup,threat_decisions_before_dedup
+alfa,off,benign_gt,30243,30243
+alfa,off,fault,5889,5889
+alfa,off,unlabelled,158496,158374
+alfa,on,benign_gt,30243,30243
+alfa,on,fault,5889,5889
+alfa,on,unlabelled,158496,158381
+alfa_e2b_calibrated,off,benign_gt,23799,880
+alfa_e2b_calibrated,off,fault,4933,225
+alfa_e2b_calibrated,off,unlabelled,105902,7118
