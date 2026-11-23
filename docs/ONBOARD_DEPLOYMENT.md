@@ -107,7 +107,9 @@ telemetry-second; run the same command on the target and compare it with 1.0 per
 ## 9. Universal Companion Hardening (`aegis onboard`, W5–W10)
 
 - **Dual topologies:** `topology: inline` (Radio <-> Companion <-> FC) and `topology: side-tap`
-  (single RX-only Y-tap port, strictly locked to `passive` mode, 0 B TX).
+  (single RX-only Y-tap port, strictly locked to `passive` mode, 0 B TX). **The default is `side-tap`** (receive-only);
+  `inline` must be chosen explicitly (`topology: inline` or `--topology inline`). A config that asks for `advisory` or
+  `active-ips` without naming a topology fails validation instead of silently becoming an inline bridge.
 - **Zero-TX Port & Autobaud Discovery:** Set `fc_port: auto` / `fc_baud: auto` (or run
   `aegis onboard --preflight`) to passively detect connected MAVLink ports across standard baud rates with 0 B transmitted.
 - **Firmware Enrollment:** Run `aegis onboard --enroll-firmware <allowlist.yaml>` while disarmed to passively capture `AUTOPILOT_VERSION` (0 B TX) and write an optional HMAC-signed (`AEGIS_ALLOWLIST_KEY`) allowlist entry.

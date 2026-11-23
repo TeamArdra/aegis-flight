@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import re
 import time
@@ -18,6 +19,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .store import EventStore
+
+log = logging.getLogger(__name__)
 
 _ROTATED_RE = re.compile(r"\.([1-9][0-9]*)\.(?:jsonl|sqlite)$")
 
@@ -82,6 +85,19 @@ def _segment_heads(store: EventStore) -> dict[str, object]:
     }
 
 
+class RotationLinkError(RuntimeError):
+    """The old segment was renamed but the ROTATION_LINK row could not be written to the fresh store.
+
+    ``store`` is the usable reopened store (a ROTATION_FAILED row naming the rotated segment and the captured
+    heads was attempted in it); ``started`` says whether ``start_run`` for the new run id succeeded.
+    """
+
+    def __init__(self, store: EventStore, started: bool, cause: Exception | None) -> None:
+        super().__init__(f"rotation link not written: {type(cause).__name__}: {cause}")
+        self.store = store
+        self.started = started
+
+
 def rotate_sqlite_store(
     store: EventStore,
     *,
@@ -109,38 +125,82 @@ def rotate_sqlite_store(
     if size < max_bytes:
         return store, False
 
-    prev_heads: dict[str, object] = {}
-    with contextlib.suppress(Exception):
-        lock = getattr(store, "_lock", None)
-        if lock is not None:
-            with lock:
-                prev_heads = _segment_heads(store)
+    # Capture the closing heads of this segment BEFORE closing it. If that fails the chain link would
+    # carry null heads, so rotation is skipped (the store stays open and usable) and the failure is logged.
+    lock = getattr(store, "_lock", None)
+    try:
+        with lock if lock is not None else contextlib.nullcontext():
+            prev_heads = _segment_heads(store)
+            try:
                 store.conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
                 store.conn.commit()
-        else:
-            prev_heads = _segment_heads(store)
-            store.conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
-            store.conn.commit()
+            except Exception:  # noqa: BLE001 - a failed checkpoint only leaves a -wal file; rows are safe
+                log.warning("rotation: wal_checkpoint failed for %s", db_path, exc_info=True)
+    except Exception:  # noqa: BLE001
+        log.error("rotation SKIPPED for %s: could not capture segment head hashes; store kept open",
+                  db_path, exc_info=True)
+        return store, False
+
     store.close()
-    for sidecar in ("-wal", "-shm"):
-        Path(f"{db_path}{sidecar}").unlink(missing_ok=True)
-    rotated = rotate_file_series(db_path, max_bytes=max_bytes, max_rotations=max_rotations)
+    failure: Exception | None = None
+    rotated = False
+    try:
+        for sidecar in ("-wal", "-shm"):
+            Path(f"{db_path}{sidecar}").unlink(missing_ok=True)
+        rotated = rotate_file_series(db_path, max_bytes=max_bytes, max_rotations=max_rotations)
+    except OSError as exc:
+        failure = exc
+        log.error("rotation FAILED for %s: %s; reopening the active store (chain continues unbroken)",
+                  db_path, exc, exc_info=True)
+
+    if not rotated:
+        # Nothing moved (failure, or the file shrank below the threshold): reopen the same file. The run
+        # chain resumes from its stored last hash, so no link row is written and continuity is intact.
+        reopened = _EventStore(db_path)
+        if failure is not None:
+            with contextlib.suppress(Exception):
+                reopened.log_action(run_id, time.time(), "rotation", "ROTATION_FAILED", db_path.name,
+                                    f"{type(failure).__name__}: {failure}")
+        return reopened, False
+
+    keep_segment = int(max_rotations) > 0
     prev_segment = {
-        "rotated_path": str(_rotated_path(db_path, 1)) if max_rotations > 0 else None,
+        "rotated_path": str(_rotated_path(db_path, 1)) if keep_segment else None,
         **prev_heads,
     }
     fresh_meta = {**(meta or {}), "prev_segment": prev_segment}
-    fresh = _EventStore(db_path)
-    fresh.start_run(run_id, label=label, meta=fresh_meta)
-    fresh.log_action(
-        run_id,
-        time.time(),
-        "rotation",
-        "ROTATION_LINK",
-        db_path.name,
-        json.dumps(prev_segment, sort_keys=True),
-    )
-    return fresh, rotated
+    # With max_rotations == 0 the old segment was deleted: there is nothing to link to, so say so.
+    link_action = "ROTATION_LINK" if keep_segment else "ROTATION_DISCARDED"
+    link_detail = json.dumps(prev_segment, sort_keys=True)
+    # The old segment is already renamed, so the fresh file MUST carry the link row. Retry once; never leave a
+    # silently unlinked segment (R1 P3).
+    fresh = None
+    started = False
+    link_error: Exception | None = None
+    for attempt in (1, 2):
+        try:
+            if fresh is None:
+                fresh = _EventStore(db_path)
+            if not started:
+                fresh.start_run(run_id, label=label, meta=fresh_meta)
+                started = True
+            fresh.log_action(run_id, time.time(), "rotation", link_action, db_path.name, link_detail)
+            return fresh, True
+        except Exception as exc:  # noqa: BLE001 - handled below, never silent
+            link_error = exc
+            log.error("rotation link write failed for %s (attempt %d/2)", db_path, attempt, exc_info=True)
+    # Could not write the link. Make sure a usable store exists at db_path and record the failure in it.
+    if fresh is None:
+        fresh = _EventStore(db_path)  # may raise; the caller recovers a store and counts the failure
+    if not started:
+        with contextlib.suppress(Exception):
+            fresh.start_run(run_id, label=label, meta=fresh_meta)
+            started = True
+    failure_detail = json.dumps({**prev_segment, "error": f"{type(link_error).__name__}: {link_error}"},
+                                sort_keys=True)
+    with contextlib.suppress(Exception):
+        fresh.log_action(run_id, time.time(), "rotation", "ROTATION_FAILED", db_path.name, failure_detail)
+    raise RotationLinkError(fresh, started, link_error)
 
 
 def prune_rotated_files(

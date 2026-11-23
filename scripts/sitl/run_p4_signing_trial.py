@@ -116,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
     attack = CommandInjectionAttack(params, target_sysid=PX4_VEHICLE_SYSID, target_compid=PX4_VEHICLE_COMPID,
                                     rogue_sysid=GCS_SYSID, rogue_compid=GCS_COMPID,
                                     seq_policy="track_identity", frame_log=frame_log)
-    relay = make_udp_relay(px4_host, a.px4_port, a.relay_listen_port, up_hook=attack, down_hook=attack,
+    relay = make_udp_relay(px4_host, a.px4_port, a.relay_listen_port, allow_private_upstream=True if a.allow_private_upstream else None, up_hook=attack, down_hook=attack,
                            mirror_uplink_to_clients=True)
     relay.start()
     log: list[dict] = []

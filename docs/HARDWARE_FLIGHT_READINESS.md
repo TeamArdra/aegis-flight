@@ -28,12 +28,17 @@ radio are involved; none of it is flight or hardware evidence):
   not asserted.
 - Validated SHA-256 `events` + `actions` chains and HMAC-signed `anchors.jsonl`.
 
-### B. Companion-Computer Resource & `tc netem` Bench (Docker)
-Simulates a resource-capped companion (`2 vCPU / 512 MiB RAM`) and Linux kernel `tc netem` telemetry-radio impairments (`40ms ± 20ms` jitter, `3%` burst loss, `4%` reordering, `0.2%` corruption):
+### B. Companion-Computer Resource Bench (Docker, SIM only)
+Runs the field drill and the soak above inside a resource-capped container (`2 vCPU / 512 MiB RAM`). Export
+`AEGIS_API_TOKEN` and `AEGIS_ANCHOR_KEY` first (the compose file has no default secrets):
 ```bash
 docker compose -f deploy/bench/docker-compose.yml run --rm aegis-companion
 ```
-To launch with containerized ArduPilot Copter SITL + `tc netem`:
+The compose command also applies a `tc netem` qdisc to the container's `eth0` (`apply_netem.sh`, defaults `40ms ± 20ms`
+jitter, `3%` loss, `4%` reordering, `0.2%` corruption). **That impairment does not reach the drill or the soak**, which use
+in-memory transports and open no socket, so no result from this step is evidence about behaviour on an impaired radio link.
+The `sitl` profile only starts an ArduCopter SITL container (image pinned by digest) on the same network; the default
+command does not connect to it and does not start the dashboard:
 ```bash
 docker compose -f deploy/bench/docker-compose.yml --profile sitl up --build
 ```
@@ -56,11 +61,13 @@ Once you have a real Pixhawk and companion computer (**props removed, bench powe
 
 1. **Zero-TX Port Discovery:**
    ```bash
-   aegis onboard --preflight-only --config configs/onboard_default.yaml
+   aegis onboard --preflight --config configs/onboard_default.yaml
    ```
    Confirm `0` bytes transmitted during probe (`discover_mavlink_ports`) and verify serial receive-only safety (`may_reach_vehicle()` blocks `ACTIVE_IPS` on OS serial devices).
 2. **Firmware Manifest Enrollment:**
-   Capture known-good Pixhawk firmware hashes (`aegis fw-manifest capture ...`) and save an HMAC-signed `configs/firmware_allowlist.yaml`.
+   While disarmed, passively capture the Pixhawk `AUTOPILOT_VERSION` (0 B TX) with `aegis onboard --enroll-firmware OUT_YAML`
+   (optionally HMAC-signed with `AEGIS_ALLOWLIST_KEY`) and use `OUT_YAML` as the firmware allowlist
+   (e.g. `configs/firmware_allowlist.yaml`). `aegis fw-manifest DIR` is a different tool: it hashes `*.bin` files.
 3. **RX-Only Cable Check:**
    Physically disconnect the UART TX pin between the companion computer and Pixhawk TELEM port while testing `PASSIVE` monitoring, confirming QGroundControl and autopilot behavior are completely unaffected.
 

@@ -105,3 +105,24 @@ def test_inline_policy_enforces_semantic_firewall_and_captures_home() -> None:
     out = pol.up(FrameContext("up", pset, 1_200_000_000, 255, 190, 3, 23, False))
     assert out == []
     assert pol.semantic_stats()["dropped_param"] == 1
+
+
+def test_fence_home_exclusion_only_blocks_while_armed() -> None:
+    """R13: a disarmed or arm-unknown fence plan that excludes the first-seen position is not a hijack."""
+    fw = SemanticFirewall(enabled=True, block_when_arm_unknown=True)
+    item_raw = _pack(
+        apm.MAVLink_mission_item_int_message(
+            1, 1, 0, apm.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+            apm.MAV_CMD_NAV_FENCE_CIRCLE_INCLUSION, 0, 1, 50.0, 0, 0, 0,
+            int(20.0 * 1e7), int(73.0 * 1e7), 50.0, 1,
+        ),
+        sysid=255,
+        compid=190,
+    )
+    parsed = extract_mission_fence_raw(item_raw, 73)
+    assert parsed is not None
+    ev = FenceChangeEvent(1.2, 255, 190, *parsed)
+    home = (19.1334, 72.9133)
+    assert fw.evaluate_fence_change(ev, armed=False, home_lat_lon=home).blocked is False
+    assert fw.evaluate_fence_change(ev, armed=None, home_lat_lon=home).blocked is False
+    assert fw.evaluate_fence_change(ev, armed=True, home_lat_lon=home).blocked is True

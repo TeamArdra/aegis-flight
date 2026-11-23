@@ -4,6 +4,7 @@ real fusion engine."""
 from __future__ import annotations
 
 import math
+import os
 
 import pytest
 
@@ -420,9 +421,14 @@ def test_session_51_real_engine_alert_matches_the_re_derivation(monkeypatch):
     root = Path(__file__).resolve().parents[2]
     model = root / "models" / "isoforest.joblib"
     if not model.is_file():
+        if os.environ.get("AEGIS_REQUIRE_MODEL") == "1":
+            pytest.fail("AEGIS_REQUIRE_MODEL=1 but models/isoforest.joblib is absent", pytrace=False)
         pytest.skip(f"models/isoforest.joblib absent (gitignored); needs the committed-artifact model sha256 {MODEL_SHA256}")
     got = hashlib.sha256(model.read_bytes()).hexdigest()
     if got != MODEL_SHA256:
+        if os.environ.get("AEGIS_REQUIRE_MODEL") == "1":
+            pytest.fail(f"AEGIS_REQUIRE_MODEL=1 but models/isoforest.joblib sha256 is {got}, not {MODEL_SHA256}",
+                        pytrace=False)
         pytest.skip(f"models/isoforest.joblib sha256 {got} is not the committed-artifact model {MODEL_SHA256}; "
                     "the session-51 decisions would not be comparable")
     from aegisflight.benchmark.extended import build_grid, session_config

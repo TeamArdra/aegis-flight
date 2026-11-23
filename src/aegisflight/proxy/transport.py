@@ -66,7 +66,9 @@ import argparse
 import ipaddress
 import json
 import logging
+import os
 import queue
+import re
 import select
 import socket
 import threading
@@ -585,6 +587,149 @@ def _validated(out: object) -> list[bytes]:
     return frames
 
 
+PRIVATE_UPSTREAM_ENV = "AEGIS_ALLOW_PRIVATE_UPSTREAM"
+
+#: Every private upstream accepted on opt-in in this process; stamped into the run manifest
+#: (``private_upstream_ack``) by :func:`aegisflight.run_provenance.collect_run_provenance`.
+_PRIVATE_ACKS: list[dict[str, str]] = []
+
+
+def private_upstream_acks() -> list[dict[str, str]]:
+    return [dict(a) for a in _PRIVATE_ACKS]
+
+
+def _local_interface_networks() -> list[tuple[str, Any]]:
+    """``(interface, network)`` for every non-loopback IPv4/IPv6 address of this host (psutil is a declared
+    dependency; no new one). Empty if the interfaces cannot be listed, which makes the opt-in fail closed."""
+    try:
+        import psutil  # noqa: PLC0415
+    except ImportError:
+        return []
+    out: list[tuple[str, Any]] = []
+    try:
+        for name, addrs in psutil.net_if_addrs().items():
+            for a in addrs:
+                if a.family not in (socket.AF_INET, socket.AF_INET6) or not a.netmask:
+                    continue
+                try:
+                    ip = ipaddress.ip_address(a.address.split("%", 1)[0])
+                    if ip.is_loopback:
+                        continue
+                    if ip.version == 6:  # psutil gives a mask like ffff:ffff:ffff:ffff::
+                        prefix = bin(int(ipaddress.IPv6Address(a.netmask))).count("1")
+                        net = ipaddress.ip_network(f"{ip}/{prefix}", strict=False)
+                    else:
+                        net = ipaddress.ip_network(f"{ip}/{a.netmask}", strict=False)
+                except ValueError:
+                    continue
+                out.append((name, net))
+    except OSError:
+        return []
+    return out
+
+
+#: Interface names accepted for the private-upstream opt-in: VIRTUAL host-only / NAT adapters that exist only for
+#: local SITL (WSL2/Docker/Hyper-V NAT, libvirt, LXC, VirtualBox/VMware host-only, macOS Internet-Sharing / vmnet
+#: bridges). Matched case-insensitively against the WHOLE interface name. Deliberately NOT listed, because they are
+#: commonly (or can be) a physical NIC or a bridge onto one: ``en*``, ``eth*``, ``wlan*``, ``wl*``, ``Wi-Fi``,
+#: ``Ethernet*``, ``utun*`` (VPN), ``vmnet0`` / VMware bridged, and Hyper-V ``vEthernet (External...)`` switches
+#: (those bridge a physical adapter). Narrow this list freely; widening it widens what attack tooling may target.
+VIRTUAL_INTERFACE_PATTERNS: tuple[str, ...] = (
+    r"vEthernet \((WSL(?: \([^)]*\))?|Default Switch)\)", # Windows WSL2 / Docker Desktop / Hyper-V Default Switch (NAT)
+    r"docker0", r"br-[0-9a-f]{6,}",                  # Linux Docker default + user-defined bridges
+    r"virbr\d+",                                     # libvirt NAT
+    r"veth\w+",                                      # container veth endpoints
+    r"lxcbr\d+",                                     # LXC
+    r"vboxnet\d+", r"VirtualBox Host-Only Network( #\d+)?",  # VirtualBox host-only
+    r"vmnet[18]", r"VMware Network Adapter VMnet[18]",         # VMware host-only (1) / NAT (8); never vmnet0 (bridged)
+    r"bridge1\d\d",                                  # macOS Internet Sharing / VM NAT (bridge100, bridge101, ...)
+)
+_VIRTUAL_RE = re.compile("|".join(f"(?:{p})" for p in VIRTUAL_INTERFACE_PATTERNS), re.IGNORECASE)
+
+#: Optional NARROWING: if set, only this exact interface is accepted, and only if it is also on the allowlist
+#: above. It can never admit a physical NIC.
+SITL_INTERFACE_ENV = "AEGIS_SITL_INTERFACE"
+
+
+def is_virtual_sitl_interface(name: str) -> bool:
+    """True iff ``name`` is on the virtual host-only/NAT allowlist (and equals ``AEGIS_SITL_INTERFACE`` if set)."""
+    if not _VIRTUAL_RE.fullmatch(name):
+        return False
+    pinned = os.environ.get(SITL_INTERFACE_ENV)
+    return not pinned or pinned == name
+
+
+#: Widest virtual-adapter network accepted for the opt-in, by IP version (minimum prefix length). A /8 or /0
+#: docker/custom network would otherwise admit any private address in it. WSL2's /20 and docker's /16 pass.
+MIN_VIRTUAL_PREFIX: dict[int, int] = {4: 16, 6: 64}
+
+
+def check_upstream_host(host: str, *, allow_private: bool | None = None) -> str:
+    """Refuse an upstream (vehicle-side) address that is not local SITL. Opens no socket.
+
+    Loopback literals and ``localhost`` always pass. A private IP literal passes only on explicit opt-in
+    (``allow_private=True`` or ``AEGIS_ALLOW_PRIVATE_UPSTREAM=1``) AND only if it lies inside the subnet of a
+    VIRTUAL host-only/NAT adapter of THIS host (:data:`VIRTUAL_INTERFACE_PATTERNS`: WSL2/Hyper-V ``vEthernet``
+    WSL/Default Switch, ``docker0``, ``virbr*``, VirtualBox/VMware host-only, ...). An address inside the subnet of
+    a physical-looking interface (``Wi-Fi``, ``Ethernet``, ``en0``, ``eth0``, ``wlan0``, ...) is refused even with
+    the opt-in, and if the address also falls in any non-virtual interface's subnet it is refused (ambiguous).
+    The matched virtual network must also be no wider than /16 (IPv4) or /64 (IPv6) (:data:`MIN_VIRTUAL_PREFIX`),
+    so a /8 or /0 docker/custom network cannot admit arbitrary private addresses. Scoped addresses (anything
+    containing ``%``) are refused outright, as their egress interface is not the one validated. The returned
+    string is the canonical host the caller must connect to. ``AEGIS_SITL_INTERFACE`` can only narrow this to one allowlisted interface. If interfaces cannot be listed the
+    check fails closed. Hostnames (not resolved) and public addresses never pass.
+
+    Remaining limitation: this trusts interface NAMES. A user who bridges a virtual adapter onto a real LAN
+    (a bridged VM network, a Docker macvlan, a Hyper-V external switch renamed to "Default Switch") defeats it;
+    keep the vehicle's radio/bridge off any host that runs attack tooling.
+    """
+    h = str(host).strip().strip("[]")
+    if "%" in h:
+        raise ValueError(f"refusing upstream {host!r}: a scoped address (IPv6 zone / interface suffix after '%') "
+                         "could route out of a physical interface; give the plain IP literal (AGENTS.md s5)")
+    if h.lower() == "localhost":
+        return "127.0.0.1"
+    try:
+        ip = ipaddress.ip_address(h)
+    except ValueError:
+        raise ValueError(f"refusing upstream {host!r}: only a loopback or (opted-in) local-network IP literal "
+                         "is allowed; hostnames are not resolved (AGENTS.md s5)") from None
+    if ip.is_loopback:
+        return h
+    if allow_private is None:
+        allow_private = os.environ.get(PRIVATE_UPSTREAM_ENV) == "1"
+    if allow_private and ip.is_private and not ip.is_unspecified and not ip.is_multicast:
+        matches = [(name, net) for name, net in _local_interface_networks()
+                   if ip.version == net.version and ip in net]
+        if not matches:
+            raise ValueError(f"refusing upstream {host!r}: it is not inside the subnet of any local network "
+                             "interface of this host, so it is not the local SITL network (AGENTS.md s5)")
+        bad = [(n, net) for n, net in matches if not is_virtual_sitl_interface(n)]
+        if bad:
+            name, net = bad[0]
+            raise ValueError(
+                f"refusing upstream {host!r}: it is inside {net} on interface {name!r}, which is not a virtual "
+                "host-only/NAT SITL adapter (WSL/Hyper-V vEthernet, docker0, virbr*, vboxnet*, ...). A physical "
+                "LAN/Wi-Fi subnet could hold a real vehicle bridge, and attack tooling may target only local "
+                f"SITL (AGENTS.md s5). The opt-in never admits a physical interface; {SITL_INTERFACE_ENV} can "
+                "only narrow, not widen, the allowlist")
+        name, net = matches[0]
+        min_prefix = MIN_VIRTUAL_PREFIX[net.version]
+        wide = [(n, nt) for n, nt in matches if nt.prefixlen < min_prefix]
+        if wide:
+            name, net = wide[0]
+            raise ValueError(
+                f"refusing upstream {host!r}: it is inside {net} on interface {name!r}, a network wider than "
+                f"/{min_prefix} (IPv{net.version}); a SITL adapter network that wide could contain a real vehicle "
+                f"bridge or LAN. Narrow the virtual network to /{min_prefix} or smaller (AGENTS.md s5)")
+        _PRIVATE_ACKS.append({"host": h, "interface": name, "network": str(net)})
+        log.warning("private upstream %s accepted on opt-in (virtual interface %s, %s)", h, name, net)
+        return h
+    raise ValueError(f"refusing non-loopback upstream {host!r}: attack tooling may target only local SITL "
+                     f"(AGENTS.md s5). A WSL/Hyper-V address on a virtual adapter needs allow_private_upstream=True / "
+                     f"--allow-private-upstream / {PRIVATE_UPSTREAM_ENV}=1")
+
+
 def make_udp_relay(
     px4_host: str,
     px4_port: int,
@@ -594,14 +739,22 @@ def make_udp_relay(
     down_hook: FrameHook = passthrough,
     up_hook: FrameHook = passthrough,
     mirror_uplink_to_clients: bool = False,
+    allow_private_upstream: bool | None = None,
     **relay_kwargs: Any,
 ) -> MavlinkRelay:
     """Real-socket relay: connect to ``px4_host:px4_port`` (explicit), bind loopback ``listen_port``.
 
     ``mirror_uplink_to_clients`` is opt-in and defaults to ``False`` (unchanged relay
     behaviour); see :class:`MavlinkRelay` / the module docstring for why it exists.
+
+    The upstream must be loopback (AGENTS.md s5: attack tooling targets local SITL only). The
+    check runs before any socket is opened. A private literal inside the subnet of a VIRTUAL host-only/NAT
+    adapter (the WSL2 NAT adapter, docker0, ...; never a physical NIC) is accepted only with ``allow_private_upstream=True`` or
+    ``AEGIS_ALLOW_PRIVATE_UPSTREAM=1`` and is recorded in the run manifest; other private addresses,
+    hostnames and public addresses are always refused.
     """
-    upstream = UdpMavlinkTransport(connect=(px4_host, px4_port), gcs_heartbeat=True)
+    host = check_upstream_host(px4_host, allow_private=allow_private_upstream)
+    upstream = UdpMavlinkTransport(connect=(host, px4_port), gcs_heartbeat=True)
     try:
         downstream = UdpDownstream((listen_host, listen_port))
     except BaseException:
@@ -622,6 +775,8 @@ def main(argv: list[str] | None = None) -> int:
         description="Pass-through MAVLink UDP relay to PX4 SITL (loopback clients only).")
     ap.add_argument("--px4-host", required=True, help="PX4 address (explicit; no discovery)")
     ap.add_argument("--px4-port", type=int, required=True)
+    ap.add_argument("--allow-private-upstream", action="store_true",
+                    help="allow a private (WSL2/LAN) upstream IP literal; default loopback only")
     ap.add_argument("--listen-port", type=int, required=True)
     ap.add_argument("--listen-host", default=None, help="loopback address (default 127.0.0.1)")
     ap.add_argument("--seconds", type=float, default=None, help="run time (default: until Ctrl-C)")
@@ -630,7 +785,8 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 
     relay = make_udp_relay(args.px4_host, args.px4_port, args.listen_port,
-                           listen_host=args.listen_host)
+                           listen_host=args.listen_host,
+                           allow_private_upstream=True if args.allow_private_upstream else None)
     code = 0
     try:
         relay.start()

@@ -12,6 +12,19 @@ build are **not** modified.
 - Always address the distro: `wsl -d Ubuntu-24.04 -- ...` (the default distro is a different one).
 - The WSL IP changes across reboots. Never hard-code it: `wsl -d Ubuntu-24.04 -- hostname -I`
   (the recorder discovers it automatically).
+- **Attack proxy upstream is loopback-only by default.** Every `scripts/sitl/run_p2_*_trial.py` / `run_p4_signing_trial.py`
+  builds its relay through `make_udp_relay`, which refuses a non-loopback `--px4-host` before opening any socket. To reach PX4 in
+  WSL2 over its NAT address, opt in explicitly: pass `--allow-private-upstream` (or set `AEGIS_ALLOW_PRIVATE_UPSTREAM=1`). Even then
+  the address must lie in the subnet of a **virtual host-only/NAT adapter** of this host: Windows `vEthernet (WSL...)` /
+  `vEthernet (Default Switch)`, Linux `docker0` / `br-*` / `virbr*` / `veth*` / `lxcbr*` / `vboxnet*`, VirtualBox/VMware host-only,
+  macOS `bridge1xx` (allowlist: `VIRTUAL_INTERFACE_PATTERNS` in `proxy/transport.py`). An address in the subnet of a physical-looking
+  interface (`Wi-Fi`, `Ethernet*`, `en*`, `eth*`, `wlan*`, `wl*`, a Hyper-V External switch, `utun`) is refused even with the opt-in,
+  naming the interface; the virtual network must be no wider than /16 (IPv4) / /64 (IPv6), so a /8 or /0 docker/custom network is
+  refused; a scoped address (anything containing `%`, e.g. `fe80::2%eth0`) is always refused; any other LAN or public address, and any hostname, is refused. `AEGIS_SITL_INTERFACE=<name>` may further pin
+  one adapter but can never admit a non-allowlisted one. The opt-in (incl. the interface name) is recorded as `private_upstream_ack`
+  in the run manifest. Limitation: this trusts interface names, so a virtual network the user has bridged onto a real LAN (bridged VM
+  network, macvlan, a renamed external switch) is not detected: keep the vehicle's radio/bridge off a host running attack tooling.
+  (Live verification of this path has not been run.)
 - After any WSL session, from **PowerShell**:
   `wsl -d Ubuntu-24.04 --cd /home/astryx/PX4-Autopilot -- git status --porcelain --untracked-files=no` must print nothing.
 - Raw captures (`data/sitl/raw/*.tlog`) are local evidence and are git-ignored; manifests and

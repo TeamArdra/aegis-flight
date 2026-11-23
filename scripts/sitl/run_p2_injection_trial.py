@@ -92,6 +92,8 @@ class CarrierRecorder:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--px4-host", default=None)
+    ap.add_argument("--allow-private-upstream", action="store_true",
+                    help="allow a private --px4-host (WSL2 NAT) that lies in a VIRTUAL host-only/NAT adapter's subnet (never a physical NIC); default loopback only")
     ap.add_argument("--px4-port", type=int, default=18572)
     ap.add_argument("--relay-listen-port", type=int, default=18672)
     ap.add_argument("--seed", type=int, required=True)
@@ -126,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
     # docs/STAGE2_PROGRESS.md's "architectural finding" entry. Default-off elsewhere; this
     # trial specifically needs it to answer "would the IDS see this attack at all".
     hook = CarrierRecorder(attack)
-    relay = make_udp_relay(px4_host, a.px4_port, a.relay_listen_port, up_hook=hook, down_hook=hook,
+    relay = make_udp_relay(px4_host, a.px4_port, a.relay_listen_port, allow_private_upstream=True if a.allow_private_upstream else None, up_hook=hook, down_hook=hook,
                            mirror_uplink_to_clients=True)
     relay.start()
     if not relay.wait_upstream_alive(timeout=15.0):
