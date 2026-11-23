@@ -77,7 +77,7 @@ REQUIRED: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
     ("sitl-campaign", "#26", "SITL campaign outputs", ("artifacts/sitl/final_*/**/*",)),
     ("bridge-raw-logs", "#26", "inline-bridge raw logs (hal/run_archive.py file names)",
      ("artifacts/sitl/final_*/**/frames_down.jsonl",)),
-    ("link-stress", "#27", "link-stress sweep outputs", ("artifacts/validation/final_*/link_stress/**/*",)),
+    ("link-stress", "#27", "link-stress sweep outputs", ("artifacts/validation/final_*/sweep/**/*", "artifacts/validation/final_*/link_stress/**/*")),
     ("benchmark-extended", "#27", "regenerated extended benchmark", ("artifacts/benchmarks_extended/summary.md",)),
     ("stage2-metrics", "#28", "Stage-2 metrics outputs", ("artifacts/validation/stage2_metrics_*/metrics.json",)),
     ("capture-hashes", "#29/#30", "SHA-256 manifest of the new captures",

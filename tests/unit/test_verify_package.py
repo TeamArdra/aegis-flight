@@ -442,3 +442,17 @@ def test_verifier_does_not_import_network_or_process_modules():
     imported = set(re.findall(r"^\s*(?:import|from)\s+([A-Za-z_][\w.]*)", src, re.MULTILINE))
     banned = {"socket", "urllib", "http", "requests", "subprocess", "ftplib", "smtplib", "ssl", "asyncio"}
     assert not {m.split(".")[0] for m in imported} & banned
+
+
+def test_link_stress_accepts_the_merged_sweep_folder(pkg):
+    # #177 committed the #27 sweep under final_<tag>/sweep/, not link_stress/.
+    (pkg / "artifacts/validation/final_x/link_stress/sweep_table.md").unlink()
+    write(pkg, "artifacts/validation/final_x/sweep/sweep_table.md", "| cell |\n")
+    write_manifest(pkg)
+    assert messages(run(pkg), "required") == []
+
+
+def test_link_stress_missing_from_both_layouts_fails(pkg):
+    (pkg / "artifacts/validation/final_x/link_stress/sweep_table.md").unlink()
+    write_manifest(pkg)
+    assert any("[link-stress]" in m for m in messages(run(pkg), "required"))

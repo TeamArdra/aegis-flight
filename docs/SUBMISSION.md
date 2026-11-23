@@ -29,7 +29,7 @@ The package is a directory (zip it last). The right-hand column is the verifier'
   configs/  src/  tests/  scripts/  backend/  frontend/ (source only)  docs/    the freeze-tag tree
   artifacts/sitl/final_<tag>/...                #26 campaign outputs                             (sitl-campaign)
   artifacts/sitl/final_<tag>/**/frames_down.jsonl   inline-bridge raw logs (#26)                 (bridge-raw-logs)
-  artifacts/validation/final_<tag>/link_stress/ #27 sweep                                        (link-stress)
+  artifacts/validation/final_<tag>/sweep/      #27 link-stress sweep                            (link-stress)
   artifacts/benchmarks_extended/summary.md      #27 regenerated extended benchmark               (benchmark-extended)
   artifacts/validation/stage2_metrics_<tag>/    #28 metrics (metrics.json, metrics.md)           (stage2-metrics)
   artifacts/hardware/**/*.sha256                SHA-256 manifests of the #29/#30 captures        (capture-hashes)
@@ -60,7 +60,7 @@ Environment tag and claim class are what the result may be called, nothing more 
 | d | Frontend | - | `npm --prefix frontend ci`, `npm --prefix frontend test`, `npm --prefix frontend run build` | `AGENTS.md` §2 |
 | e | Stage-1 regression (#27) | `SIM` | `aegis benchmark --out <scratch> --no-figures`, then read the `TP / FP` row of `<scratch>/summary.md`: it must equal the committed `artifacts/benchmarks/summary.md`. Always pass `--no-figures` and a scratch `--out` | `AGENTS.md` §6, [BENCHMARKING.md](BENCHMARKING.md) |
 | f | Extended benchmark (#27) | `SIM` | `python scripts/benchmark_extended.py --workers 8 --out artifacts/benchmarks_extended` (the default `--out`; it **overwrites committed artifacts**: run it on the freeze commit only, as #27 directs, and explain any difference from the committed `summary.md`) | `scripts/benchmark_extended.py`, [BENCHMARKING.md](BENCHMARKING.md) |
-| g | Link-stress sweep (#27) | `SIM` | `python scripts/sweep_link_stress.py --out artifacts/validation/final_<tag>/link_stress --workers 4` | `scripts/sweep_link_stress.py` (docstring), [BENCHMARKING.md](BENCHMARKING.md) |
+| g | Link-stress sweep (#27) | `SIM` | `python scripts/sweep_link_stress.py --out artifacts/validation/final_<tag>/sweep --workers 4` | `scripts/sweep_link_stress.py` (docstring), [BENCHMARKING.md](BENCHMARKING.md) |
 | h | Real-data replays (#27) | `REPLAY` | `python scripts/fetch_external_data.py --alfa --px4 <N>` then `python scripts/external_validation.py --px4 --alfa --out <dir>`; bench captures through `aegis serve --source replay --tlog <file> --replay-speed 1.0 --db <scratch>/x.sqlite` | `scripts/fetch_external_data.py`, `scripts/external_validation.py`, [EXTERNAL_DATA.md](EXTERNAL_DATA.md) |
 | i | Metrics (#28) | as the inputs | `python scripts/make_stage2_metrics.py --tag <tag>` (reads committed artifacts only; exits 2 and writes nothing if an input is absent) | `scripts/make_stage2_metrics.py`, [BENCHMARKING.md](BENCHMARKING.md) |
 | j | Session intervals, latency tables | `SIM` | `python scripts/make_submission_stats.py --sessions artifacts/benchmarks_extended/sessions.csv --out <dir>` | `scripts/make_submission_stats.py` |
