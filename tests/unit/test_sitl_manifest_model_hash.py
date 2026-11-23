@@ -75,3 +75,13 @@ def test_model_none_still_runs_without_a_model(models):
 
 def test_present_model_resolves_to_its_path(models):
     assert p2_trial_common.resolve_model("configs/px4_sitl", None) == (str(models["px4"]), "px4")
+
+
+def test_injection_trial_uses_the_shared_fail_closed_resolver():
+    """run_p2_injection_trial.py had its own copy of the resolver that silently ran with ML off when the
+    requested model file was missing; it must use p2_trial_common.resolve_model (the refusal tested above)."""
+    import importlib
+
+    inj = importlib.import_module("run_p2_injection_trial")
+    assert inj.resolve_model is p2_trial_common.resolve_model
+    assert not hasattr(inj, "MODEL_PX4") and not hasattr(inj, "MODEL_STAGE1")
