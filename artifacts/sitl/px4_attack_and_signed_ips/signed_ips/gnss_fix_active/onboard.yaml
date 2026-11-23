@@ -1,0 +1,21 @@
+topology: inline
+fc_port: socket://127.0.0.1:5762
+fc_baud: 115200
+gcs_port: socket://127.0.0.1:5800
+gcs_baud: 115200
+allow_url: true
+defense_mode: active-ips
+fail_closed_uplink_commands: true
+semantic_firewall_enabled: true
+config_dir: /app/configs/universal_flight
+run_root: /h/run_gnss_fix_active
+archive_enabled: true
+allow_dirty: false
+db_name: events.sqlite
+signing_key_file: /h/gnss_fix_active/gcs.key
+anchors_enabled: true
+anchor_interval_s: 30.0
+status_host: 127.0.0.1
+status_port: 8090
+dashboard:
+  enabled: false

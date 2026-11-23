@@ -1,0 +1,419 @@
+{
+ "scenario": "gps",
+ "vehicle": {
+  "sysid": 1,
+  "autopilot": 12,
+  "type": 2
+ },
+ "arm_result": 0,
+ "takeoff_ack": 0,
+ "baseline_mode": "AUTO_LOITER",
+ "baseline_rel_alt_m": 19.8,
+ "observe_s": 110.0,
+ "rel_alt_end_m": 20.0,
+ "t_fault": 32.89,
+ "end_mode": "AUTO_LOITER",
+ "stages": [],
+ "timeline": [
+  {
+   "t": 3.53,
+   "mode": "POSCTL",
+   "armed": false
+  },
+  {
+   "t": 9.53,
+   "mode": "AUTO_TAKEOFF",
+   "armed": true
+  },
+  {
+   "t": 25.53,
+   "mode": "AUTO_LOITER",
+   "armed": true
+  },
+  {
+   "t": 143.57,
+   "mode": "AUTO_LAND",
+   "armed": true
+  },
+  {
+   "t": 165.54,
+   "mode": "AUTO_LOITER",
+   "armed": false
+  }
+ ],
+ "statustext": [
+  {
+   "t": 8.6,
+   "text": "Armed by external command\t"
+  },
+  {
+   "t": 10.3,
+   "text": "Takeoff detected\t"
+  }
+ ],
+ "status_final": {
+  "mode": "passive",
+  "state": "NOMINAL",
+  "vehicle_filter": false,
+  "vehicle_filter_state": "off",
+  "frames": {
+   "down": 52205,
+   "up": 1491,
+   "forwarded_down": 52205,
+   "forwarded_up": 1491,
+   "dropped_down": 0,
+   "dropped_up": 0,
+   "uplink_fail_closed_drops": 0,
+   "send_failures": 0,
+   "tap_overflow": 0,
+   "forged_vehicle_up": 0
+  },
+  "latency_us": {
+   "p50": 25.5,
+   "p95": 104.3,
+   "max": 3186.4,
+   "samples": 20000
+  },
+  "policy": {
+   "signing": true,
+   "signed_ok": 3,
+   "dropped_unsigned": 0,
+   "dropped_bad_signature": 0,
+   "dropped_replay": 0,
+   "enforce": false,
+   "dynamic_fresh": true,
+   "armed": true,
+   "in_flight": true,
+   "dropped_untrusted_control": 0,
+   "dropped_inflight_disarm": 0,
+   "dropped_burst": 0,
+   "dropped_dynamic": 0,
+   "rewritten": 0,
+   "hook_errors": 0,
+   "provenance_known_sources": 0,
+   "dropped_provenance": 0,
+   "suspect_provenance": 0,
+   "dropped_replay_unsigned": 0,
+   "resyncs": 0,
+   "replay_memory": 4096,
+   "contested_policy": "alert",
+   "contested_events": 0,
+   "contested_sources": 0,
+   "contested_alarms": 0,
+   "dropped_contested": 0
+  },
+  "semantic_firewall": {
+   "enabled": true,
+   "dropped_param": 0,
+   "dropped_fence": 0,
+   "last_reason": null
+  },
+  "signing_observed": {
+   "unsigned": 0,
+   "bad_signature": 0,
+   "replay": 0,
+   "forged_down_observed": 0,
+   "forged_down_dropped": 0
+  },
+  "analyser": {
+   "decisions": 699,
+   "alerts": 10,
+   "errors": 0,
+   "counter_frames_sent": 0,
+   "alarms_sent": 0,
+   "crossend_sent": 0,
+   "summary": "Nominal flight (IDS passive)",
+   "ekf_secondary": false
+  },
+  "firmware_allowlist_sha256": "63b01f5fe0cbb69e11b7e5a4fd1fe944bbe1756e3dcbe7e0113d63fd104788ad",
+  "anchors": {
+   "head_hash": "5ae7988e6a8ba40b4f81038ae0a665b640143f73819ea881dd391fa39e969861",
+   "row_count": 10,
+   "last_id": 10,
+   "signed": true,
+   "age_s": 1.49,
+   "path": "events.anchors.jsonl"
+  },
+  "last_error": null,
+  "mgmt_active": false,
+  "mgmt": {
+   "sent": {
+    "alert": 0,
+    "action": 0,
+    "status": 0,
+    "ack": 0,
+    "other": 0
+   },
+   "bytes_sent": 0,
+   "budget_denied": 0,
+   "suppressed": 0,
+   "send_failures": 0,
+   "queue_dropped": 0,
+   "commands_consumed": 0,
+   "accepted": 0,
+   "denied": 0,
+   "ignored": 0,
+   "bad_signatures": 0,
+   "lockouts": 0,
+   "control_enabled": false,
+   "locked_out": false,
+   "budget_bytes_per_s": 150.0
+  },
+  "topology": {
+   "kind": "A+B",
+   "label": "Inline bridge (FC <-> GCS)",
+   "source": "detected",
+   "posture": "passive",
+   "links": {
+    "fc": {
+     "connected": true,
+     "name": null
+    },
+    "gcs": {
+     "connected": true,
+     "name": null
+    }
+   },
+   "uplink_visible": true,
+   "can_block_frames": false,
+   "can_send_counter_commands": false,
+   "reasons": [
+    "inline bridge: flight-controller link and GCS link are both handled by this process",
+    "flight-controller link connected",
+    "GCS link connected",
+    "1491 frame(s) seen from the GCS side",
+    "posture passive: frames are forwarded unchanged, no blocking, no counter-commands"
+   ]
+  },
+  "crossend": {
+   "sent": 0
+  },
+  "signing": {
+   "configured": true,
+   "unsigned_acknowledged": false
+  },
+  "control": {
+   "enabled": false
+  }
+ },
+ "status_samples": [
+  {
+   "t": 133.8,
+   "analyser": {
+    "decisions": 653,
+    "alerts": 10,
+    "errors": 0,
+    "counter_frames_sent": 0,
+    "alarms_sent": 0,
+    "crossend_sent": 0,
+    "summary": "Nominal flight (IDS passive)",
+    "ekf_secondary": false
+   },
+   "policy": {
+    "signing": true,
+    "signed_ok": 3,
+    "dropped_unsigned": 0,
+    "dropped_bad_signature": 0,
+    "dropped_replay": 0,
+    "enforce": false,
+    "dynamic_fresh": true,
+    "armed": true,
+    "in_flight": true,
+    "dropped_untrusted_control": 0,
+    "dropped_inflight_disarm": 0,
+    "dropped_burst": 0,
+    "dropped_dynamic": 0,
+    "rewritten": 0,
+    "hook_errors": 0,
+    "provenance_known_sources": 0,
+    "dropped_provenance": 0,
+    "suspect_provenance": 0,
+    "dropped_replay_unsigned": 0,
+    "resyncs": 0,
+    "replay_memory": 4096,
+    "contested_policy": "alert",
+    "contested_events": 0,
+    "contested_sources": 0,
+    "contested_alarms": 0,
+    "dropped_contested": 0
+   },
+   "mode": "passive",
+   "state": "NOMINAL"
+  },
+  {
+   "t": 135.8,
+   "analyser": {
+    "decisions": 663,
+    "alerts": 10,
+    "errors": 0,
+    "counter_frames_sent": 0,
+    "alarms_sent": 0,
+    "crossend_sent": 0,
+    "summary": "Nominal flight (IDS passive)",
+    "ekf_secondary": false
+   },
+   "policy": {
+    "signing": true,
+    "signed_ok": 3,
+    "dropped_unsigned": 0,
+    "dropped_bad_signature": 0,
+    "dropped_replay": 0,
+    "enforce": false,
+    "dynamic_fresh": true,
+    "armed": true,
+    "in_flight": true,
+    "dropped_untrusted_control": 0,
+    "dropped_inflight_disarm": 0,
+    "dropped_burst": 0,
+    "dropped_dynamic": 0,
+    "rewritten": 0,
+    "hook_errors": 0,
+    "provenance_known_sources": 0,
+    "dropped_provenance": 0,
+    "suspect_provenance": 0,
+    "dropped_replay_unsigned": 0,
+    "resyncs": 0,
+    "replay_memory": 4096,
+    "contested_policy": "alert",
+    "contested_events": 0,
+    "contested_sources": 0,
+    "contested_alarms": 0,
+    "dropped_contested": 0
+   },
+   "mode": "passive",
+   "state": "NOMINAL"
+  },
+  {
+   "t": 137.8,
+   "analyser": {
+    "decisions": 673,
+    "alerts": 10,
+    "errors": 0,
+    "counter_frames_sent": 0,
+    "alarms_sent": 0,
+    "crossend_sent": 0,
+    "summary": "Nominal flight (IDS passive)",
+    "ekf_secondary": false
+   },
+   "policy": {
+    "signing": true,
+    "signed_ok": 3,
+    "dropped_unsigned": 0,
+    "dropped_bad_signature": 0,
+    "dropped_replay": 0,
+    "enforce": false,
+    "dynamic_fresh": true,
+    "armed": true,
+    "in_flight": true,
+    "dropped_untrusted_control": 0,
+    "dropped_inflight_disarm": 0,
+    "dropped_burst": 0,
+    "dropped_dynamic": 0,
+    "rewritten": 0,
+    "hook_errors": 0,
+    "provenance_known_sources": 0,
+    "dropped_provenance": 0,
+    "suspect_provenance": 0,
+    "dropped_replay_unsigned": 0,
+    "resyncs": 0,
+    "replay_memory": 4096,
+    "contested_policy": "alert",
+    "contested_events": 0,
+    "contested_sources": 0,
+    "contested_alarms": 0,
+    "dropped_contested": 0
+   },
+   "mode": "passive",
+   "state": "NOMINAL"
+  },
+  {
+   "t": 139.8,
+   "analyser": {
+    "decisions": 683,
+    "alerts": 10,
+    "errors": 0,
+    "counter_frames_sent": 0,
+    "alarms_sent": 0,
+    "crossend_sent": 0,
+    "summary": "Nominal flight (IDS passive)",
+    "ekf_secondary": false
+   },
+   "policy": {
+    "signing": true,
+    "signed_ok": 3,
+    "dropped_unsigned": 0,
+    "dropped_bad_signature": 0,
+    "dropped_replay": 0,
+    "enforce": false,
+    "dynamic_fresh": true,
+    "armed": true,
+    "in_flight": true,
+    "dropped_untrusted_control": 0,
+    "dropped_inflight_disarm": 0,
+    "dropped_burst": 0,
+    "dropped_dynamic": 0,
+    "rewritten": 0,
+    "hook_errors": 0,
+    "provenance_known_sources": 0,
+    "dropped_provenance": 0,
+    "suspect_provenance": 0,
+    "dropped_replay_unsigned": 0,
+    "resyncs": 0,
+    "replay_memory": 4096,
+    "contested_policy": "alert",
+    "contested_events": 0,
+    "contested_sources": 0,
+    "contested_alarms": 0,
+    "dropped_contested": 0
+   },
+   "mode": "passive",
+   "state": "NOMINAL"
+  },
+  {
+   "t": 141.8,
+   "analyser": {
+    "decisions": 693,
+    "alerts": 10,
+    "errors": 0,
+    "counter_frames_sent": 0,
+    "alarms_sent": 0,
+    "crossend_sent": 0,
+    "summary": "Nominal flight (IDS passive)",
+    "ekf_secondary": false
+   },
+   "policy": {
+    "signing": true,
+    "signed_ok": 3,
+    "dropped_unsigned": 0,
+    "dropped_bad_signature": 0,
+    "dropped_replay": 0,
+    "enforce": false,
+    "dynamic_fresh": true,
+    "armed": true,
+    "in_flight": true,
+    "dropped_untrusted_control": 0,
+    "dropped_inflight_disarm": 0,
+    "dropped_burst": 0,
+    "dropped_dynamic": 0,
+    "rewritten": 0,
+    "hook_errors": 0,
+    "provenance_known_sources": 0,
+    "dropped_provenance": 0,
+    "suspect_provenance": 0,
+    "dropped_replay_unsigned": 0,
+    "resyncs": 0,
+    "replay_memory": 4096,
+    "contested_policy": "alert",
+    "contested_events": 0,
+    "contested_sources": 0,
+    "contested_alarms": 0,
+    "dropped_contested": 0
+   },
+   "mode": "passive",
+   "state": "NOMINAL"
+  }
+ ],
+ "rx_frames": 52202,
+ "sent_frames": 1528,
+ "landed_disarmed": true
+}

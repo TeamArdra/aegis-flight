@@ -333,13 +333,13 @@ def audit_control_plane_security() -> None:
     os.environ["AEGIS_API_TOKEN"] = token
     try:
         r_unauth = client.post(path, json={"mode": "passive"})
-        # signed request (key-id, timestamp, nonce, HMAC): accepted by the current backend and by the signed-only one
-        auth_headers = {**json_ct, **signed_headers(token, "POST", path, body)}
+        # signed-only request (key-id, timestamp, nonce, HMAC; no raw token on the wire), as the signed-only backend (#93) requires
+        auth_headers = {**json_ct, **signed_headers(token, "POST", path, body, include_token=False)}
         r_auth = client.post(path, content=body, headers=auth_headers)
         r_replay = client.post(path, content=body, headers=auth_headers)  # identical nonce: must be refused
         r_tamper = client.post(  # signature made for a different body: must be refused
             path, content=json.dumps({"mode": "passive"}).encode(),
-            headers={**json_ct, **signed_headers(token, "POST", path, body)},
+            headers={**json_ct, **signed_headers(token, "POST", path, body, include_token=False)},
         )
     finally:
         os.environ.pop("AEGIS_API_TOKEN", None)

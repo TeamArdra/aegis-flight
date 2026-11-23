@@ -90,7 +90,7 @@ def _stream(link: _Link, k: int, t: float, *, hb: bool = True, gpi: bool = True,
     if gpi and k % 2 == 0:
         out.append(link.env(t, "GLOBAL_POSITION_INT", 33, lat=int(12.9 * 1e7),
                             lon=int(77.5 * 1e7), alt=900000, relative_alt=0, vx=0, vy=0, vz=0))
-    out.append(link.env(t, "ATTITUDE", 30, roll=0.0, pitch=0.0, yaw=0.5, rollspeed=0.0,
+    out.append(link.env(t, "ATTITUDE", 30, roll=0.001 * ((k % 7) + 1), pitch=0.0, yaw=0.5, rollspeed=0.0,
                         pitchspeed=0.0, yawspeed=0.0))
     out.append(link.env(t, "VFR_HUD", 74, groundspeed=0.0, heading=28, throttle=0,
                         alt=900.0, climb=0.0))

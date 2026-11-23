@@ -52,6 +52,7 @@ class IDSPipeline:
             reorder_window=int(det.get("features", {}).get("reorder_window", 16)),
             learn_baro_offset=bool(det.get("features", {}).get("learn_baro_offset", False)),
             baro_offset_alpha=float(det.get("features", {}).get("baro_offset_alpha", 0.05)),
+            accel_min_dt_s=float(det.get("features", {}).get("accel_min_dt_s", 0.0)),
         )
         self.protocol = ProtocolDetector(det["protocol"])
         self.physics = PhysicsDetector(det["physics"])

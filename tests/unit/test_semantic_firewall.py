@@ -126,3 +126,29 @@ def test_fence_home_exclusion_only_blocks_while_armed() -> None:
     assert fw.evaluate_fence_change(ev, armed=False, home_lat_lon=home).blocked is False
     assert fw.evaluate_fence_change(ev, armed=None, home_lat_lon=home).blocked is False
     assert fw.evaluate_fence_change(ev, armed=True, home_lat_lon=home).blocked is True
+
+
+def test_armed_signed_param_set_is_dropped() -> None:
+    """A legitimately signed PARAM_SET (e.g. FS_GCS_ENABLE) is dropped while armed."""
+    pol = InlinePolicy(FrameSanitizer(), trusted_sysids=(255,), vehicle_sysids=(1,), semantic_firewall_enabled=True)
+    pol.set_enforce(True)
+
+    hb = _pack(apm.MAVLink_heartbeat_message(2, 3, 0x81 | 0x80, 5, 4, 3), 1, 1, seq=1)
+    pol.down(FrameContext("down", hb, 1_000_000_000, 1, 1, 1, 0, True))
+
+    pset = _pack(apm.MAVLink_param_set_message(1, 1, b"FS_GCS_ENABLE", 0.0, 9), 255, 190, seq=2)
+    out = pol.up(FrameContext("up", pset, 1_100_000_000, 255, 190, 2, 23, True))
+    assert out == []
+    assert pol.semantic_stats()["dropped_param"] == 1
+
+
+def test_arm_unknown_param_set_blocked_when_configured() -> None:
+    """When armed=None, block_when_arm_unknown=True fails closed on protected PARAM_SET."""
+    from aegisflight.mitigation.semantic_firewall import ParamWriteEvent
+
+    ev = ParamWriteEvent(recv_time=1.0, sysid=255, compid=190, param_id="FS_GCS_ENABLE", param_value=0.0, param_type=9)
+    fw_strict = SemanticFirewall(enabled=True, block_when_arm_unknown=True)
+    fw_permissive = SemanticFirewall(enabled=True, block_when_arm_unknown=False)
+
+    assert fw_strict.evaluate_param_write(ev, armed=None).blocked is True
+    assert fw_permissive.evaluate_param_write(ev, armed=None).blocked is False

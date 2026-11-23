@@ -79,6 +79,7 @@ function ControlPanelImpl({ activeAttack, controls, environment }: {
   environment: string;
 }) {
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [selectedAttack, setSelectedAttack] = useState<string>("gps_spoofing");
   const [selectedSubMode, setSelectedSubMode] = useState<string>("gradual_drift");
   const [driftRate, setDriftRate] = useState<number>(6.0);
@@ -102,8 +103,14 @@ function ControlPanelImpl({ activeAttack, controls, environment }: {
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
+    setErr(null);
     try {
-      await fn();
+      const res = (await fn()) as { ok?: boolean; error?: string; message?: string } | null | undefined;
+      if (res && typeof res === "object" && res.ok === false) {
+        setErr(res.message || res.error || "Control request rejected by backend.");
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -130,6 +137,23 @@ function ControlPanelImpl({ activeAttack, controls, environment }: {
         <span className="panel-title">Console Controls</span>
         <span className="panel-note">safe simulation</span>
       </header>
+
+      {err && (
+        <div
+          role="alert"
+          style={{
+            marginBottom: 8,
+            padding: "6px 8px",
+            borderRadius: 6,
+            background: "rgba(239, 68, 68, 0.14)",
+            border: "1px solid rgba(239, 68, 68, 0.4)",
+            color: "#fca5a5",
+            fontSize: 11,
+          }}
+        >
+          {err}
+        </div>
+      )}
 
       <div className="ctl-group">
         <div className="ctl-label">Simulation</div>

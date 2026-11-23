@@ -56,6 +56,27 @@ M = 1.25
 SENTINEL = 999.0
 STAGE1_HARD_OVER_NOMINAL = 400.0 / 28.0  # Stage-1 max_msg_rate_hz / nominal_msg_rate_hz
 
+# Explicit, documented, NON-DERIVED profile settings. They are policy decisions, not outputs of the
+# calibration margin policy above, so they are never computed from the flights; they live here (and
+# only here) so that regenerating the profile reproduces them instead of silently dropping them.
+# section -> list of (comment, key, value), emitted in order after that section's derived keys.
+FIXED_SETTINGS: dict[str, list[tuple[str, str, object]]] = {
+    "protocol": [
+        ("Explicit live-profile GNSS policy (Decision D3): never-acquired fix reports score-0 coverage.",
+         "gnss_never_acquired_policy", "coverage"),
+    ],
+    "physics": [
+        ("Enable cross-message consistency checks (catches frozen attitude via att_repeat >= 8)",
+         "xmsg_checks", True),
+        ("Match universal_flight tolerance (20 deg) so benign turbulence does not false-alarm",
+         "heading_yaw_tolerance_deg", 20.0),
+    ],
+    "fusion": [
+        ("Decision D5 (#49): require protocol/physics/integrity corroboration before ML triggers alerts"
+         " on PX4 SITL.", "ml_require_corroboration", True),
+    ],
+}
+
 
 def ceil_to(x: float, grid: float) -> float:
     return round(math.ceil(x / grid - 1e-9) * grid, 10)
@@ -204,7 +225,21 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def write_yaml(out: dict) -> None:
+def _yaml_scalar(v: object) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    return str(v)
+
+
+def _fixed_lines(section: str) -> list[str]:
+    lines: list[str] = []
+    for comment, key, val in FIXED_SETTINGS.get(section, []):
+        lines += [f"  # {comment}", f"  {key}: {_yaml_scalar(val)}"]
+    return lines
+
+
+def render_yaml(out: dict) -> str:
+    """Pure renderer: derivation dict -> ``configs/px4_sitl/detector.yaml`` text (no I/O)."""
     D, po = out["derivations"], out["profile_overrides"]
     p, h = po["protocol"], po["physics"]
     mr = D["msg_rate"]
@@ -236,8 +271,9 @@ def write_yaml(out: dict) -> None:
         "  # NEW additive key (default 0 = Stage-1 behaviour): ignore only the never-seen-yet heartbeat/GPS",
         f"  # sentinel during the first {p['startup_grace_s']} s (derivation.json -> startup_grace_s)",
         f"  startup_grace_s: {p['startup_grace_s']}",
+        *_fixed_lines("protocol"),
     ]
-    if h:
+    if h or FIXED_SETTINGS.get("physics"):
         lines += ["", "physics:"]
         for key, val in h.items():
             d = D[f"physics.{key}"]
@@ -247,9 +283,16 @@ def write_yaml(out: dict) -> None:
             if extra:
                 lines.append(extra)
             lines.append(f"  {key}: {val}")
+        lines += _fixed_lines("physics")
+    lines += ["", "fusion:", *_fixed_lines("fusion")]
+    return "\n".join(lines) + "\n"
+
+
+def write_yaml(out: dict) -> None:
     d = cc.resolve(cc.PROFILE_DIR)
     d.mkdir(parents=True, exist_ok=True)
-    (d / "detector.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # write bytes: LF endings on every OS so the committed file is byte-stable
+    (d / "detector.yaml").write_bytes(render_yaml(out).encode("utf-8"))
 
 
 if __name__ == "__main__":
