@@ -16,6 +16,7 @@ serial stream framer (frames + all counters, several read splits and configurati
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import hashlib
 import json
@@ -835,8 +836,11 @@ def compute() -> dict[str, Any]:
         return {"version": 1, "bridge": bridge, "split_frames": split_record(), "framer": framer, "crc": crc_record()}
 
 
-def main() -> int:
-    check = "--check" in sys.argv
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--check", action="store_true",
+                    help="recompute and compare with the committed fixture, exit 1 on a difference (writes nothing)")
+    check = ap.parse_args(argv).check
     data = compute()
     if check:
         gold = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))

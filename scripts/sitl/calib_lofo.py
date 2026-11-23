@@ -12,6 +12,7 @@ not independent (one scripted route). Output: ``artifacts/sitl/calibration/lofo_
 
 from __future__ import annotations
 
+import argparse
 import copy
 import json
 import sys
@@ -24,7 +25,8 @@ import calib_derive as cd  # noqa: E402
 from aegisflight.config import _deep_merge  # noqa: E402
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
     flights = cd.load_flights()
     base = cc.cfg_for("default")

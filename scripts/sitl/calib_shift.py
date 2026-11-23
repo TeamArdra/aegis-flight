@@ -13,6 +13,7 @@ unchanged ``FeatureExtractor``. Decisions before 5 s are dropped on both sides
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -53,7 +54,8 @@ def pct(v: np.ndarray) -> dict:
             "std": float(v.std())}
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
     cfg = cc.cfg_for("default")
     sim = sim_rows(cfg)

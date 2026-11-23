@@ -14,6 +14,7 @@ they exercise; nothing here measures a vehicle, a SITL link or a benchmark. It e
 
 from __future__ import annotations
 
+import argparse
 import os
 import random
 import sys
@@ -411,7 +412,9 @@ def audit_closed_loop_topology_a_and_b() -> None:
     _pass("All 20/20 attack sub-modes verified in closed-loop: PASSIVE (unmitigated impact) vs ACTIVE_IPS (modelled inline filtering)")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    # parse first: the suites build a backend engine whose default event store is artifacts/aegisflight_live.sqlite
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     print("\n" + "#"*72)
     print("  AEGISFLIGHT STAGE 2 — VERIFICATION & AUDIT SUITE")
     print("  Challenge: PUSHPAK Grand Challenge 3, Objective 2 (IIT Bombay Techfest)")

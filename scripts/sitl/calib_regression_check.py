@@ -9,6 +9,7 @@ Writes ``artifacts/sitl/calibration/stage1_regression.json``; never writes under
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sys
@@ -27,8 +28,11 @@ def counts(path: Path) -> list[int]:
     return [int(x) for x in m.groups()]
 
 
-def main() -> int:
-    scratch = Path(sys.argv[1]) / "summary.md"
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("scratch", type=Path, help="scratch --out directory of `aegis benchmark ... --no-figures`")
+    args = ap.parse_args(argv)
+    scratch = args.scratch / "summary.md"
     committed = cc.REPO / "artifacts" / "benchmarks" / "summary.md"
     a, b = counts(committed), counts(scratch)
     doc = {"schema": "aegisflight.stage1_regression/1", "environment": "SIM",

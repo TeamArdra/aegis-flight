@@ -13,6 +13,7 @@ assumption). Calibration flights only. Output: ``artifacts/sitl/calibration/rtf_
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -30,7 +31,8 @@ from aegisflight.features.extractor import ML_FEATURES  # noqa: E402
 TARGETS = (0.60, 0.70, 0.80, 0.90, 1.00, 1.25, 1.50, 2.00, 3.00)  # > 1.0: hypothetical faster-than-real-time OR a proportional rate flood
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
     cfg = cc.cfg_for("px4_sitl")
     prot = cfg.detector["protocol"]
