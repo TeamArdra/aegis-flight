@@ -27,7 +27,9 @@ def _frame(t: float, *, armed: bool | None, mode: str, with_cmd: bool, cmd_t: fl
         heading=90.0, flight_mode=mode, armed=armed, battery_remaining=90.0,
     )
     cmds = (CommandEvent(recv_time=cmd_t, sysid=255, compid=190, command=400, params=_FORCE),) if with_cmd else ()
-    return FeatureFrame(
+    # D4 (#91, now in #81) fails closed on DO_SET_MODE until a vehicle HEARTBEAT binds the dialect, so the frames
+    # carry an observed ArduCopter quad (autopilot 3, MAV_TYPE 2), as in test_safe_hold_dialect_guard.py.
+    return FeatureFrame(autopilot_id=3, mav_type=2,
         t=t, snapshot=snap, gps_seen=True, gps_raw_seen=True, heartbeat_seen=True, msg_rate_hz=28.0,
         sources=((1, 1), (255, 190)), n_sources=2, commands_recent=cmds,
     )
