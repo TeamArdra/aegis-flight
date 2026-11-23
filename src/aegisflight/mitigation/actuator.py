@@ -8,10 +8,12 @@ import os
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import ClassVar
 
 from pymavlink.dialects.v20 import common as mav2
 
 from ..mavlink.codec import (
+    COPTER_MAV_TYPES,
     COPTER_MODES,
     FIXED_WING_MAV_TYPE,
     PLANE_MODES,
@@ -27,7 +29,17 @@ MAV_CMD_DO_AUX_FUNCTION = getattr(mav2, "MAV_CMD_DO_AUX_FUNCTION", 218)
 
 
 class MavlinkActuator:
-    """Encodes corrective MAVLink v2 commands across autopilot dialects with zero allocation churn."""
+    """Encodes corrective MAVLink v2 commands with zero allocation churn.
+
+    Only ArduCopter (autopilot 3 with a multicopter/heli ``mav_type``) is enabled for DO_SET_MODE actuation: the
+    bridge has been verified on ArduCopter SITL only. The PX4/Plane/Rover/VTOL mapping tables are kept, but
+    ``ALLOW_NON_COPTER_DIALECTS`` is False, so every other (or unknown) dialect is refused and audit-logged until a
+    maintainer-approved hardware qualification enables it. The dialect starts UNKNOWN: until a vehicle HEARTBEAT
+    has been observed (``set_vehicle_dialect``) no DO_SET_MODE is encoded (fail-closed).
+    """
+
+    # Frozen safety interlock: flipping this is a maintainer decision (see docs/HARDWARE_FLIGHT_READINESS.md).
+    ALLOW_NON_COPTER_DIALECTS: ClassVar[bool] = False
 
     def __init__(
         self,
@@ -37,8 +49,8 @@ class MavlinkActuator:
         link_id: int = 0,
         on_action: Callable[[str, str, str], None] | None = None,
         *,
-        autopilot_id: int | None = 3,
-        mav_type: int | None = 2,
+        autopilot_id: int | None = None,
+        mav_type: int | None = None,
         ts_state_path: str | Path | None = None,
     ) -> None:
         self.sysid = sysid
@@ -56,6 +68,7 @@ class MavlinkActuator:
         self.autopilot_id: int | None = autopilot_id
         self.mav_type: int | None = mav_type
         self.on_action = on_action
+        self._refused_dialects: set[tuple[int | None, int | None, str]] = set()
         self._load_ts_state()
 
     def _load_ts_state(self) -> None:
@@ -85,8 +98,31 @@ class MavlinkActuator:
         self.mav_type = mav_type
 
     def safe_hold_mode_name(self) -> str | None:
-        """Return safe GPS-denied mode for the observed vehicle dialect, or None if unknown."""
+        """Return safe GPS-denied mode for the observed vehicle dialect, or None if unknown or not enabled."""
+        if not self._dialect_enabled():
+            self._audit_refusal("safe_hold")
+            return None
         return safe_gps_denied_mode(self.autopilot_id, self.mav_type)
+
+    def _dialect_enabled(self) -> bool:
+        """True only for a positively identified ArduCopter, unless non-Copter actuation is explicitly enabled."""
+        if self.ALLOW_NON_COPTER_DIALECTS:
+            return True
+        return self.autopilot_id == 3 and self.mav_type in COPTER_MAV_TYPES
+
+    def _audit_refusal(self, what: str) -> None:
+        """Audit-log (once per dialect and request kind) that a mode command was refused for this dialect."""
+        key = (self.autopilot_id, self.mav_type, what)
+        if key in self._refused_dialects:
+            return
+        self._refused_dialects.add(key)
+        no_hb = " [no vehicle HEARTBEAT has fixed the dialect yet: fail-closed]" if self.autopilot_id is None else ""
+        self._emit_action(
+            "refuse_set_mode",
+            what,
+            f"DO_SET_MODE refused: autopilot={self.autopilot_id} mav_type={self.mav_type} is not an enabled "
+            f"ArduCopter dialect (non-Copter actuation is disabled){no_hb}",
+        )
 
     def _emit_action(self, action: str, target: str, detail: str) -> None:
         if self.on_action is not None:
@@ -128,6 +164,9 @@ class MavlinkActuator:
 
     def _resolve_mode_params(self, custom_mode_name: str | None) -> tuple[float, float, float] | None:
         if not custom_mode_name:
+            return None
+        if not self._dialect_enabled():
+            self._audit_refusal(str(custom_mode_name).upper())
             return None
         name = str(custom_mode_name).upper()
         ap, mt = self.autopilot_id, self.mav_type

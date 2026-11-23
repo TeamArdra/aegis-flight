@@ -15,11 +15,17 @@ Before touching physical hardware, run all four layers below on your development
 python -m aegisflight.cli.main field-drill
 python scripts/hardware/hw_readiness_soak.py --cycles 5 --flood-frames 5000
 ```
-Verifies:
-- `4/4` shadow drills (`zero_real_fc_tx=True`).
-- `0` false alerts during harsh RF flight (4% loss, reordering, corrupt UART bytes, yaw sweeps).
-- `0` crashes / bounded state tables under 5,000+ spoofed-ID flood frames + IEEE-754 `NaN`/`Inf` frames.
-- Fail-closed uplink blocking (`dropped_unsigned`, `dropped_semantic_param`, `dropped_untrusted_control`) under signed `ACTIVE_IPS`.
+What this checks (SIM / link-level only: in-memory virtual transports, no serial device is opened, no vehicle and no
+radio are involved; none of it is flight or hardware evidence):
+- `4/4` shadow drills on in-memory shadow transports.
+- `0` false alerts over one scripted benign flight with 4% random frame loss, injected garbage UART bytes and yaw sweeps
+  (frame reordering is **not** injected).
+- `analyser_errors == 0` and live bridge threads after a flood of spoofed-ID `ATTITUDE` frames (default 3,000; set with
+  `--flood-frames`) and **one** `VFR_HUD` frame carrying an IEEE-754 `NaN`. `Inf` frames are not sent, and the size of
+  state tables or memory growth is **not** measured or asserted.
+- Under signed `ACTIVE_IPS` on the in-memory bridge: `dropped_unsigned > 0` and `dropped_semantic_param > 0` are asserted,
+  and a forged disarm and a `PARAM_SET` must not reach the shadow FC transport. `dropped_untrusted_control` is reported,
+  not asserted.
 - Validated SHA-256 `events` + `actions` chains and HMAC-signed `anchors.jsonl`.
 
 ### B. Companion-Computer Resource Bench (Docker, SIM only)
@@ -69,15 +75,24 @@ Once you have a real Pixhawk and companion computer (**props removed, bench powe
 
 ## 3. Staged Progression to Real Outdoor Flying & Inline IPS
 
+**Active prevention is SIM / local-SITL only.** `ACTIVE_IPS` and `--vehicle-uplink-filter` may only be used against a
+simulator or a local SITL link (`socket://` or UDP). The code refuses `--defense-mode active-ips` on any OS serial device
+(`may_reach_vehicle()`), and the bridge has been verified on ArduCopter SITL only. They stay SIM/local-SITL only until a
+separate, maintainer-approved hardware qualification exists. Stages marked **not supported / future** below are not
+instructions: do not attempt them, and do not treat the listed hardware safeguards as sufficient approval.
+
 Never jump directly to free-flight `ACTIVE_IPS`. Follow all 5 gates in order:
 
 | Stage | Environment | Posture | Mandatory Hardware Safeguard | Exit Gate |
 | :--- | :--- | :--- | :--- | :--- |
-| 1 | SITL + Gazebo + `tc netem` + Docker cap | `ACTIVE_IPS` (signed) | Loopback only | `0` false counter-commands over 10+ hr soak |
-| 2 | Props-off Pixhawk HITL bench | `ACTIVE_IPS` (signed) | Normally-closed (NC) UART bypass relay | Power-yank fails over in `< 10 ms`; clean EKF switch |
+| 1 | SITL + Gazebo + `tc netem` + Docker cap (SIM / local SITL only) | `ACTIVE_IPS` (signed) | Loopback only | Target: `0` false counter-commands over a 10+ hr soak (not yet run) |
+| 2 | Props-off Pixhawk bench | **Not supported / future.** `ACTIVE_IPS` is refused on a serial FC link; requires separate maintainer-approved hardware qualification. Until then use `PASSIVE` (RX-only) only (section 2). | n/a | n/a |
 | 3 | Outdoor free flight | `PASSIVE` (RX-only) | UART TX disconnected | Replay real `.tlog`/`.ulog` logs; verify low `FA/hr` |
-| 4 | Netted / tethered hover | `--vehicle-filter` (signed) | Direct RC safety pilot + NC bypass relay + `--filter-override-file` | Legitimate signed GCS passes `< 5 ms`; forged uplink dropped |
-| 5 | Open range qualification | `ACTIVE_IPS` (signed) | Direct RC safety pilot + NC bypass relay + override switch | Verified `ALT_HOLD` / pilot RC takeover recovery |
+| 4 | Netted / tethered hover | **Not supported / future.** `--vehicle-uplink-filter` is SIM/local-SITL only; requires separate maintainer-approved hardware qualification. | n/a | n/a |
+| 5 | Open range qualification | **Not supported / future.** `ACTIVE_IPS` on a real vehicle is not qualified; requires separate maintainer-approved hardware qualification. | n/a | n/a |
+
+Hardware safeguards that a future qualification would be expected to define (normally-closed UART bypass relay, direct RC
+safety pilot, `--filter-override-file`) are design intent only. None of them has been built or tested here.
 
 ---
 

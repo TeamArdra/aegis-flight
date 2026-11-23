@@ -29,6 +29,7 @@ def test_multi_dialect_decoding_and_safe_gps_denied_modes() -> None:
 def test_actuator_persists_monotonic_signing_timestamp(tmp_path: Path) -> None:
     ts_path = tmp_path / "tx_ts.json"
     act1 = MavlinkActuator(secret_key=b"\x11" * 32, ts_state_path=ts_path)
+    act1.set_vehicle_dialect(3, 2)  # explicit ArduCopter dialect (no heartbeat => fail-closed)
     act1.set_timestamp_source(lambda: 123_456_789)
     frame1 = act1.encode_set_mode("ALT_HOLD")
     act1.flush_state()
@@ -39,13 +40,16 @@ def test_actuator_persists_monotonic_signing_timestamp(tmp_path: Path) -> None:
 
     # Restart with clock lagging behind: persisted floor forces monotonic > floor
     act2 = MavlinkActuator(secret_key=b"\x11" * 32, ts_state_path=ts_path)
+    act2.set_vehicle_dialect(3, 2)  # explicit ArduCopter dialect (no heartbeat => fail-closed)
     act2.set_timestamp_source(lambda: 50)
     frame2 = act2.encode_set_mode("ALT_HOLD")
     emitted_ts = int.from_bytes(frame2[-12:-6], "little")
     assert emitted_ts > floor_10us
 
 
-def test_rc_transmitter_mode_flip_cancels_ips_ladder() -> None:
+def test_rc_transmitter_mode_flip_cancels_ips_ladder(monkeypatch) -> None:
+    # Plane actuation is gated off by default; enable it here only to exercise the (Option B) override logic
+    monkeypatch.setattr(MavlinkActuator, "ALLOW_NON_COPTER_DIALECTS", True)
     ctrl = MitigationController(mode=DefenseMode.ACTIVE_IPS)
     ctrl.actuator.set_vehicle_dialect(3, 1)  # Fixed-wing Plane -> safe mode FBWA
     assert ctrl.actuator.safe_hold_mode_name() == "FBWA"

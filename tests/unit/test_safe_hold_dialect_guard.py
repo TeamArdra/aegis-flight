@@ -13,11 +13,13 @@ from aegisflight.mitigation.controller import MitigationController
 from aegisflight.mitigation.types import AttackSubMode, DefenseMode
 
 
-def _frame(t: float, mode: str, armed: bool | None) -> FeatureFrame:
+def _frame(t: float, mode: str, armed: bool | None, dialect: tuple[int | None, int | None] = (3, 2)) -> FeatureFrame:
     snap = TelemetrySnapshot(t=t, lat=18.92, lon=72.83, alt_msl=25.0, rel_alt=25.0, vx=0.0, vy=5.0, vz=0.0,
                              groundspeed=5.0, roll=0.0, pitch=0.0, yaw=0.0, heading=90.0, flight_mode=mode,
                              armed=armed, battery_remaining=90.0)
-    return FeatureFrame(t=t, snapshot=snap, gps_seen=True, gps_raw_seen=True, heartbeat_seen=True,
+    # The frame carries an observed ArduCopter dialect (autopilot 3, MAV_TYPE_QUADROTOR 2): since D4b the actuator
+    # fails closed on DO_SET_MODE until a vehicle heartbeat has bound the dialect. PX4-named modes stay refused.
+    return FeatureFrame(autopilot_id=dialect[0], mav_type=dialect[1], t=t, snapshot=snap, gps_seen=True, gps_raw_seen=True, heartbeat_seen=True,
                         msg_rate_hz=10.0, pos_residual_m=0.0, commands_recent=[])
 
 
@@ -47,9 +49,10 @@ class Rig:
         self.c.classifier.classify = lambda f, s: sub
         self.t = 100.0
 
-    def run(self, secs: float, attack: AttackType, mode: str, armed: bool | None) -> None:
+    def run(self, secs: float, attack: AttackType, mode: str, armed: bool | None,
+            dialect: tuple[int | None, int | None] = (3, 2)) -> None:
         for _ in range(int(round(secs / 0.2))):
-            self.c.step(_frame(self.t, mode, armed), _asmt(self.t, attack))
+            self.c.step(_frame(self.t, mode, armed, dialect), _asmt(self.t, attack))
             self.t = round(self.t + 0.2, 6)
 
 
@@ -104,3 +107,15 @@ def test_copter_safe_hold_alt_hold_respects_the_counter_command_budget():
     r.run(40, AttackType.COMMAND_INJECTION, "RTL", True)
     assert len(r.set_modes) <= budget
     assert "ALT_HOLD" not in r.set_modes
+
+
+# D4: the dialect comes from the vehicle HEARTBEAT, not from the mode name. A PX4 heartbeat (autopilot 12)
+# or no bound dialect at all must refuse DO_SET_MODE even when the reported mode names look like ArduCopter's.
+@pytest.mark.parametrize("dialect", [(12, 2), (None, None)], ids=["px4_heartbeat", "no_heartbeat"])
+@pytest.mark.parametrize("sub,attack", [(AttackSubMode.CMD_MODE_FLIP, AttackType.COMMAND_INJECTION),
+                                        (AttackSubMode.DOS_GNSS_JAMMING, AttackType.GPS_SPOOFING)])
+def test_non_copter_dialect_sends_no_set_mode_even_with_copter_mode_names(dialect, sub, attack):
+    r = Rig(sub, max_counter_cmds_per_episode=100, max_counter_cmds_per_min=100)
+    r.run(5, AttackType.BENIGN, "LOITER", True, dialect)
+    r.run(40, attack, "RTL", True, dialect)
+    assert r.set_modes == [], f"DO_SET_MODE sent with dialect {dialect}: {r.set_modes}"

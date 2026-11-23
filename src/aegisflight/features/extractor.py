@@ -505,8 +505,14 @@ class FeatureExtractor:
                 self.snapshot.armed = bool(f.get("base_mode", 0) & 128)
                 cm = int(f.get("custom_mode", 0))
                 autopilot = int(f.get("autopilot", 0))
-                self._autopilot_id = autopilot
-                self._mav_type = m_type
+                # Bind the dialect to ONE primary vehicle source (first non-GCS autopilot heartbeat). Heartbeats
+                # from other sysid/compid (spoofed, companion, gimbal...) never switch the mode table.
+                src = (int(msg.sysid), int(msg.compid))
+                if self._primary_vehicle_src is None and autopilot != 8:  # 8 = MAV_AUTOPILOT_INVALID
+                    self._primary_vehicle_src = src
+                if self._primary_vehicle_src == src:
+                    self._autopilot_id = autopilot
+                    self._mav_type = m_type
                 if autopilot == 12 or cm >= 65536:
                     from ..sources.mavlink_live import decode_px4_mode
                     self.snapshot.flight_mode = decode_px4_mode(cm)
