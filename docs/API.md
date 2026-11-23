@@ -335,7 +335,7 @@ valid requests can evict old ones inside the 60 s window. Replay protection is b
 
 | Client | What it calls | Credential it sends | Current backend | #93 default | #93 with `AEGIS_REQUIRE_SIGNED_API=0` |
 |---|---|---|---|---|---|
-| `scripts/verify_stage2.py` (suite 7, in-process `TestClient`) | `POST /api/defense/mode` | before the signing fix: raw `X-Aegis-Token`; after: key-id, timestamp, nonce, HMAC and token (`aegisflight.backend.client_auth.signed_headers`) | works / works | **before: 401, after: works** | works / works |
+| `scripts/verify_stage2.py` (suite 7, in-process `TestClient`) | `POST /api/defense/mode` | signed-only: key-id, timestamp, nonce and HMAC, no raw token (`aegisflight.backend.client_auth.signed_headers(..., include_token=False)`; before: raw `X-Aegis-Token`, then signature plus token). Needs the signed-only backend (#93); the current backend still requires the raw token | 401 (no raw token sent) | works | works |
 | `scripts/ardupilot/inline_demo/mgmt_drive.py` | `GET /api/status`, `/api/events`; `POST /api/bridge/posture` on the GCS (`:8104`) | before: none (the GCS is started without a token); after: signed when `AEGIS_API_TOKEN` is exported | works (no token set) | works (no token set) | works |
 | `mgmt_drive.py` posts to the bridge (`:8090/posture`) | the Pi bridge status server, **not** this backend | raw `X-Aegis-Token` (bridge's own token) | unchanged | unchanged | unchanged |
 | `tests/unit/test_mitigation.py`, `tests/unit/test_mgmt_channel.py` | `POST /api/defense/mode`, `/api/bridge/posture` | raw `X-Aegis-Token` | works | 401 unless the test sets the compat switch (it does on #93) | works |
