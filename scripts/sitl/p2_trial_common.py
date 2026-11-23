@@ -97,14 +97,18 @@ def refuse_if_exists(out: Path, suffixes: tuple[str, ...]) -> bool:
 def resolve_model(profile: str, model_arg: str | None) -> tuple[str | None, str]:
     """Same B2-cross-pairing guard as both earlier drivers: returns ``(model_path_or_None,
     model_choice)``, or raises :class:`SystemExit` with the same refusal message if
-    ``--model px4`` is requested without ``--profile``."""
+    ``--model px4`` is requested without ``--profile``, or if the requested model file does not
+    exist (a missing model must not silently run, or be recorded, as if it were loaded)."""
     model_choice = model_arg or ("px4" if profile else "stage1")
     if model_choice == "px4" and not profile:
         print("ERROR: --model px4 without --profile is the untested B2 cross-pairing", file=sys.stderr)
         raise SystemExit(2)
     model_path = {"px4": MODEL_PX4, "stage1": MODEL_STAGE1, "none": None}[model_choice]
-    model = model_path if model_path and Path(model_path).exists() else None
-    return model, model_choice
+    if model_path and not Path(model_path).exists():
+        print(f"ERROR: requested model {model_path!r} (--model {model_choice}) does not exist; refusing to run "
+              f"with ML silently off (use --model none to run without ML)", file=sys.stderr)
+        raise SystemExit(2)
+    return model_path, model_choice
 
 
 def provenance_block(distro: str, px4_dir: str, extra: dict[str, Any]) -> dict[str, Any]:
@@ -115,14 +119,16 @@ def provenance_block(distro: str, px4_dir: str, extra: dict[str, Any]) -> dict[s
     through to ``collect()`` (e.g. ``python_version=...``)."""
     from provenance import collect  # noqa: E402 -- sibling script module
 
-    prov_raw = collect(**extra)
     a = _RUN.get("args")
+    model = resolve_model(a.profile, a.model)[0] if a else None
+    # hash the model actually loaded (None -> model_sha256 null), not collect()'s default path
+    prov_raw = collect(model=model, **extra) if a else collect(**extra)
     px4 = px4_describe(distro, px4_dir)
     run = _prov.collect_run_provenance(
         allow_dirty=bool(a and a.allow_dirty), px4_git_describe=px4, started_utc=_RUN.get("started_utc"),
         start_state=_RUN.get("start_state"),
         profile_dir=getattr(a, "profile", None) or None,
-        model_path=resolve_model(a.profile, a.model)[0] if a else None)
+        model_path=model)
     return {
         "provenance": {
             "px4_git_describe": px4,

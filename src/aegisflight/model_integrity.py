@@ -11,6 +11,7 @@ A model's manifest is the ``MODELS.sha256`` next to it, so the check does not de
 from __future__ import annotations
 
 import hashlib
+import io
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -75,15 +76,50 @@ def parse_manifest(path: str | Path) -> dict[str, str]:
     return out
 
 
-def check_model(path: str | Path, manifest: str | Path | None = None) -> ModelCheck:
+def read_and_check_model(path: str | Path, manifest: str | Path | None = None) -> tuple[ModelCheck, bytes | None]:
+    """Read the model file ONCE and verify exactly those bytes against the manifest (issue #144).
+
+    Returns ``(check, data)``. ``check.sha256`` is the SHA-256 of ``data``, so a caller that deserialises
+    ``data`` (``joblib.load(io.BytesIO(data))``) loads precisely the bytes that were verified; re-opening
+    the path after the check would let a file swapped in between be unpickled unverified (TOCTOU).
+    ``data`` is ``None`` only when the file is missing.
+    """
     p = Path(path)
     if not p.is_file():
-        return ModelCheck(p, MISSING, None, None)
-    actual = sha256_file(p)
+        return ModelCheck(p, MISSING, None, None), None
+    try:
+        data = p.read_bytes()
+    except FileNotFoundError:  # removed between is_file() and open(): same fail-closed status
+        return ModelCheck(p, MISSING, None, None), None
+    actual = hashlib.sha256(data).hexdigest()
     expected = parse_manifest(manifest if manifest is not None else p.parent / MANIFEST_NAME).get(p.name)
     if expected is None:
-        return ModelCheck(p, UNLISTED, actual, None)
-    return ModelCheck(p, OK if actual == expected else MISMATCH, actual, expected)
+        return ModelCheck(p, UNLISTED, actual, None), data
+    return ModelCheck(p, OK if actual == expected else MISMATCH, actual, expected), data
+
+
+class ModelIntegrityError(RuntimeError):
+    """A model file was refused before deserialization (missing, hash mismatch or not in the manifest)."""
+
+
+def load_verified_bundle(path: str | Path, manifest: str | Path | None = None):
+    """Verify the model against the manifest, then unpickle exactly the bytes that were verified (#155).
+
+    For tools that have no ML-off fallback (validation scripts). Fails closed with the :meth:`ModelCheck.message`
+    text: a missing, mismatched or unlisted model raises :class:`ModelIntegrityError` BEFORE any unpickling.
+    ``joblib`` is imported lazily, like in the detector.
+    """
+    chk, data = read_and_check_model(path, manifest)
+    if not chk.usable or data is None:
+        raise ModelIntegrityError(chk.message())
+    import joblib  # noqa: PLC0415
+
+    return joblib.load(io.BytesIO(data))
+
+
+def check_model(path: str | Path, manifest: str | Path | None = None) -> ModelCheck:
+    """Status of the model file on disk. Callers that go on to load it must use :func:`read_and_check_model`."""
+    return read_and_check_model(path, manifest)[0]
 
 
 def model_sha256_or_none(path: str | Path | None) -> str:

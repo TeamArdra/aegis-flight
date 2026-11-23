@@ -66,6 +66,8 @@ def _make_dummy_frame(
     pos_residual_m: float = 0.0,
 ) -> FeatureFrame:
     return FeatureFrame(
+        autopilot_id=3,
+        mav_type=2,
         t=snap.t,
         snapshot=snap,
         gps_seen=gps_seen,
@@ -298,6 +300,27 @@ def test_dos_flood_submode():
     assert sub == AttackSubMode.DOS_FLOOD
 
 
+def test_gnss_fix_loss_on_a_high_rate_link_is_not_a_flood():
+    """PX4 streams ~370 msg/s: named GNSS evidence must still reach the GPS ladder, a real flood must not."""
+    clf = AttackSubModeClassifier()
+    frame = _make_dummy_frame(_make_dummy_snapshot(), msg_rate=370.0)
+    gnss = _make_dummy_assessment(
+        threat=True, attack_type=AttackType.DOS,
+        evidence=["GNSS fix lost: fix_type=0, satellites=2 for 5 decisions"],
+    )
+    assert clf.classify(frame, gnss) == AttackSubMode.DOS_GNSS_JAMMING
+    both = _make_dummy_assessment(
+        threat=True, attack_type=AttackType.DOS,
+        evidence=["GNSS fix lost: fix_type=0", "packet flood msg_rate=370Hz"],
+    )
+    assert clf.classify(frame, both) == AttackSubMode.DOS_FLOOD
+    spike = _make_dummy_assessment(
+        threat=True, attack_type=AttackType.DOS,
+        evidence=["message-rate spike: 724 msg/s > 1×nominal (529)", "GNSS fix lost: fix_type=0, satellites=2"],
+    )
+    assert clf.classify(_make_dummy_frame(_make_dummy_snapshot(), msg_rate=724.0), spike) == AttackSubMode.DOS_FLOOD
+
+
 # --- 9. Firmware Integrity Ground Disarm vs In-Flight Takeover ---
 
 def test_firmware_integrity_ground_vs_inflight():
@@ -347,6 +370,7 @@ def test_manual_overrides():
 
 def test_mavlink_actuator_encoding():
     actuator = MavlinkActuator()
+    actuator.set_vehicle_dialect(3, 2)  # explicit ArduCopter dialect: no heartbeat => fail-closed (no DO_SET_MODE)
 
     # set_mode
     frame_mode = actuator.encode_set_mode("ALT_HOLD")
@@ -607,6 +631,7 @@ def test_mavlink2_signing_and_replay_guard_ids_and_ips():
     assert len(key) == 32
     verifier = MavlinkSignatureVerifier(key)
     actuator = MavlinkActuator(secret_key=key, link_id=3)
+    actuator.set_vehicle_dialect(3, 2)  # explicit ArduCopter dialect: no heartbeat => fail-closed (no DO_SET_MODE)
 
     # 1. Signed counter-command emitted by MavlinkActuator
     signed_pkt = actuator.encode_set_mode("AUTO")
@@ -628,7 +653,7 @@ def test_mavlink2_signing_and_replay_guard_ids_and_ips():
 
     # 4. Tampering with 1 byte of the MAC fails constant-time SHA-256 check
     fresh_pkt = sign_mavlink2_frame(
-        MavlinkActuator().encode_set_mode("GUIDED"),
+        actuator.encode_set_mode("GUIDED"),
         key,
         link_id=3,
         timestamp_10us=res1.timestamp_10us + 500,
@@ -761,6 +786,7 @@ def test_control_plane_auth_and_cors_lockdown(monkeypatch):
 
     # 3. When AEGIS_API_TOKEN is configured, mutating POST requires matching X-Aegis-Token or Bearer
     monkeypatch.setenv("AEGIS_API_TOKEN", "top-secret-gcs-key-2026")
+    monkeypatch.setenv("AEGIS_REQUIRE_SIGNED_API", "0")  # legacy token-only compatibility switch
     r_no_tok = client.post("/api/defense/mode", json={"mode": "active-ips"})
     assert r_no_tok.status_code == 401
 

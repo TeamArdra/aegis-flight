@@ -50,6 +50,9 @@ class IDSPipeline:
         self.extractor = FeatureExtractor(
             cmd_window_s=det["protocol"].get("command_burst_window_s", 2.0),
             reorder_window=int(det.get("features", {}).get("reorder_window", 16)),
+            learn_baro_offset=bool(det.get("features", {}).get("learn_baro_offset", False)),
+            baro_offset_alpha=float(det.get("features", {}).get("baro_offset_alpha", 0.05)),
+            accel_min_dt_s=float(det.get("features", {}).get("accel_min_dt_s", 0.0)),
         )
         self.protocol = ProtocolDetector(det["protocol"])
         self.physics = PhysicsDetector(det["physics"])
@@ -108,6 +111,7 @@ class IDSPipeline:
             self.integrity.observe_message(m.msgname, m.fields, m.sysid, m.compid)
         self.extractor.note_sig_invalid(tick.sig_invalid)  # P4: 0 for every non-signing source
         self.extractor.note_signing_streams(tick.sig_invalid_streams, tick.sig_verified_streams)
+        self.extractor.note_transport_connected(bool(getattr(tick, "transport_connected", True)))
         if tick.tick % self.decision_every != 0:
             return None
 

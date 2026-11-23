@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS events (
     prev_hash TEXT NOT NULL,
     hash TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_events_run ON events(run_id);
+CREATE INDEX IF NOT EXISTS idx_events_run ON events(run_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_events_t ON events(t);
 
 CREATE TABLE IF NOT EXISTS runs (
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS actions (
     prev_hash TEXT NOT NULL,
     hash TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_actions_run ON actions(run_id);
+CREATE INDEX IF NOT EXISTS idx_actions_run ON actions(run_id, id DESC);
 """
 
 
@@ -94,6 +94,10 @@ class EventStore:
         else:
             self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self.conn.row_factory = sqlite3.Row
+            if self.db_path != ":memory:":
+                self.conn.execute("PRAGMA journal_mode=WAL;")
+                self.conn.execute("PRAGMA synchronous=NORMAL;")
+                self.conn.execute("PRAGMA busy_timeout=5000;")
             self.conn.executescript(_SCHEMA)
             self.conn.commit()
 
@@ -213,21 +217,29 @@ class EventStore:
         ).fetchall()
         prev = GENESIS_HASH
         for i, r in enumerate(rows):
-            payload = {
-                "run_id": r["run_id"],
-                "t": r["t"],
-                "wall_time": r["wall_time"],
-                "attack_type": r["attack_type"],
-                "severity": r["severity"],
-                "threat_score": r["threat_score"],
-                "confidence": r["confidence"],
-                "integrity_status": r["integrity_status"],
-                "latency_ms": r["latency_ms"],
-                "evidence": json.loads(r["evidence"]),
-                "detector_scores": json.loads(r["detector_scores"]),
-                "contributing_detectors": json.loads(r["contributing_detectors"]),
-                "telemetry": json.loads(r["telemetry"]),
-            }
+            try:
+                payload = {
+                    "run_id": r["run_id"],
+                    "t": r["t"],
+                    "wall_time": r["wall_time"],
+                    "attack_type": r["attack_type"],
+                    "severity": r["severity"],
+                    "threat_score": r["threat_score"],
+                    "confidence": r["confidence"],
+                    "integrity_status": r["integrity_status"],
+                    "latency_ms": r["latency_ms"],
+                    "evidence": json.loads(r["evidence"]),
+                    "detector_scores": json.loads(r["detector_scores"]),
+                    "contributing_detectors": json.loads(r["contributing_detectors"]),
+                    "telemetry": json.loads(r["telemetry"]),
+                }
+            except (ValueError, TypeError):
+                # a stored JSON column that no longer parses is tampering or corruption: report it as a broken chain
+                # rather than letting the verifier crash (and the operator see a traceback instead of a verdict)
+                return ChainStatus(
+                    ok=False, length=len(rows), broken_at=i,
+                    detail=f"chain broken at event id={r['id']}: stored payload is not valid JSON",
+                )
             expect = _hash(prev, payload)
             if r["prev_hash"] != prev or r["hash"] != expect:
                 return ChainStatus(

@@ -1,0 +1,196 @@
+{
+  "schema": "aegisflight.run_manifest/1",
+  "status": "REPRODUCIBLE",
+  "reproducible": true,
+  "commit": "375b2abce08b26e656c922dffea3a7d4d093125e",
+  "working_tree_dirty": false,
+  "dirty_paths": [],
+  "detector_profile_dir": "/app/configs/universal_flight",
+  "detector_profile_sha256": "5be714f764931a7f990f14645b3ac9ae39402fd4c86e9a5e963103962ceed611",
+  "firmware_allowlist_sha256": "63b01f5fe0cbb69e11b7e5a4fd1fe944bbe1756e3dcbe7e0113d63fd104788ad",
+  "model_path": "none",
+  "model_sha256": null,
+  "ml_enabled": false,
+  "px4_git_describe": null,
+  "ardupilot_version": null,
+  "python": "3.13.18",
+  "packages": {
+    "aegisflight": "0.1.0",
+    "pymavlink": "2.4.50",
+    "numpy": "2.5.5",
+    "scikit-learn": "1.9.1",
+    "joblib": "1.6.0",
+    "scipy": "1.18.1",
+    "pyyaml": "6.0.4",
+    "fastapi": "0.165.0",
+    "pyserial": "3.5"
+  },
+  "command_line": "/app/src/aegisflight/cli/main.py onboard --config /h/gnss_fix_active/onboard.yaml --seconds 420",
+  "started_utc": "2026-11-21T16:53:54.155336+00:00",
+  "ended_utc": "2026-11-21T16:56:42.989572+00:00",
+  "not_reproducible_reason": null,
+  "bridge": {
+    "topology": "inline",
+    "fc_port": "socket://127.0.0.1:5762",
+    "gcs_port": "socket://127.0.0.1:5800",
+    "defense_mode": "active-ips",
+    "signing": true,
+    "final_status": {
+      "mode": "active-ips",
+      "state": "NOMINAL",
+      "vehicle_filter": false,
+      "vehicle_filter_state": "off",
+      "frames": {
+        "down": 62516,
+        "up": 167,
+        "forwarded_down": 60800,
+        "forwarded_up": 167,
+        "dropped_down": 0,
+        "dropped_up": 0,
+        "uplink_fail_closed_drops": 0,
+        "send_failures": 1717,
+        "tap_overflow": 0,
+        "forged_vehicle_up": 0
+      },
+      "latency_us": {
+        "p50": 34.7,
+        "p95": 99.5,
+        "max": 299290.2,
+        "samples": 20000
+      },
+      "policy": {
+        "signing": true,
+        "signed_ok": 4,
+        "dropped_unsigned": 0,
+        "dropped_bad_signature": 0,
+        "dropped_replay": 0,
+        "enforce": true,
+        "dynamic_fresh": true,
+        "armed": false,
+        "in_flight": false,
+        "dropped_untrusted_control": 0,
+        "dropped_inflight_disarm": 0,
+        "dropped_burst": 0,
+        "dropped_dynamic": 0,
+        "rewritten": 0,
+        "hook_errors": 0,
+        "provenance_known_sources": 0,
+        "dropped_provenance": 0,
+        "suspect_provenance": 0,
+        "dropped_replay_unsigned": 0,
+        "resyncs": 0,
+        "replay_memory": 4096,
+        "contested_policy": "alert",
+        "contested_events": 0,
+        "contested_sources": 0,
+        "contested_alarms": 0,
+        "dropped_contested": 0
+      },
+      "semantic_firewall": {
+        "enabled": true,
+        "dropped_param": 0,
+        "dropped_fence": 0,
+        "last_reason": null
+      },
+      "signing_observed": {
+        "unsigned": 0,
+        "bad_signature": 0,
+        "replay": 0,
+        "forged_down_observed": 0,
+        "forged_down_dropped": 0
+      },
+      "analyser": {
+        "decisions": 843,
+        "alerts": 10,
+        "errors": 0,
+        "counter_frames_sent": 2,
+        "alarms_sent": 0,
+        "crossend_sent": 155,
+        "summary": "Nominal flight",
+        "ekf_secondary": false
+      },
+      "firmware_allowlist_sha256": "63b01f5fe0cbb69e11b7e5a4fd1fe944bbe1756e3dcbe7e0113d63fd104788ad",
+      "anchors": {
+        "head_hash": "9fc77e6985728ca04b57b90149da4bf5659b92b33a40e07f115688c373293c29",
+        "row_count": 10,
+        "last_id": 10,
+        "signed": true,
+        "age_s": 0.31,
+        "path": "events.anchors.jsonl"
+      },
+      "last_error": null,
+      "mgmt_active": true,
+      "mgmt": {
+        "sent": {
+          "alert": 0,
+          "action": 0,
+          "status": 81,
+          "ack": 0,
+          "other": 0
+        },
+        "bytes_sent": 4941,
+        "budget_denied": 0,
+        "suppressed": 0,
+        "send_failures": 3,
+        "queue_dropped": 0,
+        "commands_consumed": 0,
+        "accepted": 0,
+        "denied": 0,
+        "ignored": 0,
+        "bad_signatures": 0,
+        "lockouts": 0,
+        "control_enabled": false,
+        "locked_out": false,
+        "budget_bytes_per_s": 150.0
+      },
+      "topology": {
+        "kind": "A+B",
+        "label": "Inline bridge (FC <-> GCS)",
+        "source": "detected",
+        "posture": "active-ips",
+        "links": {
+          "fc": {
+            "connected": false,
+            "name": null
+          },
+          "gcs": {
+            "connected": false,
+            "name": null
+          }
+        },
+        "uplink_visible": true,
+        "can_block_frames": false,
+        "can_send_counter_commands": false,
+        "reasons": [
+          "inline bridge: flight-controller link and GCS link are both handled by this process",
+          "flight-controller link DOWN",
+          "GCS link DOWN",
+          "167 frame(s) seen from the GCS side",
+          "flight-controller link down: cannot send counter-commands or block"
+        ]
+      }
+    },
+    "archive": {
+      "dir": "/h/run_gnss_fix_active/onboard-20261121-165354-5489",
+      "rows": {
+        "frames_down.jsonl": 62516,
+        "frames_up.jsonl": 167,
+        "decisions.jsonl": 843,
+        "actions.jsonl": 271
+      },
+      "rotations": {
+        "frames_down.jsonl": 0,
+        "frames_up.jsonl": 0,
+        "decisions.jsonl": 0,
+        "actions.jsonl": 0
+      },
+      "rotated_out_files": 0,
+      "pruned_files": 0,
+      "discarded_bytes": 0,
+      "dropped_rows": 0,
+      "write_errors": 0,
+      "writer_error": null,
+      "complete": true
+    }
+  }
+}

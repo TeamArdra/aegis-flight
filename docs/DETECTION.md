@@ -22,13 +22,26 @@ detector score is their max); each casts a vote for the attack it implies:
 | Rule | Threshold (config `protocol.*`) | Votes |
 |---|---|---|
 | Message flood | `msg_rate ≥ max_msg_rate_hz` (400) → 1.0; `> spike_factor×nominal` (84) → ramp | DOS |
-| Sequence gaps | `max_seq_gap > max_seq_gap` (30); late frames within `features.reorder_window` (default 16) behind the per-source high-water mark are counted in `reorder_count` rather than as `256 - k` gaps | DOS if rate high, else MAVLINK_ANOMALY |
+| Sequence gaps | `max_seq_gap > max_seq_gap` (30); late frames within `features.reorder_window` (default 16; `configs/universal_flight` sets 24 for jittery ~370 msg/s PX4 links: candidate (24), not validated until a fresh SITL rerun; it also means a sequence jump that stays within 24 behind the high-water mark is not flagged. The committed evidence, `artifacts/sitl/px4_netem_reorder_window/README.md`, was computed at 48 and is superseded pending the rerun) behind the per-source high-water mark are counted in `reorder_count` rather than as `256 - k` gaps | DOS if rate high, else MAVLINK_ANOMALY |
 | Rogue telemetry source | sysid ∉ expected & not a command source | MAVLINK_ANOMALY |
 | Heartbeat stale | `heartbeat_age > heartbeat_timeout_s` (3); never received: elapsed monitoring time `> heartbeat_timeout_s` and past `startup_grace_s` (0 = off) | DOS |
 | GPS dropout | `gps_age > gps_dropout_s` (2); never received: coverage line only (score 0) unless `require_global_position`, then elapsed `> gps_dropout_s` and past `startup_grace_s` | DOS |
 | GNSS fix loss | `fix_type < min_gnss_fix_type` (3) or `satellites < min_gnss_satellites` (5; skipped when the count is unknown, see below) for `≥ gnss_loss_ticks` (5) consecutive decisions → `coverage` note (score 0) when never acquired under `gnss_never_acquired_policy: coverage` (default), or `DOS` 0.7 when `dos` or after a valid fix | DOS |
 | Command provenance | command from sysid ∉ `expected_gcs_sysids`; sensitive cmd / burst | COMMAND_INJECTION |
 | Signing | `require_signing` and unsigned present | MAVLINK_ANOMALY |
+| Disarm while armed (`COMMAND_LONG` 400, param1 = 0) | force-disarm (param2 = 21196) while `armed` is True: **always on**, not behind `cadence_guard_enabled`, from **any** sysid including an expected GCS → 0.95. A plain (non-force) in-flight disarm (groundspeed > 1 m/s or rel_alt > 0.5 m) is checked **only** when `cadence_guard_enabled` is true (default false) | COMMAND_INJECTION |
+
+Disarm checks need `armed` to be True. If the command arrives while `armed` is None (no
+heartbeat yet) or False (possibly a stale ~1 Hz heartbeat just after arming), it is held and
+re-checked on later decisions for as long as it stays in the 2 s command window
+(`cmd_window_s`); it is evaluated once the armed state becomes True and is then consumed. A
+disarm that is followed only by `armed=False` never alerts. **Policy note (open):** a
+genuine GCS emergency stop (sysid 255, param2 = 21196) while armed therefore alarms as
+COMMAND_INJECTION at 0.95; the alert is retained (maintainer decision D12) and is pinned by
+`tests/unit/test_gcs_disarm_recheck.py`. In ACTIVE_IPS the mitigation controller sends no
+counter-command (no RESTORE / DO_SET_MODE / safe-hold) for an episode whose window holds such a
+force-disarm from an allowed GCS sysid and no rogue sysid
+(`tests/unit/test_emergency_stop_no_actuation.py`).
 
 ### Never-received vs lost-after-seen telemetry (protocol liveness rules)
 
@@ -437,6 +450,12 @@ Poisson upper bounds) and per-detector attribution across calibration and held-o
 `artifacts/validation/inflight_fa_per_hour_20261119/summary.md` (`python scripts/evaluate_inflight_fa_per_hour.py`,
 environment `SITL`, claim class: link-level detection).
 
+**ML alone never drives ACTIVE_IPS (maintainer decision D13).** Independently of the profile's
+`ml_require_corroboration`, `MitigationController` in ACTIVE_IPS treats an assessment whose only
+non-zero detector score is `ml_anomaly` as a sub-threshold WATCH: no counter-frame (no DO_SET_MODE),
+no sanitizer rewrite, no quarantine. The assessment and its alert are unchanged, and PASSIVE and
+ADVISORY behave as before (`tests/unit/test_ml_only_ips_corroboration.py`).
+
 **Unknown satellite count (MAVLink 255).** `GPS_RAW_INT.satellites_visible = 255` means "unknown", not 255
 satellites. It is stored as `None` (API `gps.satellites: null`, dashboard "unknown"). The GNSS-loss rule then judges
 `fix_type` alone (`fix_type < 3` still fires, `>= 3` does not) and the satellite-jump rule ignores the pair.
@@ -482,3 +501,21 @@ feature vectors, and `dos:latency` (`median jitter 32.4 ms`) overlaps benign sim
   intra-link attribution between `DOS` and `MAVLINK_ANOMALY`).
 - **Methodology disclosure:** these rules and evaluations (`scripts/eval_link_attribution.py` on
   fresh `master_seed=20261119`) were designed with knowledge of the simulator's attack definitions.
+
+## Universal Real-World Flight Hardening (`configs/universal_flight`)
+
+All new detection features default to `false` in base `configs/detector.yaml` (Stage-1 bit-exact)
+and are enabled together in `configs/universal_flight/detector.yaml`:
+
+- **Online Ground Baro–GPS Offset Learning (`features.learn_baro_offset`, `physics.use_learned_baro_offset`):**
+  While disarmed with a valid 3D GPS fix, learns the static AMSL-vs-baro bias (`alt_msl - baro_alt`) via EMA so real field barometric drift does not trigger false `TELEMETRY_MANIPULATION` alerts.
+- **Control Semantics / *ConstDet* (`physics.control_semantics_enabled`):**
+  When armed and not `nav_gated`, cross-checks tilt-implied horizontal acceleration (`g * hypot(sin(roll), sin(pitch))`) against differentiated velocity (`control_accel_residual_ms2`), flagging spoofed velocity/position shifts that disagree with attitude dynamics.
+- **Optical-Flow / VIO Cross-Check (`physics.optflow_gps_speed_diff_ms`):**
+  Inert unless fresh `OPTICAL_FLOW` or `ODOMETRY` frames are observed; detects horizontal GPS velocity spoofing when optical flow/VIO speed diverges cleanly.
+- **GNSS Clock Skew & Rollback (`protocol.gnss_clock_skew_enabled`, `gnss_clock_max_jump_s`):**
+  Compares valid Unix epoch timestamps from `SYSTEM_TIME` / `GPS_RAW_INT` against the companion monotonic clock to flag SDR replay clock rollbacks and sudden time steps.
+- **Dynamic Yaw-Course Auto-Adaptation (`physics.yaw_course_auto`):**
+  Automatically infers multirotor/VTOL/rover vs fixed-wing from `HEARTBEAT.type`, disabling the fixed-wing heading-vs-course check on rotorcraft while keeping it active on fixed-wing platforms.
+- **Transport Fault Isolation (`FeatureFrame.transport_connected`):**
+  Separates local USB/UART link disconnects (`transport_connected=False`) from RF jamming/spoofing alerts in `ProtocolDetector`.

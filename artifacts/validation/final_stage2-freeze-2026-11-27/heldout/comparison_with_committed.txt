@@ -1,0 +1,23 @@
+frozen old {'profile_yaml_sha256': '4f18f3f0220cecc71229c156ec2f23fc9b23eadb59357f2cde1e8baf6ec04660', 'px4_model_sha256': 'df540999dc6b43c3981d6ac6ecb91369b56ce1ba8cfdb894b76b195951260c7c', 'stage1_model_sha256': '3fe74cddf3689e169610ffd783b109b6539cc6c03629bd1e4bb8b1d3842939c4', 'stage1_detector_yaml_sha256': 'bc9a4d2618e5e5a0cdc251a35f22ad1cc928343894aa9a66c27ad28196f3cbfa', 'derivation_json_sha256': 'acb392361f51a55bbede1608e2b9f866f118e93e50d01a8601a07336ac303fdf'}
+frozen new {'profile_yaml_sha256': '34c210812a407520858a54fa1c8588aebcccde01038b2c5b7e7be5aeae5df52b', 'px4_model_sha256': 'df540999dc6b43c3981d6ac6ecb91369b56ce1ba8cfdb894b76b195951260c7c', 'stage1_model_sha256': '3fe74cddf3689e169610ffd783b109b6539cc6c03629bd1e4bb8b1d3842939c4', 'stage1_detector_yaml_sha256': 'd5b52e66dff33f4106e275f5b09cbcfe6d635f7c094d2af0b0360d4a34550879', 'derivation_json_sha256': 'f1cd677cb9791e0d9539796f921607cdcec0bf17bdae591465fba86e5d506796'}
+flights sha equal: [True, True, True, True, True]
+A dec 2805 2805 FA 2805 2805 airborne FA 2217 2217 seqgap>=30 1 0
+  trig old {'det_protocol_rule': 1.0, 'det_physics_consistency': 0.04919786096256684, 'det_ml_anomaly': 0.966131907308378}
+  trig new {'det_protocol_rule': 1.0, 'det_physics_consistency': 0.04919786096256684, 'det_ml_anomaly': 0.966131907308378}
+  FA evidence new [['message-rate spike: # msg/s > #×nominal (#)', 2797], ['ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)', 2710], ['rogue telemetry source(s): sys#/comp#', 2706]]
+  seq evidence in ALL decisions new []
+B dec 2805 2805 FA 1 0 airborne FA 0 0 seqgap>=30 1 0
+  trig old {'det_protocol_rule': 0.00035650623885918, 'det_physics_consistency': 0.0, 'det_ml_anomaly': 0.0}
+  trig new {'det_protocol_rule': 0.0, 'det_physics_consistency': 0.0, 'det_ml_anomaly': 0.0}
+  FA evidence new []
+  seq evidence in ALL decisions new []
+B2 dec 2805 2805 FA 2710 0 airborne FA 2217 0 seqgap>=30 1 0
+  trig old {'det_protocol_rule': 0.00035650623885918, 'det_physics_consistency': 0.0, 'det_ml_anomaly': 0.966131907308378}
+  trig new {'det_protocol_rule': 0.0, 'det_physics_consistency': 0.0, 'det_ml_anomaly': 0.966131907308378}
+  FA evidence new []
+  seq evidence in ALL decisions new []
+C dec 2805 2805 FA 1 0 airborne FA 0 0 seqgap>=30 1 0
+  trig old {'det_protocol_rule': 0.00035650623885918, 'det_physics_consistency': 0.0, 'det_ml_anomaly': 0.00035650623885918}
+  trig new {'det_protocol_rule': 0.0, 'det_physics_consistency': 0.0, 'det_ml_anomaly': 0.0}
+  FA evidence new []
+  seq evidence in ALL decisions new []

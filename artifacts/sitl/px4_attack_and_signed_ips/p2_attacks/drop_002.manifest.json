@@ -1,0 +1,142 @@
+{
+  "trial_id": "drop_002",
+  "seed": 7201,
+  "trial_index": 2,
+  "provenance": {
+    "px4_git_describe": "v1.16.2",
+    "aegisflight_git_commit": "2b9eab3f5b2b7302357195dcab607d92892df47a",
+    "python_version": "3.13.18",
+    "pymavlink_version": "2.4.50"
+  },
+  "attack_type": "MAVLINK_ANOMALY",
+  "attack_mode": "gps_channel_drop_live",
+  "message_type": "GLOBAL_POSITION_INT+GPS_RAW_INT",
+  "target_system": 0,
+  "target_component": 0,
+  "injection_point": "downlink",
+  "claim_class": "link-level detection (SITL)",
+  "environment": "SITL",
+  "attack_action": "dropped",
+  "parameters": {
+    "onset_s": 38.61614196863169,
+    "duration_s": 6.284520931321416,
+    "detector_profile": "configs/px4_sitl",
+    "model_choice": "px4"
+  },
+  "attack_start_utc": "2026-11-21T15:39:09.957229+00:00",
+  "attack_end_utc": "2026-11-21T15:40:39.474614+00:00",
+  "frames_seen": 33537,
+  "frames_modified": 0,
+  "frames_dropped": 346,
+  "frames_injected": 0,
+  "expected_effect": {
+    "feature": "gps_age_s",
+    "detector": "protocol (gps dropout, threshold 2.0s)",
+    "predicted_detection": "dos-style attack_type (hypothesis, not asserted)"
+  },
+  "actual_effect": {
+    "frames_dropped": 346,
+    "first_dropped_recv_ns": 1477287663127,
+    "last_dropped_recv_ns": 1483551182296,
+    "observed_duration_s": 6.263519169,
+    "by_msgid": {
+      "24": 32,
+      "33": 314
+    }
+  },
+  "frames_skipped_signed": 0,
+  "holdout_seeds": [],
+  "schema_id": "aegisflight.proxy.groundtruth",
+  "schema_version": "1.0.0",
+  "detector_decision": null,
+  "time_to_detection_s": null,
+  "full_provenance": {
+    "collected_utc": "2026-11-21T15:40:39.452875+00:00",
+    "aegisflight_commit": "2b9eab3f5b2b7302357195dcab607d92892df47a",
+    "working_tree_dirty": false,
+    "dirty_paths_count": 0,
+    "python": "3.13.18",
+    "packages": {
+      "pymavlink": "2.4.50",
+      "numpy": "2.5.5",
+      "scikit-learn": "1.9.1",
+      "joblib": "1.6.0",
+      "scipy": "1.18.1"
+    },
+    "model_sha256": "3fe74cddf3689e169610ffd783b109b6539cc6c03629bd1e4bb8b1d3842939c4",
+    "configs_sha256": "314e52fcdd9611c5582e0b150e1e30f8afa183a666a0347c05dd8dc77a88eabd",
+    "command_line": "scripts/sitl/run_p2_drop_trial.py --px4-host 127.0.0.1 --px4-port 18572 --allow-private-upstream --seed 7201 --trial-index 2 --out /out3/drop_002",
+    "python_version": "3.13.18"
+  },
+  "run_provenance": {
+    "schema": "aegisflight.run_manifest/1",
+    "status": "REPRODUCIBLE",
+    "reproducible": true,
+    "commit": "2b9eab3f5b2b7302357195dcab607d92892df47a",
+    "working_tree_dirty": false,
+    "dirty_paths": [],
+    "detector_profile_dir": "configs/px4_sitl",
+    "detector_profile_sha256": "96c6e3825c2e587917d383d3bf37ff8435fcbff8cda4a16c7bf119e43a3960d7",
+    "firmware_allowlist_sha256": "63b01f5fe0cbb69e11b7e5a4fd1fe944bbe1756e3dcbe7e0113d63fd104788ad",
+    "model_path": "models/isoforest_px4.joblib",
+    "model_sha256": "df540999dc6b43c3981d6ac6ecb91369b56ce1ba8cfdb894b76b195951260c7c",
+    "ml_enabled": true,
+    "px4_git_describe": "v1.16.2",
+    "ardupilot_version": null,
+    "python": "3.13.18",
+    "packages": {
+      "aegisflight": "0.1.0",
+      "pymavlink": "2.4.50",
+      "numpy": "2.5.5",
+      "scikit-learn": "1.9.1",
+      "joblib": "1.6.0",
+      "scipy": "1.18.1",
+      "pyyaml": "6.0.4",
+      "fastapi": "0.165.0",
+      "pyserial": "3.5"
+    },
+    "command_line": "scripts/sitl/run_p2_drop_trial.py --px4-host 127.0.0.1 --px4-port 18572 --allow-private-upstream --seed 7201 --trial-index 2 --out /out3/drop_002",
+    "started_utc": "2026-11-21T15:39:09.486774+00:00",
+    "ended_utc": "2026-11-21T15:40:39.469552+00:00",
+    "not_reproducible_reason": null
+  },
+  "ids_summary": {
+    "decisions": 450,
+    "threat_decisions": 21,
+    "source_stats": {
+      "datagrams_received": 33186,
+      "frames_received": 33186,
+      "bad_frames": 0,
+      "sig_valid": 0,
+      "sig_invalid": 0,
+      "unverified_frames": 349,
+      "ticks_emitted": 900,
+      "late_ticks": 4,
+      "late_frames": 0,
+      "dropped_overflow": 0,
+      "dropped_overflow_bytes": 0,
+      "queue_high_water": 182,
+      "max_poll_gap_s": 0.050716916
+    },
+    "relay_stats": {
+      "datagrams_down": 33537,
+      "datagrams_up": 90,
+      "frames_down": 33537,
+      "frames_up": 90,
+      "forwarded": 33281,
+      "forwarded_down": 33191,
+      "forwarded_up": 90,
+      "mirrored_up": 0,
+      "dropped_by_hook": 346,
+      "hook_errors": 0,
+      "bad_segments": 0,
+      "send_failures": 0,
+      "down_no_client": 4,
+      "clients": 1,
+      "clients_seen": 1,
+      "rejected_clients": 0,
+      "overflow": 0,
+      "pump_errors": 0
+    }
+  }
+}

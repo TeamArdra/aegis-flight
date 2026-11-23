@@ -22,7 +22,7 @@ def _snap(t: float, mode: str | None = "LOITER") -> TelemetrySnapshot:
 
 
 def _frame(t: float, rate: float = 10.0, mode: str | None = "LOITER", **kw) -> FeatureFrame:
-    return FeatureFrame(t=t, snapshot=_snap(t, mode), gps_seen=True, gps_raw_seen=True, heartbeat_seen=True,
+    return FeatureFrame(autopilot_id=3, mav_type=2, t=t, snapshot=_snap(t, mode), gps_seen=True, gps_raw_seen=True, heartbeat_seen=True,
                         heartbeat_age_s=0.1, gps_age_s=0.1, msg_rate_hz=rate, **kw)
 
 

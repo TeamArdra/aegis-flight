@@ -1,0 +1,11 @@
+{
+  "written": "2026-11-23T23:07:34+0530",
+  "frozen_before_run": {
+    "profile_yaml_sha256": "34c210812a407520858a54fa1c8588aebcccde01038b2c5b7e7be5aeae5df52b",
+    "px4_model_sha256": "df540999dc6b43c3981d6ac6ecb91369b56ce1ba8cfdb894b76b195951260c7c",
+    "stage1_model_sha256": "3fe74cddf3689e169610ffd783b109b6539cc6c03629bd1e4bb8b1d3842939c4",
+    "stage1_detector_yaml_sha256": "d5b52e66dff33f4106e275f5b09cbcfe6d635f7c094d2af0b0360d4a34550879",
+    "derivation_json_sha256": "f1cd677cb9791e0d9539796f921607cdcec0bf17bdae591465fba86e5d506796"
+  },
+  "held_out_burned": false
+}

@@ -81,6 +81,11 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         # Late frames within `reorder_window` behind the per-source high-water mark
         # increment `FeatureFrame.reorder_count` instead of recording a 256-k gap.
         "reorder_window": 16,
+        # Ground-learned static baro-vs-GPS altitude bias calibration (off for Stage-1 SIM).
+        "learn_baro_offset": False,
+        "baro_offset_alpha": 0.05,
+        # Minimum time base for |dv|/dt in seconds; 0 keeps the Stage-1 two-sample definition.
+        "accel_min_dt_s": 0.0,
     },
     "protocol": {
         "expected_sysids": [1],
@@ -123,12 +128,17 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "gnss_loss_ticks": 5,  # consecutive decisions before the fix-loss rule fires
         "semantic_link_attribution": False,
         "semantic_link_min_rate_hz": 5.0,  # opt-in (#22): attribute selective HB loss to MAVLINK_ANOMALY
+        # Universal flight hardening rules (off in Stage-1 base, on in live profiles)
+        "semantic_firewall_enabled": False,
+        "gnss_clock_skew_enabled": False,
+        "gnss_clock_max_jump_s": 5.0,
     },
     "physics": {
         "gps_pos_residual_m": 12.0,  # predicted vs reported position gap
         "gps_pos_residual_hard_m": 30.0,
         "gps_speed_consistency_ms": 5.0,  # |gps-derived speed - VFR speed|
         "alt_consistency_m": 8.0,  # |GPS alt - baro alt| (after bias)
+        "use_learned_baro_offset": False,
         "alt_jump_ms": 25.0,  # altitude derivative implausible
         "max_accel_ms2": 20.0,  # implausible acceleration
         "max_jerk_ms3": 60.0,
@@ -136,6 +146,10 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         "battery_drop_rate_v_s": 2.0,  # nor drop absurdly fast
         "attitude_rate_consistency": 1.2,  # rad/s mismatch tolerance
         "yaw_course_enabled": True,  # False for multirotors (yaw independent of track)
+        "yaw_course_auto": False,  # True adapts automatically from HEARTBEAT.type
+        "control_semantics_enabled": False,
+        "control_accel_residual_ms2": 4.5,
+        "optflow_gps_speed_diff_ms": 4.0,
         "hysteresis_ticks": 2,  # consecutive ticks before firing
         "ekf_var_warn": 0.5,  # uncalibrated engineering defaults (docs/DETECTION.md)
         "ekf_var_reject": 1.0,

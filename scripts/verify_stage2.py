@@ -9,11 +9,12 @@ they exercise; nothing here measures a vehicle, a SITL link or a benchmark. It e
 4. MAVLink X.25 CRC parity and inline packet rewriting verification.
 5. MAVLink-2 Cryptographic Signing (0x01), Strict Anti-Replay & Cadence Guard (AF-SEC-01) in IDS & IPS.
 6. 2D Vector CUSUM Micro-Drift Integrator (< 0.3 m/s) vs Zero-Mean Turbulence (AF-SEC-02) in IDS & IPS.
-7. Control-Plane Token Auth (X-Aegis-Token HMAC) & Cross-Origin Lockdown.
+7. Control-Plane Signed-Request Auth (HMAC, nonce, timestamp) & Cross-Origin Lockdown.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import random
 import sys
@@ -22,6 +23,7 @@ import time
 from fastapi.testclient import TestClient
 
 from aegisflight.backend.app import app
+from aegisflight.backend.client_auth import signed_headers
 from aegisflight.core.enums import AttackType, Severity
 from aegisflight.core.types import TelemetrySnapshot, ThreatAssessment
 from aegisflight.detectors import CusumDriftIntegrator, PhysicsDetector
@@ -316,28 +318,37 @@ def audit_cusum_micro_drift() -> None:
 
 # --- 7. Control-Plane Auth & Cross-Origin Lockdown ---
 def audit_control_plane_security() -> None:
-    _print_header("7. Control-Plane Token Auth (X-Aegis-Token) & Origin Lockdown")
+    _print_header("7. Control-Plane Signed-Request Auth & Origin Lockdown")
     client = TestClient(app)
     r_cross = client.post(
         "/api/defense/mode",
         json={"mode": "passive"},
         headers={"Origin": "http://evil.attacker.example"},
     )
-    os.environ["AEGIS_API_TOKEN"] = "audit-token-2026"
+    token = "audit-token-2026"
+    path = "/api/defense/mode"
+    body = json.dumps({"mode": "active-ips"}).encode()
+    json_ct = {"Content-Type": "application/json", "Origin": "tauri://localhost"}
+    os.environ["AEGIS_API_TOKEN"] = token
     try:
-        r_unauth = client.post("/api/defense/mode", json={"mode": "passive"})
-        r_auth = client.post(
-            "/api/defense/mode",
-            json={"mode": "active-ips"},
-            headers={"X-Aegis-Token": "audit-token-2026", "Origin": "tauri://localhost"},
+        r_unauth = client.post(path, json={"mode": "passive"})
+        # signed-only request (key-id, timestamp, nonce, HMAC; no raw token on the wire), as the signed-only backend (#93) requires
+        auth_headers = {**json_ct, **signed_headers(token, "POST", path, body, include_token=False)}
+        r_auth = client.post(path, content=body, headers=auth_headers)
+        r_replay = client.post(path, content=body, headers=auth_headers)  # identical nonce: must be refused
+        r_tamper = client.post(  # signature made for a different body: must be refused
+            path, content=json.dumps({"mode": "passive"}).encode(),
+            headers={**json_ct, **signed_headers(token, "POST", path, body, include_token=False)},
         )
     finally:
         os.environ.pop("AEGIS_API_TOKEN", None)
 
-    if r_cross.status_code == 403 and r_unauth.status_code == 401 and r_auth.status_code == 200:
-        _pass("Foreign Origin rejected (403), missing token rejected (401), valid HMAC token accepted (200)")
+    codes = (r_cross.status_code, r_unauth.status_code, r_auth.status_code, r_replay.status_code, r_tamper.status_code)
+    if codes == (403, 401, 200, 401, 401):
+        _pass("Foreign Origin rejected (403), missing credentials rejected (401), signed request accepted (200), "
+              "replayed nonce rejected (401), tampered body rejected (401)")
     else:
-        _fail(f"Control-plane auth audit failed: cross={r_cross.status_code}, unauth={r_unauth.status_code}, auth={r_auth.status_code}")
+        _fail(f"Control-plane auth audit failed: cross/unauth/auth/replay/tamper={codes}")
 
 
 def audit_closed_loop_topology_a_and_b() -> None:

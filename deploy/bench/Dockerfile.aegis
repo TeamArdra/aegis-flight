@@ -1,0 +1,24 @@
+FROM python:3.13-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    iproute2 \
+    iputils-ping \
+    procps \
+    socat \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY src ./src
+COPY configs ./configs
+COPY scripts ./scripts
+COPY deploy ./deploy
+
+RUN pip install --no-cache-dir -e ".[serial]"
+
+RUN chmod +x /app/deploy/bench/apply_netem.sh
+
+ENV PYTHONUNBUFFERED=1 \
+    AEGIS_CONFIG_DIR=/app/configs/universal_flight
+
+EXPOSE 8000

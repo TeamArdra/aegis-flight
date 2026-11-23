@@ -1,0 +1,560 @@
+{"t": 0.0, "wall": 1795272933.3478374, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.18, "n_msgs": 1}
+{"t": 0.2, "wall": 1795272933.5482574, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 34}
+{"t": 0.4, "wall": 1795272933.7479897, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 36}
+{"t": 0.6, "wall": 1795272933.9479413, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 35}
+{"t": 0.8, "wall": 1795272934.1478865, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 35}
+{"t": 1.0, "wall": 1795272934.3479774, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.19, "n_msgs": 39, "explain": ""}
+{"t": 1.2, "wall": 1795272934.5481071, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.17, "n_msgs": 37}
+{"t": 1.4, "wall": 1795272934.7478542, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 34}
+{"t": 1.6, "wall": 1795272934.947911, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 1.8, "wall": 1795272935.1478918, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 34}
+{"t": 2.0, "wall": 1795272935.3482168, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.22, "n_msgs": 37, "explain": ""}
+{"t": 2.2, "wall": 1795272935.5479662, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.2, "n_msgs": 35}
+{"t": 2.4, "wall": 1795272935.7479033, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 39}
+{"t": 2.6, "wall": 1795272935.9478853, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 37}
+{"t": 2.8, "wall": 1795272936.1484377, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.2, "n_msgs": 34}
+{"t": 3.0, "wall": 1795272936.3481696, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 35, "explain": ""}
+{"t": 3.2, "wall": 1795272936.5481718, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.14, "n_msgs": 34}
+{"t": 3.4, "wall": 1795272936.7478836, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 3.6, "wall": 1795272936.9478767, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 30}
+{"t": 3.8, "wall": 1795272937.1477983, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 32}
+{"t": 4.0, "wall": 1795272937.3478787, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.1, "n_msgs": 36, "explain": ""}
+{"t": 4.2, "wall": 1795272937.5478234, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 38}
+{"t": 4.4, "wall": 1795272937.7478585, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 34}
+{"t": 4.6, "wall": 1795272937.947967, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.18, "n_msgs": 37}
+{"t": 4.8, "wall": 1795272938.1480603, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 32}
+{"t": 5.0, "wall": 1795272938.3482468, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.25, "n_msgs": 31, "explain": ""}
+{"t": 5.2, "wall": 1795272938.5480394, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 34}
+{"t": 5.4, "wall": 1795272938.7478862, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 38}
+{"t": 5.6, "wall": 1795272938.9480765, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 34}
+{"t": 5.8, "wall": 1795272939.1478636, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 34}
+{"t": 6.0, "wall": 1795272939.3483365, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.23, "n_msgs": 34, "explain": ""}
+{"t": 6.2, "wall": 1795272939.5479062, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 6.4, "wall": 1795272939.7478902, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 34}
+{"t": 6.6, "wall": 1795272939.9478967, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 34}
+{"t": 6.8, "wall": 1795272940.1479683, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.21, "n_msgs": 34}
+{"t": 7.0, "wall": 1795272940.348063, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 33, "explain": ""}
+{"t": 7.2, "wall": 1795272940.5478241, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 35}
+{"t": 7.4, "wall": 1795272940.7479103, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 39}
+{"t": 7.6, "wall": 1795272940.9479883, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.2, "n_msgs": 38}
+{"t": 7.8, "wall": 1795272941.1478403, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 34}
+{"t": 8.0, "wall": 1795272941.3480828, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.1, "n_msgs": 32, "explain": ""}
+{"t": 8.2, "wall": 1795272941.54813, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 38}
+{"t": 8.4, "wall": 1795272941.7478828, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 35}
+{"t": 8.6, "wall": 1795272941.9480193, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 39}
+{"t": 8.8, "wall": 1795272942.1480908, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 34}
+{"t": 9.0, "wall": 1795272942.3479342, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 33, "explain": ""}
+{"t": 9.2, "wall": 1795272942.5481453, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 36}
+{"t": 9.4, "wall": 1795272942.7481544, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 39}
+{"t": 9.6, "wall": 1795272942.9479053, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 35}
+{"t": 9.8, "wall": 1795272943.1479268, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 10.0, "wall": 1795272943.347836, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 33, "explain": ""}
+{"t": 10.2, "wall": 1795272943.5478528, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 32}
+{"t": 10.4, "wall": 1795272943.7478778, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 39}
+{"t": 10.6, "wall": 1795272943.9479, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 30}
+{"t": 10.8, "wall": 1795272944.1478367, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 34}
+{"t": 11.0, "wall": 1795272944.3479753, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 34, "explain": ""}
+{"t": 11.2, "wall": 1795272944.5479312, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 11.4, "wall": 1795272944.7480159, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.18, "n_msgs": 38}
+{"t": 11.6, "wall": 1795272944.947874, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 34}
+{"t": 11.8, "wall": 1795272945.1483102, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 37}
+{"t": 12.0, "wall": 1795272945.3481815, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 34, "explain": ""}
+{"t": 12.2, "wall": 1795272945.547981, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 12.4, "wall": 1795272945.7479398, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 38}
+{"t": 12.6, "wall": 1795272945.9479992, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 35}
+{"t": 12.8, "wall": 1795272946.1479406, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 13.0, "wall": 1795272946.3478801, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.1, "n_msgs": 35, "explain": ""}
+{"t": 13.2, "wall": 1795272946.5479116, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 34}
+{"t": 13.4, "wall": 1795272946.748014, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 32}
+{"t": 13.6, "wall": 1795272946.947916, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 35}
+{"t": 13.8, "wall": 1795272947.1478498, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 32}
+{"t": 14.0, "wall": 1795272947.3479009, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 36, "explain": ""}
+{"t": 14.2, "wall": 1795272947.5478835, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 35}
+{"t": 14.4, "wall": 1795272947.7480464, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 38}
+{"t": 14.6, "wall": 1795272947.9479716, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 14.8, "wall": 1795272948.148087, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 38}
+{"t": 15.0, "wall": 1795272948.3479288, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 36, "explain": ""}
+{"t": 15.2, "wall": 1795272948.547976, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 15.4, "wall": 1795272948.747913, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 36}
+{"t": 15.6, "wall": 1795272948.9479258, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 35}
+{"t": 15.8, "wall": 1795272949.1478536, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 32}
+{"t": 16.0, "wall": 1795272949.3483186, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.1, "n_msgs": 35, "explain": ""}
+{"t": 16.2, "wall": 1795272949.547861, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 33}
+{"t": 16.4, "wall": 1795272949.7478461, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.08, "n_msgs": 33}
+{"t": 16.6, "wall": 1795272949.9478717, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 39}
+{"t": 16.8, "wall": 1795272950.1478434, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.08, "n_msgs": 35}
+{"t": 17.0, "wall": 1795272950.347897, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.1, "n_msgs": 36, "explain": ""}
+{"t": 17.2, "wall": 1795272950.5478773, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 36}
+{"t": 17.4, "wall": 1795272950.747855, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 37}
+{"t": 17.6, "wall": 1795272950.94802, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 37}
+{"t": 17.8, "wall": 1795272951.1478488, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 35}
+{"t": 18.0, "wall": 1795272951.3478944, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.09, "n_msgs": 37, "explain": ""}
+{"t": 18.2, "wall": 1795272951.5479717, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 39}
+{"t": 18.4, "wall": 1795272951.7478304, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 37}
+{"t": 18.6, "wall": 1795272951.948021, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.24, "n_msgs": 37}
+{"t": 18.8, "wall": 1795272952.1478405, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.08, "n_msgs": 33}
+{"t": 19.0, "wall": 1795272952.3480415, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 35, "explain": ""}
+{"t": 19.2, "wall": 1795272952.547958, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 35}
+{"t": 19.4, "wall": 1795272952.7480655, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 19.6, "wall": 1795272952.9480417, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 33}
+{"t": 19.8, "wall": 1795272953.1480236, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 38}
+{"t": 20.0, "wall": 1795272953.3479629, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 33, "explain": ""}
+{"t": 20.2, "wall": 1795272953.5478866, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 38}
+{"t": 20.4, "wall": 1795272953.748083, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 36}
+{"t": 20.6, "wall": 1795272953.9478707, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 36}
+{"t": 20.8, "wall": 1795272954.1478784, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 31}
+{"t": 21.0, "wall": 1795272954.3482857, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 32, "explain": ""}
+{"t": 21.2, "wall": 1795272954.5480154, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 34}
+{"t": 21.4, "wall": 1795272954.748012, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 35}
+{"t": 21.6, "wall": 1795272954.9479337, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 34}
+{"t": 21.8, "wall": 1795272955.1478336, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.08, "n_msgs": 32}
+{"t": 22.0, "wall": 1795272955.348068, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 32, "explain": ""}
+{"t": 22.2, "wall": 1795272955.5480692, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.08, "n_msgs": 38}
+{"t": 22.4, "wall": 1795272955.7480903, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 41}
+{"t": 22.6, "wall": 1795272955.9481113, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 35}
+{"t": 22.8, "wall": 1795272956.148051, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 32}
+{"t": 23.0, "wall": 1795272956.348067, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.09, "n_msgs": 35, "explain": ""}
+{"t": 23.2, "wall": 1795272956.5480702, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 38}
+{"t": 23.4, "wall": 1795272956.748255, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 38}
+{"t": 23.6, "wall": 1795272956.9481947, "threat": false, "type": "BENIGN", "score": 0.193, "lat_ms": 0.2, "n_msgs": 37}
+{"t": 23.8, "wall": 1795272957.1481853, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.23, "n_msgs": 34}
+{"t": 24.0, "wall": 1795272957.3482723, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 33, "explain": ""}
+{"t": 24.2, "wall": 1795272957.5481687, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 39}
+{"t": 24.4, "wall": 1795272957.748091, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 38}
+{"t": 24.6, "wall": 1795272957.9480655, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 36}
+{"t": 24.8, "wall": 1795272958.1482174, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 25.0, "wall": 1795272958.3481085, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 35, "explain": ""}
+{"t": 25.2, "wall": 1795272958.5480816, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 36}
+{"t": 25.4, "wall": 1795272958.7480938, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 25.6, "wall": 1795272958.9480836, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 35}
+{"t": 25.8, "wall": 1795272959.1481037, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 31}
+{"t": 26.0, "wall": 1795272959.3480651, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.1, "n_msgs": 31, "explain": ""}
+{"t": 26.2, "wall": 1795272959.548117, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 39}
+{"t": 26.4, "wall": 1795272959.74831, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 39}
+{"t": 26.6, "wall": 1795272959.948068, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 36}
+{"t": 26.8, "wall": 1795272960.148406, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 40}
+{"t": 27.0, "wall": 1795272960.3482137, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 36, "explain": ""}
+{"t": 27.2, "wall": 1795272960.5481498, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 39}
+{"t": 27.4, "wall": 1795272960.74814, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 39}
+{"t": 27.6, "wall": 1795272960.9481769, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 32}
+{"t": 27.8, "wall": 1795272961.1480577, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 34}
+{"t": 28.0, "wall": 1795272961.3482747, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.29, "n_msgs": 34, "explain": ""}
+{"t": 28.2, "wall": 1795272961.5482574, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 40}
+{"t": 28.4, "wall": 1795272961.748075, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 35}
+{"t": 28.6, "wall": 1795272961.9481354, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 28.8, "wall": 1795272962.149464, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.26, "n_msgs": 34}
+{"t": 29.0, "wall": 1795272962.3483026, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.14, "n_msgs": 32, "explain": ""}
+{"t": 29.2, "wall": 1795272962.5482721, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 29.4, "wall": 1795272962.748225, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 29.6, "wall": 1795272962.948349, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.16, "n_msgs": 33}
+{"t": 29.8, "wall": 1795272963.148339, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 30.0, "wall": 1795272963.349017, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.48, "n_msgs": 34, "explain": ""}
+{"t": 30.2, "wall": 1795272963.5481725, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 39}
+{"t": 30.4, "wall": 1795272963.7481225, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 30.6, "wall": 1795272963.9482737, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 30.8, "wall": 1795272964.1481884, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 31.0, "wall": 1795272964.3484082, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 35, "explain": ""}
+{"t": 31.2, "wall": 1795272964.5481863, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 32}
+{"t": 31.4, "wall": 1795272964.7481987, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 35}
+{"t": 31.6, "wall": 1795272964.9481654, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 31.8, "wall": 1795272965.1481228, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 32.0, "wall": 1795272965.3481228, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 34, "explain": ""}
+{"t": 32.2, "wall": 1795272965.548092, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 35}
+{"t": 32.4, "wall": 1795272965.7482545, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 37}
+{"t": 32.6, "wall": 1795272965.9480348, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 36}
+{"t": 32.8, "wall": 1795272966.1480598, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 33}
+{"t": 33.0, "wall": 1795272966.348049, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.1, "n_msgs": 30, "explain": ""}
+{"t": 33.2, "wall": 1795272966.5481217, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 33}
+{"t": 33.4, "wall": 1795272966.7480595, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 33}
+{"t": 33.6, "wall": 1795272966.948346, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 33.8, "wall": 1795272967.1480954, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 32}
+{"t": 34.0, "wall": 1795272967.3480554, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 30, "explain": ""}
+{"t": 34.2, "wall": 1795272967.5481095, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 37}
+{"t": 34.4, "wall": 1795272967.7481117, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 39}
+{"t": 34.6, "wall": 1795272967.9482875, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 35}
+{"t": 34.8, "wall": 1795272968.148186, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 38}
+{"t": 35.0, "wall": 1795272968.3480783, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 34, "explain": ""}
+{"t": 35.2, "wall": 1795272968.548098, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 39}
+{"t": 35.4, "wall": 1795272968.74808, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 38}
+{"t": 35.6, "wall": 1795272968.9481316, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 35}
+{"t": 35.8, "wall": 1795272969.1481764, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 36.0, "wall": 1795272969.3481784, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 34, "explain": ""}
+{"t": 36.2, "wall": 1795272969.5483804, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 36.4, "wall": 1795272969.7481654, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 36.6, "wall": 1795272969.9482164, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 35}
+{"t": 36.8, "wall": 1795272970.1483154, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 37.0, "wall": 1795272970.3480697, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 34, "explain": ""}
+{"t": 37.2, "wall": 1795272970.5481129, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 35}
+{"t": 37.4, "wall": 1795272970.7481172, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 38}
+{"t": 37.6, "wall": 1795272970.948125, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 34}
+{"t": 37.8, "wall": 1795272971.148209, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 38.0, "wall": 1795272971.3481104, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 34, "explain": ""}
+{"t": 38.2, "wall": 1795272971.5480773, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 32}
+{"t": 38.4, "wall": 1795272971.7482054, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 39}
+{"t": 38.6, "wall": 1795272971.9481058, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 37}
+{"t": 38.8, "wall": 1795272972.1481113, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 37}
+{"t": 39.0, "wall": 1795272972.348069, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.1, "n_msgs": 36, "explain": ""}
+{"t": 39.2, "wall": 1795272972.5482416, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 39.4, "wall": 1795272972.7481585, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 39.6, "wall": 1795272972.9481316, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 34}
+{"t": 39.8, "wall": 1795272973.1482093, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 32}
+{"t": 40.0, "wall": 1795272973.3484197, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.19, "n_msgs": 34, "explain": ""}
+{"t": 40.2, "wall": 1795272973.5482585, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 41}
+{"t": 40.4, "wall": 1795272973.7482646, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 40.6, "wall": 1795272973.9481719, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 32}
+{"t": 40.8, "wall": 1795272974.1483343, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 39}
+{"t": 41.0, "wall": 1795272974.3481884, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 33, "explain": ""}
+{"t": 41.2, "wall": 1795272974.5482278, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 41.4, "wall": 1795272974.7482219, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 41.6, "wall": 1795272974.9481957, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 31}
+{"t": 41.8, "wall": 1795272975.148184, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 32}
+{"t": 42.0, "wall": 1795272975.3483803, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 35, "explain": ""}
+{"t": 42.2, "wall": 1795272975.5481265, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 42.4, "wall": 1795272975.7482846, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 35}
+{"t": 42.6, "wall": 1795272975.948115, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 42.8, "wall": 1795272976.148116, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 39}
+{"t": 43.0, "wall": 1795272976.348141, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 38, "explain": ""}
+{"t": 43.2, "wall": 1795272976.548576, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 43.4, "wall": 1795272976.7481232, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 43.6, "wall": 1795272976.9481423, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 35}
+{"t": 43.8, "wall": 1795272977.148135, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 44.0, "wall": 1795272977.3480914, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 35, "explain": ""}
+{"t": 44.2, "wall": 1795272977.5483708, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 32}
+{"t": 44.4, "wall": 1795272977.7483091, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 44.6, "wall": 1795272977.948163, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 44.8, "wall": 1795272978.148368, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 39}
+{"t": 45.0, "wall": 1795272978.3480902, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 34, "explain": ""}
+{"t": 45.2, "wall": 1795272978.5480654, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 34}
+{"t": 45.4, "wall": 1795272978.7481437, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 38}
+{"t": 45.6, "wall": 1795272978.948379, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.26, "n_msgs": 34}
+{"t": 45.8, "wall": 1795272979.1482174, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.24, "n_msgs": 31}
+{"t": 46.0, "wall": 1795272979.3482327, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.14, "n_msgs": 37, "explain": ""}
+{"t": 46.2, "wall": 1795272979.548195, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 39}
+{"t": 46.4, "wall": 1795272979.7483592, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 46.6, "wall": 1795272979.9481785, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 46.8, "wall": 1795272980.1482685, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 33}
+{"t": 47.0, "wall": 1795272980.3481817, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 34, "explain": ""}
+{"t": 47.2, "wall": 1795272980.5483255, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 31}
+{"t": 47.4, "wall": 1795272980.748146, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 39}
+{"t": 47.6, "wall": 1795272980.9481223, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 47.8, "wall": 1795272981.1485372, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 32}
+{"t": 48.0, "wall": 1795272981.3481345, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 35, "explain": ""}
+{"t": 48.2, "wall": 1795272981.5480623, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 36}
+{"t": 48.4, "wall": 1795272981.7481732, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 48.6, "wall": 1795272981.9481232, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 48.8, "wall": 1795272982.148087, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 33}
+{"t": 49.0, "wall": 1795272982.3482833, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 36, "explain": ""}
+{"t": 49.2, "wall": 1795272982.5481415, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 35}
+{"t": 49.4, "wall": 1795272982.7482324, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 49.6, "wall": 1795272982.9482903, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 34}
+{"t": 49.8, "wall": 1795272983.1484594, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.2, "n_msgs": 34}
+{"t": 50.0, "wall": 1795272983.3484461, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.16, "n_msgs": 32, "explain": ""}
+{"t": 50.2, "wall": 1795272983.5482776, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 50.4, "wall": 1795272983.7481813, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 50.6, "wall": 1795272983.948164, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 50.8, "wall": 1795272984.14809, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 36}
+{"t": 51.0, "wall": 1795272984.3480897, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 36, "explain": ""}
+{"t": 51.2, "wall": 1795272984.5481105, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 36}
+{"t": 51.4, "wall": 1795272984.7481692, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 40}
+{"t": 51.6, "wall": 1795272984.9481804, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 32}
+{"t": 51.8, "wall": 1795272985.1480808, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 34}
+{"t": 52.0, "wall": 1795272985.3483884, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 39, "explain": ""}
+{"t": 52.2, "wall": 1795272985.5484161, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 35}
+{"t": 52.4, "wall": 1795272985.7483413, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 37}
+{"t": 52.6, "wall": 1795272985.948335, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 52.8, "wall": 1795272986.1482828, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 38}
+{"t": 53.0, "wall": 1795272986.348503, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 35, "explain": ""}
+{"t": 53.2, "wall": 1795272986.5484574, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.15, "n_msgs": 35}
+{"t": 53.4, "wall": 1795272986.7483723, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 38}
+{"t": 53.6, "wall": 1795272986.9485571, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.14, "n_msgs": 35}
+{"t": 53.8, "wall": 1795272987.1482878, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 31}
+{"t": 54.0, "wall": 1795272987.3482993, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 35, "explain": ""}
+{"t": 54.2, "wall": 1795272987.5484457, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 33}
+{"t": 54.4, "wall": 1795272987.748783, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 54.6, "wall": 1795272987.9497242, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.18, "n_msgs": 36}
+{"t": 54.8, "wall": 1795272988.1484334, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 38}
+{"t": 55.0, "wall": 1795272988.348338, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 36, "explain": ""}
+{"t": 55.2, "wall": 1795272988.548441, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 36}
+{"t": 55.4, "wall": 1795272988.7482913, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 38}
+{"t": 55.6, "wall": 1795272988.9484289, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 55.8, "wall": 1795272989.1483266, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 56.0, "wall": 1795272989.3483152, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 37, "explain": ""}
+{"t": 56.2, "wall": 1795272989.5484917, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 56.4, "wall": 1795272989.7485006, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 56.6, "wall": 1795272989.948429, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 34}
+{"t": 56.8, "wall": 1795272990.1485543, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 57.0, "wall": 1795272990.348471, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 34, "explain": ""}
+{"t": 57.2, "wall": 1795272990.548367, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 57.4, "wall": 1795272990.7484462, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 57.6, "wall": 1795272990.9483645, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 57.8, "wall": 1795272991.1484268, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 58.0, "wall": 1795272991.348572, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.15, "n_msgs": 36, "explain": ""}
+{"t": 58.2, "wall": 1795272991.54836, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 32}
+{"t": 58.4, "wall": 1795272991.7483435, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 58.6, "wall": 1795272991.9483385, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 58.8, "wall": 1795272992.1484935, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 59.0, "wall": 1795272992.348352, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 35, "explain": ""}
+{"t": 59.2, "wall": 1795272992.5482771, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 32}
+{"t": 59.4, "wall": 1795272992.7488391, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 59.6, "wall": 1795272992.9485629, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 33}
+{"t": 59.8, "wall": 1795272993.1483805, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 32}
+{"t": 60.0, "wall": 1795272993.348439, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 35, "explain": ""}
+{"t": 60.2, "wall": 1795272993.548396, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 60.4, "wall": 1795272993.748376, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 60.6, "wall": 1795272993.9483805, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 38}
+{"t": 60.8, "wall": 1795272994.1485088, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 38}
+{"t": 61.0, "wall": 1795272994.3484464, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 38, "explain": ""}
+{"t": 61.2, "wall": 1795272994.5483298, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 61.4, "wall": 1795272994.7484272, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.09, "n_msgs": 32}
+{"t": 61.6, "wall": 1795272994.9485612, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 34}
+{"t": 61.8, "wall": 1795272995.1485183, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 62.0, "wall": 1795272995.3484244, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 38, "explain": ""}
+{"t": 62.2, "wall": 1795272995.5484345, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 34}
+{"t": 62.4, "wall": 1795272995.7482915, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 33}
+{"t": 62.6, "wall": 1795272995.9483573, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 62.8, "wall": 1795272996.1485925, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 63.0, "wall": 1795272996.348423, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 36, "explain": ""}
+{"t": 63.2, "wall": 1795272996.5484078, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 40}
+{"t": 63.4, "wall": 1795272996.74873, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 40}
+{"t": 63.6, "wall": 1795272996.948422, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 63.8, "wall": 1795272997.148473, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 64.0, "wall": 1795272997.3486278, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.28, "n_msgs": 35, "explain": ""}
+{"t": 64.2, "wall": 1795272997.5484111, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 64.4, "wall": 1795272997.748523, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 64.6, "wall": 1795272997.9483454, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 64.8, "wall": 1795272998.1484082, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 65.0, "wall": 1795272998.3483593, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 33, "explain": ""}
+{"t": 65.2, "wall": 1795272998.548364, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 65.4, "wall": 1795272998.7484407, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 32}
+{"t": 65.6, "wall": 1795272998.9484217, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 41}
+{"t": 65.8, "wall": 1795272999.1483269, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 66.0, "wall": 1795272999.3483987, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 31, "explain": ""}
+{"t": 66.2, "wall": 1795272999.548262, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 33}
+{"t": 66.4, "wall": 1795272999.7483115, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 66.6, "wall": 1795272999.9483616, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 38}
+{"t": 66.8, "wall": 1795273000.1485023, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 67.0, "wall": 1795273000.3482935, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 30, "explain": ""}
+{"t": 67.2, "wall": 1795273000.54839, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 67.4, "wall": 1795273000.7483633, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 32}
+{"t": 67.6, "wall": 1795273000.9483395, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 67.8, "wall": 1795273001.148392, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 68.0, "wall": 1795273001.348529, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 34, "explain": ""}
+{"t": 68.2, "wall": 1795273001.5484135, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 68.4, "wall": 1795273001.7483237, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 35}
+{"t": 68.6, "wall": 1795273001.9483783, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 32}
+{"t": 68.8, "wall": 1795273002.1483245, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 32}
+{"t": 69.0, "wall": 1795273002.3483744, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 33, "explain": ""}
+{"t": 69.2, "wall": 1795273002.5483289, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 69.4, "wall": 1795273002.7485101, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 69.6, "wall": 1795273002.9483504, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 69.8, "wall": 1795273003.1482816, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 34}
+{"t": 70.0, "wall": 1795273003.3486598, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 33, "explain": ""}
+{"t": 70.2, "wall": 1795273003.5485938, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 70.4, "wall": 1795273003.7483742, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 70.6, "wall": 1795273003.948651, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 31}
+{"t": 70.8, "wall": 1795273004.148568, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 30}
+{"t": 71.0, "wall": 1795273004.3484302, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 33, "explain": ""}
+{"t": 71.2, "wall": 1795273004.5484102, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 71.4, "wall": 1795273004.748744, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.14, "n_msgs": 34}
+{"t": 71.6, "wall": 1795273004.948686, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.23, "n_msgs": 41}
+{"t": 71.8, "wall": 1795273005.1484258, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 72.0, "wall": 1795273005.3488543, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 38, "explain": ""}
+{"t": 72.2, "wall": 1795273005.5483217, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 72.4, "wall": 1795273005.748597, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 33}
+{"t": 72.6, "wall": 1795273005.9484437, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 72.8, "wall": 1795273006.1485212, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 73.0, "wall": 1795273006.3484063, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 35, "explain": ""}
+{"t": 73.2, "wall": 1795273006.5483394, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 32}
+{"t": 73.4, "wall": 1795273006.7485487, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 73.6, "wall": 1795273006.9483855, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 36}
+{"t": 73.8, "wall": 1795273007.148424, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 74.0, "wall": 1795273007.3483458, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 39, "explain": ""}
+{"t": 74.2, "wall": 1795273007.5484765, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 38}
+{"t": 74.4, "wall": 1795273007.7484765, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 35}
+{"t": 74.6, "wall": 1795273007.9484007, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 74.8, "wall": 1795273008.148404, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.14, "n_msgs": 33}
+{"t": 75.0, "wall": 1795273008.3484066, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 34, "explain": ""}
+{"t": 75.2, "wall": 1795273008.548373, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 75.4, "wall": 1795273008.7484953, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 75.6, "wall": 1795273008.9484825, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 75.8, "wall": 1795273009.1482935, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 76.0, "wall": 1795273009.348421, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 34, "explain": ""}
+{"t": 76.2, "wall": 1795273009.5485253, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 76.4, "wall": 1795273009.7483456, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 35}
+{"t": 76.6, "wall": 1795273009.9483633, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 39}
+{"t": 76.8, "wall": 1795273010.148357, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 77.0, "wall": 1795273010.3484948, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 36, "explain": ""}
+{"t": 77.2, "wall": 1795273010.5482814, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 28}
+{"t": 77.4, "wall": 1795273010.7489464, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 34}
+{"t": 77.6, "wall": 1795273010.9484296, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 77.8, "wall": 1795273011.1484096, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 78.0, "wall": 1795273011.348443, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 33, "explain": ""}
+{"t": 78.2, "wall": 1795273011.5485108, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 78.4, "wall": 1795273011.7483869, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 78.6, "wall": 1795273011.9483614, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 78.8, "wall": 1795273012.1484282, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 34}
+{"t": 79.0, "wall": 1795273012.3484385, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 37, "explain": ""}
+{"t": 79.2, "wall": 1795273012.5484147, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 79.4, "wall": 1795273012.7485425, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 32}
+{"t": 79.6, "wall": 1795273012.9485118, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 79.8, "wall": 1795273013.1483052, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 33}
+{"t": 80.0, "wall": 1795273013.348292, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.11, "n_msgs": 35, "explain": ""}
+{"t": 80.2, "wall": 1795273013.5484593, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 36}
+{"t": 80.4, "wall": 1795273013.7484016, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 80.6, "wall": 1795273013.9482803, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 32}
+{"t": 80.8, "wall": 1795273014.1484425, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 81.0, "wall": 1795273014.3484635, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 34, "explain": ""}
+{"t": 81.2, "wall": 1795273014.5488484, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 81.4, "wall": 1795273014.7496047, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.32, "n_msgs": 36}
+{"t": 81.6, "wall": 1795273014.948621, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.15, "n_msgs": 36}
+{"t": 81.8, "wall": 1795273015.1484377, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 82.0, "wall": 1795273015.3484645, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 34, "explain": ""}
+{"t": 82.2, "wall": 1795273015.5483778, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 82.4, "wall": 1795273015.748439, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 82.6, "wall": 1795273015.948491, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 82.8, "wall": 1795273016.1486123, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 39}
+{"t": 83.0, "wall": 1795273016.348476, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.16, "n_msgs": 36, "explain": ""}
+{"t": 83.2, "wall": 1795273016.5487235, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 35}
+{"t": 83.4, "wall": 1795273016.7484102, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 40}
+{"t": 83.6, "wall": 1795273016.948469, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 40}
+{"t": 83.8, "wall": 1795273017.1484706, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.15, "n_msgs": 32}
+{"t": 84.0, "wall": 1795273017.348546, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.14, "n_msgs": 37, "explain": ""}
+{"t": 84.2, "wall": 1795273017.5483773, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 84.4, "wall": 1795273017.7484572, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 31}
+{"t": 84.6, "wall": 1795273017.948424, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 84.8, "wall": 1795273018.148462, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 85.0, "wall": 1795273018.3485785, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 36, "explain": ""}
+{"t": 85.2, "wall": 1795273018.5483713, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 30}
+{"t": 85.4, "wall": 1795273018.7489843, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.21, "n_msgs": 34}
+{"t": 85.6, "wall": 1795273018.9485126, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.17, "n_msgs": 31, "explain": ""}
+{"t": 85.8, "wall": 1795273019.1484604, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 39}
+{"t": 86.0, "wall": 1795273019.34859, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.17, "n_msgs": 36, "explain": ""}
+{"t": 86.2, "wall": 1795273019.5485618, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 86.4, "wall": 1795273019.748608, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 38}
+{"t": 86.6, "wall": 1795273019.9484773, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 86.8, "wall": 1795273020.1485817, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 34}
+{"t": 87.0, "wall": 1795273020.348706, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.14, "n_msgs": 35, "explain": ""}
+{"t": 87.2, "wall": 1795273020.5486119, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 31}
+{"t": 87.4, "wall": 1795273020.748499, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 87.6, "wall": 1795273020.9485486, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 87.8, "wall": 1795273021.1486633, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 38}
+{"t": 88.0, "wall": 1795273021.3485444, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.14, "n_msgs": 36, "explain": ""}
+{"t": 88.2, "wall": 1795273021.548497, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 36}
+{"t": 88.4, "wall": 1795273021.7484207, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 34}
+{"t": 88.6, "wall": 1795273021.9484775, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 88.8, "wall": 1795273022.1484919, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 33}
+{"t": 89.0, "wall": 1795273022.348654, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.14, "n_msgs": 34, "explain": ""}
+{"t": 89.2, "wall": 1795273022.5485406, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.14, "n_msgs": 35}
+{"t": 89.4, "wall": 1795273022.7485955, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 89.6, "wall": 1795273022.9483879, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 89.8, "wall": 1795273023.148496, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 36}
+{"t": 90.0, "wall": 1795273023.3484373, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 34, "explain": ""}
+{"t": 90.2, "wall": 1795273023.5484555, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 90.4, "wall": 1795273023.7486076, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 90.6, "wall": 1795273023.9484568, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 90.8, "wall": 1795273024.1483624, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 33}
+{"t": 91.0, "wall": 1795273024.3485072, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.14, "n_msgs": 37, "explain": ""}
+{"t": 91.2, "wall": 1795273024.5485775, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 91.4, "wall": 1795273024.7488039, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.32, "n_msgs": 38}
+{"t": 91.6, "wall": 1795273024.9484644, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.15, "n_msgs": 33}
+{"t": 91.8, "wall": 1795273025.1484072, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 92.0, "wall": 1795273025.3491383, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.34, "n_msgs": 37, "explain": ""}
+{"t": 92.2, "wall": 1795273025.548375, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 31}
+{"t": 92.4, "wall": 1795273025.74838, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 34}
+{"t": 92.6, "wall": 1795273025.948537, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 40}
+{"t": 92.8, "wall": 1795273026.1484034, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 93.0, "wall": 1795273026.348446, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 32, "explain": ""}
+{"t": 93.2, "wall": 1795273026.5483277, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 93.4, "wall": 1795273026.7484045, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 37}
+{"t": 93.6, "wall": 1795273026.9485102, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 93.8, "wall": 1795273027.1485574, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 94.0, "wall": 1795273027.348429, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.14, "n_msgs": 30, "explain": ""}
+{"t": 94.2, "wall": 1795273027.5486052, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 40}
+{"t": 94.4, "wall": 1795273027.7485447, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 94.6, "wall": 1795273027.9483774, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 32}
+{"t": 94.8, "wall": 1795273028.1484194, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 95.0, "wall": 1795273028.3488855, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.3, "n_msgs": 35, "explain": ""}
+{"t": 95.2, "wall": 1795273028.5486073, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.16, "n_msgs": 35}
+{"t": 95.4, "wall": 1795273028.7489116, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.22, "n_msgs": 33}
+{"t": 95.6, "wall": 1795273028.9486136, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 35}
+{"t": 95.8, "wall": 1795273029.1484585, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 96.0, "wall": 1795273029.3484848, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 36, "explain": ""}
+{"t": 96.2, "wall": 1795273029.5484116, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 96.4, "wall": 1795273029.7484546, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 96.6, "wall": 1795273029.9484546, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 96.8, "wall": 1795273030.148459, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 97.0, "wall": 1795273030.3485963, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 35, "explain": ""}
+{"t": 97.2, "wall": 1795273030.5485, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 97.4, "wall": 1795273030.748439, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 36}
+{"t": 97.6, "wall": 1795273030.948643, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.14, "n_msgs": 37}
+{"t": 97.8, "wall": 1795273031.148511, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.17, "n_msgs": 35}
+{"t": 98.0, "wall": 1795273031.3484259, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.14, "n_msgs": 37, "explain": ""}
+{"t": 98.2, "wall": 1795273031.548544, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 32}
+{"t": 98.4, "wall": 1795273031.7486098, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.15, "n_msgs": 34}
+{"t": 98.6, "wall": 1795273031.9485068, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 98.8, "wall": 1795273032.1485171, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.16, "n_msgs": 37}
+{"t": 99.0, "wall": 1795273032.348654, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.14, "n_msgs": 34, "explain": ""}
+{"t": 99.2, "wall": 1795273032.548499, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.14, "n_msgs": 31}
+{"t": 99.4, "wall": 1795273032.7485263, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 99.6, "wall": 1795273032.9484372, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 99.8, "wall": 1795273033.1483915, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 100.0, "wall": 1795273033.3485143, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 38, "explain": ""}
+{"t": 100.2, "wall": 1795273033.54842, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 100.4, "wall": 1795273033.7484653, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 36}
+{"t": 100.6, "wall": 1795273033.9485474, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 100.8, "wall": 1795273034.1484869, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 101.0, "wall": 1795273034.3486528, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 36, "explain": ""}
+{"t": 101.2, "wall": 1795273034.548391, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 32}
+{"t": 101.4, "wall": 1795273034.7486181, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 101.6, "wall": 1795273034.9483595, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 101.8, "wall": 1795273035.1483345, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.1, "n_msgs": 35}
+{"t": 102.0, "wall": 1795273035.348548, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.14, "n_msgs": 38, "explain": ""}
+{"t": 102.2, "wall": 1795273035.5484748, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 102.4, "wall": 1795273035.7485116, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 36}
+{"t": 102.6, "wall": 1795273035.9484348, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 31}
+{"t": 102.8, "wall": 1795273036.1484823, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 103.0, "wall": 1795273036.3483698, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.12, "n_msgs": 33, "explain": ""}
+{"t": 103.2, "wall": 1795273036.5486403, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 34}
+{"t": 103.4, "wall": 1795273036.7485192, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 103.6, "wall": 1795273036.948489, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 103.8, "wall": 1795273037.1486564, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.14, "n_msgs": 36}
+{"t": 104.0, "wall": 1795273037.3484523, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 34, "explain": ""}
+{"t": 104.2, "wall": 1795273037.5485146, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 34}
+{"t": 104.4, "wall": 1795273037.7484334, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 32}
+{"t": 104.6, "wall": 1795273037.94832, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 104.8, "wall": 1795273038.1484003, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 36}
+{"t": 105.0, "wall": 1795273038.3484037, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 36, "explain": ""}
+{"t": 105.2, "wall": 1795273038.5483158, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 105.4, "wall": 1795273038.748439, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 32}
+{"t": 105.6, "wall": 1795273038.9486039, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 105.8, "wall": 1795273039.1483865, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 106.0, "wall": 1795273039.348609, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 38, "explain": ""}
+{"t": 106.2, "wall": 1795273039.5484636, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 106.4, "wall": 1795273039.7487872, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 106.6, "wall": 1795273039.948492, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 106.8, "wall": 1795273040.1485245, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 38}
+{"t": 107.0, "wall": 1795273040.348502, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 39, "explain": ""}
+{"t": 107.2, "wall": 1795273040.548538, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 107.4, "wall": 1795273040.7484179, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 107.6, "wall": 1795273040.9489114, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 36}
+{"t": 107.8, "wall": 1795273041.1484802, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 37}
+{"t": 108.0, "wall": 1795273041.348515, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.14, "n_msgs": 33, "explain": ""}
+{"t": 108.2, "wall": 1795273041.5487018, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 38}
+{"t": 108.4, "wall": 1795273041.748446, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 108.6, "wall": 1795273041.9484181, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 32}
+{"t": 108.8, "wall": 1795273042.1484005, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 109.0, "wall": 1795273042.34846, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.14, "n_msgs": 34, "explain": ""}
+{"t": 109.2, "wall": 1795273042.5484767, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 37}
+{"t": 109.4, "wall": 1795273042.7483768, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 109.6, "wall": 1795273042.9484522, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 35}
+{"t": 109.8, "wall": 1795273043.1484299, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 32}
+{"t": 110.0, "wall": 1795273043.3484123, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.13, "n_msgs": 36, "explain": ""}
+{"t": 110.2, "wall": 1795273043.548506, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.11, "n_msgs": 31}
+{"t": 110.4, "wall": 1795273043.7488573, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.14, "n_msgs": 41}
+{"t": 110.6, "wall": 1795273043.9485795, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 37}
+{"t": 110.8, "wall": 1795273044.1487534, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.14, "n_msgs": 33}
+{"t": 111.0, "wall": 1795273044.348774, "threat": true, "type": "MAVLINK_ANOMALY", "score": 0.882, "lat_ms": 0.15, "n_msgs": 40, "explain": ""}
+{"t": 111.2, "wall": 1795273044.548851, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 34}
+{"t": 111.4, "wall": 1795273044.7484865, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 34}
+{"t": 111.6, "wall": 1795273044.9483597, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.12, "n_msgs": 33}
+{"t": 111.8, "wall": 1795273045.1485848, "threat": false, "type": "BENIGN", "score": 0.0, "lat_ms": 0.13, "n_msgs": 34}

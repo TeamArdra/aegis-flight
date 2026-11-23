@@ -81,7 +81,7 @@ def test_profile_overrides_only_and_stage1_defaults_untouched():
     assert prof["protocol"]["expected_sysids"] == [3]
     assert prof["protocol"]["nominal_msg_rate_hz"] > 28.0
     raw = yaml.safe_load((PROFILE / "detector.yaml").read_text(encoding="utf-8"))
-    additive = {"startup_grace_s", "yaw_course_deg"}  # new optional keys with Stage-1-identical defaults
+    additive = {"startup_grace_s", "yaw_course_deg", "xmsg_checks", "heading_yaw_tolerance_deg"}  # new optional keys with Stage-1-identical defaults
     for section, keys in raw.items():
         for k in keys:
             assert k in DEFAULT_DETECTOR[section] or k in additive, (section, k)

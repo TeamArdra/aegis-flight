@@ -56,10 +56,18 @@ import zlib
 from collections import deque
 from collections.abc import Callable, Iterable
 from pathlib import Path
+from typing import Any
 
 from ..mavlink.signing import MAVLINK_EPOCH_UNIX_S, MavlinkSignatureVerifier
 from ..proxy.hooks import FrameContext
 from .sanitizer import FrameSanitizer
+from .semantic_firewall import (
+    FenceChangeEvent,
+    ParamWriteEvent,
+    SemanticFirewall,
+    extract_mission_fence_raw,
+    extract_param_set_raw,
+)
 
 _MSG_HEARTBEAT = 0
 _MSG_SET_MODE = 11
@@ -222,6 +230,8 @@ class InlinePolicy:
         contested_policy: str = "alert",
         contested_hold_s: float = 60.0,
         contested_alarm_interval_s: float = 10.0,
+        semantic_firewall: SemanticFirewall | None = None,
+        semantic_firewall_enabled: bool = True,
     ) -> None:
         if contested_policy not in ("alert", "drop-sensitive"):
             raise ValueError("contested_policy must be 'alert' or 'drop-sensitive'")
@@ -306,6 +316,20 @@ class InlinePolicy:
         self.signing_lapsed = 0  # sources that stopped signing (not in stats(): the forwarding guard hashes it)
         self.rewritten = 0
         self.hook_errors = 0
+        # Semantic firewall (#W1): counters intentionally kept out of stats() so forwarding golden digests stay exact
+        self.semantic_firewall = semantic_firewall or SemanticFirewall(enabled=semantic_firewall_enabled)
+        self.dropped_semantic_param = 0
+        self.dropped_semantic_fence = 0
+        self.last_semantic_reason: str | None = None
+        self._home_lat_lon: tuple[float, float] | None = None
+
+    def semantic_stats(self) -> dict[str, Any]:
+        return {
+            "enabled": bool(self.semantic_firewall.enabled),
+            "dropped_param": self.dropped_semantic_param,
+            "dropped_fence": self.dropped_semantic_fence,
+            "last_reason": self.last_semantic_reason,
+        }
 
     # -- control ------------------------------------------------------------- #
 
@@ -495,14 +519,9 @@ class InlinePolicy:
             if ctx.sysid in self.protected_sysids:
                 # the vehicle's own telemetry may be rewritten (GPS / altitude) but a protected sysid is never
                 # quarantined and never shed by the flood gatekeeper: dropping the flight controller's telemetry
-                # on a false or soft rate alarm would blind the pilot
-                saved, san.quarantined_sysids = san.quarantined_sysids, set()
-                saved_rl, san.rate_limit_active = san.rate_limit_active, False
-                try:
-                    out = san(ctx)
-                finally:
-                    san.quarantined_sysids = saved
-                    san.rate_limit_active = saved_rl
+                # on a false or soft rate alarm would blind the pilot. Pass bypass_quarantine_and_qos=True to avoid
+                # mutating shared sanitizer attributes across threads.
+                out = san(ctx, bypass_quarantine_and_qos=True)
             else:
                 out = san(ctx)
             if not out:
@@ -554,6 +573,51 @@ class InlinePolicy:
             if msgid in CONTROL_MSGIDS and not trusted:
                 self.dropped_untrusted_control += 1
                 return []
+            if self.semantic_firewall.enabled and not self.uplink_filter_only:
+                if msgid == _MSG_PARAM_SET:
+                    parsed_ps = extract_param_set_raw(ctx.raw)
+                    if parsed_ps is not None:
+                        pid, pval, ptype = parsed_ps
+                        verdict = self.semantic_firewall.evaluate_param_write(
+                            ParamWriteEvent(
+                                recv_time=ctx.recv_ns / 1e9,
+                                sysid=ctx.sysid,
+                                compid=ctx.compid,
+                                param_id=pid,
+                                param_value=pval,
+                                param_type=ptype,
+                                source_kind="param_set",
+                            ),
+                            armed=self.armed,
+                        )
+                        if verdict.blocked:
+                            self.dropped_semantic_param += 1
+                            self.last_semantic_reason = verdict.reason
+                            return []
+                elif msgid in (_MSG_MISSION_CLEAR_ALL, _MSG_MISSION_COUNT, _MSG_MISSION_ITEM_INT):
+                    parsed_fc = extract_mission_fence_raw(ctx.raw, msgid)
+                    if parsed_fc is not None:
+                        action, mtype, cnt, fcmd, rad, flat, flon = parsed_fc
+                        verdict = self.semantic_firewall.evaluate_fence_change(
+                            FenceChangeEvent(
+                                recv_time=ctx.recv_ns / 1e9,
+                                sysid=ctx.sysid,
+                                compid=ctx.compid,
+                                action=action,
+                                mission_type=mtype,
+                                count=cnt,
+                                command=fcmd,
+                                radius_m=rad,
+                                lat_deg=flat,
+                                lon_deg=flon,
+                            ),
+                            armed=self.armed,
+                            home_lat_lon=self._home_lat_lon,
+                        )
+                        if verdict.blocked:
+                            self.dropped_semantic_fence += 1
+                            self.last_semantic_reason = verdict.reason
+                            return []
             if needs_auth and track:
                 if verdict == "inconsistent" and trusted:
                     if self.armed or self.in_flight:
@@ -707,7 +771,7 @@ class InlinePolicy:
 
     def _load_state(self) -> None:
         assert self._verifier is not None and self._state_path is not None
-        with contextlib.suppress(OSError, ValueError, KeyError, TypeError):
+        with contextlib.suppress(OSError, ValueError, KeyError, TypeError, AttributeError):
             data = json.loads(self._state_path.read_text(encoding="utf-8"))
             for k, ts in data.get("streams", {}).items():
                 link, sysid, compid = (int(x) for x in k.split(":"))
@@ -757,11 +821,14 @@ class InlinePolicy:
             return
         if ctx.msgid == _MSG_HEARTBEAT:
             p = _payload(ctx.raw)
-            if p is not None and len(ctx.raw) >= 12:
+            # Ignore GCS (type=6) and non-autopilot peripheral/companion heartbeats (autopilot=8)
+            if p is not None and len(ctx.raw) >= 12 and p[4] != 6 and p[5] != 8:
                 self.armed = bool(p[6] & 0x80)  # base_mode SAFETY_ARMED
         elif ctx.msgid == _MSG_GLOBAL_POSITION_INT:
             p = _payload(ctx.raw)
             if p is not None:
-                _, _, _, _, rel_alt, vx, vy, _, _ = struct.unpack_from("<IiiiihhhH", p, 0)
+                _, lat_i, lon_i, _, rel_alt, vx, vy, _, _ = struct.unpack_from("<IiiiihhhH", p, 0)
+                if self._home_lat_lon is None and (lat_i != 0 or lon_i != 0):
+                    self._home_lat_lon = (lat_i / 1e7, lon_i / 1e7)
                 self.rel_alt_m = rel_alt / 1000.0
                 self.groundspeed_ms = ((vx / 100.0) ** 2 + (vy / 100.0) ** 2) ** 0.5

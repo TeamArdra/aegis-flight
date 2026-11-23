@@ -1,0 +1,25 @@
+{
+ "frames_seen": 64798,
+ "frames_modified": 199,
+ "frames_dropped": 0,
+ "relay": {
+  "datagrams_down": 64798,
+  "datagrams_up": 168,
+  "frames_down": 64798,
+  "frames_up": 168,
+  "forwarded": 64966,
+  "forwarded_down": 64798,
+  "forwarded_up": 168,
+  "mirrored_up": 0,
+  "dropped_by_hook": 0,
+  "hook_errors": 0,
+  "bad_segments": 0,
+  "send_failures": 0,
+  "down_no_client": 2282,
+  "clients": 1,
+  "clients_seen": 1,
+  "rejected_clients": 0,
+  "overflow": 0,
+  "pump_errors": 0
+ }
+}

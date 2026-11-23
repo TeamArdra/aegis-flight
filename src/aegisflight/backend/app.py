@@ -21,6 +21,7 @@ real position) must not be readable by an arbitrary web page.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import hmac
 import json
@@ -34,13 +35,21 @@ from urllib.parse import urlparse
 
 from fastapi import FastAPI, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .. import __version__
 from ..attacks import ATTACK_REGISTRY
 from .engine import LiveEngine
+from .security import (
+    GLOBAL_RATE_LIMITER,
+    SecurityHeadersMiddleware,
+    _client_ip,
+    is_loopback_client,
+    read_bounded_body,
+    verify_signed_headers,
+)
 from .sources import spec_from_env
 
 engine: LiveEngine | None = None
@@ -87,13 +96,21 @@ def _origin_allowed(origin: str, request: Request) -> bool:
             and parsed.netloc == request.headers.get("host", ""))
 
 
-def _require_control_auth(request: Request) -> JSONResponse | None:
-    """Validate Origin and optional X-Aegis-Token / Bearer HMAC on mutating control-plane POST routes."""
+def _require_control_auth(request: Request, *, body: bytes = b"") -> JSONResponse | None:
+    """Validate Origin, rate-limit, X-Aegis-Token/Bearer, and optional HMAC+nonce signature."""
     origin = request.headers.get("origin")
     if origin is not None and not _origin_allowed(origin, request):
         return JSONResponse(
             status_code=403,
             content={"ok": False, "error": "forbidden cross-origin control-plane request"},
+        )
+
+    ip = _client_ip(request)
+    if (retry_after := GLOBAL_RATE_LIMITER.check_allowed(ip)) is not None:
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": str(retry_after)},
+            content={"ok": False, "error": "rate_limited: too many invalid authentication attempts"},
         )
 
     expected_token = os.environ.get("AEGIS_API_TOKEN", "").strip()
@@ -103,11 +120,53 @@ def _require_control_auth(request: Request) -> JSONResponse | None:
             auth_hdr = request.headers.get("authorization", "").strip()
             if auth_hdr.lower().startswith("bearer "):
                 provided = auth_hdr[7:].strip()
-        if not provided or not hmac.compare_digest(provided.encode("utf-8"), expected_token.encode("utf-8")):
+        signed_only = not provided and bool(request.headers.get("x-aegis-signature", "").strip())
+        # A signed-only request proves possession of the token through its HMAC (verified below), so the raw
+        # token need not cross the wire. Legacy token-only clients keep working only under the compatibility
+        # switch AEGIS_REQUIRE_SIGNED_API=0 (see signed_api_required).
+        if not signed_only and (
+            not provided or not hmac.compare_digest(provided.encode("utf-8"), expected_token.encode("utf-8"))
+        ):
+            retry = GLOBAL_RATE_LIMITER.record_failure(ip)
+            headers = {"Retry-After": str(retry)} if retry else {}
             return JSONResponse(
-                status_code=401,
-                content={"ok": False, "error": "unauthorized: valid X-Aegis-Token or Bearer token required"},
+                status_code=401 if not retry else 429,
+                headers=headers,
+                content={"ok": False, "error": "unauthorized: valid signed request or X-Aegis-Token/Bearer required"},
             )
+        if (sig_err := verify_signed_headers(request, token=expected_token, body=body)) is not None:
+            return sig_err
+        GLOBAL_RATE_LIMITER.clear(ip)
+    return None
+
+
+def _audit_control_action(action: str, target: str, detail: str = "") -> None:
+    """Best-effort append of mutating UI/API command into EventStore hash-chained actions table."""
+    eng = get_engine()
+    if getattr(eng, "store", None) is None or getattr(eng.store, "read_only", False):
+        return
+    with contextlib.suppress(Exception):
+        t_val = float(eng.pipeline.last_frame.t) if getattr(eng.pipeline, "last_frame", None) else 0.0
+        eng.store.log_action(eng._run_id, t_val, "web_api", action, target, detail)
+
+
+def _require_bench_setup_gate(request: Request, *, body: bytes = b"") -> JSONResponse | None:
+    """Strict gate for Bench/Setup routes: auth + loopback peer + vehicle must not be armed."""
+    if (auth_err := _require_control_auth(request, body=body)) is not None:
+        return auth_err
+    if not is_loopback_client(request):
+        return JSONResponse(
+            status_code=403,
+            content={"ok": False, "error": "setup_loopback_only",
+                     "message": "Bench setup endpoints accept loopback requests only."},
+        )
+    eng = get_engine()
+    if bool(getattr(eng.pipeline.extractor.snapshot, "armed", False)):
+        return JSONResponse(
+            status_code=409,
+            content={"ok": False, "error": "vehicle_armed",
+                     "message": "Bench setup tools are locked while the vehicle is armed."},
+        )
     return None
 
 
@@ -137,13 +196,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="AegisFlight IDS", version=__version__, lifespan=lifespan)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=_allowed_hosts())
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Aegis-Token", "Authorization"],
+    allow_headers=[
+        "Content-Type",
+        "X-Aegis-Token",
+        "X-Aegis-Key-Id",
+        "X-Aegis-Nonce",
+        "X-Aegis-Timestamp",
+        "X-Aegis-Signature",
+        "Authorization",
+    ],
 )
 
 
@@ -236,12 +304,22 @@ async def sim_reset(request: Request) -> dict | JSONResponse:
     return {"ok": True, "reset": True}
 
 
-@app.post("/api/simulation/attack")
-def sim_attack(payload: dict, request: Request) -> JSONResponse:
-    if (auth_err := _require_control_auth(request)) is not None:
+@app.post("/api/simulation/attack", response_model=None)
+async def sim_attack(request: Request) -> JSONResponse:
+    try:
+        raw = await read_bounded_body(request)
+    except ValueError as exc:
+        return JSONResponse(status_code=413, content={"ok": False, "error": str(exc)})
+    if (auth_err := _require_control_auth(request, body=raw)) is not None:
         return auth_err
     if (refused := _sim_only("attack injection")) is not None:
         return refused
+    try:
+        payload = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "invalid JSON body"})
+    if not isinstance(payload, dict):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "JSON object required"})
     name = (payload or {}).get("attack")
     mode = (payload or {}).get("mode")
     drift_rate_ms = (payload or {}).get("drift_rate_ms")
@@ -262,11 +340,19 @@ def sim_attack(payload: dict, request: Request) -> JSONResponse:
     return JSONResponse(content={"ok": True, "attack": name or "cleared", "mode": mode})
 
 
-@app.post("/api/defense/mode")
-def set_defense_mode(payload: dict, request: Request) -> JSONResponse:
-    if (auth_err := _require_control_auth(request)) is not None:
+@app.post("/api/defense/mode", response_model=None)
+async def set_defense_mode(request: Request) -> JSONResponse:
+    try:
+        raw = await read_bounded_body(request)
+    except ValueError as exc:
+        return JSONResponse(status_code=413, content={"ok": False, "error": str(exc)})
+    if (auth_err := _require_control_auth(request, body=raw)) is not None:
         return auth_err
-    mode = (payload or {}).get("mode")
+    try:
+        payload = json.loads(raw) if raw else {}
+    except (ValueError, UnicodeDecodeError):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "invalid JSON body"})
+    mode = (payload or {}).get("mode") if isinstance(payload, dict) else None
     if mode not in ("passive", "advisory", "active-ips"):
         return JSONResponse(
             status_code=400,
@@ -280,16 +366,26 @@ def set_defense_mode(payload: dict, request: Request) -> JSONResponse:
     if (gated := eng.signing_gate(mode, allow_unsigned is True)) is not None:
         return JSONResponse(status_code=409, content=gated)
     res = eng.set_defense_mode(mode, allow_unsigned=allow_unsigned is True)
+    _audit_control_action("defense_mode", str(mode), f"allow_unsigned={allow_unsigned is True}")
     return JSONResponse(content={"ok": True, **res})
 
 
-@app.post("/api/bridge/posture")
-def bridge_posture(payload: dict, request: Request) -> JSONResponse:
+@app.post("/api/bridge/posture", response_model=None)
+async def bridge_posture(request: Request) -> JSONResponse:
     """Ask the remote ips-bridge (over the telemetry radio, in-band) to change its posture. Signed with the
     management key; the answer arrives as a COMMAND_ACK and shows in ``bridge_remote.last_command``."""
-    if (auth_err := _require_control_auth(request)) is not None:
+    try:
+        raw = await read_bounded_body(request)
+    except ValueError as exc:
+        return JSONResponse(status_code=413, content={"ok": False, "error": str(exc)})
+    if (auth_err := _require_control_auth(request, body=raw)) is not None:
         return auth_err
-    body = payload if isinstance(payload, dict) else {}
+    try:
+        body = json.loads(raw) if raw else {}
+    except (ValueError, UnicodeDecodeError):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "invalid JSON body"})
+    if not isinstance(body, dict):
+        body = {}
     mode = body.get("mode")
     if mode not in ("passive", "advisory", "active-ips"):
         return JSONResponse(status_code=400, content={"ok": False, "error": f"unknown mode '{mode}'",
@@ -310,14 +406,23 @@ def bridge_posture(payload: dict, request: Request) -> JSONResponse:
             "message": "Unsigned links cannot stop a counter-tracking forger; provision a key and start with "
                        "--signing-key-file, or acknowledge the risk to proceed unsigned."})
     res = eng.send_bridge_posture(mode, allow_unsigned=allow_unsigned, confirm=body.get("confirm") is True)
+    _audit_control_action("bridge_posture", str(mode), f"ok={res.get('ok')} confirm={body.get('confirm') is True}")
     return JSONResponse(status_code=200 if res.get("ok") else 502, content=res)
 
 
-@app.post("/api/defense/override")
-def defense_override(payload: dict, request: Request) -> JSONResponse:
-    if (auth_err := _require_control_auth(request)) is not None:
+@app.post("/api/defense/override", response_model=None)
+async def defense_override(request: Request) -> JSONResponse:
+    try:
+        raw = await read_bounded_body(request)
+    except ValueError as exc:
+        return JSONResponse(status_code=413, content={"ok": False, "error": str(exc)})
+    if (auth_err := _require_control_auth(request, body=raw)) is not None:
         return auth_err
-    action = (payload or {}).get("action")
+    try:
+        payload = json.loads(raw) if raw else {}
+    except (ValueError, UnicodeDecodeError):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "invalid JSON body"})
+    action = (payload or {}).get("action") if isinstance(payload, dict) else None
     if action not in ("safe_hold", "reset_quarantine", "ack_takeover"):
         return JSONResponse(
             status_code=400,
@@ -325,7 +430,221 @@ def defense_override(payload: dict, request: Request) -> JSONResponse:
                      "choices": ["safe_hold", "reset_quarantine", "ack_takeover"]},
         )
     res = get_engine().defense_override(action)
+    _audit_control_action("defense_override", str(action), "executed")
     return JSONResponse(content={"ok": True, "action": action, "mitigation": res})
+
+
+class _TxMeter:
+    """Wraps a serial opener and counts the bytes written through the ports it opens, so a setup route reports a
+    measured ``zero_tx`` instead of a constant."""
+
+    def __init__(self, opener):
+        self._opener = opener
+        self.tx_bytes = 0
+
+    def __call__(self, device, baud, timeout):
+        ser = self._opener(device, baud, timeout)
+        meter = self
+
+        class _Counted:
+            def __getattr__(self, name):
+                return getattr(ser, name)
+
+            def write(self, data):
+                meter.tx_bytes += len(data)
+                return ser.write(data)
+
+        return _Counted()
+
+
+@app.get("/api/forensic/report", response_model=None)
+async def forensic_report(
+    format: str = Query("json", pattern="^(json|html)$"),
+    limit: int = Query(500, ge=1, le=2000),
+) -> JSONResponse | HTMLResponse:
+    """Return a cryptographically verified post-flight forensic report (JSON or HTML)."""
+    from ..reporting.forensic_report import build_forensic_report, render_forensic_html
+
+    eng = get_engine()
+    db_str = str(getattr(eng, "db_path", ":memory:"))
+
+    def _build() -> dict:
+        # SQLite reads and hash-chain verification: kept off the event loop
+        if db_str != ":memory:" and Path(db_str).is_file():
+            return build_forensic_report(db_str, run_id=eng._run_id, limit=limit)
+        bundle = eng.forensic_bundle(limit=limit)
+        ev_c = bundle.get("chain") or {}
+        act_c = bundle.get("actions_chain") or {"ok": True, "length": 0, "detail": "in-memory"}
+        rep = {
+            "schema": "aegisflight.forensic_report/1",
+            "db_path": db_str,
+            "run_id": eng._run_id,
+            "verified": bool(ev_c.get("ok", True) and act_c.get("ok", True)),
+            "events_chain": ev_c,
+            "actions_chain": act_c,
+            "anchors": bundle.get("anchors"),
+            "runs": [],
+            "summary": {
+                "total_events_included": len(bundle.get("events", [])),
+                "total_actions_included": len(bundle.get("actions", [])),
+                "by_attack_type": {},
+                "by_severity": {},
+                "by_action_type": {},
+            },
+            "events": bundle.get("events", []),
+            "actions": bundle.get("actions", []),
+        }
+        return rep
+
+    rep = await asyncio.to_thread(_build)
+    if format == "html":
+        return HTMLResponse(content=render_forensic_html(rep))
+    return JSONResponse(content=rep)
+
+
+@app.post("/api/drill/run", response_model=None)
+async def run_shadow_drill(request: Request) -> JSONResponse:
+    """Run non-destructive zero-TX shadow verification drills (W10)."""
+    from ..testing.field_drill import run_field_drill
+
+    try:
+        raw = await read_bounded_body(request)
+    except ValueError as exc:
+        return JSONResponse(status_code=413, content={"ok": False, "error": str(exc)})
+    if (auth_err := _require_control_auth(request, body=raw)) is not None:
+        return auth_err
+    try:
+        payload = json.loads(raw) if raw else {}
+    except (ValueError, UnicodeDecodeError):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "invalid JSON body"})
+    scenario = (payload or {}).get("scenario", "all") if isinstance(payload, dict) else "all"
+    try:
+        res = await asyncio.to_thread(run_field_drill, str(scenario))
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
+    _audit_control_action("shadow_drill", str(scenario), f"passed={res['passed']}/{res['total']}")
+    return JSONResponse(content=res)
+
+
+@app.get("/api/setup/discover-ports", response_model=None)
+def setup_discover_ports(request: Request) -> JSONResponse:
+    """Zero-TX passive serial port + baud discovery (loopback + disarmed bench gate)."""
+    from dataclasses import asdict
+
+    from ..hal.auto_port import discover_mavlink_ports
+
+    if (gate_err := _require_bench_setup_gate(request)) is not None:
+        return gate_err
+    from ..hal.auto_port import _open_passive_serial
+
+    meter = _TxMeter(_open_passive_serial)
+    ports = [asdict(p) for p in discover_mavlink_ports(probe_window_s=0.6, serial_opener=meter)]
+    return JSONResponse(content={"ok": True, "zero_tx": meter.tx_bytes == 0, "tx_bytes": meter.tx_bytes, "ports": ports})
+
+
+@app.post("/api/setup/preflight", response_model=None)
+async def setup_preflight(request: Request) -> JSONResponse:
+    """Validate proposed onboard companion configuration with 0 B FC TX."""
+    import tempfile
+
+    import yaml
+
+    from ..onboard import load_onboard_config, run_preflight
+
+    try:
+        raw = await read_bounded_body(request)
+    except ValueError as exc:
+        return JSONResponse(status_code=413, content={"ok": False, "error": str(exc)})
+    if (gate_err := _require_bench_setup_gate(request, body=raw)) is not None:
+        return gate_err
+    try:
+        payload = json.loads(raw) if raw else {}
+    except (ValueError, UnicodeDecodeError):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "invalid JSON body"})
+    if not isinstance(payload, dict):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "body must be JSON object"})
+    with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False, encoding="utf-8") as fh:
+        yaml.safe_dump(payload, fh)
+        tmp_path = fh.name
+    try:
+        def _preflight() -> dict:
+            return run_preflight(load_onboard_config(tmp_path))
+
+        rep = await asyncio.to_thread(_preflight)
+    except (OSError, ValueError) as exc:
+        return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
+    finally:
+        with contextlib.suppress(OSError):
+            Path(tmp_path).unlink()
+    return JSONResponse(content=rep)
+
+
+@app.post("/api/setup/generate-config", response_model=None)
+async def setup_generate_config(request: Request) -> JSONResponse:
+    """Validate and return hardened YAML configuration for the companion computer."""
+    import yaml
+
+    from ..onboard import OnboardConfig, _validate_onboard
+
+    try:
+        raw = await read_bounded_body(request)
+    except ValueError as exc:
+        return JSONResponse(status_code=413, content={"ok": False, "error": str(exc)})
+    if (gate_err := _require_bench_setup_gate(request, body=raw)) is not None:
+        return gate_err
+    try:
+        payload = json.loads(raw) if raw else {}
+    except (ValueError, UnicodeDecodeError):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "invalid JSON body"})
+    if not isinstance(payload, dict):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "body must be JSON object"})
+    allowed_keys = {
+        "topology", "fc_port", "fc_baud", "fc_rtscts", "gcs_port", "gcs_baud", "gcs_rtscts",
+        "allow_url", "defense_mode", "config_dir", "fail_closed_uplink_commands",
+        "semantic_firewall_enabled", "anchors_enabled", "allow_unsigned",
+    }
+    clean: dict[str, object] = {k: v for k, v in payload.items() if k in allowed_keys}
+    try:
+        cfg = OnboardConfig(**{k: v for k, v in clean.items() if v is not None})  # type: ignore[arg-type]
+        _validate_onboard(cfg)
+    except (TypeError, ValueError) as exc:
+        return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
+    return JSONResponse(content={"ok": True, "yaml": yaml.safe_dump(clean, sort_keys=False)})
+
+
+@app.post("/api/setup/enroll-firmware", response_model=None)
+async def setup_enroll_firmware(request: Request) -> JSONResponse:
+    """Passively capture AUTOPILOT_VERSION (0 B TX) on a local serial port for allowlist enrollment."""
+    from ..hal.auto_port import _open_passive_serial, capture_autopilot_version_passive
+
+    try:
+        raw = await read_bounded_body(request)
+    except ValueError as exc:
+        return JSONResponse(status_code=413, content={"ok": False, "error": str(exc)})
+    if (gate_err := _require_bench_setup_gate(request, body=raw)) is not None:
+        return gate_err
+    try:
+        payload = json.loads(raw) if raw else {}
+    except (ValueError, UnicodeDecodeError):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "invalid JSON body"})
+    port = str((payload or {}).get("port", "")).strip()
+    baud = int((payload or {}).get("baudrate", 921600))
+    timeout_s = min(15.0, max(0.5, float((payload or {}).get("timeout_s", 5.0))))
+    if not port:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "port is required"})
+    try:
+        meter = _TxMeter(_open_passive_serial)
+        entry = await asyncio.to_thread(
+            capture_autopilot_version_passive, port, baudrate=baud, timeout_s=timeout_s, serial_opener=meter
+        )
+    except (OSError, ValueError) as exc:
+        return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
+    if entry is None:
+        return JSONResponse(
+            status_code=504,
+            content={"ok": False, "error": f"timed out waiting for AUTOPILOT_VERSION on {port}@{baud}"},
+        )
+    return JSONResponse(content={"ok": True, "zero_tx": meter.tx_bytes == 0, "tx_bytes": meter.tx_bytes, "entry": entry})
 
 
 @app.get("/api/topology")
