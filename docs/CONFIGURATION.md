@@ -39,11 +39,11 @@ feature distribution → **retrain the ML model** (`aegis train`) and re-benchma
   (`coverage` | `dos`; default `coverage` for D4 never-acquired GNSS policy), `startup_grace_s`
   (0; optional - ignore the "no heartbeat/GPS seen yet" sentinel for the first N seconds).
 - `physics.pos_residual_min_streak` (1 = Stage-1: alert on the first frame above `gps_pos_residual_m`;
-  optional key, `configs/universal_flight` sets 3). The position-residual rule, soft AND hard, needs this
-  many consecutive evaluated decisions above `gps_pos_residual_m`; a decision at or below it, or one where
-  the rule did not run (no fix, estimator without a solution), restarts the count. Cost: a hard residual
-  (>= 30 m) is reported `min_streak - 1` decisions later (0.4 s at 5 Hz for 3). The value 3 is not backed
-  by a committed benign-data artifact; treat it as uncalibrated.
+  optional key, every shipped profile uses 1, including `configs/universal_flight`). The position-residual
+  rule, soft AND hard, needs this many consecutive evaluated decisions above `gps_pos_residual_m`; a decision
+  at or below it, or one where the rule did not run (no fix, estimator without a solution), restarts the
+  count. Cost: a hard residual (>= 30 m) is reported `min_streak - 1` decisions later (0.4 s at 5 Hz for 3).
+  Values above 1 are not shipped (maintainer decision D15): 3 has no independent benign-flight evidence.
 - `physics.*` — `gps_pos_residual_m` (12) + hard (30), `gps_speed_consistency_ms`
   (5), `alt_consistency_m` (8), `alt_jump_ms` (25), `max_accel_ms2` (20),
   `battery_rise_v` (0.4), `battery_drop_rate_v_s` (2), `hysteresis_ticks` (2),
