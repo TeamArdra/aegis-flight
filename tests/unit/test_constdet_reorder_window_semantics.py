@@ -1,8 +1,8 @@
-"""ConstDet reorder guard (#125) against the REAL extractor's per-decision-window ``reorder_count``.
+"""ConstDet is not muted by reorders or gaps (D14 on #125), checked against the REAL extractor.
 
 ``FeatureExtractor.clear_window_counts()`` resets ``reorder_count`` to 0 after every decision, so a
-frame reports the reorders seen in its own window, not a running total. The guard must therefore
-treat any ``reorder_count > 0`` as "this window was reordered".
+frame reports the reorders seen in its own window. Whatever those per-window gap/reorder counts are,
+ConstDet must fire in every window that carries a large control-accel residual.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def _window(ex: FeatureExtractor, t0: float, seqs: list[int]) -> FeatureFrame:
     return replace(frame, snapshot=snap, control_accel_residual_ms2=15.0)
 
 
-def test_every_reordered_window_suppresses_constdet_regardless_of_previous_count() -> None:
+def test_constdet_fires_in_every_window_regardless_of_gap_or_reorder() -> None:
     ex = FeatureExtractor(reorder_window=16)
     det = PhysicsDetector({"control_semantics_enabled": True, "control_accel_residual_ms2": 4.5})
     # Jitter reorders a packet across a window boundary: the window that sees the skip records a gap
@@ -52,4 +52,4 @@ def test_every_reordered_window_suppresses_constdet_regardless_of_previous_count
         results.append((f.reorder_count, f.max_seq_gap, "control_accel_residual_ms2" in det.process(f).signals))
     # (reorder_count, max_seq_gap, constdet_fired) per window
     assert [(c, g) for c, g, _ in results] == [(0, 0), (1, 1), (1, 0), (1, 1), (1, 0), (0, 0)], results
-    assert [fired for _, _, fired in results] == [True, False, False, False, False, True], results
+    assert all(fired for _, _, fired in results), results
