@@ -194,6 +194,8 @@ These numbers show how well the safety-critical modules are pinned by tests. The
 
 ### 2 h `aegis onboard` soak in a 2 vCPU / 512 MiB container (2026-11-21, tag `SITL`, link-level only)
 
+**Evidence status: not archived.** The run directory (897 MB: frames, decisions, actions, 33 DBs) is not committed, and no command in this repository regenerates this run. Every number in this section is prose from that one run and cannot be re-checked from the repository. Cite it as `SITL`, link-level, unarchived, and never as reproduced evidence.
+
 Setup: ArduCopter SITL (`Copter-4.0.3`, `git describe` of the SITL image's `/ardupilot`) in one container; `aegis onboard` (profile `configs/universal_flight`, `active-ips`, MAVLink-2 signing key, anchors every 30 s, SQLite rotation at 16 MiB) in a second container capped at `NanoCpus=2e9`, `Memory=512 MiB`, Python 3.13.18; SIM wind 12 m/s, turbulence 4, GPS noise 0.8 m; a signed guided mission; a 60 s attack burst every 900 s from t=600 s (8 bursts): 5000 msg/s unsigned heartbeat flood from a foreign sysid, unsigned `COMMAND_LONG` LAND and `DO_SET_MODE` from a foreign sysid, an unsigned `COMMAND_LONG` RTL that impersonates the GCS, an unsigned `PARAM_SET`, and a correctly signed `PARAM_SET FS_GCS_ENABLE`. Duration 7230 s, one sample every 60 s (121 samples). The run manifest says `NOT-REPRODUCIBLE`: the container had no git checkout.
 
 | measure | result |
