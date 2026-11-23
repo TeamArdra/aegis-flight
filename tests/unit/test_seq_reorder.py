@@ -151,7 +151,7 @@ def test_universal_flight_profile_tolerates_px4_jitter_reordering() -> None:
     """PX4 SITL under 40+-20 ms netem jitter reordered frames ~22 behind (SITL 2026-11-21)."""
     cfg = load_config("configs/universal_flight")
     window = int(cfg.detector["features"]["reorder_window"])
-    assert window == 48
+    assert window == 24  # candidate (D11); not validated until a fresh SITL rerun
     ex = FeatureExtractor(reorder_window=window)
     f = _step(ex, [(1, 1, s) for s in range(100)] + [(1, 1, 100 - 22)])
     assert f.max_seq_gap == 0
