@@ -234,7 +234,7 @@ def _token() -> str:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="aegis_automation.issue_claim")
-    p.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "TeamArdra/techfest-2026"))
+    p.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "TeamArdra/aegis-flight"))
     sub = p.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("ready")
     r.add_argument("--limit", type=int, default=10)
