@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from ..core.enums import AttackType, Severity
+from ..core.enums import AttackType, DetectorName, Severity
 from ..core.types import ThreatAssessment
 from ..features.extractor import FeatureFrame
 from .actuator import MavlinkActuator
@@ -88,6 +89,24 @@ class MitigationController:
         self._gps_switch_t: float | None = None
         self._gps_alt_hold_sent = False
         self._gps_cancelled = False
+
+    def _corroborated(self, asmt: ThreatAssessment) -> ThreatAssessment:
+        """D13: in ACTIVE_IPS an assessment whose only live evidence is the ML detector is not actionable.
+
+        Mirrors ``FusionEngine.ml_require_corroboration`` (a non-ML detector must score > 0), but is enforced here
+        because the controller is the single place that knows the defense mode and every counter-frame and
+        sanitizer rewrite goes through it. The assessment (and its alert) is unchanged for every other consumer;
+        the controller just sees it as a sub-threshold WATCH, as the capped fusion score would have been.
+        PASSIVE and ADVISORY are untouched.
+        """
+        if self.mode != DefenseMode.ACTIVE_IPS or not asmt.threat:
+            return asmt
+        ml = DetectorName.ANOMALY.value
+        if asmt.detector_scores.get(ml, 0.0) <= 0.0:
+            return asmt
+        if any(v > 0.0 for k, v in asmt.detector_scores.items() if k != ml):
+            return asmt
+        return replace(asmt, threat=False, severity=min(asmt.severity, Severity.WATCH, key=lambda s: s.rank))
 
     def set_capabilities(self, ekf_secondary: bool | None = None) -> None:
         """Declare what the aircraft has; None (unknown) counts as not available."""
@@ -193,6 +212,7 @@ class MitigationController:
 
     def step(self, frame: FeatureFrame, asmt: ThreatAssessment) -> MitigationAction:
         """Process one decision tick through the mitigation state machine."""
+        asmt = self._corroborated(asmt)
         t = asmt.t
         self._last_t = t
         ap_id = getattr(frame, "autopilot_id", None)

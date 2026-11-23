@@ -437,6 +437,12 @@ Poisson upper bounds) and per-detector attribution across calibration and held-o
 `artifacts/validation/inflight_fa_per_hour_20261119/summary.md` (`python scripts/evaluate_inflight_fa_per_hour.py`,
 environment `SITL`, claim class: link-level detection).
 
+**ML alone never drives ACTIVE_IPS (maintainer decision D13).** Independently of the profile's
+`ml_require_corroboration`, `MitigationController` in ACTIVE_IPS treats an assessment whose only
+non-zero detector score is `ml_anomaly` as a sub-threshold WATCH: no counter-frame (no DO_SET_MODE),
+no sanitizer rewrite, no quarantine. The assessment and its alert are unchanged, and PASSIVE and
+ADVISORY behave as before (`tests/unit/test_ml_only_ips_corroboration.py`).
+
 **Unknown satellite count (MAVLink 255).** `GPS_RAW_INT.satellites_visible = 255` means "unknown", not 255
 satellites. It is stored as `None` (API `gps.satellites: null`, dashboard "unknown"). The GNSS-loss rule then judges
 `fix_type` alone (`fix_type < 3` still fires, `>= 3` does not) and the satellite-jump rule ignores the pair.
