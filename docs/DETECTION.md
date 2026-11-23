@@ -37,8 +37,11 @@ re-checked on later decisions for as long as it stays in the 2 s command window
 (`cmd_window_s`); it is evaluated once the armed state becomes True and is then consumed. A
 disarm that is followed only by `armed=False` never alerts. **Policy note (open):** a
 genuine GCS emergency stop (sysid 255, param2 = 21196) while armed therefore alarms as
-COMMAND_INJECTION at 0.95; whether it should is a maintainer decision and the behaviour is
-pinned by `tests/unit/test_gcs_disarm_recheck.py`.
+COMMAND_INJECTION at 0.95; the alert is retained (maintainer decision D12) and is pinned by
+`tests/unit/test_gcs_disarm_recheck.py`. In ACTIVE_IPS the mitigation controller sends no
+counter-command (no RESTORE / DO_SET_MODE / safe-hold) for an episode whose window holds such a
+force-disarm from an allowed GCS sysid and no rogue sysid
+(`tests/unit/test_emergency_stop_no_actuation.py`).
 
 ### Never-received vs lost-after-seen telemetry (protocol liveness rules)
 
