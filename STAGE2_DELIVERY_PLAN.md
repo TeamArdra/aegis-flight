@@ -91,13 +91,13 @@ Into a stack branch: **Create a merge commit**. Into main: **Squash**.
 | 5 | #161 these plan files | main | clean | – |
 | 6 | #101 evidence-tier docs | #81 branch | clean | – |
 | 7 | #111 reorder window 24 | #81 branch | clean | – |
-| 8 | #114 D12 | #81 branch | clean merge; **CI red** (the D12 test needs a heartbeat under D4) | the one-line test fix |
+| 8 | #169 into #114, then #114 | #114 branch, then #81 branch | #169 is the heartbeat test fix: #114+#169 merged into #81 gives 2611 passed | – |
 | 9 | #141 D13 matrix test | #115 branch | clean | – |
-| 10 | #115 D13 | #81 branch | **conflict with #114** in `controller.py` (keep both new methods) | an integration with resolution |
+| 10 | #170 into #115, then #115 | #115 branch, then #81 branch | #170 resolves the #114/#115 `controller.py` conflict (both methods kept); merged into #81: 2627 passed, Stage-1 baseline | step 8 |
 | 11 | #81 | main | clean after steps 1–10 | steps 6–10 |
 | 12 | #112 D10 | main | clean after step 11 | – |
-| 13 | main into #82 (carries #81) | #82 branch | **conflict** in `docs/HARDWARE_FLIGHT_READINESS.md` (D4 wording vs #82), with or without #101 | an integration with resolution |
-| 14 | #93, #116, #118, #123, #124, #125, #126, #127, #129 | #82 branch | each clean on #82's tip | step 13 |
+| 13 | #171 (#81 into #82) | #82 branch | resolves the readiness-doc conflict (D4's rows; #82's §4 kept); 2938 passed, Stage-1 baseline. After #81's squash into main, one more main→#82 merge-commit integration (as #151) | – |
+| 14 | #93, #116, #118, #123, #124, #125, #126, #127, #129 | #82 branch | each clean on #171's head | step 13 |
 | 15 | #113 PX4 evidence | #82 branch | clean, but its commits `2b9eab3`, `375b2ab` are still not pushed | Madhav |
 | 16 | #82 | main | clean once step 13 is resolved | steps 13–15 |
 
