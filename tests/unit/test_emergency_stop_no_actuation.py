@@ -7,8 +7,6 @@ the IPS must neither quarantine the GCS, nor emit any counter-frame, nor drop th
 
 from __future__ import annotations
 
-import pytest
-
 from aegisflight.config import load_config
 from aegisflight.core.enums import AttackType, DetectorName, IntegrityStatus
 from aegisflight.core.types import DetectorResult, TelemetrySnapshot
@@ -74,19 +72,42 @@ def test_emergency_stop_after_a_mode_change_emits_no_counter_frame() -> None:
     assert counters == [], "force-disarm alert produced IPS counter-frame(s)"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "KNOWN EDGE (decision needed): if the flight mode changes in the SAME 0.2 s decision tick as the "
-        "emergency stop, golden.trusted_mode is still the old mode and the controller dispatches a "
-        "RESTORE_<old mode> DO_SET_MODE while armed (controller.py command-injection playbook). It never "
-        "blocks the stop or re-arms, but it is IPS actuation triggered by a genuine operator stop."
-    ),
-)
 def test_emergency_stop_in_the_same_tick_as_a_mode_change_emits_no_counter_frame() -> None:
-    asmt, act, counters, _ = _chain("AUTO", "LAND", lead_ticks=0)
-    assert asmt.threat
+    """D12 (maintainer decision): the alert is retained, but no restore/counter-command is sent."""
+    asmt, act, counters, ctrl = _chain("AUTO", "LAND", lead_ticks=0)
+    assert asmt.threat and asmt.attack_type is AttackType.COMMAND_INJECTION
     assert counters == []
+    assert act.counter_frames == []
+    assert not any(a["tag"] in ("RESTORE_MODE", "SAFE_HOLD_CMD") for a in ctrl.action_history)
+
+
+def test_forged_non_force_disarm_command_still_triggers_restore_mode() -> None:
+    """The playbook is not disabled: a rogue (non-GCS) command with a mode change still restores the mode."""
+    cfg = load_config().detector
+    det = ProtocolDetector(cfg["protocol"])
+    fusion = FusionEngine(cfg["fusion"])
+    ctrl = MitigationController(mode=DefenseMode.ACTIVE_IPS)
+    counters: list[bytes] = []
+
+    def run(frame: FeatureFrame):
+        r = det.process(frame)
+        empty = [DetectorResult(d, 0.0, False) for d in (DetectorName.PHYSICS, DetectorName.ANOMALY, DetectorName.INTEGRITY)]
+        asmt = fusion.fuse(frame.t, frame.t, [r, *empty], IntegrityStatus.VALID)
+        act = ctrl.step(frame, asmt)
+        counters.extend(act.counter_frames)
+        return asmt, act
+
+    for k in range(25):
+        run(_frame(k * 0.2, armed=True, mode="AUTO", with_cmd=False))
+    # rogue sysid 66 sends a plain (non-force) mid-air disarm and the mode flips in the same tick
+    frame = _frame(10.0, armed=True, mode="LAND", with_cmd=False)
+    frame.commands_recent = (CommandEvent(recv_time=10.0, sysid=66, compid=190, command=400, params=(0.0,) * 7),)
+    frame.sources = ((1, 1), (66, 190))
+    frame.n_sources = 2
+    asmt, act = run(frame)
+    assert asmt.threat and asmt.attack_type is AttackType.COMMAND_INJECTION
+    assert any(a["tag"] == "RESTORE_MODE" for a in ctrl.action_history)
+    assert len(counters) == 1
 
 
 def test_inline_policy_forwards_trusted_gcs_force_disarm_in_flight() -> None:
