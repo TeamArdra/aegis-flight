@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { test } from "node:test";
 import { computeCapabilities, deriveConsoleMode } from "../src/lib/consoleMode.ts";
-import { buildSignedAuthHeaders, generateNonce, getApiToken, saveApiToken, signCanonicalRequest } from "../src/lib/requestAuth.ts";
+import { buildSignedAuthHeaders, computeKeyId, isLoopbackOrigin, generateNonce, getApiToken, saveApiToken, signCanonicalRequest } from "../src/lib/requestAuth.ts";
 
 test("deriveConsoleMode enforces Flight Ops on non-SIM environments", () => {
   assert.equal(deriveConsoleMode("SIM", null), "demo");
@@ -50,7 +50,8 @@ test("signCanonicalRequest matches Node crypto HMAC-SHA256 verification", async 
   saveApiToken(token);
   assert.equal(getApiToken(), token);
   const headers = await buildSignedAuthHeaders("POST", "/api/defense/mode", body);
-  assert.equal(headers["X-Aegis-Token"], token);
+  assert.equal(headers["X-Aegis-Token"], undefined); // signed-only: the raw token is not sent
+  assert.equal(headers["X-Aegis-Key-Id"], (await computeKeyId(token)));
   assert.ok(headers["X-Aegis-Nonce"]);
   assert.ok(headers["X-Aegis-Timestamp"]);
   assert.ok(headers["X-Aegis-Signature"]);
@@ -104,8 +105,9 @@ test("without crypto.subtle: operator warning is raised and only the token heade
     const st = mod.getSigningStatus();
     assert.equal(st.available, false);
     assert.match(st.warning ?? "", /signing is unavailable/i);
-    const h = await mod.buildSignedAuthHeaders("POST", "/api/x", "{}");
+    const h = await mod.buildSignedAuthHeaders("POST", "/api/x", "{}", undefined, "http://127.0.0.1:8000");
     assert.equal(h["X-Aegis-Token"], "tok-123");
+    await assert.rejects(() => mod.buildSignedAuthHeaders("POST", "/api/x", "{}", undefined, "http://192.168.1.50:8000"), /non-loopback/);
     assert.equal(h["X-Aegis-Signature"], undefined); // transmission unchanged from before
   } finally {
     if (desc) Object.defineProperty(globalThis, "crypto", desc);
@@ -119,10 +121,21 @@ test("authenticated GET headers carry token and signature over an empty body", a
   saveApiToken("get-token-1");
   try {
     const h = await buildSignedAuthHeaders("GET", "/api/setup/discover-ports");
-    assert.equal(h["X-Aegis-Token"], "get-token-1");
+    assert.equal(h["X-Aegis-Token"], undefined);
     const expected = await signCanonicalRequest("get-token-1", "GET", "/api/setup/discover-ports", h["X-Aegis-Timestamp"], h["X-Aegis-Nonce"], "");
     assert.equal(h["X-Aegis-Signature"], expected);
   } finally {
     saveApiToken("");
   }
+});
+
+test("key id matches the backend derivation and loopback origin detection", async () => {
+  const { createHash } = await import("node:crypto");
+  const expected = createHash("sha256").update("aegis-key-id:abc").digest("hex").slice(0, 16);
+  assert.equal(await computeKeyId("abc"), expected);
+  assert.equal(isLoopbackOrigin("http://localhost:5173"), true);
+  assert.equal(isLoopbackOrigin("http://127.0.0.1:8000"), true);
+  assert.equal(isLoopbackOrigin("http://[::1]:8000"), true);
+  assert.equal(isLoopbackOrigin("http://192.168.1.50:8000"), false);
+  assert.equal(isLoopbackOrigin("https://gcs.example.com"), false);
 });
