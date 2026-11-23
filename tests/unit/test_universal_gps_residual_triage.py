@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from aegisflight.config import load_config
 from aegisflight.core.types import FlightState
 from aegisflight.detectors.physics import PhysicsDetector
 from aegisflight.features.extractor import FeatureFrame
@@ -89,3 +90,20 @@ def test_streak_restarts_after_a_frame_where_the_residual_rule_did_not_run() -> 
     assert det.process(_make_frame(1.3, 14.0)).score == 0.0
     assert det.process(_make_frame(1.4, 14.0)).score == 0.0
     assert det.process(_make_frame(1.5, 14.0)).score > 0.0
+
+
+def test_every_shipped_profile_keeps_pos_residual_min_streak_at_1() -> None:
+    """D15: the streak mechanism exists but no shipped profile enables it (3 lacks benign-flight evidence)."""
+    for profile in (None, "configs/universal_flight", "configs/ardupilot_copter", "configs/px4_sitl"):
+        physics_cfg = load_config(profile).detector["physics"]
+        assert PhysicsDetector(physics_cfg).pos_residual_min_streak == 1, profile
+    assert load_config("configs/universal_flight").detector["physics"]["pos_residual_min_streak"] == 1
+
+
+def test_shipped_universal_profile_alerts_on_first_residual_frame() -> None:
+    """With the shipped universal_flight physics config a single frame above gps_pos_residual_m alerts."""
+    det = PhysicsDetector(load_config("configs/universal_flight").detector["physics"])
+    det.process(_make_frame(0.9, 0.5))  # warmup sample for pos_ready
+    r = det.process(_make_frame(1.0, 15.0))
+    assert r.score > 0.0
+    assert any("position residual" in e for e in r.evidence)
