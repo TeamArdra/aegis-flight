@@ -29,6 +29,19 @@ detector score is their max); each casts a vote for the attack it implies:
 | GNSS fix loss | `fix_type < min_gnss_fix_type` (3) or `satellites < min_gnss_satellites` (5; skipped when the count is unknown, see below) for `≥ gnss_loss_ticks` (5) consecutive decisions → `coverage` note (score 0) when never acquired under `gnss_never_acquired_policy: coverage` (default), or `DOS` 0.7 when `dos` or after a valid fix | DOS |
 | Command provenance | command from sysid ∉ `expected_gcs_sysids`; sensitive cmd / burst | COMMAND_INJECTION |
 | Signing | `require_signing` and unsigned present | MAVLINK_ANOMALY |
+| Disarm while armed (`COMMAND_LONG` 400, param1 = 0) | force-disarm (param2 = 21196) while `armed` is True: **always on**, not behind `cadence_guard_enabled`, from **any** sysid including an expected GCS → 0.95. A plain (non-force) in-flight disarm (groundspeed > 1 m/s or rel_alt > 0.5 m) is checked **only** when `cadence_guard_enabled` is true (default false) | COMMAND_INJECTION |
+
+Disarm checks need `armed` to be True. If the command arrives while `armed` is None (no
+heartbeat yet) or False (possibly a stale ~1 Hz heartbeat just after arming), it is held and
+re-checked on later decisions for as long as it stays in the 2 s command window
+(`cmd_window_s`); it is evaluated once the armed state becomes True and is then consumed. A
+disarm that is followed only by `armed=False` never alerts. **Policy note (open):** a
+genuine GCS emergency stop (sysid 255, param2 = 21196) while armed therefore alarms as
+COMMAND_INJECTION at 0.95; the alert is retained (maintainer decision D12) and is pinned by
+`tests/unit/test_gcs_disarm_recheck.py`. In ACTIVE_IPS the mitigation controller sends no
+counter-command (no RESTORE / DO_SET_MODE / safe-hold) for an episode whose window holds such a
+force-disarm from an allowed GCS sysid and no rogue sysid
+(`tests/unit/test_emergency_stop_no_actuation.py`).
 
 ### Never-received vs lost-after-seen telemetry (protocol liveness rules)
 
@@ -436,6 +449,12 @@ Poisson upper bounds) and per-detector attribution across calibration and held-o
 (`artifacts/ardupilot/calibration/heldout_lock.json`) are committed in
 `artifacts/validation/inflight_fa_per_hour_20261119/summary.md` (`python scripts/evaluate_inflight_fa_per_hour.py`,
 environment `SITL`, claim class: link-level detection).
+
+**ML alone never drives ACTIVE_IPS (maintainer decision D13).** Independently of the profile's
+`ml_require_corroboration`, `MitigationController` in ACTIVE_IPS treats an assessment whose only
+non-zero detector score is `ml_anomaly` as a sub-threshold WATCH: no counter-frame (no DO_SET_MODE),
+no sanitizer rewrite, no quarantine. The assessment and its alert are unchanged, and PASSIVE and
+ADVISORY behave as before (`tests/unit/test_ml_only_ips_corroboration.py`).
 
 **Unknown satellite count (MAVLink 255).** `GPS_RAW_INT.satellites_visible = 255` means "unknown", not 255
 satellites. It is stored as `None` (API `gps.satellites: null`, dashboard "unknown"). The GNSS-loss rule then judges

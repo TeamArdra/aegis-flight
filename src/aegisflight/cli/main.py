@@ -294,6 +294,16 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         print(f"aegis ips-bridge: refusing --status-host {status_host}: a non-loopback status API requires "
               "--control-token-file", file=sys.stderr)
         return 2
+    # Resolve (and hash-check) the optional model BEFORE any run directory or event store exists: a refused model must
+    # not leave an empty evidence run behind, and the manifest must record the model the bridge really runs with.
+    model_path: str | None = None
+    model_extra: dict[str, object] | None = None
+    if args.model:
+        from ..model_integrity import check_model, resolve_model_or_exit
+
+        model_path = resolve_model_or_exit(args.model, allow_unverified=args.allow_unverified_model)
+        model_extra = {"model_verification": check_model(model_path).status,
+                       "allow_unverified_model": bool(args.allow_unverified_model)}
     archive = run_prov = None
     if args.run_dir:
         # evidence run (issue #25): clean tree or --allow-dirty (stamped NOT-REPRODUCIBLE); raw frames, decisions,
@@ -302,7 +312,8 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         from ..run_provenance import DirtyTreeError, begin_run
 
         try:
-            run_prov = begin_run(allow_dirty=args.allow_dirty, profile_dir=args.config_dir)  # ML is simulation-only: none
+            run_prov = begin_run(allow_dirty=args.allow_dirty, profile_dir=args.config_dir,
+                                 model_path=model_path, extra=model_extra)  # ML off (model_path None) -> "none"
             archive = BridgeRunArchive(args.run_dir)
         except DirtyTreeError:
             return 2  # require_clean_tree already printed the reason to stderr
@@ -340,10 +351,17 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                                  unsigned_acknowledged=args.allow_unsigned and key is None and args.defense_mode == "active-ips",
                                  vehicle_filter=args.vehicle_uplink_filter, filter_override_file=args.filter_override_file,
                                  filter_lockout_failopen_s=args.filter_lockout_failopen_s,
+                                 model_path=model_path, allow_unverified_model=args.allow_unverified_model,
                                  on_alarm=lambda m: print(f"aegis ips-bridge: ALARM {m}", flush=True), archive=archive)
     except ValueError as exc:
         print(f"aegis ips-bridge: {exc}", file=sys.stderr)
         return 2
+    if run_prov is not None and model_path is not None:
+        # begin_run() hashed the file on its own, earlier read; the manifest must carry the hash the detector's loader
+        # actually verified (a --allow-unverified-model file is otherwise unpinned between the two reads)
+        loaded_sha = bridge.pipeline.anomaly.loaded_sha256
+        if loaded_sha is not None:
+            run_prov["model_sha256"] = loaded_sha
     fc.start()
     gcs.start()
     bridge.start()
@@ -598,6 +616,12 @@ def build_parser() -> argparse.ArgumentParser:
                          "here (refuses a dirty tree unless --allow-dirty; the run is then stamped NOT-REPRODUCIBLE)")
     ib.add_argument("--allow-dirty", action="store_true", help="with --run-dir: run on a dirty tree, stamped NOT-REPRODUCIBLE")
     ib.add_argument("--config-dir", default=None)
+    ib.add_argument("--model", default=None,
+                    help="optional path to hash-verified Isolation Forest model (.joblib) for ML anomaly detection "
+                         "(live/SITL drift evidence pending)")
+    ib.add_argument("--allow-unverified-model", action="store_true",
+                    help="allow loading a model not listed in MODELS.sha256 (unsafe; local dev only, "
+                         "live/SITL drift evidence pending)")
     ib.add_argument("--db", default=None, help="log alerts to this SQLite hash-chain store")
     ib.add_argument("--seconds", type=float, default=None, help="run time (default: until Ctrl-C)")
     ib.add_argument("--status-interval", type=float, default=5.0)
