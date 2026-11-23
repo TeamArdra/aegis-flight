@@ -78,27 +78,25 @@ Full procedures are in `STAGE2_FINAL_READINESS.md`.
 - AI-tool declaration and integrity signature;
 - maintainer merges of A1–A10 and A14.
 
-## Execution order (verified 2026-11-23 by an in-memory merge simulation of every PR head, `git merge-tree`)
+## Merge order (re-verified 2026-11-23 on the current heads by an in-memory merge simulation; every step is clean)
 
-Into a stack branch: **Create a merge commit**. Into main: **Squash**.
+Into a stack branch: **Create a merge commit**. Into main: **Squash**. Done: #91, #101 is ready, the six decision fix-ups, and #169/#170/#171.
 
-| Step | PR | Into | Verified state | Needs first |
-|---|---|---|---|---|
-| 1 | #167 SITL manifest fix | main | clean | must land before the #26 campaign |
-| 2 | #154 model single read | main | clean | #144 triage |
-| 3 | #160 verified script loads | retarget to main after #154 squash, then main | clean | step 2 |
-| 4 | #157 package tooling | main | clean | – |
-| 5 | #161 these plan files | main | clean | – |
-| 6 | #101 evidence-tier docs | #81 branch | clean | – |
-| 7 | #111 reorder window 24 | #81 branch | clean | – |
-| 8 | #169 into #114, then #114 | #114 branch, then #81 branch | #169 is the heartbeat test fix: #114+#169 merged into #81 gives 2611 passed | – |
-| 9 | #141 D13 matrix test | #115 branch | clean | – |
-| 10 | #170 into #115, then #115 | #115 branch, then #81 branch | #170 resolves the #114/#115 `controller.py` conflict (both methods kept); merged into #81: 2627 passed, Stage-1 baseline | step 8 |
-| 11 | #81 | main | clean after steps 1–10 | steps 6–10 |
-| 12 | #112 D10 | main | clean after step 11 | – |
-| 13 | #171 (#81 into #82) | #82 branch | resolves the readiness-doc conflict (D4's rows; #82's §4 kept); 2938 passed, Stage-1 baseline. After #81's squash into main, one more main→#82 merge-commit integration (as #151) | – |
-| 14 | #93, #116, #118, #123, #124, #125, #126, #127, #129 | #82 branch | each clean on #171's head | step 13 |
-| 15 | #113 PX4 evidence | #82 branch | clean, but its commits `2b9eab3`, `375b2ab` are still not pushed | Madhav |
-| 16 | #82 | main | clean once step 13 is resolved | steps 13–15 |
+| Step | PR | Into | Note |
+|---|---|---|---|
+| 1 | #167 SITL manifest fix | main | before the #26 campaign |
+| 2 | #154 model single read (closes #144) | main | triaged `agent-ready` |
+| 3 | #160 verified script loads (closes #155) | **retarget to main after step 2**, then main | stacked on #154 |
+| 4 | #161 these plan files | main | |
+| 5 | #157 package tooling | main | draft until its layout proposal is accepted |
+| 6 | #101, #111, #114 | #81 branch | #114 includes the #169 heartbeat test fix |
+| 7 | #141, then #115 | #115 branch, then #81 branch | #115 includes the #170 conflict resolution |
+| 8 | #81 | main | |
+| 9 | #112 (D10) | main | |
+| 10 | main into #82 (one merge-commit integration, as #151) | #82 branch | #171 already resolved the readiness-doc conflict; simulated clean |
+| 11 | #93, #113, #116, #118, #123, #124, #125, #126, #127, #129 | #82 branch | each clean |
+| 12 | #82 | main | |
 
 Then the freeze tag on main, the #26 campaign and #27 on the tag, and the report numbers (#31) from those outputs.
+
+#113: `2b9eab3` / `375b2ab` stay unpushed (maintainer decision). Its README already flags the evidence as not reproducible from the repository. The three `375b2ab` GNSS runs show superseded behaviour (DO_SET_MODE ALTCTL to PX4) and must not be cited as current (tracking note on #113).

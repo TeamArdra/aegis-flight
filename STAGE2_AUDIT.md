@@ -44,7 +44,8 @@ then were re-checked. The report was checked against the 11-06 build in report-r
 | Extended benchmark in report | the report has pre-#14 values (9088 / 39 / 40813 / 1133, recall 0.889, "99.97 % reordered"). Post-#14 artifact `artifacts/validation/seq_reorder_20261118`: 9072 / 39 / 40813 / 1149, recall 0.8876, 97.65 % | CORRECTION (#31) |
 | Inline-IPS raw logs | `artifacts/` holds no inline-bridge raw frame logs; the results exist only as prose in `docs/RADIO_TEST_RESULTS.md` | LIMITATION: label those results "prose, raw logs not archived" |
 | Result files reproduce numbers | Stage-1 378/378 cells (matrix); report traceability: 655 of 819 numbers MATCH, 25 DIFFER, 53 UNSOURCED, 86 need the freeze run | CORRECTION for the 25 and the 53 (#31) |
-| Model loading | hash then re-read TOCTOU (#144); two scripts unpickle unverified (#155) | fixes ready: #154, #160 (drafts, green) |
+| #113 PX4 SITL evidence | 42 files record code commit `2b9eab3` and 3 GNSS runs `375b2ab`; both exist only on a local scratch branch (superseded code, maintainer decision not to push). The `375b2ab` runs show DO_SET_MODE ALTCTL to PX4, which current code (D10, #140, D4) no longer sends | CORRECTION: cite as SITL, not reproducible from the repository, superseded behaviour; re-measure in #26 |
+| Model loading | hash then re-read TOCTOU (#144); two scripts unpickle unverified (#155) | fixes ready: #154, #160 (triaged `agent-ready`, ready for review, CI green) |
 
 ## 4. Compute and integration (§9, 8 marks)
 
