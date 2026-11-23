@@ -295,3 +295,111 @@ def test_extended_benchmark_metadata_reflects_what_the_pipeline_loaded(tmp_path,
     assert res["config"]["model_used"] is used
     expected = hashlib.sha256(m.read_bytes()).hexdigest() if used else "none"
     assert res["config"]["model_sha256"] == expected
+
+
+# --- #144: verify and deserialise ONE read of the model file (no check-then-reopen TOCTOU) ---
+
+def _real_model_bytes(tmp_path: Path) -> bytes:
+    from sklearn.ensemble import IsolationForest
+    from sklearn.preprocessing import StandardScaler
+
+    from aegisflight.features.extractor import ML_FEATURES
+
+    x = [[float(i + j) for j in range(len(ML_FEATURES))] for i in range(40)]
+    scaler = StandardScaler().fit(x)
+    iso = IsolationForest(n_estimators=5, random_state=0).fit(scaler.transform(x))
+    p = tmp_path / "_tmp.joblib"
+    joblib.dump({"model": iso, "scaler": scaler, "score_thr": 0.5, "score_scale": 1.0}, p)
+    data = p.read_bytes()
+    p.unlink()
+    return data
+
+
+def _swap_after_first_read(monkeypatch, target: Path, replacement: bytes) -> dict:
+    """After the first read of ``target`` (``open`` or ``Path.read_bytes``), overwrite it on disk.
+
+    A correct loader reads once, so the swap can only affect a (forbidden) second read.
+    """
+    import builtins
+    import io as _io
+
+    state = {"reads": 0}
+    real_open = builtins.open
+    real_read_bytes = Path.read_bytes
+
+    def _swap() -> None:
+        state["reads"] += 1
+        if state["reads"] == 1:
+            with real_open(target, "wb") as f:
+                f.write(replacement)
+
+    def _open(file, *a, **kw):
+        mode = a[0] if a else kw.get("mode", "r")
+        is_target = isinstance(file, (str, Path)) and Path(file) == target and "r" in mode
+        f = real_open(file, *a, **kw)
+        if is_target:
+            data = f.read()
+            f.close()
+            _swap()
+            return _io.BytesIO(data)
+        return f
+
+    def _read_bytes(self):
+        data = real_read_bytes(self)
+        if self == target:
+            _swap()
+        return data
+
+    monkeypatch.setattr(builtins, "open", _open)
+    monkeypatch.setattr(Path, "read_bytes", _read_bytes)
+    return state
+
+
+def test_swap_between_hash_and_load_never_deserialises_swapped_bytes(tmp_path, monkeypatch):
+    good = _real_model_bytes(tmp_path)
+    evil = b"EVIL-PICKLE-PAYLOAD"
+    m = tmp_path / "swap.joblib"
+    _manifest(tmp_path, "swap.joblib", _write_model(m, good))
+    loaded: list[bytes] = []
+    real_load = joblib.load
+    real_read_bytes = Path.read_bytes
+
+    def _spy(arg, *a, **kw):
+        loaded.append(real_read_bytes(Path(arg)) if isinstance(arg, (str, Path)) else bytes(arg.getbuffer()))
+        return real_load(arg, *a, **kw)
+
+    monkeypatch.setattr(joblib, "load", _spy)
+    state = _swap_after_first_read(monkeypatch, m, evil)
+    det = AnomalyDetector(CFG, m)
+    monkeypatch.undo()
+
+    assert state["reads"] >= 1 and m.read_bytes() == evil  # the swap really happened after the first read
+    assert loaded, "model was not loaded at all"
+    assert evil not in loaded, "swapped bytes reached joblib.load"
+    assert all(b == good for b in loaded)
+    assert det.available is True
+    assert det.loaded_sha256 == hashlib.sha256(good).hexdigest()  # exposed hash == the bytes actually loaded
+
+
+def test_swap_cannot_launder_a_refused_model(tmp_path, monkeypatch):
+    """A file that fails verification stays refused even if the manifest-matching bytes are swapped in."""
+    good = _real_model_bytes(tmp_path)
+    m = tmp_path / "launder.joblib"
+    _manifest(tmp_path, "launder.joblib", hashlib.sha256(good).hexdigest())
+    m.write_bytes(b"tampered-before-first-read")  # does not match the manifest
+    _swap_after_first_read(monkeypatch, m, good)
+    monkeypatch.setattr(joblib, "load", lambda *a, **k: pytest.fail("deserialised a refused model"))
+    det = AnomalyDetector(CFG, m)
+    assert det.available is False and det.loaded_sha256 is None
+    assert det.load_error is not None and "mismatch" in det.load_error
+
+
+def test_read_and_check_model_hash_is_over_returned_bytes(tmp_path):
+    from aegisflight.model_integrity import read_and_check_model
+
+    m = tmp_path / "m.joblib"
+    _manifest(tmp_path, "m.joblib", _write_model(m, b"payload"))
+    chk, data = read_and_check_model(m)
+    assert chk.status == OK and data == b"payload" and chk.sha256 == hashlib.sha256(data).hexdigest()
+    chk, data = read_and_check_model(tmp_path / "gone.joblib")
+    assert chk.status == MISSING and data is None

@@ -21,6 +21,7 @@ Missing/incompatible model => the detector degrades to a no-op (score 0).
 
 from __future__ import annotations
 
+import io
 import logging
 import math
 import warnings
@@ -148,13 +149,20 @@ class _FastScorer:
 _FAST_CACHE: dict[tuple, _FastScorer | None] = {}
 
 
-def _fast_scorer(path: Path | None, bundle: dict) -> _FastScorer | None:
-    """The verified fast scorer for this model file (built once per process), else None."""
-    try:
-        st = path.stat() if path is not None else None
-        key = (str(path.resolve()), st.st_mtime_ns, st.st_size) if st is not None else None
-    except OSError:
-        key = None
+def _fast_scorer(path: Path | None, bundle: dict, sha256: str | None = None) -> _FastScorer | None:
+    """The verified fast scorer for this model (built once per process), else None.
+
+    Cached by the SHA-256 of the loaded bytes when given (#144), else by the file's stat signature.
+    """
+    key: tuple | None
+    if sha256 is not None:
+        key = ("sha256", sha256)
+    else:
+        try:
+            st = path.stat() if path is not None else None
+            key = (str(path.resolve()), st.st_mtime_ns, st.st_size) if st is not None else None
+        except OSError:
+            key = None
     if key is not None and key in _FAST_CACHE:
         return _FAST_CACHE[key]
     fast: _FastScorer | None
@@ -227,9 +235,10 @@ class AnomalyDetector(Detector):
             )
         if path is not None and path.exists():
             from ..model_integrity import OK as _MODEL_OK  # noqa: PLC0415
-            from ..model_integrity import check_model as _check_model  # noqa: PLC0415
+            from ..model_integrity import read_and_check_model as _read_and_check  # noqa: PLC0415
 
-            chk = _check_model(path)
+            # one read (#144): the hash is taken over exactly the bytes that are deserialised below
+            chk, model_bytes = _read_and_check(path)
             if chk.status != _MODEL_OK and not allow_unverified:
                 self.bundle = None
                 self.load_error = f"ModelIntegrityError ({chk.status}): {chk.message()}"
@@ -242,7 +251,9 @@ class AnomalyDetector(Detector):
             try:
                 import joblib  # noqa: PLC0415 - lazy so slim ML-off onboard installs work without joblib
 
-                self.bundle = joblib.load(path)
+                if model_bytes is None:  # removed after the exists() check: fail closed, ML off
+                    raise FileNotFoundError(f"model file vanished before it could be read: {path}")
+                self.bundle = joblib.load(io.BytesIO(model_bytes))
             except ImportError as exc:
                 self.bundle = None
                 self.load_error = f"ImportError: {exc}"
@@ -262,7 +273,7 @@ class AnomalyDetector(Detector):
                     exc,
                 )
             else:
-                self._fast = _fast_scorer(path, self.bundle)
+                self._fast = _fast_scorer(path, self.bundle, chk.sha256)
                 self._fast_bundle = self.bundle
                 self.loaded_sha256 = chk.sha256
 
