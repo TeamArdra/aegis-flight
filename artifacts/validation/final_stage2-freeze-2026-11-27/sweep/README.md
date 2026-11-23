@@ -11,7 +11,7 @@
 python scripts/sweep_link_stress.py --out <dir> --workers 6
 ```
 
-No other flags: the tool's defaults are the #27 grid (loss {0, 1, 2, 5, 10} % x {fifo, reorder} x ML {off, on} x profile {stage1, px4, ardupilot}, 6 sessions per cell, seeds 70000..70005, 120 s sessions, warm-up 5 s). The tool was not changed. The output was written to a scratch directory outside the repository and copied here byte for byte (git normalised CRLF line endings to LF in `run_manifest.json` on commit). `run_manifest.json` records that scratch path in `command_line`.
+No other flags: the tool's defaults are the #27 grid (loss {0, 1, 2, 5, 10} % x {fifo, reorder} x ML {off, on} x profile {stage1, px4, ardupilot}, 6 sessions per cell, seeds 70000..70005, 120 s sessions, warm-up 5 s). The tool was not changed. The output was written to a scratch directory outside the repository and copied here byte for byte, except the path redaction described in `../README.md` section 10 (git normalised CRLF line endings to LF in `run_manifest.json` on commit). `run_manifest.json` records that scratch path in `command_line`.
 
 | File | What |
 |---|---|
@@ -24,7 +24,7 @@ Definitions are in `sweep_table.md`. In short: a *decision* is one 5 Hz fusion d
 
 ## Determinism
 
-The sweep was run twice on the same tree (second run into a different scratch directory, same command). `decisions.csv.gz` sha256 `87b70831…9f94` and `cell_summary.csv` sha256 `232e9571…ec20b` are identical in both runs. (The tool's gzip is written with a fixed mtime, so identical rows give identical bytes.)
+The sweep was run twice on the same tree (second run into a different scratch directory, same command). `decisions.csv.gz` sha256 `87b70831…9f94` and `cell_summary.csv` sha256 `232e9571…ec20b` are identical in both runs. This is operator-stated for the second run: only one run's output is committed and no second-run hash is committed, so the identity cannot be re-checked from this folder. (The tool's gzip is written with a fixed mtime, so identical rows give identical bytes.)
 
 ## Result
 
@@ -32,7 +32,7 @@ Of 60 cells, **30 ran** (20 stage1 cells, 10 ardupilot ML-off cells) and **30 ar
 
 **ML off (20 ran cells, 69,000 scored decisions): 4 alarm decisions in total, decision FPR at most 0.0003.** Where an alarm occurred it was one decision with evidence "implausible acceleration # m/s²" (physics detector): stage1 FIFO 5 %, ardupilot FIFO 5 % and 10 %, ardupilot reorder 10 %. Every other ML-off cell has 0 alarm decisions. Loss and re-ordering alone do not trigger the protocol rule on these sessions.
 
-**ML on (10 ran cells, all stage1, 34,500 scored decisions): 27,612 alarm decisions (pooled decision FPR 0.80: FIFO cells 0.62-0.67, reorder cells 0.90-0.99), all attributed to `ml_anomaly`; the dominant evidence in every cell is "ML anomaly score # >= # (driver: interarrival_jitter_ms, z=#)".**
+**ML on (10 ran cells, all stage1, 34,500 scored decisions): 27,612 alarm decisions (pooled decision FPR 0.80: FIFO cells 0.62-0.67, reorder cells 0.90-0.99); `ml_anomaly` fires in all 27,612 (68 of them are `physics_consistency|ml_anomaly`, the rest `ml_anomaly` alone); the dominant evidence in every cell is "ML anomaly score # >= # (driver: interarrival_jitter_ms, z=#)".**
 
 | Cell (stage1, ML on) | decision FPR | alert events/h | dominant evidence (count) |
 |---|---:|---:|---|
@@ -47,7 +47,7 @@ Of 60 cells, **30 ran** (20 stage1 cells, 10 ardupilot ML-off cells) and **30 ar
 | reorder 5 % | 0.9510 | 464.3 | same (3265) |
 | reorder 10 % | 0.9032 | 866.1 | same (2930) |
 
-Worst cells: by decision FPR, stage1 reorder 0 % ML on (0.9881); by alert events per hour, stage1 FIFO 10 % ML on (2655.7 /h). Notes for reading the table:
+Caveat: all 10 ML-on cells reuse the same seeds 70000-70005, so they are not independent samples, and with n = 6 sessions per cell the ordering of the "worst" cells is within noise. Worst cells: by decision FPR, stage1 reorder 0 % ML on (0.9881); by alert events per hour, stage1 FIFO 10 % ML on (2655.7 /h). Notes for reading the table:
 
 * **The 61 % FIFO figure of the 2026-11-17 probe is the ML-on configuration (here 0.62-0.67 across FIFO loss levels), driven by `interarrival_jitter_ms`.** It is already present at 0 % loss (0.6455), so it is not caused by loss. With ML off the same sessions give 0 alarm decisions at 0 %, 1 %, 2 % and 10 % and 1 of 3,450 at 5 %. (The probe quoted 0.2 % for ML off at 0-5 % loss with n = 1 per cell; this sweep, n = 6 per cell with other seeds, gives 0.00-0.03 %. The two are different session sets and are not directly comparable.)
 * **Events per hour is not monotone in the alarm rate.** Under re-ordering ML on, alarms are almost continuous, so consecutive alarm decisions merge into few long events (30 events at 0 % loss, 166 at 10 %); the FIFO cells alarm intermittently and give many short events. Read events/h together with the decision FPR.
