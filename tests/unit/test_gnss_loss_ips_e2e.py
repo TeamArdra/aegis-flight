@@ -1,9 +1,11 @@
 """End-to-end behaviour of a GNSS fix-loss threat through the REAL submode classifier and the REAL
 MitigationController at the PX4 message rate (~370 msg/s), under ``DefenseMode.ACTIVE_IPS``.
 
-These tests DOCUMENT the behaviour of PR #112 (`submode_classifier`: named GNSS evidence wins over
-the rate test) for the maintainer's decision. They do not approve it: #112 changes when the IPS
-actuates. Nothing is mocked except the input frames: the classifier, the controller and the
+PR #112 (`submode_classifier`: named GNSS evidence wins over the rate test) is accepted for the
+CLASSIFICATION only (maintainer decision D10): the sub-mode label and the alert are DOS_GNSS_JAMMING on
+a high-rate link, but nothing about what the IPS sends changes. origin/main classed that case DOS_FLOOD,
+never ran the GPS response ladder for it, and these tests pin that the DO_SET_MODE emissions stay what
+main sent: no new ALT_HOLD on any vehicle. Nothing is mocked except the input frames: the classifier, the controller and the
 actuator (real MAVLink-2 encoding) are the shipped code. All inputs are SYNTHETIC; nothing opens a
 port. Environment tag: SIM-style unit test, not SITL evidence.
 """
@@ -99,9 +101,11 @@ PX4_MODES = ["AUTO_LOITER", "POSCTL", "AUTO_MISSION", "AUTO_RTL", "OFFBOARD"]
 def test_px4_gnss_loss_at_370hz_is_classified_gnss_and_sends_no_do_set_mode_within_30s(px4_mode):
     r = Run()
     r.run(25.0, AttackType.DOS, GNSS_EVIDENCE, mode=px4_mode)  # 125 threat ticks: below the 150-tick SAFE_HOLD
-    assert {s for _t, s, _st, _f in r.log} == {AttackSubMode.DOS_GNSS_JAMMING}
+    assert {s for _t, s, _st, _f in r.log} == {AttackSubMode.DOS_GNSS_JAMMING}  # #112's classification, kept
     assert r.set_modes() == []  # the ladder never guesses a PX4 mode: knows_mode() is ArduCopter-only
-    assert len(r.statustexts()) >= 1  # the pilot is still told: "AEGIS: GPS unreliable"
+    # D10: classification only. The GPS ladder (and its "GPS unreliable" STATUSTEXT) is not run for a
+    # reclassified high-rate tick, exactly as on main, where this was DOS_FLOOD.
+    assert r.statustexts() == []
     assert all(st != MitigationState.SAFE_HOLD for _t, _s, st, _f in r.log)
     assert r.c.sanitizer is not None and r.c._sanitize_gps_latched is True  # ANTI_JAM_DR path engaged
 
@@ -121,7 +125,7 @@ def test_px4_sustained_gnss_loss_past_30s_reaches_SAFE_HOLD_but_sends_no_do_set_
     r.run(40.0, AttackType.DOS, GNSS_EVIDENCE, mode="AUTO_LOITER")  # the 40 s fault of the SITL run
     assert r.set_modes() == []  # the gate: knows_mode("AUTO_LOITER") is False
     assert r.log[-1][2] == MitigationState.SAFE_HOLD  # the state machine still escalates
-    assert len(r.statustexts()) >= 1
+    assert r.statustexts() == []  # D10: no ladder on the reclassified tick, as on main
 
 
 def test_px4_high_rate_flood_without_gnss_evidence_stays_a_flood_and_sends_no_do_set_mode():
@@ -134,9 +138,35 @@ def test_px4_high_rate_flood_without_gnss_evidence_stays_a_flood_and_sends_no_do
 # --- ArduCopter at the same high rate ------------------------------------------------------------
 
 
-def test_arducopter_high_rate_gnss_loss_reaches_alt_hold_once_with_bounds():
+@pytest.mark.parametrize("ac_mode", ["LOITER", "ALT_HOLD", "STABILIZE", "GUIDED", "AUTO", "RTL"])
+@pytest.mark.parametrize("secs", [10.0, 40.0], ids=["10s", "40s-SAFE_HOLD"])
+def test_arducopter_high_rate_gnss_loss_sends_no_alt_hold_that_main_would_not_send(ac_mode, secs):
+    """D10 regression. On origin/main a 370 msg/s GNSS-loss threat was DOS_FLOOD and no DO_SET_MODE was
+    sent (measured with the real controller, LOITER/ALT_HOLD/STABILIZE/GUIDED/AUTO/RTL, 10 s and 40 s).
+    #112 relabels it DOS_GNSS_JAMMING; without the D10 guard that label sent ALT_HOLD (custom mode 2) at
+    +3.2 s (GPS ladder) or at +30 s (SAFE_HOLD escalation)."""
     r = Run()
+    r.run(secs, AttackType.DOS, GNSS_EVIDENCE, mode=ac_mode)
+    assert {s for _t, s, _st, _f in r.log} == {AttackSubMode.DOS_GNSS_JAMMING}  # label kept
+    assert r.set_modes() == []  # == what main sent
+    assert r.c.sanitizer is not None and r.c._sanitize_gps_latched is True  # ANTI_JAM_DR alert path kept
+
+
+def test_arducopter_high_rate_gnss_loss_recovery_restores_the_trusted_mode_like_main():
+    """Main's recovery after a high-rate GNSS-loss threat sends one DO_SET_MODE restoring the trusted
+    mode (LOITER = custom mode 5); #112 alone replaced it with an ALT_HOLD at +3.2 s and no restore."""
+    r = Run()
+    r.run(10.0, AttackType.BENIGN, [], mode="LOITER", fix=3, sats=12)  # learn the trusted mode
     r.run(10.0, AttackType.DOS, GNSS_EVIDENCE, mode="LOITER")
+    r.run(20.0, AttackType.BENIGN, [], mode="LOITER", fix=3, sats=12)
+    assert [m for _t, m in r.set_modes()] == [5]
+    assert r.c.state == MitigationState.NOMINAL
+
+
+def test_arducopter_low_rate_gnss_loss_still_reaches_alt_hold_once_with_bounds():
+    """Unchanged by #112 and by D10: at or below the flood rate main already sent this ALT_HOLD."""
+    r = Run()
+    r.run(10.0, AttackType.DOS, GNSS_EVIDENCE, mode="LOITER", rate=50.0)
     assert {s for _t, s, _st, _f in r.log} == {AttackSubMode.DOS_GNSS_JAMMING}
     sent = r.set_modes()
     assert [m for _t, m in sent] == [COPTER_ALT_HOLD]  # exactly one ALT_HOLD, no other mode

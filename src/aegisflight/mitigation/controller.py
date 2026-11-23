@@ -12,7 +12,7 @@ from .actuator import MavlinkActuator
 from .golden_state import GoldenFlightState
 from .parameter_estimator import ParameterEstimator
 from .sanitizer import FrameSanitizer
-from .submode_classifier import AttackSubModeClassifier
+from .submode_classifier import FLOOD_MSG_RATE_HZ, AttackSubModeClassifier
 from .types import AttackParameters, AttackSubMode, DefenseMode, MitigationAction, MitigationState
 
 _POSITION_DEPENDENT_MODES = frozenset({
@@ -345,7 +345,13 @@ class MitigationController:
         rate_limit_active = False
 
         if self.mode == DefenseMode.ACTIVE_IPS:
-            if sub_mode.value.startswith("gps_spoofing") or sub_mode == AttackSubMode.DOS_GNSS_JAMMING:
+            # D10 (#112): the GNSS-loss relabel above the flood rate is accepted as classification only. Before
+            # #112 that case was DOS_FLOOD and never ran the GPS ladder; it still does not, so no new
+            # DO_SET_MODE (ladder ALT_HOLD, SAFE_HOLD ALT_HOLD) and no GPS episode that would suppress the
+            # recovery mode restore. Only a GNSS-loss threat at or below the flood rate drives the ladder.
+            if sub_mode.value.startswith("gps_spoofing") or (
+                sub_mode == AttackSubMode.DOS_GNSS_JAMMING and frame.msg_rate_hz <= FLOOD_MSG_RATE_HZ
+            ):
                 self._gps_ladder(frame, t, counter_frames)
             elif self._gps_confirm_t is None:
                 self._gps_ticks = 0
