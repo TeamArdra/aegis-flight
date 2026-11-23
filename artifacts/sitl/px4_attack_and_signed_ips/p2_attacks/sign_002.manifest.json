@@ -1,0 +1,182 @@
+{
+  "trial_id": "sign_002",
+  "seed": 7701,
+  "trial_index": 2,
+  "provenance": {
+    "px4_git_describe": "v1.16.2",
+    "aegisflight_git_commit": "2b9eab3f5b2b7302357195dcab607d92892df47a",
+    "python_version": "3.13.18",
+    "pymavlink_version": "2.4.50"
+  },
+  "attack_type": "COMMAND_INJECTION",
+  "attack_mode": "expected_gcs_impersonation_track_identity_post_signing",
+  "message_type": "COMMAND_LONG",
+  "target_system": 3,
+  "target_component": 1,
+  "injection_point": "uplink",
+  "claim_class": "command-path effect (PX4 acceptance) + link-level detection (IDS, signing-aware), scored separately -- see module docstring",
+  "environment": "SITL",
+  "attack_action": "injected",
+  "parameters": {
+    "onset_s": 8.0,
+    "burst_count": 2,
+    "inter_injection_gap_s": 1.5,
+    "seq_policy": "track_identity",
+    "signing_secret_key_sha256": "89424c78478631fefd85738e9d3e14b88611937281df384b86594c474bf28cb3",
+    "detector_profile": "configs/px4_sitl",
+    "model_choice": "px4",
+    "require_signing_forced": true
+  },
+  "attack_start_utc": "2026-11-21T16:18:29.888515+00:00",
+  "attack_end_utc": "2026-11-21T16:19:12.456075+00:00",
+  "frames_seen": 16882,
+  "frames_modified": 0,
+  "frames_dropped": 0,
+  "frames_injected": 2,
+  "expected_effect": {
+    "hypothesis_fixed_before_running": "with signing active and require_signing forced on the IDS profile: PX4 should not accept the unsigned forged command (0 acks); the IDS's verifying parser should still observe it (sig_invalid increases by frames_injected) and the new sig_invalid_count rule should flag it; the legitimate signed resend should be accepted by PX4 and produce no sig_invalid signal."
+  },
+  "actual_effect": {
+    "frames_injected": 2,
+    "acked": true,
+    "ack_count": 2,
+    "first_ack_result": 0,
+    "first_ack_result_name": "MAV_RESULT_ACCEPTED",
+    "time_to_first_ack_s": 0.005815292
+  },
+  "frames_skipped_signed": 0,
+  "holdout_seeds": [],
+  "schema_id": "aegisflight.proxy.groundtruth",
+  "schema_version": "1.0.0",
+  "detector_decision": null,
+  "time_to_detection_s": null,
+  "full_provenance": {
+    "collected_utc": "2026-11-21T16:19:12.432075+00:00",
+    "aegisflight_commit": "2b9eab3f5b2b7302357195dcab607d92892df47a",
+    "working_tree_dirty": false,
+    "dirty_paths_count": 0,
+    "python": "3.13.18",
+    "packages": {
+      "pymavlink": "2.4.50",
+      "numpy": "2.5.5",
+      "scikit-learn": "1.9.1",
+      "joblib": "1.6.0",
+      "scipy": "1.18.1"
+    },
+    "model_sha256": "3fe74cddf3689e169610ffd783b109b6539cc6c03629bd1e4bb8b1d3842939c4",
+    "configs_sha256": "314e52fcdd9611c5582e0b150e1e30f8afa183a666a0347c05dd8dc77a88eabd",
+    "command_line": "scripts/sitl/run_p4_signing_trial.py --px4-host 127.0.0.1 --px4-port 18572 --allow-private-upstream --seed 7701 --trial-index 2 --out /out3/sign_002",
+    "python_version": "3.13.18"
+  },
+  "run_provenance": {
+    "schema": "aegisflight.run_manifest/1",
+    "status": "REPRODUCIBLE",
+    "reproducible": true,
+    "commit": "2b9eab3f5b2b7302357195dcab607d92892df47a",
+    "working_tree_dirty": false,
+    "dirty_paths": [],
+    "detector_profile_dir": "configs/px4_sitl",
+    "detector_profile_sha256": "96c6e3825c2e587917d383d3bf37ff8435fcbff8cda4a16c7bf119e43a3960d7",
+    "firmware_allowlist_sha256": "63b01f5fe0cbb69e11b7e5a4fd1fe944bbe1756e3dcbe7e0113d63fd104788ad",
+    "model_path": "models/isoforest_px4.joblib",
+    "model_sha256": "df540999dc6b43c3981d6ac6ecb91369b56ce1ba8cfdb894b76b195951260c7c",
+    "ml_enabled": true,
+    "px4_git_describe": "v1.16.2",
+    "ardupilot_version": null,
+    "python": "3.13.18",
+    "packages": {
+      "aegisflight": "0.1.0",
+      "pymavlink": "2.4.50",
+      "numpy": "2.5.5",
+      "scikit-learn": "1.9.1",
+      "joblib": "1.6.0",
+      "scipy": "1.18.1",
+      "pyyaml": "6.0.4",
+      "fastapi": "0.165.0",
+      "pyserial": "3.5"
+    },
+    "command_line": "scripts/sitl/run_p4_signing_trial.py --px4-host 127.0.0.1 --px4-port 18572 --allow-private-upstream --seed 7701 --trial-index 2 --out /out3/sign_002",
+    "started_utc": "2026-11-21T16:18:27.421720+00:00",
+    "ended_utc": "2026-11-21T16:19:12.449631+00:00",
+    "not_reproducible_reason": null
+  },
+  "ids_summary": {
+    "decisions": 225,
+    "threat_decisions": 225,
+    "source_stats": {
+      "datagrams_received": 16823,
+      "frames_received": 306,
+      "bad_frames": 16517,
+      "sig_valid": 44,
+      "sig_invalid": 16517,
+      "unverified_frames": 172,
+      "ticks_emitted": 450,
+      "late_ticks": 24,
+      "late_frames": 0,
+      "dropped_overflow": 0,
+      "dropped_overflow_bytes": 0,
+      "queue_high_water": 923,
+      "max_poll_gap_s": 0.057630625
+    },
+    "relay_stats": {
+      "datagrams_down": 16747,
+      "datagrams_up": 135,
+      "frames_down": 16747,
+      "frames_up": 135,
+      "forwarded": 16884,
+      "forwarded_down": 16747,
+      "forwarded_up": 137,
+      "mirrored_up": 136,
+      "dropped_by_hook": 0,
+      "hook_errors": 0,
+      "bad_segments": 0,
+      "send_failures": 0,
+      "down_no_client": 9,
+      "clients": 3,
+      "clients_seen": 3,
+      "rejected_clients": 0,
+      "overflow": 0,
+      "pump_errors": 0
+    },
+    "event_log": [
+      {
+        "t": 3797.837,
+        "event": "setup_signing_sent",
+        "sent": true,
+        "seq": 0
+      },
+      {
+        "t": 3798.838,
+        "event": "gcs_signing_enabled"
+      },
+      {
+        "t": 3798.839,
+        "event": "legit_signed_command_sent",
+        "sent": true,
+        "seq": 2
+      },
+      {
+        "t": 3798.905,
+        "event": "legit_command_ack_observed",
+        "result": 0,
+        "signed": false
+      },
+      {
+        "t": 3841.366,
+        "event": "attack_effect",
+        "frames_injected": 2,
+        "acked": true,
+        "ack_count": 2,
+        "first_ack_result": 0,
+        "first_ack_result_name": "MAV_RESULT_ACCEPTED",
+        "time_to_first_ack_s": 0.005815292
+      }
+    ],
+    "legit_signed_command_ack": {
+      "result": 0,
+      "signed": false
+    },
+    "ids_sig_invalid_before": 0,
+    "ids_sig_invalid_after": 16517
+  }
+}

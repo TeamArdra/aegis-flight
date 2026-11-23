@@ -2,6 +2,7 @@ import { useEffect, useState, memo } from "react";
 import { api } from "../services/api";
 import { describe, selectTopology } from "../lib/topology";
 import { ActiveIpsDialog } from "./ActiveIpsDialog";
+import { HoldConfirmButton } from "./HoldConfirmButton";
 import { needsActiveIpsDialog, signingText, type SigningInfo } from "../lib/posture";
 import { DECISION_COMPUTE_LABEL, DEFENSE_LIMITS, MODE_OPTIONS, ladderStates as getLadderStates, postureBanner, summaryFallback } from "../lib/wording";
 import type { DefenseMode, Environment, MitigationActionItem, MitigationInfo, Telemetry, Threat, TopologyInfo } from "../types";
@@ -563,14 +564,23 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
           </div>
         ) : (
           <div className="override-actions">
-            <button
-              type="button"
-              className="override-btn warn-btn"
-              onClick={() => handleOverride("safe_hold")}
-              disabled={busy}
-            >
-              ENGAGE SAFE HOLD (ALT_HOLD)
-            </button>
+            {environment !== "SIM" ? (
+              <HoldConfirmButton
+                label="ENGAGE SAFE HOLD (ALT_HOLD)"
+                className="override-btn warn-btn"
+                disabled={busy}
+                onConfirm={() => handleOverride("safe_hold")}
+              />
+            ) : (
+              <button
+                type="button"
+                className="override-btn warn-btn"
+                onClick={() => handleOverride("safe_hold")}
+                disabled={busy}
+              >
+                ENGAGE SAFE HOLD (ALT_HOLD)
+              </button>
+            )}
             <button
               type="button"
               className="override-btn info-btn"

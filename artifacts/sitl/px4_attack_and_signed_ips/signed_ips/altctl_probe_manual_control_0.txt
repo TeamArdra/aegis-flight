@@ -1,0 +1,21 @@
+   0.0 TEXT Preflight Fail: No connection to the ground contro
+   0.0 TEXT l station	
+   0.7 HB main=4 sub=3 armed=False
+  10.7 ACK cmd=400 result=0
+  10.7 TEXT Armed by external command	
+  11.7 HB main=4 sub=3 armed=True
+  13.7 ACK cmd=22 result=0
+  14.4 TEXT Takeoff detected	
+  14.7 HB main=4 sub=2 armed=True
+  31.7 HB main=4 sub=3 armed=True
+--- send DO_SET_MODE ALTCTL
+  38.7 ACK cmd=176 result=0
+  38.7 ACK cmd=176 result=1
+  38.7 TEXT Switching to Altitude is currently not available	
+--- send SET_MODE msg ALTCTL
+  46.7 ACK cmd=176 result=1
+  46.7 TEXT Switching to Altitude is currently not available	
+--- restore AUTO_LOITER + land
+  51.7 ACK cmd=21 result=0
+  51.7 TEXT Landing at current position	
+  51.9 HB main=4 sub=6 armed=True

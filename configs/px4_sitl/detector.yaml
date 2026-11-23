@@ -31,6 +31,10 @@ physics:
   # yaw_course_diff_deg: Stage-1 25.0, calibration max 85.233, M x max = 106.541 (derivation.json -> physics.yaw_course_deg)
   # NEW additive key (default 25 = Stage-1 value)
   yaw_course_deg: 110.0
+  # Enable cross-message consistency checks (catches frozen attitude via att_repeat >= 8)
+  xmsg_checks: true
+  # Match universal_flight tolerance (20 deg) so benign turbulence does not false-alarm
+  heading_yaw_tolerance_deg: 20.0
 
 fusion:
   # Decision D5 (#49): require protocol/physics/integrity corroboration before ML triggers alerts on PX4 SITL.

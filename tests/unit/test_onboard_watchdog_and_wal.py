@@ -81,3 +81,45 @@ def test_onboard_preflight_validates_receive_only_and_boundaries(tmp_path: Path)
     )
     rep_bad = run_preflight(cfg_bad)
     assert rep_bad["ok"] is False
+
+
+def _wd_cfg(tmp_path: Path) -> OnboardConfig:
+    return OnboardConfig(
+        topology="side-tap",
+        fc_port="/dev/ttyAMA0",
+        defense_mode="passive",
+        run_root=str(tmp_path / "runs"),
+    )
+
+
+@pytest.mark.parametrize("bad", ["abc", "0", "-4", "6", "5.5", "1e9", "nan", "inf"])
+def test_run_onboard_invalid_hw_watchdog_period_fails_closed_cleanly(
+    tmp_path: Path, monkeypatch, capsys, bad: str
+) -> None:
+    from aegisflight.onboard import run_onboard
+
+    monkeypatch.setenv("AEGIS_HW_WATCHDOG_PATH", str(tmp_path / "wd"))
+    monkeypatch.setenv("AEGIS_HW_WATCHDOG_PERIOD_MS", bad)
+    rc = run_onboard(_wd_cfg(tmp_path), seconds=0.1)  # must not raise
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert err.startswith("aegis onboard: ")
+    assert "AEGIS_HW_WATCHDOG_PERIOD_MS" in err or "period_s" in err
+    assert not (tmp_path / "runs").exists()  # failed before any run state was created
+
+
+def test_run_onboard_invalid_period_without_path_still_fails(tmp_path: Path, monkeypatch, capsys) -> None:
+    from aegisflight.onboard import run_onboard
+
+    monkeypatch.delenv("AEGIS_HW_WATCHDOG_PATH", raising=False)
+    monkeypatch.setenv("AEGIS_HW_WATCHDOG_PERIOD_MS", "abc")
+    assert run_onboard(_wd_cfg(tmp_path), seconds=0.1) == 2
+    assert "AEGIS_HW_WATCHDOG_PERIOD_MS" in capsys.readouterr().err
+
+
+def test_hw_watchdog_from_env_valid_and_unset(tmp_path: Path) -> None:
+    from aegisflight.hal.hw_watchdog import HardwareWatchdog
+
+    ok = HardwareWatchdog.from_env(env={"AEGIS_HW_WATCHDOG_PATH": str(tmp_path / "wd"), "AEGIS_HW_WATCHDOG_PERIOD_MS": "4"})
+    assert ok.enabled and ok._period_s == pytest.approx(0.004)
+    assert HardwareWatchdog.from_env(env={}).enabled is False

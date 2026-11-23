@@ -264,6 +264,7 @@ class FeatureExtractor:
         *,
         learn_baro_offset: bool = False,
         baro_offset_alpha: float = 0.05,
+        accel_min_dt_s: float = 0.0,
     ) -> None:
         if not 0 <= reorder_window <= 127:
             raise ValueError(f"reorder_window must be in [0, 127], got {reorder_window}")
@@ -272,6 +273,9 @@ class FeatureExtractor:
         self.reorder_window = int(reorder_window)
         self.learn_baro_offset = bool(learn_baro_offset)
         self.baro_offset_alpha = max(0.001, min(1.0, float(baro_offset_alpha)))
+        # Minimum time base for |dv|/dt (0 = last two samples, the Stage-1 behaviour). Link jitter or reordering can
+        # deliver two velocity samples a few ms apart; over so short a base a normal velocity step reads as 50+ m/s2.
+        self.accel_min_dt_s = max(0.0, float(accel_min_dt_s))
         self.reset()
 
     def reset(self) -> None:
@@ -358,6 +362,13 @@ class FeatureExtractor:
         self._mav_type: int | None = None
         self._primary_vehicle_src: tuple[int, int] | None = None
         self._primary_hb_t: float = -1e9
+        # Reconnect resync: after a local port outage the heartbeat/GPS ages and the sequence
+        # counters still reflect the pre-unplug stream. Keep reporting a transport fault until a
+        # fresh heartbeat arrives (bounded), so an unplug/replug is never scored as RF DoS.
+        self._was_disconnected: bool = False
+        self._resync_pending: bool = False
+        self._resync_hb_t: float = -1e9
+        self._resync_start_t: float | None = None
         self._param_writes: deque[tuple[float, int, int, str, float]] = deque(maxlen=100)
         self._fence_changes: deque[tuple[float, int, int, str, int]] = deque(maxlen=100)
         self._optflow_speed: float | None = None
@@ -398,7 +409,30 @@ class FeatureExtractor:
 
     def note_transport_connected(self, connected: bool) -> None:
         """Record underlying link connection state (False on local serial/socket disconnect)."""
-        self._transport_connected = bool(connected)
+        connected = bool(connected)
+        if not connected:
+            self._was_disconnected = True
+            self._resync_pending = False
+        elif self._was_disconnected:
+            self._was_disconnected = False
+            self._resync_pending = True
+            self._resync_hb_t = self._last_heartbeat_t
+            self._resync_start_t = None
+            self._seq_state.clear()  # counters restart across an unplug: not a loss/flood signal
+            self._seq_gap.clear()
+        self._transport_connected = connected
+
+    _RESYNC_MAX_S = 5.0
+
+    def _resyncing(self, t: float) -> bool:
+        if not self._resync_pending:
+            return False
+        if self._resync_start_t is None:
+            self._resync_start_t = t
+        if self._last_heartbeat_t > self._resync_hb_t or t - self._resync_start_t > self._RESYNC_MAX_S:
+            self._resync_pending = False
+            return False
+        return True
 
     def update(self, msg: MessageEnvelope) -> None:
         t = msg.recv_time
@@ -921,7 +955,7 @@ class FeatureExtractor:
             mission_xtrack_m=m_xt,
             mission_wp_dist_m=m_wd,
             mission_wp_seq=m_seq,
-            transport_connected=self._transport_connected,
+            transport_connected=self._transport_connected and not self._resyncing(t),
             autopilot_id=self._autopilot_id,
             mav_type=self._mav_type,
             param_writes_recent=params_recent,
@@ -969,6 +1003,14 @@ class FeatureExtractor:
             return 0.0, 0.0
         (t0, vx0, vy0), (t1, vx1, vy1) = self._vel_hist[-2], self._vel_hist[-1]
         dt = t1 - t0
+        if self.accel_min_dt_s > 0.0 and dt < self.accel_min_dt_s:
+            # Reach back to the newest sample at least ``accel_min_dt_s`` older; with none, keep the last value.
+            for ts, vxs, vys in reversed(list(self._vel_hist)[:-1]):
+                if t1 - ts >= self.accel_min_dt_s:
+                    t0, vx0, vy0, dt = ts, vxs, vys, t1 - ts
+                    break
+            else:
+                return (self._accel_prev[1] if self._accel_prev is not None else 0.0), 0.0
         if dt <= 1e-6:
             return 0.0, 0.0
         accel = math.hypot(vx1 - vx0, vy1 - vy0) / dt

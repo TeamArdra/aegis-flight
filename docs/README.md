@@ -50,6 +50,7 @@ QUICKSTART  →  HANDOFF  →  ARCHITECTURE  →  END_TO_END_FLOW  →  FILE_REF
 - [VALIDATION_EVIDENCE.md](VALIDATION_EVIDENCE.md) — empirical validation table (TC-01…TC-06) + evidence levels.
 - [REPORT_ALIGNMENT.md](REPORT_ALIGNMENT.md) — competition report mapping & compliance matrix.
 - [STAGE2_PROGRESS.md](STAGE2_PROGRESS.md) — Stage 2 engineering ledger and implementation progress.
+- [STAGE2_SECURITY_AND_FEATURE_RATIONALE.md](STAGE2_SECURITY_AND_FEATURE_RATIONALE.md) — reviewer guide explaining how all preserved Stage-2 and Universal Flight-Hardening features satisfy security boundaries across PRs #79–#82.
 - [STAGE2_RUNBOOK.md](STAGE2_RUNBOOK.md) — SITL integration, automated verification, and regression test suites.
 - [stage2_report_draft.md](stage2_report_draft.md) — withdrawn report draft; rebuild from VALIDATION_EVIDENCE.md.
 - [SKILLS_REGISTRY.md](SKILLS_REGISTRY.md) — policy notice for third-party agent skills (unverified external skill catalogue removed).

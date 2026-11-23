@@ -1,0 +1,29 @@
+{"t_ns": 6302729430781, "kind": "summary", "to": "controller", "summary": "Nominal flight (IDS passive)", "mode": "passive", "state": "NOMINAL"}
+{"t_ns": 6388931707195, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] DETECTED: DOS:GNSS_JAMMING (score=0.62) \u2014 Passive monitoring (0B TX)", "mode": "passive", "state": "AUTO_MITIGATING"}
+{"t_ns": 6418930319042, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] SUSTAINED INTRUSION (>30s): Continuous attack vector detected", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6428130774005, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (1/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6428330403671, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (2/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6428530472130, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (3/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6428730889463, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (4/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6428930564088, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (5/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6429130391005, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (6/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6429330313005, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (7/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6429530859589, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (8/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6429730573839, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (9/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6429930531797, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (10/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6430130286672, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (11/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6430330259672, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (12/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6430530428089, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (13/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6430730591298, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (14/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6430930378589, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (15/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6431130451089, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (16/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6431330266881, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (17/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6431530434881, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (18/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6431730391881, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (19/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6431931404090, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (20/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6432130749257, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (21/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6432330816715, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (22/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6432530726215, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (23/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6432730428798, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] VERIFYING CLEARANCE (24/25 clean ticks)", "mode": "passive", "state": "SAFE_HOLD"}
+{"t_ns": 6432930755549, "kind": "summary", "to": "controller", "summary": "[AEGIS IDS] CLEARED: Telemetry clean for 5.0s -> Nominal baseline", "mode": "passive", "state": "NOMINAL"}
+{"t_ns": 6433130361965, "kind": "summary", "to": "controller", "summary": "Nominal flight (IDS passive)", "mode": "passive", "state": "NOMINAL"}
