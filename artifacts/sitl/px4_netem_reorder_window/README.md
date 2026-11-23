@@ -1,5 +1,7 @@
 # PX4 SITL under tc netem: `reorder_window` 16 vs 48 [SITL + SIM, link-level, benign-only on PX4]
 
+> **Window values (2026-11-23).** Every run and number in this folder used `reorder_window` **48** (the value this PR first shipped) or **16** (the Stage-1 default). The `universal_flight` profile now ships the D11 **candidate 24** (maintainer decision, #4), which **no run here measured**; 24 is not validated until a fresh SITL rerun. The measured values below are unchanged.
+
 Claim class: link-level false-alarm behaviour (PX4) and link-level detection (simulator `seq_scramble`).
 No attack was injected on PX4. Nothing here is real-vehicle or detection-on-PX4 evidence.
 
@@ -16,7 +18,7 @@ No attack was injected on PX4. Nothing here is real-vehicle or detection-on-PX4 
 # per run (fresh PX4 first); netem runs first execute scripts/hardware/px4_netem_on.sh
 python scripts/hardware/px4_benign_netem.py --out <stem> --profile <dir> --laps 1
 ```
-`<dir>` = `configs/universal_flight` (window 48) or a copy of it without the `reorder_window` line (window 16, the shipped Stage-1 value).
+`<dir>` = a copy of `configs/universal_flight` with `reorder_window` set explicitly to 48 (as in these runs) or 16 (the Stage-1 default); see the commands at the end. Do not point it at `configs/universal_flight` itself, which now ships 24.
 Netem: `delay 40ms 20ms loss 1%` on UDP to/from GCS port 18570 only.
 
 ## PX4 results (same mission each run: arm, 20 m, square legs, land)
@@ -50,8 +52,11 @@ An earlier version of this README and of the PR body gave a benign mean FPR of 0
 Regenerate (SIM, link-level; run from the repo root at this PR's head, `PYTHONPATH=src`):
 
 ```
-# window-16 profile = configs/universal_flight/detector.yaml minus the "reorder_window: 48" line
-mkdir <scratch>/prof16 && grep -v "^  reorder_window: 48" configs/universal_flight/detector.yaml > <scratch>/prof16/detector.yaml
-python scripts/hardware/seq_scramble_window_ab.py <scratch>/prof16 configs/universal_flight seq_scramble_e2e_sim.json
+# Both arms set reorder_window explicitly, so they differ only in the window whatever the shipped profile holds.
+mkdir <scratch>/prof16 <scratch>/prof48
+sed -E 's/^(  reorder_window: )[0-9]+/\116/' configs/universal_flight/detector.yaml > <scratch>/prof16/detector.yaml
+sed -E 's/^(  reorder_window: )[0-9]+/\148/' configs/universal_flight/detector.yaml > <scratch>/prof48/detector.yaml
+diff <scratch>/prof16/detector.yaml <scratch>/prof48/detector.yaml   # expect exactly one line: reorder_window 16 vs 48
+python scripts/hardware/seq_scramble_window_ab.py <scratch>/prof16 <scratch>/prof48 seq_scramble_e2e_sim.json
 ```
 Regenerated at `37c9217` with Python 3.13, ML off; no PX4 run artifact (`runs/`, `tlog_sha256.txt`) was touched.
