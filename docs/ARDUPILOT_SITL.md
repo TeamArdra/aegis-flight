@@ -212,3 +212,7 @@ Question: can the FC stream to a monitor that **never transmits**, if the stream
 .venv/Scripts/python.exe scripts/ardupilot/make_ap_baseline_summary.py
 ```
 Raw tlogs are local (`data/ardupilot/raw/`, sha256 in each `manifest.json`); everything else is committed-able under `artifacts/ardupilot/`.
+
+## In-flight false alerts per hour and profile gating (#49)
+
+Under the Stage-1 default configuration with ML enabled, 171 of 171 (`100 %`) post-boot (`from_arm_phase`) alert events and 120 of 120 (`100 %`) airborne (`takeoff`/`square`/`rtl`) alert events across `ap_benign_six_001..004` and `ap_benign_groups_001` were caused by uncorroborated `ml_anomaly` scores (`interarrival_jitter_ms` z-scores `+7..+15`). Loading `--config-dir configs/ardupilot_copter` (`anomaly.enabled: false`, `fusion.ml_require_corroboration: true`) reduces in-flight false alert events to **0 (`0.0 / h`, 95% one-sided Poisson upper bound `21.26 / h` on the 4 held-out runs and `12.21 / h` pooled across all 7 runs)** while preserving **6 / 6 (`100 %`)** position-drift detections with **`+0.00 s`** onset latency change (`artifacts/validation/inflight_fa_per_hour_20261119/summary.md`, environment `SITL`, claim class: link-level detection).

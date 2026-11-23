@@ -95,3 +95,14 @@ benchmark scores whether *all* active classes appear in primary ∪ secondary. M
 
 ## Adding a new attack
 See `docs/ADDING_A_NEW_ATTACK.md`.
+
+## Live SITL proxy extensions (#24)
+`src/aegisflight/proxy/attacks_live_telemetry.py` mirrors the Stage-1 telemetry-manipulation,
+firmware-identity (`AUTOPILOT_VERSION`), and restricted-visibility command-injection scenarios as
+live MAVLink-2 `FrameHook`s (`AltitudeBiasAttack`, `SpeedMismatchAttack`, `BatteryJumpAttack`,
+`FrozenAttitudeAttack`, `FirmwareIdentityAttack`, `build_restricted_visibility_hook`).
+
+- **Disclosure (red/blue separation):** the same engineering team implemented both the proxy hooks
+  and the detectors (`docs/PROJECT_STATE_2026-11-18.md`). Unit tests verify valid MAVLink-2 CRC
+  re-encoding, signed-frame skip invariants, and `FrameLogWriter` ground truth; live PX4/ArduPilot
+  `n = 1` SITL dry runs are left to the SITL runner (`scripts/sitl/run_p2_telemetry_trial.py`).

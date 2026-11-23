@@ -114,7 +114,6 @@ class EndpointIdentifier:
 
         elif msgname == "AUTOPILOT_VERSION":
             caps = fields.get("capabilities", 0)
-            self.fingerprint.has_gps = True
             major = (fields.get("flight_sw_version", 0) >> 24) & 0xFF
             minor = (fields.get("flight_sw_version", 0) >> 16) & 0xFF
             patch = (fields.get("flight_sw_version", 0) >> 8) & 0xFF

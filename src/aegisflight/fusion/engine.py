@@ -57,6 +57,7 @@ class FusionEngine:
         self.alert_min_severity = Severity[cfg.get("alert_threshold_severity", "SUSPICIOUS")]
         self.cooldown_s = float(cfg.get("cooldown_s", 4.0))
         self.clear_ticks = int(cfg.get("clear_ticks", 4))
+        self.ml_require_corroboration = bool(cfg.get("ml_require_corroboration", False))
 
         # alert state
         self._last_alert_t: dict[AttackType, float] = {}
@@ -87,6 +88,12 @@ class FusionEngine:
             wi = self.w.get(r.detector, 0.0)
             prod *= 1.0 - min(1.0, r.score * wi)
         threat_score = 1.0 - prod
+        if self.ml_require_corroboration and threat_score >= self.threat_threshold:
+            non_ml_active = any(
+                r.detector is not DetectorName.ANOMALY and r.score > 0.0 for r in results
+            )
+            if not non_ml_active:
+                threat_score = min(threat_score, max(0.0, self.threat_threshold - 1e-4))
 
         # ---- attack attribution: weighted vote across detectors ----
         vote_totals: dict[AttackType, float] = {}

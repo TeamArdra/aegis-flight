@@ -61,7 +61,10 @@ def nav_probe_vector(bundle: dict, frame) -> np.ndarray:
 def score_ulog_flight(ticks: Iterable, airborne: Callable[[float], bool], cfg: AegisConfig,
                       bundle: dict | None) -> list[dict]:
     """Run extractor + physics (+ ML nav probe) over ``(t, msgs)`` ticks."""
-    fe = FeatureExtractor(cmd_window_s=cfg.detector["protocol"].get("command_burst_window_s", 2.0))
+    fe = FeatureExtractor(
+        cmd_window_s=cfg.detector["protocol"].get("command_burst_window_s", 2.0),
+        reorder_window=int(cfg.detector.get("features", {}).get("reorder_window", 16)),
+    )
     phys = PhysicsDetector(cfg.detector["physics"])
     rows: list[dict] = []
     for t, msgs in ticks:

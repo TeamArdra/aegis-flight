@@ -126,6 +126,29 @@ def digest(updates: list[dict]) -> str:
     return h.hexdigest()
 
 
+def _round_floats(o, sig: int):
+    if isinstance(o, float):
+        return float(f"{o:.{sig - 1}e}") if o == o and o not in (float("inf"), float("-inf")) else o
+    if isinstance(o, dict):
+        return {k: _round_floats(v, sig) for k, v in o.items()}
+    if isinstance(o, list):
+        return [_round_floats(v, sig) for v in o]
+    return o
+
+
+def digest_portable(updates: list[dict], sig: int = 9) -> str:
+    """Like ``digest`` with every float rounded to ``sig`` significant digits.
+
+    The ML anomaly score is not bit-identical across CPU / BLAS builds (Linux x86-64 CI differs from the Windows and
+    macOS recordings in the last bits), so the ML-on reference is compared in this rounded form.
+    """
+    h = hashlib.sha256()
+    for u in updates:
+        h.update(canonical(_round_floats(mask(u), sig)).encode())
+        h.update(b"\n")
+    return h.hexdigest()
+
+
 def collect() -> dict[str, list[dict]]:
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
         dd = Path(d)

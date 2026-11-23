@@ -264,7 +264,13 @@ export interface Metrics {
   last_latency_ms: number | null; // legacy alias of decision_compute_ms
   time_to_detect_s: number | null;
   distance_m: number;
-  event_log: { count: number; chain_ok: boolean };
+  event_log: {
+    count: number;
+    chain_ok: boolean;
+    anchor_head_hash?: string | null;
+    anchor_age_s?: number | null;
+    anchor_signed?: boolean | null;
+  };
   ml_available: boolean;
   environment?: Environment;
 }

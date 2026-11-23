@@ -21,17 +21,20 @@ Missing/incompatible model => the detector degrades to a no-op (score 0).
 
 from __future__ import annotations
 
+import logging
 import math
+import warnings
 from operator import attrgetter
 from pathlib import Path
 
-import joblib
 import numpy as np
 
 from ..core.enums import AttackType, DetectorName
 from ..core.types import DetectorResult
 from ..features.extractor import ML_FEATURES, FeatureFrame
 from .base import Detector
+
+log = logging.getLogger(__name__)
 
 # Which ML feature, when most anomalous, implies which attack class.
 FEATURE_ATTACK_MAP: dict[str, AttackType] = {
@@ -178,31 +181,90 @@ def _fast_scorer(path: Path | None, bundle: dict) -> _FastScorer | None:
 class AnomalyDetector(Detector):
     name = DetectorName.ANOMALY
 
-    def __init__(self, cfg: dict, model_path: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        cfg: dict,
+        model_path: str | Path | None = None,
+        *,
+        allow_unverified: bool = False,
+    ) -> None:
         """``model_path=None`` means **ML off** (detector is a no-op).
 
         Previously ``None`` silently fell back to ``cfg["model_path"]``, so the
         documented ``--no-model`` / ``model_path=None`` "rule + physics only"
         runs still loaded the model whenever ``models/isoforest.joblib`` existed.
         Callers that want the model pass its path explicitly.
+
+        Security boundary (#11 / D4): every model file is checked against ``MODELS.sha256``
+        BEFORE ``joblib.load()`` deserialization; tampered (``mismatch``) or ``unlisted``
+        files are refused without unpickling unless ``allow_unverified=True``.
         """
+        self.enabled = bool(cfg.get("enabled", True))
         self.threshold = float(cfg.get("score_threshold", 0.62))
         self.warmup_ticks = int(cfg.get("warmup_ticks", 20))
-        path = Path(model_path) if model_path else None
+        calibrated_override = cfg.get("calibrated_model_path")
+        if not self.enabled and calibrated_override:
+            path = Path(calibrated_override)
+        elif not self.enabled:
+            path = None
+        else:
+            path = Path(model_path) if model_path else None
         self.model_path = path
         self.bundle: dict | None = None
+        self.load_error: str | None = None
+        # SHA-256 of the file that was actually deserialised (None unless a model loaded); benchmark
+        # metadata records this, never a hash of a file that was refused
+        self.loaded_sha256: str | None = None
         self._ticks = 0
         self._fast: _FastScorer | None = None
         self._fast_bundle: dict | None = None
         self._get_features = attrgetter(*ML_FEATURES)
+        if path is not None and not path.exists():
+            log.warning(
+                "ML model requested but not loaded: %s does not exist; ML detector is OFF "
+                "(fetch it with `python scripts/fetch_models.py`)",
+                path,
+            )
         if path is not None and path.exists():
-            try:
-                self.bundle = joblib.load(path)
-            except Exception:  # noqa: BLE001 - corrupt/incompatible model => degrade
+            from ..model_integrity import OK as _MODEL_OK  # noqa: PLC0415
+            from ..model_integrity import check_model as _check_model  # noqa: PLC0415
+
+            chk = _check_model(path)
+            if chk.status != _MODEL_OK and not allow_unverified:
                 self.bundle = None
+                self.load_error = f"ModelIntegrityError ({chk.status}): {chk.message()}"
+                log.warning(
+                    "ML model refused before deserialization (%s): %s; ML detector is OFF",
+                    chk.status,
+                    chk.message(),
+                )
+                return
+            try:
+                import joblib  # noqa: PLC0415 - lazy so slim ML-off onboard installs work without joblib
+
+                self.bundle = joblib.load(path)
+            except ImportError as exc:
+                self.bundle = None
+                self.load_error = f"ImportError: {exc}"
+                warnings.warn(
+                    f"AnomalyDetector disabled despite model file {path}: {exc} "
+                    "(install scikit-learn/joblib to enable ML)",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            except Exception as exc:  # noqa: BLE001 - corrupt/incompatible model => degrade
+                self.bundle = None
+                self.load_error = f"{type(exc).__name__}: {exc}"
+                log.warning(
+                    "ML model requested but not loaded: %s is unreadable (%s: %s); ML detector is OFF",
+                    path,
+                    type(exc).__name__,
+                    exc,
+                )
             else:
                 self._fast = _fast_scorer(path, self.bundle)
                 self._fast_bundle = self.bundle
+                self.loaded_sha256 = chk.sha256
 
     @property
     def available(self) -> bool:

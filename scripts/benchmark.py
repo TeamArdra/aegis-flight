@@ -22,6 +22,7 @@ from pathlib import Path
 
 from aegisflight.benchmark.harness import run_benchmark
 from aegisflight.config import load_config
+from aegisflight.model_integrity import resolve_model_or_exit
 
 
 def main() -> None:
@@ -30,12 +31,15 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=Path("artifacts/benchmarks"))
     ap.add_argument("--model", type=str, default="models/isoforest.joblib")
     ap.add_argument("--no-model", action="store_true", help="run rule+physics only")
+    ap.add_argument("--allow-unverified-model", action="store_true",
+                    help="use a model whose SHA-256 differs from models/MODELS.sha256")
     ap.add_argument("--no-figures", action="store_true")
     ap.add_argument("--grace", type=float, default=5.0)
     args = ap.parse_args()
 
     cfg = load_config()
-    model_path = None if args.no_model else args.model
+    model_path = resolve_model_or_exit(args.model, no_model=args.no_model,
+                                       allow_unverified=args.allow_unverified_model)
     print(f"Running benchmark: seeds={args.seeds} model={'off' if args.no_model else model_path}")
     result = run_benchmark(cfg, seeds=args.seeds, model_path=model_path,
                            out_dir=args.out, grace_s=args.grace)

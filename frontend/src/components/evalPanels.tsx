@@ -194,18 +194,34 @@ function IntegrationPanelImpl() {
 /* -------------------------------------------------------------- validation
    BENCHMARK / VALIDATION evidence — clearly labelled, never presented as live
    telemetry. Figures are quoted verbatim from committed artifacts/**. */
-type ValTier = "sim" | "expanded" | "real";
+type ValTier = "sim" | "expanded" | "sitl" | "replay";
 const TIER_LABEL: Record<ValTier, string> = {
   sim: "Simulated",
   expanded: "Expanded sim",
-  real: "Real-data",
+  sitl: "SITL",
+  replay: "Replay",
 };
 const VAL_ROWS: Array<{ tier: ValTier; metric: string; value: string }> = [
-  { tier: "sim", metric: "Baseline accuracy", value: "99.7%  ·  FPR 0.02%  ·  23,430 decisions" },
-  { tier: "expanded", metric: "Expanded v2 accuracy", value: "97.7% (5 s grace)  ·  97.0% (no grace)" },
-  { tier: "real", metric: "ArduPilot ALFA (calibrated, ML-off)", value: "0.2% FPR held-out  ·  100% FPR uncalibrated" },
-  { tier: "sim", metric: "Time to detect", value: "0.36 s mean  ·  1.4 s p95" },
-  { tier: "sim", metric: "Decision compute", value: "17.7 ms mean  ·  23.6 ms p95 (ML on)" },
+  {
+    tier: "sim",
+    metric: "Baseline accuracy (SIM, ML-on · artifacts/benchmarks/summary.md)",
+    value: "99.7% (6535/4/16826/65)  ·  23,430 decisions  ·  link-level",
+  },
+  {
+    tier: "expanded",
+    metric: "Expanded v2 accuracy (SIM · artifacts/benchmarks_extended/summary.md)",
+    value: "97.7% (5 s grace)  ·  97.0% (no grace)  ·  link-level",
+  },
+  {
+    tier: "sitl",
+    metric: "PX4 SITL calibrated (SITL, ML-off · artifacts/sitl/calibration/evaluation_heldout.json)",
+    value: "1 / 2,805 held-out false alarms  ·  false-alarm only (no attacks)",
+  },
+  {
+    tier: "replay",
+    metric: "ArduPilot ALFA replay (REPLAY, ML-off · artifacts/external/alfa_calibrated/results.json)",
+    value: "Calibrated nominal-rate replay  ·  physical faults only (no cyber attacks)",
+  },
 ];
 
 function ValidationPanelImpl() {

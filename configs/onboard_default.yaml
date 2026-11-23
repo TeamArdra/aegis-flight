@@ -1,0 +1,43 @@
+# Default unified onboard companion configuration (safe passive defaults).
+# Load with: aegis onboard --config configs/onboard_default.yaml
+fc_port: /dev/ttyAMA0
+fc_baud: 921600
+gcs_port: /dev/ttyUSB0
+gcs_baud: 57600
+allow_url: false
+
+# Strict mode separation (#58): passive sends 0 bytes on FC & GCS links.
+defense_mode: passive
+mgmt_enable: false
+
+# Detector calibration profile (e.g. configs/ardupilot_copter or configs/px4_sitl)
+config_dir: null
+
+# Bounded logging and archive retention (#59)
+run_root: /var/lib/aegisflight/runs
+archive_enabled: true
+allow_dirty: true
+db_name: events.sqlite
+retention:
+  max_db_bytes: 52428800        # 50 MiB per SQLite hash-chain segment
+  max_jsonl_bytes: 52428800     # 50 MiB per archive JSONL segment
+  max_rotations: 5
+  max_total_disk_bytes: 524288000  # 500 MiB total cap across active run directory
+  check_interval_s: 5.0
+
+# Optional signing / integrity files (paths stay outside the repo)
+signing_key_file: null
+signing_state: null
+signing_permissive: false
+allow_unsigned: false
+firmware_dir: null
+firmware_recheck_s: 30.0
+
+# Loopback status endpoint + optional dashboard UI subprocess
+status_host: 127.0.0.1
+status_port: 8090
+control_token_file: null
+dashboard:
+  enabled: false
+  host: 127.0.0.1
+  port: 8000

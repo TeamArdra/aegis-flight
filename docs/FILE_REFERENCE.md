@@ -189,7 +189,8 @@ Tested by `test_fusion_and_metrics.py`.
 ## `src/aegisflight/hal/` — Hardware Abstraction Layer (CORE Stage 2)
 
 - `hal/discovery.py` — Auto-discovery across serial/USB devices (CubePilot, Pixhawk 6X/4/2.4.8, SiK Telemetry, ExpressLRS, Holybro).
-- `hal/identify.py` — Host platform & companion compute detection (Raspberry Pi 4/5/Zero, NVIDIA Jetson, Rockchip) + dynamic latency budgets (15–65 ms).
+- `hal/discovery.py` — Host platform heuristics (Raspberry Pi / NVIDIA Jetson metadata, not wired into the decision pipeline; budgets unmeasured).
+- `hal/identify.py` — MAVLink heartbeat/sensor role identification (vehicle, GCS, firmware dialect).
 - `hal/profiles.py` — Autopilot firmware detection & parameter adaptation (ArduPilot Copter/Plane/Rover vs PX4 Autopilot).
 - `hal/link_graph.py` — Live topology graph builder (`TelemetryLinkGraph`), node identification, routing path resolution.
 - `hal/topology.py` — Topology selector: selects optimal topology (`TOPOLOGY_B`, `TOPOLOGY_A`, `TOPOLOGY_A_PLUS_B`, `IDS_ONLY`) with human-readable rationale.

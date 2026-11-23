@@ -74,21 +74,22 @@ T0_UNIX = 1_792_000_000.0
 # --------------------------------------------------------------------------- #
 
 def synthetic_stream(seconds: float, *, fix: tuple[int, int] = (3, 10), hb: bool = True,
-                     gpi: bool = True) -> list[tuple[float, bytes]]:
+                     gpi: bool = True, fix_fn=None) -> list[tuple[float, bytes]]:
     """SYNTHETIC 10 Hz link, one sequence counter: HEARTBEAT/SYS_STATUS 1 Hz, GPS_RAW_INT 2 Hz with ``fix`` =
     (fix_type, satellites), GLOBAL_POSITION_INT/VFR_HUD 5 Hz (non-zero lat/lon), ATTITUDE 10 Hz; stationary."""
     m = mav.MAVLink(None, srcSystem=1, srcComponent=1)
     out: list[tuple[float, bytes]] = []
     for k in range(int(round(seconds * 10))):
         t = k / 10
+        cur_fix = fix_fn(t) if fix_fn is not None else fix
         msgs = []
         if k % 10 == 0:
             if hb:
                 msgs.append(m.heartbeat_encode(2, 3, 81, 0, 4, 3))
             msgs.append(m.sys_status_encode(0, 0, 0, 500, 16000, -1, 90, 0, 0, 0, 0, 0, 0))
         if k % 5 == 0:
-            msgs.append(m.gps_raw_int_encode(int(t * 1e6), fix[0], 129_000_000, 775_000_000, 900_000, 100, 100,
-                                             0, 0, fix[1]))
+            msgs.append(m.gps_raw_int_encode(int(t * 1e6), cur_fix[0], 129_000_000, 775_000_000, 900_000, 100, 100,
+                                             0, 0, cur_fix[1]))
         if k % 2 == 0:
             if gpi:
                 msgs.append(m.global_position_int_encode(int(t * 1000), 129_000_000, 775_000_000, 900_000, 0,
@@ -323,8 +324,27 @@ def test_socket_serial_source_makes_decisions_and_is_labelled_replay(tmp_path):
 # --------------------------------------------------------------------------- #
 
 def _bad_fix_tlog(tmp_path: Path) -> Path:
-    # SYNTHETIC: position streams, receiver reports fix 0 / 0 satellites -> the GNSS rule's "never acquired" DOS alerts
+    # SYNTHETIC: position streams, receiver reports fix 0 / 0 satellites -> SIM default GNSS "never acquired" DOS alerts
     return write_tlog(tmp_path / "synthetic_bad_fix.tlog", synthetic_stream(20.0, fix=(0, 0)))
+
+
+def test_gnss_never_acquired_produces_zero_dos_alerts_under_live_profile(tmp_path):
+    from aegisflight.config import load_config
+
+    cfg = load_config("configs/ardupilot_copter")
+    assert cfg.detector["protocol"]["gnss_never_acquired_policy"] == "coverage"
+    tlog = write_tlog(tmp_path / "synthetic_never_fix.tlog", synthetic_stream(20.0, fix=(0, 0)))
+    eng = LiveEngine(
+        cfg=cfg,
+        db_path=str(tmp_path / "live.sqlite"),
+        spec=replay_spec(tlog),
+    )
+    with serve(eng) as client:
+        st, _ = poll(client, lambda s: link(s)["state"] == "ended", timeout_s=30)
+        api = client.get("/api/events?limit=200").json()
+    assert link(st)["state"] == "ended", link(st)
+    dos_events = [e for e in api["events"] if e.get("attack_type") == "DOS"]
+    assert dos_events == [], dos_events
 
 
 @pytest.mark.parametrize("which", ["synthetic_bad_fix", pytest.param("capture_007", marks=needs_007)])

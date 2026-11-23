@@ -106,24 +106,22 @@ def test_px4_gnss_loss_at_370hz_is_classified_gnss_and_sends_no_do_set_mode_with
     assert r.c.sanitizer is not None and r.c._sanitize_gps_latched is True  # ANTI_JAM_DR path engaged
 
 
-def test_px4_sustained_gnss_loss_past_30s_SAFE_HOLD_path_sends_alt_hold_regardless_of_px4_mode_names():
-    """MEASURED BEHAVIOUR, pinned for the maintainer (not a recommendation).
+def test_px4_sustained_gnss_loss_past_30s_reaches_SAFE_HOLD_but_sends_no_do_set_mode():
+    """MEASURED BEHAVIOUR on current main (the #140 SAFE_HOLD gate), pinned for the maintainer.
 
-    After > 150 consecutive threat ticks (30 s at 5 Hz) the controller enters SAFE_HOLD, and the
-    'Safe Hold Escalation' block sends ``encode_set_mode("ALT_HOLD")`` whenever a GPS episode is
-    open. That block does not look at the vehicle's flight_mode, so the ladder's PX4 guard
-    ('only an ArduCopter mode name is acted on') does not apply to it: a PX4 vehicle gets the
-    ArduCopter ALT_HOLD number (2) in a DO_SET_MODE after 30 s of GNSS loss. This is the
-    command the SITL evidence in #112 attributes to 'DO_SET_MODE ALTCTL'.
+    After > 150 consecutive threat ticks (30 s at 5 Hz) the controller enters SAFE_HOLD. The
+    'Safe Hold Escalation' block now sends ``encode_set_mode("ALT_HOLD")`` only when the vehicle
+    reports a mode the actuator can encode (``knows_mode(fm)``, ArduCopter names only) and is
+    known to be armed. A PX4 vehicle (AUTO_LOITER) therefore gets NO DO_SET_MODE, even after 30 s
+    of GNSS loss: the state still escalates to SAFE_HOLD, the pilot is still told, and nothing is
+    sent that PX4 would misread as an ArduCopter ALT_HOLD number. Before #140 this test pinned the
+    opposite (a DO_SET_MODE carrying custom mode 2).
     """
     r = Run()
     r.run(40.0, AttackType.DOS, GNSS_EVIDENCE, mode="AUTO_LOITER")  # the 40 s fault of the SITL run
-    sent = r.set_modes()
-    assert len(sent) >= 1
-    assert all(m == COPTER_ALT_HOLD for _t, m in sent)
-    first_t = sent[0][0]
-    assert first_t - r.t0 >= 30.0 - 1e-6  # only from the 151st threat tick (150-tick SAFE_HOLD threshold)
-    assert r.log[-1][2] == MitigationState.SAFE_HOLD
+    assert r.set_modes() == []  # the gate: knows_mode("AUTO_LOITER") is False
+    assert r.log[-1][2] == MitigationState.SAFE_HOLD  # the state machine still escalates
+    assert len(r.statustexts()) >= 1
 
 
 def test_px4_high_rate_flood_without_gnss_evidence_stays_a_flood_and_sends_no_do_set_mode():

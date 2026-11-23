@@ -96,7 +96,8 @@ def collect_benign_dataset(
 
         src = SimulatedTelemetrySource(cfg, attack=None, seed=sess_seed)
         fe = FeatureExtractor(
-            cmd_window_s=base.detector["protocol"].get("command_burst_window_s", 2.0)
+            cmd_window_s=base.detector["protocol"].get("command_burst_window_s", 2.0),
+            reorder_window=int(base.detector.get("features", {}).get("reorder_window", 16)),
         )
         count = 0
         for tick in src.stream():

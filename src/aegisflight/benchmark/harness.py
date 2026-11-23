@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import platform
 import time
 from pathlib import Path
@@ -29,6 +30,8 @@ from ..core.geo import haversine_m
 from ..metrics.resources import ResourceSampler
 from ..metrics.scoring import evaluate
 from .runner import run_session
+
+log = logging.getLogger(__name__)
 
 SCENARIOS = [
     "benign",
@@ -56,12 +59,16 @@ def run_benchmark(
     model_path: str | None = "models/isoforest.joblib",
     out_dir: str | Path = "artifacts/benchmarks",
     grace_s: float = 5.0,
+    allow_unverified_model: bool = False,
 ) -> dict:
     seeds = seeds or [1, 2, 3, 4, 5, 6]
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     if model_path and not Path(model_path).exists():
-        model_path = None  # run rule+physics-only if the model isn't trained
+        # library API keeps its old fallback (rule+physics only), but never silently; the `aegis benchmark`
+        # CLI refuses to get here without the model unless --no-model was given
+        log.warning("benchmark asked for ML but %s does not exist: running ML OFF (model_sha256=none)", model_path)
+        model_path = None
 
     all_true: list[AttackType] = []
     all_pred: list[AttackType] = []
@@ -73,6 +80,8 @@ def run_benchmark(
     per_scenario_pairs: dict[str, tuple[list, list]] = {}
     n_messages_total = 0
     n_decisions_total = 0
+    ml_loaded_flags: list[bool] = []
+    ml_loaded_hashes: set[str | None] = set()
 
     sampler = ResourceSampler()
     sampler.start()
@@ -82,8 +91,11 @@ def run_benchmark(
         for i, seed in enumerate(seeds):
             route = ROUTES[i % len(ROUTES)]
             res = run_session(cfg, scenario, seed=seed, route=route,
-                              model_path=model_path, grace_s=grace_s)
+                              model_path=model_path, grace_s=grace_s,
+                              allow_unverified_model=allow_unverified_model)
             sampler.sample()
+            ml_loaded_flags.append(res.ml_loaded)
+            ml_loaded_hashes.add(res.ml_sha256)
 
             scored = [r for r in res.records if r.scored]
             all_true.extend(r.true_label for r in scored)
@@ -150,11 +162,18 @@ def run_benchmark(
             "n_scored": len(yt),
         }
     result["per_scenario"] = per_scenario
+    # what the pipeline actually loaded, not what was requested: a refused/corrupt/unreadable model leaves ML OFF
+    model_used = bool(ml_loaded_flags) and all(ml_loaded_flags) and len(ml_loaded_hashes) == 1
+    model_sha256 = next(iter(ml_loaded_hashes)) if model_used and None not in ml_loaded_hashes else "none"
+    if model_path and not model_used:
+        log.warning("benchmark asked for ML (%s) but no model was loaded: ML was OFF (model_used=False, "
+                    "model_sha256=none)", model_path)
     result["config"] = {
         "seeds": seeds,
         "routes": ROUTES,
         "grace_s": grace_s,
-        "model_used": bool(model_path),
+        "model_used": model_used,
+        "model_sha256": model_sha256,
         "decision_rate_hz": cfg.detector.get("decision_rate_hz"),
         "python": platform.python_version(),
     }
@@ -186,7 +205,8 @@ def _summary_md(r: dict) -> str:
         "",
         f"_Generated from {r['n_decisions']} scored decisions across "
         f"{len(r['config']['seeds'])} seeds × {len(SCENARIOS)} scenarios. "
-        f"Model used: {r['config']['model_used']}._",
+        f"Model used: {r['config']['model_used']}. "
+        f"model_sha256: {r['config'].get('model_sha256', 'none')}._",
         "",
         "## Binary detection (attack vs benign)",
         "",

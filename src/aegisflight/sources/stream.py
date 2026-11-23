@@ -48,6 +48,9 @@ class TelemetryTick:
     # measurement (the equivalent of a dropped/bad frame count), always 0 by construction
     # here, never read by anything in this module.
     sig_invalid: int = 0
+    # ADDITIVE (#19): per-stream (sysid, compid, link_id) signature events for settle window.
+    sig_invalid_streams: dict[tuple[int, int, int], int] = field(default_factory=dict)
+    sig_verified_streams: set[tuple[int, int, int]] = field(default_factory=set)
 
 
 class SimulatedTelemetrySource:

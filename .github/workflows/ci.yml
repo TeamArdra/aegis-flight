@@ -48,9 +48,18 @@ jobs:
       - name: Ruff
         run: ruff check src tests scripts backend
 
+      - name: Fetch the verified models
+        # Public release download (models-v1), no token needed. The script checks every file against the
+        # committed models/MODELS.sha256 and exits non-zero on a missing file or a mismatch, failing the job.
+        run: python scripts/fetch_models.py
+
       - name: Pytest
         # pyproject addopts already adds -q; another -q (-qq) would hide the "N passed" line.
         # -p no:cacheprovider: no .pytest_cache writes. -r s: list skip reasons.
+        # AEGIS_REQUIRE_MODEL=1: a model-dependent test (golden ML-on, ...) that would skip because the model is
+        # absent or differs fails instead, so ML-on coverage cannot silently disappear.
+        env:
+          AEGIS_REQUIRE_MODEL: "1"
         run: python -m pytest -p no:cacheprovider -r s
 
       - name: Record resolved dependency versions
