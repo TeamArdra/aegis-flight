@@ -66,6 +66,8 @@ def _make_dummy_frame(
     pos_residual_m: float = 0.0,
 ) -> FeatureFrame:
     return FeatureFrame(
+        autopilot_id=3,
+        mav_type=2,
         t=snap.t,
         snapshot=snap,
         gps_seen=gps_seen,
@@ -347,6 +349,7 @@ def test_manual_overrides():
 
 def test_mavlink_actuator_encoding():
     actuator = MavlinkActuator()
+    actuator.set_vehicle_dialect(3, 2)  # explicit ArduCopter dialect: no heartbeat => fail-closed (no DO_SET_MODE)
 
     # set_mode
     frame_mode = actuator.encode_set_mode("ALT_HOLD")
@@ -607,6 +610,7 @@ def test_mavlink2_signing_and_replay_guard_ids_and_ips():
     assert len(key) == 32
     verifier = MavlinkSignatureVerifier(key)
     actuator = MavlinkActuator(secret_key=key, link_id=3)
+    actuator.set_vehicle_dialect(3, 2)  # explicit ArduCopter dialect: no heartbeat => fail-closed (no DO_SET_MODE)
 
     # 1. Signed counter-command emitted by MavlinkActuator
     signed_pkt = actuator.encode_set_mode("AUTO")
@@ -628,7 +632,7 @@ def test_mavlink2_signing_and_replay_guard_ids_and_ips():
 
     # 4. Tampering with 1 byte of the MAC fails constant-time SHA-256 check
     fresh_pkt = sign_mavlink2_frame(
-        MavlinkActuator().encode_set_mode("GUIDED"),
+        actuator.encode_set_mode("GUIDED"),
         key,
         link_id=3,
         timestamp_10us=res1.timestamp_10us + 500,

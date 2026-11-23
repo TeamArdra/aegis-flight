@@ -63,30 +63,31 @@ class FrameSanitizer:
         self.alt_bias_m = alt_bias_m
         self.rate_limit_active = rate_limit_active
 
-    def __call__(self, ctx: FrameContext) -> list[bytes]:
+    def __call__(self, ctx: FrameContext, *, bypass_quarantine_and_qos: bool = False) -> list[bytes]:
         """Conforms to FrameHook (Callable[[FrameContext], list[bytes]])."""
         if not self.active:
             return [ctx.raw]
 
-        # 1. Drop both uplink and downlink frames from quarantined sysids
-        if ctx.sysid in self.quarantined_sysids:
-            self.frames_dropped += 1
-            return []
-
-        # 2. Token-bucket QoS shedding during DoS flood
-        if self.rate_limit_active:
-            if ctx.msgid not in CRITICAL_MSGIDS:
+        if not bypass_quarantine_and_qos:
+            # 1. Drop both uplink and downlink frames from quarantined sysids
+            if ctx.sysid in self.quarantined_sysids:
                 self.frames_dropped += 1
                 return []
-            sec_bucket = int(ctx.recv_ns // 1_000_000_000) if ctx.recv_ns > 0 else -1
-            if sec_bucket != -1:
-                if sec_bucket != self._window_sec:
-                    self._window_sec = sec_bucket
-                    self._critical_count = 0
-                self._critical_count += 1
-                if self._critical_count > self.max_critical_fps:
+
+            # 2. Token-bucket QoS shedding during DoS flood
+            if self.rate_limit_active:
+                if ctx.msgid not in CRITICAL_MSGIDS:
                     self.frames_dropped += 1
                     return []
+                sec_bucket = int(ctx.recv_ns // 1_000_000_000) if ctx.recv_ns > 0 else -1
+                if sec_bucket != -1:
+                    if sec_bucket != self._window_sec:
+                        self._window_sec = sec_bucket
+                        self._critical_count = 0
+                    self._critical_count += 1
+                    if self._critical_count > self.max_critical_fps:
+                        self.frames_dropped += 1
+                        return []
 
         # 3. Downlink position and altitude sanitization (GLOBAL_POSITION_INT, msgid 33)
         if ctx.direction == "down" and ctx.msgid == GLOBAL_POSITION_INT_ID:
