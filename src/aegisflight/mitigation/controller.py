@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from ..core.enums import AttackType, Severity
+from ..core.enums import AttackType, DetectorName, Severity
 from ..core.types import ThreatAssessment
 from ..features.extractor import FeatureFrame
 from .actuator import MavlinkActuator
 from .golden_state import GoldenFlightState
+from .inline_policy import FORCE_MAGIC
 from .parameter_estimator import ParameterEstimator
 from .sanitizer import FrameSanitizer
-from .submode_classifier import AttackSubModeClassifier
+from .submode_classifier import FLOOD_MSG_RATE_HZ, AttackSubModeClassifier
 from .types import AttackParameters, AttackSubMode, DefenseMode, MitigationAction, MitigationState
 
 _POSITION_DEPENDENT_MODES = frozenset({
@@ -70,6 +72,7 @@ class MitigationController:
         self._sanitize_gps_latched = False
         self._safe_hold_alt_hold_sent = False
         self._episode_counter_cmds = 0
+        self._estop_episode = False
         self._cmd_budget_window_t: deque[float] = deque()
         self._last_cmd_t: dict[str, float] = {}
         self._last_refusal_log_t: dict[tuple[str, str], float] = {}
@@ -88,6 +91,35 @@ class MitigationController:
         self._gps_switch_t: float | None = None
         self._gps_alt_hold_sent = False
         self._gps_cancelled = False
+
+    def _corroborated(self, asmt: ThreatAssessment) -> ThreatAssessment:
+        """D13: in ACTIVE_IPS an assessment whose only live evidence is the ML detector is not actionable.
+
+        Mirrors ``FusionEngine.ml_require_corroboration`` (a non-ML detector must score > 0), but is enforced here
+        because the controller is the single place that knows the defense mode and every counter-frame and
+        sanitizer rewrite goes through it. The assessment (and its alert) is unchanged for every other consumer;
+        the controller just sees it as a sub-threshold WATCH, as the capped fusion score would have been.
+        PASSIVE and ADVISORY are untouched.
+        """
+        if self.mode != DefenseMode.ACTIVE_IPS or not asmt.threat:
+            return asmt
+        ml = DetectorName.ANOMALY.value
+        if asmt.detector_scores.get(ml, 0.0) <= 0.0:
+            return asmt
+        if any(v > 0.0 for k, v in asmt.detector_scores.items() if k != ml):
+            return asmt
+        return replace(asmt, threat=False, severity=min(asmt.severity, Severity.WATCH, key=lambda s: s.rank))
+
+    def _window_has_genuine_force_disarm(self, frame: FeatureFrame) -> bool:
+        """True if the window holds a force-disarm (COMMAND_LONG 400, param1=0, param2=21196) from an allowed GCS sysid."""
+        return any(
+            c.command == 400
+            and len(c.params) >= 2
+            and c.params[0] == 0.0
+            and c.params[1] == FORCE_MAGIC
+            and c.sysid in self.classifier.allowed_sysids
+            for c in frame.commands_recent
+        )
 
     def set_capabilities(self, ekf_secondary: bool | None = None) -> None:
         """Declare what the aircraft has; None (unknown) counts as not available."""
@@ -112,6 +144,7 @@ class MitigationController:
                 self._sanitize_gps_latched = False
                 self._safe_hold_alt_hold_sent = False
                 self._episode_counter_cmds = 0
+                self._estop_episode = False
                 self._last_cmd_name = None
                 self._reset_gps_episode()
             self._add_action(self.golden.anchor_t or 0.0, "MODE_CHANGE", f"Switched defense posture to {self.mode.value.upper()}")
@@ -126,6 +159,7 @@ class MitigationController:
         self._sanitize_gps_latched = False
         self._safe_hold_alt_hold_sent = False
         self._episode_counter_cmds = 0
+        self._estop_episode = False
         self._cmd_budget_window_t.clear()
         self._last_cmd_t.clear()
         self._last_refusal_log_t.clear()
@@ -193,6 +227,7 @@ class MitigationController:
 
     def step(self, frame: FeatureFrame, asmt: ThreatAssessment) -> MitigationAction:
         """Process one decision tick through the mitigation state machine."""
+        asmt = self._corroborated(asmt)
         t = asmt.t
         self._last_t = t
         ap_id = getattr(frame, "autopilot_id", None)
@@ -274,7 +309,8 @@ class MitigationController:
                         restore_mode = self.golden.trusted_mode
                         if self._gps_episode:
                             self._add_action(t, "GPS_RECOVERED", "GPS consistent again - pilot to resume")
-                        elif (frame.snapshot.armed is True and self.actuator.knows_mode(restore_mode)
+                        elif (frame.snapshot.armed is True and not self._estop_episode
+                              and self.actuator.knows_mode(restore_mode)
                               and self._can_send_command(f"RESTORE_{restore_mode}", t)):
                             counter_frames.append(self.actuator.encode_set_mode(restore_mode))
                             self._record_command(f"RESTORE_{restore_mode}", t)
@@ -286,6 +322,7 @@ class MitigationController:
                     self._sanitize_gps_latched = False
                     self._safe_hold_alt_hold_sent = False
                     self._episode_counter_cmds = 0
+                    self._estop_episode = False
                     self._reset_gps_episode()
                     self.state = MitigationState.NOMINAL
                     self._add_action(t, "RECOVERED", f"Telemetry verified clean for {self._clean_streak * 0.2:.1f}s -> Resumed nominal baseline")
@@ -392,7 +429,13 @@ class MitigationController:
         rate_limit_active = False
 
         if self.mode == DefenseMode.ACTIVE_IPS:
-            if sub_mode.value.startswith("gps_spoofing") or sub_mode == AttackSubMode.DOS_GNSS_JAMMING:
+            # D10 (#112): the GNSS-loss relabel above the flood rate is accepted as classification only. Before
+            # #112 that case was DOS_FLOOD and never ran the GPS ladder; it still does not, so no new
+            # DO_SET_MODE (ladder ALT_HOLD, SAFE_HOLD ALT_HOLD) and no GPS episode that would suppress the
+            # recovery mode restore. Only a GNSS-loss threat at or below the flood rate drives the ladder.
+            if sub_mode.value.startswith("gps_spoofing") or (
+                sub_mode == AttackSubMode.DOS_GNSS_JAMMING and frame.msg_rate_hz <= FLOOD_MSG_RATE_HZ
+            ):
                 self._gps_ladder(frame, t, counter_frames)
             elif self._gps_confirm_t is None:
                 self._gps_ticks = 0
@@ -404,6 +447,11 @@ class MitigationController:
 
             # 2. Command Injection Playbook
             elif asmt.attack_type == AttackType.COMMAND_INJECTION:
+                # D12: a genuine GCS emergency stop keeps its alert but never triggers a counter-command
+                if params.rogue_sysids:
+                    self._estop_episode = False
+                elif self._window_has_genuine_force_disarm(frame):
+                    self._estop_episode = True
                 for r in params.rogue_sysids:
                     if r not in self._quarantined_sysids:
                         self._add_action(t, "QUARANTINE", f"Quarantined rogue sender SysID {r} (hostile packets dropped)")
@@ -416,10 +464,10 @@ class MitigationController:
                     # reported only: nothing on this path drops the command before the autopilot
                     self._add_action(t, "VETO_DISARM", "Flagged motor arm/disarm command burst in flight (not blocked)")
 
-                if (frame.snapshot.armed is None and not self._gps_episode
+                if (frame.snapshot.armed is None and not self._gps_episode and not self._estop_episode
                         and self.actuator.knows_mode(params.target_restore_mode)):
                     self._note_armed_unknown(t, f"RESTORE_{params.target_restore_mode}")
-                if (frame.snapshot.armed is True and not self._gps_episode
+                if (frame.snapshot.armed is True and not self._gps_episode and not self._estop_episode
                         and self.actuator.knows_mode(params.target_restore_mode)
                         and self._can_send_command(f"RESTORE_{params.target_restore_mode}", t)):
                     counter_frames.append(self.actuator.encode_set_mode(params.target_restore_mode))
@@ -450,7 +498,11 @@ class MitigationController:
 
             # 5. DoS Flood / Jamming / Latency Blackout Playbook
             elif asmt.attack_type == AttackType.DOS or sub_mode == AttackSubMode.DOS_BLACKOUT:
-                if sub_mode in (AttackSubMode.DOS_FLOOD, AttackSubMode.MAV_RATE_SPIKE):
+                # D10 (#112): above the flood rate the GNSS-loss relabel is classification only, so the link
+                # gets main's flood actions (rate limiter), not the GNSS anti-jam downlink rewrite.
+                high_rate_gnss = (sub_mode == AttackSubMode.DOS_GNSS_JAMMING
+                                  and frame.msg_rate_hz > FLOOD_MSG_RATE_HZ)
+                if sub_mode in (AttackSubMode.DOS_FLOOD, AttackSubMode.MAV_RATE_SPIKE) or high_rate_gnss:
                     rate_limit_active = self._dos_streak >= 3
                     self._add_action(t, "RATE_LIMIT", "Hostile frame rate flooding gatekeeper engaged (100Hz cap)")
                 elif sub_mode == AttackSubMode.DOS_GNSS_JAMMING:
@@ -482,6 +534,7 @@ class MitigationController:
             safe_hold_ok = (safe_hold_ok and self.actuator.knows_mode(fm)
                             and frame.snapshot.armed is True)
             if (self.state == MitigationState.SAFE_HOLD and safe_hold_ok
+                    and not self._estop_episode
                     and frame.snapshot.armed is True
                     and not self._safe_hold_alt_hold_sent
                     and not self._gps_alt_hold_sent

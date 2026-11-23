@@ -27,16 +27,24 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-import joblib
 import numpy as np
 
 from aegisflight.config import load_config
 from aegisflight.external import realdata, ulog_adapter
 from aegisflight.external.provenance import read_manifest
 from aegisflight.features.extractor import ML_FEATURES as ML_FEATURES_ALL
+from aegisflight.model_integrity import load_verified_bundle
 
 MODEL = "models/isoforest.joblib"
 MAPPINGS = ulog_adapter.MAPPINGS
+
+
+def _load_bundle():
+    """The Stage-1 model, hash-verified against models/MODELS.sha256 before it is unpickled (#155).
+
+    A missing file stays an ML-off run (as before); a mismatched or unlisted one raises (fail closed).
+    """
+    return load_verified_bundle(MODEL) if Path(MODEL).exists() else None
 
 
 # --------------------------------------------------------------------------- #
@@ -45,7 +53,7 @@ MAPPINGS = ulog_adapter.MAPPINGS
 
 def _px4_one(path: str) -> dict:
     cfg = load_config()
-    bundle = joblib.load(MODEL) if Path(MODEL).exists() else None
+    bundle = _load_bundle()
     out: dict = {"file": Path(path).name}
     try:
         fl = ulog_adapter.load_ulog(path)
@@ -79,7 +87,7 @@ def _px4_one(path: str) -> dict:
 def _sim_one(args: tuple) -> dict:
     seed, route, speed, alt, noise = args
     cfg = load_config()
-    bundle = joblib.load(MODEL) if Path(MODEL).exists() else None
+    bundle = _load_bundle()
     data = list(realdata.sim_reference_ticks(cfg, seed, route, speed, alt, noise))
     air = {t: a for t, _, a in data}
     rows = realdata.score_ulog_flight([(t, m) for t, m, _ in data],

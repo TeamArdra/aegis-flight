@@ -1,9 +1,11 @@
 """Hardware-readiness & RF-impaired extreme soak suite for AegisFlight.
 
-Simulates real-world flight conditions through the actual ``InlineIpsBridge``
-forwarding + analysis threads under:
-1. Harsh benign RF flight (4% loss, reordering, corrupt UART bytes, yaw sweeps) -> 0 false alerts.
-2. Extreme-volume flood + spoofed-ID storm + IEEE-754 NaN/Inf frames -> bounded memory, 0 errors.
+Drives the actual ``InlineIpsBridge`` forwarding + analysis threads over in-memory transports (``SIM``,
+link-level; no network, radio or serial port is involved) through:
+1. Benign flight with 4% random frame drop, an injected garbage byte chunk every 10 steps and yaw sweeps
+   (no reordering is simulated) -> 0 false alerts.
+2. Spoofed-ID flood of ``--flood-frames`` frames plus one NaN ``VFR_HUD`` frame (no Inf frame) -> 0 analyser
+   errors. Memory and state-table size are not measured; ``ok`` does not cover them.
 3. Compound multi-vector attack under signed ACTIVE_IPS -> fail-closed uplink blocking & quarantine.
 4. Cryptographic SQLite event/action hash chains + HMAC-signed anchor verification.
 5. Physical serial receive-only boundary verification.
@@ -41,7 +43,7 @@ from aegisflight.sources.mavlink_serial import may_reach_vehicle
 
 
 class _WireTransport:
-    """In-memory bidirectional MAVLink transport with optional RF loss/reorder/garbage."""
+    """In-memory bidirectional MAVLink transport (the soak injects drop and garbage; it does not reorder)."""
 
     def __init__(self, name: str, *, port: str | None = None) -> None:
         self.name = name
@@ -202,7 +204,7 @@ def run_hw_readiness_soak(
                     fc.push_rx(raw)
                 time.sleep(0.025)
 
-            # --- Phase 1b: Harsh Benign RF Flight (drops, reordering, garbage chunks, yaw sweeps, QNH offset) ---
+            # --- Phase 1b: Benign flight (4% drops, garbage chunks, yaw sweeps, QNH offset; no reordering) ---
             n_benign_steps = max(25, cycles * 20)
             curr_vn = 0.0
             for step in range(n_benign_steps):
@@ -240,7 +242,7 @@ def run_hw_readiness_soak(
             time.sleep(0.15)
             benign_alerts = bridge.alerts
 
-            # --- Phase 2: Escalate to signed ACTIVE_IPS + Extreme Flood & NaN Poison ---
+            # --- Phase 2: Escalate to signed ACTIVE_IPS + spoofed-ID flood & one NaN frame ---
             bridge.set_mode(DefenseMode.ACTIVE_IPS)
             # Inject NaN telemetry frame + spoofed-ID flood + malformed flood
             fc.push_rx(_nan_vfr_hud_frame(step + 1))

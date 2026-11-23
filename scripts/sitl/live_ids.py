@@ -140,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
         "decision_latency_ms": {"mean": sum(lat) / len(lat) if lat else None,
                                 "p95": lat_s[int(0.95 * (len(lat_s) - 1))] if lat_s else None},
     }
-    summary["provenance"] = collect(tlog_sha256=sha256_file(out.with_suffix(".tlog")))
+    summary["provenance"] = collect(model=model, tlog_sha256=sha256_file(out.with_suffix(".tlog")))
     summary["run_provenance"] = finish_run(begin_run(
         allow_dirty=a.allow_dirty, profile_dir=None, model_path=model, ml_enabled=model is not None,
         px4_git_describe=px4_describe(), started_utc=run_started, start_state=start_state))
