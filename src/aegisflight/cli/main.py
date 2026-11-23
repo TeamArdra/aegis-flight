@@ -294,6 +294,16 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         print(f"aegis ips-bridge: refusing --status-host {status_host}: a non-loopback status API requires "
               "--control-token-file", file=sys.stderr)
         return 2
+    # Resolve (and hash-check) the optional model BEFORE any run directory or event store exists: a refused model must
+    # not leave an empty evidence run behind, and the manifest must record the model the bridge really runs with.
+    model_path: str | None = None
+    model_extra: dict[str, object] | None = None
+    if args.model:
+        from ..model_integrity import check_model, resolve_model_or_exit
+
+        model_path = resolve_model_or_exit(args.model, allow_unverified=args.allow_unverified_model)
+        model_extra = {"model_verification": check_model(model_path).status,
+                       "allow_unverified_model": bool(args.allow_unverified_model)}
     archive = run_prov = None
     if args.run_dir:
         # evidence run (issue #25): clean tree or --allow-dirty (stamped NOT-REPRODUCIBLE); raw frames, decisions,
@@ -302,7 +312,8 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         from ..run_provenance import DirtyTreeError, begin_run
 
         try:
-            run_prov = begin_run(allow_dirty=args.allow_dirty, profile_dir=args.config_dir)  # ML is simulation-only: none
+            run_prov = begin_run(allow_dirty=args.allow_dirty, profile_dir=args.config_dir,
+                                 model_path=model_path, extra=model_extra)  # ML off (model_path None) -> "none"
             archive = BridgeRunArchive(args.run_dir)
         except DirtyTreeError:
             return 2  # require_clean_tree already printed the reason to stderr
@@ -321,11 +332,6 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         anchor_writer = AnchorWriter(store)
     else:
         run_id = "ips-bridge"
-    model_path: str | None = None
-    if args.model:
-        from ..model_integrity import resolve_model_or_exit
-
-        model_path = resolve_model_or_exit(args.model, allow_unverified=args.allow_unverified_model)
     try:  # e.g. an unreadable / corrupt / unwritable --mgmt-state: refuse to start, never run without replay state
         bridge = InlineIpsBridge(fc, gcs, config_dir=args.config_dir, mode=args.defense_mode,
                                  trusted_sysids=tuple(args.trusted_sysid) if args.trusted_sysid else None,
@@ -350,6 +356,12 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
     except ValueError as exc:
         print(f"aegis ips-bridge: {exc}", file=sys.stderr)
         return 2
+    if run_prov is not None and model_path is not None:
+        # begin_run() hashed the file on its own, earlier read; the manifest must carry the hash the detector's loader
+        # actually verified (a --allow-unverified-model file is otherwise unpinned between the two reads)
+        loaded_sha = bridge.pipeline.anomaly.loaded_sha256
+        if loaded_sha is not None:
+            run_prov["model_sha256"] = loaded_sha
     fc.start()
     gcs.start()
     bridge.start()
