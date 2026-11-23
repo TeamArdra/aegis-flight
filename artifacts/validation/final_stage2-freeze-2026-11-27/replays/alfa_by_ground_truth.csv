@@ -1,0 +1,155 @@
+group,log,ml,gt,decisions,threat_decisions,alert_events,exposure_h,events_per_hour,dominant_evidence
+alfa,telemetry/telemetry/2018-07-18/flight1/flight.tlog,off,unlabelled,759,757,1,0.04217,23.7,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-18/flight1/flight.tlog,on,unlabelled,759,757,1,0.04217,23.7,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,off,unlabelled,9428,9425,1,0.52378,1.9,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-18/flight2/flight.tlog,on,unlabelled,9428,9425,1,0.52378,1.9,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-18/flight4/flight.tlog,off,unlabelled,377,373,1,0.02094,47.7,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni"
+alfa,telemetry/telemetry/2018-07-18/flight4/flight.tlog,on,unlabelled,377,373,1,0.02094,47.7,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni"
+alfa,telemetry/telemetry/2018-07-18/flight6/flight.tlog,off,unlabelled,947,944,1,0.05261,19.0,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-18/flight6/flight.tlog,on,unlabelled,947,944,1,0.05261,19.0,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,off,benign_gt,948,948,1,0.05267,19.0,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,off,fault,155,155,1,0.00861,116.1,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,off,unlabelled,3541,3538,1,0.19672,5.1,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,on,benign_gt,948,948,1,0.05267,19.0,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,on,fault,155,155,1,0.00861,116.1,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-18/flight7/flight.tlog,on,unlabelled,3541,3538,1,0.19672,5.1,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,off,benign_gt,1303,1303,1,0.07239,13.8,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,off,fault,160,160,1,0.00889,112.5,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,off,unlabelled,7698,7694,2,0.42767,4.7,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,on,benign_gt,1303,1303,1,0.07239,13.8,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,on,fault,160,160,1,0.00889,112.5,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-18/flight8/flight.tlog,on,unlabelled,7698,7695,1,0.42767,2.3,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,off,benign_gt,1437,1437,1,0.07983,12.5,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,off,fault,146,146,1,0.00811,123.3,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,off,unlabelled,7794,7791,1,0.43300,2.3,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,on,benign_gt,1437,1437,1,0.07983,12.5,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,on,fault,146,146,1,0.00811,123.3,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-30/flight1/flight.tlog,on,unlabelled,7794,7791,1,0.43300,2.3,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,off,benign_gt,615,615,1,0.03417,29.3,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,off,fault,95,95,1,0.00528,189.5,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,off,unlabelled,2312,2309,1,0.12844,7.8,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,on,benign_gt,615,615,1,0.03417,29.3,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,on,fault,95,95,1,0.00528,189.5,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-30/flight2/flight.tlog,on,unlabelled,2312,2309,1,0.12844,7.8,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight3/flight.tlog,off,unlabelled,2527,2521,2,0.14039,14.2,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight3/flight.tlog,on,unlabelled,2527,2521,2,0.14039,14.2,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,off,benign_gt,1024,1024,1,0.05689,17.6,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,off,fault,172,172,1,0.00956,104.7,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,off,unlabelled,7926,7923,1,0.44033,2.3,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,on,benign_gt,1024,1024,1,0.05689,17.6,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,on,fault,172,172,1,0.00956,104.7,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-30/flight4/flight.tlog,on,unlabelled,7926,7923,1,0.44033,2.3,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,off,benign_gt,666,666,1,0.03700,27.0,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,off,fault,117,117,1,0.00650,153.8,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,off,unlabelled,2111,2107,1,0.11728,8.5,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,on,benign_gt,666,666,1,0.03700,27.0,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,on,fault,117,117,1,0.00650,153.8,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-30/flight5/flight.tlog,on,unlabelled,2111,2107,1,0.11728,8.5,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,off,benign_gt,451,451,1,0.02506,39.9,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,off,fault,111,111,1,0.00617,162.2,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,off,unlabelled,1529,1526,1,0.08494,11.8,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,on,benign_gt,451,451,1,0.02506,39.9,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,on,fault,111,111,1,0.00617,162.2,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-07-30/flight7/flight.tlog,on,unlabelled,1529,1526,1,0.08494,11.8,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-09-11/flight1/flight.tlog,off,unlabelled,697,694,1,0.03872,25.8,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight1/flight.tlog,off,unlabelled,697,5,2,0.03872,51.6,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-09-11/flight1/flight.tlog,on,unlabelled,697,694,1,0.03872,25.8,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,off,benign_gt,808,808,1,0.04489,22.3,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight10/flight.tlog,off,benign_gt,808,0,0,0.04489,0.0,-
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,off,fault,263,263,1,0.01461,68.4,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight10/flight.tlog,off,fault,263,0,0,0.01461,0.0,-
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,off,unlabelled,3423,3420,1,0.19017,5.3,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight10/flight.tlog,off,unlabelled,3423,8,2,0.19017,10.5,implausible acceleration # m/s²
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,on,benign_gt,808,808,1,0.04489,22.3,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,on,fault,263,263,1,0.01461,68.4,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-09-11/flight10/flight.tlog,on,unlabelled,3423,3420,1,0.19017,5.3,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,benign_gt,517,517,1,0.02872,34.8,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,benign_gt,517,0,0,0.02872,0.0,-
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,fault,104,104,1,0.00578,173.1,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,fault,104,0,0,0.00578,0.0,-
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,unlabelled,10875,10871,2,0.60417,3.3,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight3/flight.tlog,off,unlabelled,10875,45,5,0.60417,8.3,heading/course mismatch #° (attitude inconsistent with track)
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,on,benign_gt,517,517,1,0.02872,34.8,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,on,fault,104,104,1,0.00578,173.1,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-09-11/flight3/flight.tlog,on,unlabelled,10875,10872,1,0.60417,1.7,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,off,benign_gt,940,940,1,0.05222,19.1,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight4/flight.tlog,off,benign_gt,940,0,0,0.05222,0.0,-
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,off,fault,108,108,1,0.00600,166.7,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight4/flight.tlog,off,fault,108,0,0,0.00600,0.0,-
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,off,unlabelled,10262,10258,2,0.57011,3.5,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight4/flight.tlog,off,unlabelled,10262,24,10,0.57011,17.5,implausible acceleration # m/s²
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,on,benign_gt,940,940,1,0.05222,19.1,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,on,fault,108,108,1,0.00600,166.7,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-09-11/flight4/flight.tlog,on,unlabelled,10262,10259,1,0.57011,1.8,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-09-11/flight5/flight.tlog,off,unlabelled,97,94,1,0.00539,185.6,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight5/flight.tlog,off,unlabelled,97,3,1,0.00539,185.6,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-09-11/flight5/flight.tlog,on,unlabelled,97,94,1,0.00539,185.6,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,benign_gt,2819,2819,1,0.15661,6.4,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,benign_gt,2819,0,0,0.15661,0.0,-
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,fault,933,933,1,0.05183,19.3,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,fault,933,0,0,0.05183,0.0,-
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,unlabelled,10652,10648,2,0.59178,3.4,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight6/flight.tlog,off,unlabelled,10652,45,8,0.59178,13.5,implausible acceleration # m/s²
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,on,benign_gt,2819,2819,1,0.15661,6.4,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,on,fault,933,933,1,0.05183,19.3,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-09-11/flight6/flight.tlog,on,unlabelled,10652,10649,1,0.59178,1.7,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-09-11/flight8/flight.tlog,off,unlabelled,350,347,1,0.01944,51.4,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight8/flight.tlog,off,unlabelled,350,344,1,0.01944,51.4,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni"
+alfa,telemetry/telemetry/2018-09-11/flight8/flight.tlog,on,unlabelled,350,347,1,0.01944,51.4,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,benign_gt,911,911,1,0.05061,19.8,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,benign_gt,911,0,0,0.05061,0.0,-
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,fault,314,314,1,0.01744,57.3,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,fault,314,0,0,0.01744,0.0,-
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,unlabelled,8330,8327,1,0.46278,2.2,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-09-11/flight9/flight.tlog,off,unlabelled,8330,51,8,0.46278,17.3,heading/course mismatch #° (attitude inconsistent with track)
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,on,benign_gt,911,911,1,0.05061,19.8,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,on,fault,314,314,1,0.01744,57.3,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-09-11/flight9/flight.tlog,on,unlabelled,8330,8327,1,0.46278,2.2,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,benign_gt,1093,1093,1,0.06072,16.5,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,benign_gt,1093,0,0,0.06072,0.0,-
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,fault,49,49,1,0.00272,367.3,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,fault,49,0,0,0.00272,0.0,-
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,unlabelled,8033,8030,1,0.44628,2.2,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight1/flight.tlog,off,unlabelled,8033,3759,13,0.44628,29.1,"GNSS fix never acquired: fix_type=#, satellites=# for # decisions (no valid fix since moni"
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,on,benign_gt,1093,1093,1,0.06072,16.5,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,on,fault,49,49,1,0.00272,367.3,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-10-05/flight1/flight.tlog,on,unlabelled,8033,8030,1,0.44628,2.2,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-10-05/flight2/flight.tlog,off,benign_gt,1091,1091,1,0.06061,16.5,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight2/flight.tlog,off,benign_gt,1091,0,0,0.06061,0.0,-
+alfa,telemetry/telemetry/2018-10-05/flight2/flight.tlog,off,fault,477,477,1,0.02650,37.7,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight2/flight.tlog,off,fault,477,0,0,0.02650,0.0,-
+alfa,telemetry/telemetry/2018-10-05/flight2/flight.tlog,off,unlabelled,3997,3994,1,0.22206,4.5,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight2/flight.tlog,off,unlabelled,3997,24,3,0.22206,13.5,implausible acceleration # m/s²
+alfa,telemetry/telemetry/2018-10-05/flight2/flight.tlog,on,benign_gt,1091,1091,1,0.06061,16.5,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-10-05/flight2/flight.tlog,on,fault,477,477,1,0.02650,37.7,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-10-05/flight2/flight.tlog,on,unlabelled,3997,3994,1,0.22206,4.5,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,off,benign_gt,1559,1559,1,0.08661,11.5,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight3/flight.tlog,off,benign_gt,1559,6,1,0.08661,11.5,implausible acceleration # m/s²
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,off,fault,231,231,1,0.01283,77.9,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight3/flight.tlog,off,fault,231,2,1,0.01283,77.9,heading/course mismatch #° (attitude inconsistent with track)
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,off,unlabelled,5350,5346,2,0.29722,6.7,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight3/flight.tlog,off,unlabelled,5350,4,2,0.29722,6.7,implausible acceleration # m/s²
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,on,benign_gt,1559,1559,1,0.08661,11.5,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,on,fault,231,231,1,0.01283,77.9,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-10-05/flight3/flight.tlog,on,unlabelled,5350,5347,1,0.29722,3.4,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-10-05/flight4/flight.tlog,off,unlabelled,838,835,1,0.04656,21.5,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-05/flight4/flight.tlog,off,unlabelled,838,3,1,0.04656,21.5,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-10-05/flight4/flight.tlog,on,unlabelled,838,835,1,0.04656,21.5,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-10-18/flight10/flight.tlog,off,unlabelled,68,65,1,0.00378,264.7,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-18/flight10/flight.tlog,off,unlabelled,68,3,1,0.00378,264.7,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-10-18/flight10/flight.tlog,on,unlabelled,68,65,1,0.00378,264.7,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-10-18/flight12/flight.tlog,off,unlabelled,1,1,1,0.00006,18000.0,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-18/flight12/flight.tlog,off,unlabelled,1,0,0,0.00006,0.0,-
+alfa,telemetry/telemetry/2018-10-18/flight12/flight.tlog,on,unlabelled,1,1,1,0.00006,18000.0,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)"
+alfa,telemetry/telemetry/2018-10-18/flight5/flight.tlog,off,unlabelled,68,65,1,0.00378,264.7,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-18/flight5/flight.tlog,off,unlabelled,68,3,1,0.00378,264.7,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-10-18/flight5/flight.tlog,on,unlabelled,68,65,1,0.00378,264.7,message#rate spike: # msg/s > #×nominal (#)
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,benign_gt,1807,1807,1,0.10039,10.0,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,benign_gt,1807,11,1,0.10039,10.0,implausible acceleration # m/s²
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,fault,276,276,1,0.01533,65.2,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,fault,276,18,5,0.01533,326.1,heading/course mismatch #° (attitude inconsistent with track)
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,unlabelled,6236,6233,1,0.34644,2.9,message#rate spike: # msg/s > #×nominal (#)
+alfa_e2b_calibrated,telemetry/telemetry/2018-10-18/flight9/flight.tlog,off,unlabelled,6236,28,6,0.34644,17.3,implausible acceleration # m/s²
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,on,benign_gt,1807,1807,1,0.10039,10.0,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,on,fault,276,276,1,0.01533,65.2,"ML anomaly score # ≥ # (driver: msg_rate_hz, z=+#)"
+alfa,telemetry/telemetry/2018-10-18/flight9/flight.tlog,on,unlabelled,6236,6233,1,0.34644,2.9,message#rate spike: # msg/s > #×nominal (#)

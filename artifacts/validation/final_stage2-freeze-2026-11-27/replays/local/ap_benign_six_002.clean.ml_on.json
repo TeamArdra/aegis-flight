@@ -1,0 +1,108 @@
+{
+  "tlog": "data/ardupilot/raw/ap_benign_six_002.clean.tlog",
+  "config_dir": "configs (Stage-1 default)",
+  "ml_enabled": true,
+  "clock_offset_s_used_for_phases": 0.0,
+  "decisions": 700,
+  "threat_decisions": 595,
+  "alert_decisions": 40,
+  "alert_rate_per_decision": 0.05714,
+  "by_phase": {
+    "boot": {
+      "decisions": 700,
+      "threat": 595,
+      "alerts": 40
+    }
+  },
+  "detector_ge_0.5": {
+    "protocol_rule": 37,
+    "physics_consistency": 1,
+    "ml_anomaly": 648
+  },
+  "alert_types": {
+    "TELEMETRY_MANIPULATION": 2,
+    "DOS": 38
+  },
+  "alert_evidence_top": [
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=+9.9)",
+      4
+    ],
+    [
+      "ML anomaly score 0.99 \u2265 0.62 (driver: interarrival_jitter_ms, z=+9.2)",
+      2
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=+11.1)",
+      2
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=+16.2)",
+      2
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=+13.0)",
+      2
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=+14.7)",
+      2
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=+13.2)",
+      2
+    ],
+    [
+      "battery voltage rose 23.04 V (implausible)",
+      1
+    ],
+    [
+      "GNSS fix never acquired: fix_type=0, satellites=0 for 5 decisions (no valid fix ",
+      1
+    ],
+    [
+      "GNSS fix never acquired: fix_type=0, satellites=0 for 6 decisions (no valid fix ",
+      1
+    ],
+    [
+      "GNSS fix never acquired: fix_type=0, satellites=0 for 26 decisions (no valid fix",
+      1
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=+16.7)",
+      1
+    ]
+  ],
+  "run_provenance": {
+    "schema": "aegisflight.run_manifest/1",
+    "status": "REPRODUCIBLE",
+    "reproducible": true,
+    "commit": "8e5800381c4abddc970cbf134d1e95e035a3becf",
+    "working_tree_dirty": false,
+    "dirty_paths": [],
+    "detector_profile_dir": "configs",
+    "detector_profile_sha256": "ff7ed01ac5cfbf8310aa17ddefd4ed3269b3f99334c7132894a48e40ad2f7bf4",
+    "firmware_allowlist_sha256": "63b01f5fe0cbb69e11b7e5a4fd1fe944bbe1756e3dcbe7e0113d63fd104788ad",
+    "model_path": "models/isoforest.joblib",
+    "model_sha256": "3fe74cddf3689e169610ffd783b109b6539cc6c03629bd1e4bb8b1d3842939c4",
+    "ml_enabled": true,
+    "px4_git_describe": null,
+    "ardupilot_version": null,
+    "python": "3.13.15",
+    "packages": {
+      "aegisflight": "0.1.0",
+      "pymavlink": "2.4.50",
+      "numpy": "2.5.3",
+      "scikit-learn": "1.9.1",
+      "joblib": "1.6.0",
+      "scipy": "1.18.1",
+      "pyyaml": "6.0.3",
+      "fastapi": "0.142.2",
+      "pyserial": "3.5"
+    },
+    "command_line": "scripts/ardupilot/replay_ap_tlog.py data/ardupilot/raw/ap_benign_six_002.clean.tlog --json <scratch>/w27b/local/ap_benign_six_002.clean.ml_on.json",
+    "started_utc": "2026-11-23T17:43:12.753027+00:00",
+    "ended_utc": "2026-11-23T17:43:12.763975+00:00",
+    "not_reproducible_reason": null
+  }
+}

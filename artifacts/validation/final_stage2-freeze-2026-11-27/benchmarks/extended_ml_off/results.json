@@ -1,0 +1,595 @@
+{
+  "n_sessions": 116,
+  "binary_grace5": {
+    "n": 51073,
+    "tp": 8025,
+    "fp": 3,
+    "tn": 40849,
+    "fn": 2196,
+    "accuracy": 0.9569439821432068,
+    "precision": 0.999626307922272,
+    "recall": 0.7851482242442032,
+    "fpr": 7.343581709585822e-05,
+    "f1": 0.8795002465888543
+  },
+  "binary_grace5_excl_firmware": {
+    "n": 48773,
+    "tp": 6336,
+    "fp": 3,
+    "tn": 40248,
+    "fn": 2186,
+    "accuracy": 0.9551186107067435,
+    "precision": 0.9995267392333176,
+    "recall": 0.7434874442619104,
+    "fpr": 7.453230975627935e-05,
+    "f1": 0.8527017024426351
+  },
+  "binary_grace5_excl_known_gap": {
+    "n": 48870,
+    "tp": 8025,
+    "fp": 3,
+    "tn": 39137,
+    "fn": 1705,
+    "accuracy": 0.9650501330059341,
+    "precision": 0.999626307922272,
+    "recall": 0.8247687564234327,
+    "fpr": 7.664793050587634e-05,
+    "f1": 0.9038179975222435
+  },
+  "confusion_grace5": {
+    "BENIGN": {
+      "BENIGN": 40849,
+      "GPS_SPOOFING": 0,
+      "MAVLINK_ANOMALY": 0,
+      "COMMAND_INJECTION": 0,
+      "TELEMETRY_MANIPULATION": 3,
+      "DOS": 0,
+      "FIRMWARE_INTEGRITY": 0
+    },
+    "GPS_SPOOFING": {
+      "BENIGN": 489,
+      "GPS_SPOOFING": 831,
+      "MAVLINK_ANOMALY": 0,
+      "COMMAND_INJECTION": 0,
+      "TELEMETRY_MANIPULATION": 0,
+      "DOS": 0,
+      "FIRMWARE_INTEGRITY": 0
+    },
+    "MAVLINK_ANOMALY": {
+      "BENIGN": 445,
+      "GPS_SPOOFING": 35,
+      "MAVLINK_ANOMALY": 849,
+      "COMMAND_INJECTION": 0,
+      "TELEMETRY_MANIPULATION": 8,
+      "DOS": 415,
+      "FIRMWARE_INTEGRITY": 0
+    },
+    "COMMAND_INJECTION": {
+      "BENIGN": 503,
+      "GPS_SPOOFING": 0,
+      "MAVLINK_ANOMALY": 0,
+      "COMMAND_INJECTION": 1329,
+      "TELEMETRY_MANIPULATION": 0,
+      "DOS": 0,
+      "FIRMWARE_INTEGRITY": 0
+    },
+    "TELEMETRY_MANIPULATION": {
+      "BENIGN": 170,
+      "GPS_SPOOFING": 0,
+      "MAVLINK_ANOMALY": 0,
+      "COMMAND_INJECTION": 0,
+      "TELEMETRY_MANIPULATION": 1590,
+      "DOS": 0,
+      "FIRMWARE_INTEGRITY": 0
+    },
+    "DOS": {
+      "BENIGN": 579,
+      "GPS_SPOOFING": 27,
+      "MAVLINK_ANOMALY": 2,
+      "COMMAND_INJECTION": 0,
+      "TELEMETRY_MANIPULATION": 8,
+      "DOS": 1242,
+      "FIRMWARE_INTEGRITY": 0
+    },
+    "FIRMWARE_INTEGRITY": {
+      "BENIGN": 10,
+      "GPS_SPOOFING": 0,
+      "MAVLINK_ANOMALY": 0,
+      "COMMAND_INJECTION": 0,
+      "TELEMETRY_MANIPULATION": 0,
+      "DOS": 0,
+      "FIRMWARE_INTEGRITY": 1689
+    }
+  },
+  "hierarchical_link_layer_grace5": {
+    "link_layer_support": 3610,
+    "link_layer_matched": 2508,
+    "link_layer_accuracy": 0.6947
+  },
+  "binary_grace0": {
+    "n": 52900,
+    "tp": 8025,
+    "fp": 355,
+    "tn": 42324,
+    "fn": 2196,
+    "accuracy": 0.9517769376181474,
+    "precision": 0.9576372315035799,
+    "recall": 0.7851482242442032,
+    "fpr": 0.008317908104688488,
+    "f1": 0.8628568356539972
+  },
+  "binary_grace0_excl_firmware": {
+    "n": 50600,
+    "tp": 6336,
+    "fp": 355,
+    "tn": 41723,
+    "fn": 2186,
+    "accuracy": 0.9497826086956521,
+    "precision": 0.9469436556568525,
+    "recall": 0.7434874442619104,
+    "fpr": 0.008436712771519559,
+    "f1": 0.8329718004338396
+  },
+  "binary_grace0_excl_known_gap": {
+    "n": 50600,
+    "tp": 8025,
+    "fp": 355,
+    "tn": 40515,
+    "fn": 1705,
+    "accuracy": 0.9592885375494071,
+    "precision": 0.9576372315035799,
+    "recall": 0.8247687564234327,
+    "fpr": 0.008686077807682897,
+    "f1": 0.8862506902263942
+  },
+  "confusion_grace0": {
+    "BENIGN": {
+      "BENIGN": 42324,
+      "GPS_SPOOFING": 185,
+      "MAVLINK_ANOMALY": 4,
+      "COMMAND_INJECTION": 102,
+      "TELEMETRY_MANIPULATION": 19,
+      "DOS": 45,
+      "FIRMWARE_INTEGRITY": 0
+    },
+    "GPS_SPOOFING": {
+      "BENIGN": 489,
+      "GPS_SPOOFING": 831,
+      "MAVLINK_ANOMALY": 0,
+      "COMMAND_INJECTION": 0,
+      "TELEMETRY_MANIPULATION": 0,
+      "DOS": 0,
+      "FIRMWARE_INTEGRITY": 0
+    },
+    "MAVLINK_ANOMALY": {
+      "BENIGN": 445,
+      "GPS_SPOOFING": 35,
+      "MAVLINK_ANOMALY": 849,
+      "COMMAND_INJECTION": 0,
+      "TELEMETRY_MANIPULATION": 8,
+      "DOS": 415,
+      "FIRMWARE_INTEGRITY": 0
+    },
+    "COMMAND_INJECTION": {
+      "BENIGN": 503,
+      "GPS_SPOOFING": 0,
+      "MAVLINK_ANOMALY": 0,
+      "COMMAND_INJECTION": 1329,
+      "TELEMETRY_MANIPULATION": 0,
+      "DOS": 0,
+      "FIRMWARE_INTEGRITY": 0
+    },
+    "TELEMETRY_MANIPULATION": {
+      "BENIGN": 170,
+      "GPS_SPOOFING": 0,
+      "MAVLINK_ANOMALY": 0,
+      "COMMAND_INJECTION": 0,
+      "TELEMETRY_MANIPULATION": 1590,
+      "DOS": 0,
+      "FIRMWARE_INTEGRITY": 0
+    },
+    "DOS": {
+      "BENIGN": 579,
+      "GPS_SPOOFING": 27,
+      "MAVLINK_ANOMALY": 2,
+      "COMMAND_INJECTION": 0,
+      "TELEMETRY_MANIPULATION": 8,
+      "DOS": 1242,
+      "FIRMWARE_INTEGRITY": 0
+    },
+    "FIRMWARE_INTEGRITY": {
+      "BENIGN": 10,
+      "GPS_SPOOFING": 0,
+      "MAVLINK_ANOMALY": 0,
+      "COMMAND_INJECTION": 0,
+      "TELEMETRY_MANIPULATION": 0,
+      "DOS": 0,
+      "FIRMWARE_INTEGRITY": 1689
+    }
+  },
+  "hierarchical_link_layer_grace0": {
+    "link_layer_support": 3610,
+    "link_layer_matched": 2508,
+    "link_layer_accuracy": 0.6947
+  },
+  "per_mode": {
+    "command_injection:arm_disarm_burst": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.9882352941176471,
+      "median_ttd_s": 0.29999999999999893,
+      "max_ttd_s": 0.3999999999999986,
+      "median_alarm_tail_s": 1.7000000000000028,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "command_injection:gcs_replay": {
+      "sessions": 4,
+      "sessions_detected": 0,
+      "decision_recall": 0.0,
+      "median_ttd_s": null,
+      "max_ttd_s": null,
+      "median_alarm_tail_s": 0.0,
+      "attribution_accuracy": null,
+      "hierarchical_attribution_accuracy": null,
+      "known_gap": true
+    },
+    "command_injection:mode_flip": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.9957356076759062,
+      "median_ttd_s": 0.09999999999999787,
+      "max_ttd_s": 0.19999999999999574,
+      "median_alarm_tail_s": 1.7999999999999972,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "command_injection:rogue_command": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.9888143176733781,
+      "median_ttd_s": 0.19999999999999574,
+      "max_ttd_s": 0.3999999999999986,
+      "median_alarm_tail_s": 1.6000000000000014,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "dos:blackout": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.7494692144373672,
+      "median_ttd_s": 3.5,
+      "max_ttd_s": 4.199999999999996,
+      "median_alarm_tail_s": 1.0999999999999979,
+      "attribution_accuracy": 0.8777004855657979,
+      "hierarchical_attribution_accuracy": 0.8824905479053653,
+      "known_gap": false
+    },
+    "dos:flood": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.9957627118644068,
+      "median_ttd_s": 0.09999999999999964,
+      "max_ttd_s": 0.20000000000000284,
+      "median_alarm_tail_s": 1.0,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "dos:gnss_jamming": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.9661016949152542,
+      "median_ttd_s": 0.7999999999999989,
+      "max_ttd_s": 0.8000000000000007,
+      "median_alarm_tail_s": 0.0,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "dos:latency": {
+      "sessions": 4,
+      "sessions_detected": 0,
+      "decision_recall": 0.0,
+      "median_ttd_s": null,
+      "max_ttd_s": null,
+      "median_alarm_tail_s": 0.0,
+      "attribution_accuracy": null,
+      "hierarchical_attribution_accuracy": null,
+      "known_gap": false
+    },
+    "firmware_integrity:default": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.9941141848145968,
+      "median_ttd_s": 0.5,
+      "max_ttd_s": 0.8000000000000007,
+      "median_alarm_tail_s": 0.0,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "gps_spoofing:gradual_drift": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.8927738927738927,
+      "median_ttd_s": 2.3000000000000007,
+      "max_ttd_s": 2.3999999999999986,
+      "median_alarm_tail_s": 3.0,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "gps_spoofing:replay_freeze": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.9399038461538461,
+      "median_ttd_s": 1.2000000000000028,
+      "max_ttd_s": 1.6000000000000014,
+      "median_alarm_tail_s": 3.0,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "gps_spoofing:sudden_offset": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.12,
+      "median_ttd_s": 0.20000000000000107,
+      "max_ttd_s": 0.20000000000000284,
+      "median_alarm_tail_s": 3.0,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "mavlink_anomaly:packet_loss": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.14227642276422764,
+      "median_ttd_s": 9.0,
+      "max_ttd_s": 20.799999999999997,
+      "median_alarm_tail_s": 0.5999999999999943,
+      "attribution_accuracy": 0.0,
+      "hierarchical_attribution_accuracy": 0.6210830395613005,
+      "known_gap": false
+    },
+    "mavlink_anomaly:rate_spike": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.9797979797979798,
+      "median_ttd_s": 0.3999999999999986,
+      "max_ttd_s": 0.3999999999999986,
+      "median_alarm_tail_s": 0.6000000000000014,
+      "attribution_accuracy": 0.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "mavlink_anomaly:rogue_sysid": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 1.0,
+      "median_ttd_s": 0.0,
+      "max_ttd_s": 0.0,
+      "median_alarm_tail_s": 0.19999999999998863,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "mavlink_anomaly:seq_scramble": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.9667405764966741,
+      "median_ttd_s": 0.0,
+      "max_ttd_s": 0.0,
+      "median_alarm_tail_s": 0.0,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "telemetry_manipulation:altitude_bias": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.9910313901345291,
+      "median_ttd_s": 0.19999999999999574,
+      "max_ttd_s": 0.20000000000000284,
+      "median_alarm_tail_s": 0.0,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "telemetry_manipulation:battery_jump": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.9830917874396136,
+      "median_ttd_s": 0.3999999999999986,
+      "max_ttd_s": 0.4000000000000057,
+      "median_alarm_tail_s": 0.7999999999999972,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "telemetry_manipulation:frozen_attitude": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.6600877192982456,
+      "median_ttd_s": 5.199999999999996,
+      "max_ttd_s": 19.6,
+      "median_alarm_tail_s": 0.0,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    },
+    "telemetry_manipulation:speed_mismatch": {
+      "sessions": 4,
+      "sessions_detected": 4,
+      "decision_recall": 0.990990990990991,
+      "median_ttd_s": 0.1999999999999993,
+      "max_ttd_s": 0.20000000000000284,
+      "median_alarm_tail_s": 0.0,
+      "attribution_accuracy": 1.0,
+      "hierarchical_attribution_accuracy": 1.0,
+      "known_gap": false
+    }
+  },
+  "benign": {
+    "sessions": 12,
+    "decisions": 6900,
+    "false_positive_decisions": 0,
+    "fpr": 0.0,
+    "sessions_with_any_fp": 0,
+    "fp_classes": {}
+  },
+  "link_fifo_benign": {
+    "sessions": 6,
+    "decisions": 3450,
+    "false_positive_decisions": 1,
+    "fpr": 0.0002898550724637681,
+    "sessions_with_any_fp": 1,
+    "fp_classes": {
+      "TELEMETRY_MANIPULATION": 1
+    }
+  },
+  "link_reorder_benign": {
+    "sessions": 6,
+    "decisions": 3450,
+    "false_positive_decisions": 0,
+    "fpr": 0.0,
+    "sessions_with_any_fp": 0,
+    "fp_classes": {}
+  },
+  "combos": {
+    "gps_spoofing+mavlink_anomaly": {
+      "sessions": 3,
+      "decisions": 341,
+      "detected": 341,
+      "primary_in_truth": 341,
+      "all_covered": 329,
+      "multi_label_decisions": 341,
+      "multi_all_covered": 329,
+      "binary_recall": 1.0,
+      "primary_in_truth_rate": 1.0,
+      "full_coverage_when_both_active": 0.9648093841642229
+    },
+    "gps_spoofing+command_injection": {
+      "sessions": 3,
+      "decisions": 409,
+      "detected": 377,
+      "primary_in_truth": 369,
+      "all_covered": 376,
+      "multi_label_decisions": 259,
+      "multi_all_covered": 258,
+      "binary_recall": 0.921760391198044,
+      "primary_in_truth_rate": 0.902200488997555,
+      "full_coverage_when_both_active": 0.9961389961389961
+    },
+    "dos+telemetry_manipulation": {
+      "sessions": 3,
+      "decisions": 441,
+      "detected": 440,
+      "primary_in_truth": 440,
+      "all_covered": 440,
+      "multi_label_decisions": 291,
+      "multi_all_covered": 291,
+      "binary_recall": 0.9977324263038548,
+      "primary_in_truth_rate": 0.9977324263038548,
+      "full_coverage_when_both_active": 1.0
+    },
+    "telemetry_manipulation+firmware_integrity": {
+      "sessions": 3,
+      "decisions": 1343,
+      "detected": 1340,
+      "primary_in_truth": 1340,
+      "all_covered": 1330,
+      "multi_label_decisions": 204,
+      "multi_all_covered": 194,
+      "binary_recall": 0.9977661950856291,
+      "primary_in_truth_rate": 0.9977661950856291,
+      "full_coverage_when_both_active": 0.9509803921568627
+    }
+  },
+  "compute_ms_mean_of_sessions": 1.1064616191898737,
+  "compute_ms_p95_max": 7.281329981924481,
+  "config": {
+    "grid": {
+      "seeds_per_mode": 4,
+      "n_benign": 12,
+      "combo_seeds": 3,
+      "n_link": 6
+    },
+    "modes": {
+      "gps_spoofing": [
+        "gradual_drift",
+        "sudden_offset",
+        "replay_freeze"
+      ],
+      "mavlink_anomaly": [
+        "rogue_sysid",
+        "rate_spike",
+        "seq_scramble",
+        "packet_loss"
+      ],
+      "command_injection": [
+        "rogue_command",
+        "mode_flip",
+        "arm_disarm_burst",
+        "gcs_replay"
+      ],
+      "telemetry_manipulation": [
+        "altitude_bias",
+        "speed_mismatch",
+        "battery_jump",
+        "frozen_attitude"
+      ],
+      "dos": [
+        "flood",
+        "blackout",
+        "latency",
+        "gnss_jamming"
+      ],
+      "firmware_integrity": [
+        "default"
+      ]
+    },
+    "combos": [
+      [
+        "gps_spoofing+mavlink_anomaly",
+        0.0
+      ],
+      [
+        "gps_spoofing+command_injection",
+        5.0
+      ],
+      [
+        "dos+telemetry_manipulation",
+        5.0
+      ],
+      [
+        "telemetry_manipulation+firmware_integrity",
+        10.0
+      ]
+    ],
+    "link_stress": {
+      "link_fifo_benign": {
+        "mean_delay_ms": 25.0,
+        "loss_prob": 0.02,
+        "fifo": true
+      },
+      "link_reorder_benign": {
+        "mean_delay_ms": 25.0,
+        "loss_prob": 0.02,
+        "fifo": false
+      }
+    },
+    "known_gap_modes": [
+      "command_injection:gcs_replay"
+    ],
+    "model_used": false,
+    "model_sha256": "none",
+    "python": "3.13.15",
+    "workers": 4,
+    "wall_time_s": 38.2
+  }
+}

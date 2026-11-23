@@ -1,0 +1,61 @@
+profile,ordering,loss_pct,ml,status,model,sessions,scored_decisions,alarm_decisions,decision_fpr,sessions_with_alarm,alert_events,observed_hours,alert_events_per_hour,dominant_evidence,dominant_evidence_count,dominant_detector,note
+stage1,fifo,0,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+stage1,fifo,0,on,ok,isoforest.joblib,6,3450,2227,0.6455,6,458,0.1917,2389.6,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",1824,ml_anomaly,
+stage1,fifo,1,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+stage1,fifo,1,on,ok,isoforest.joblib,6,3450,2178,0.6313,6,478,0.1917,2493.9,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",1744,ml_anomaly,
+stage1,fifo,2,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+stage1,fifo,2,on,ok,isoforest.joblib,6,3450,2186,0.6336,6,468,0.1917,2441.7,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",1678,ml_anomaly,
+stage1,fifo,5,off,ok,none,6,3450,1,0.0003,1,1,0.1917,5.2,implausible acceleration # m/s²,1,physics_consistency,
+stage1,fifo,5,on,ok,isoforest.joblib,6,3450,2134,0.6186,6,502,0.1917,2619.1,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",1393,ml_anomaly,
+stage1,fifo,10,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+stage1,fifo,10,on,ok,isoforest.joblib,6,3450,2311,0.6699,6,509,0.1917,2655.7,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=+#)",1293,ml_anomaly,
+stage1,reorder,0,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+stage1,reorder,0,on,ok,isoforest.joblib,6,3450,3409,0.9881,6,30,0.1917,156.5,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",3407,ml_anomaly,
+stage1,reorder,1,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+stage1,reorder,1,on,ok,isoforest.joblib,6,3450,3400,0.9855,6,30,0.1917,156.5,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",3398,ml_anomaly,
+stage1,reorder,2,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+stage1,reorder,2,on,ok,isoforest.joblib,6,3450,3370,0.9768,6,48,0.1917,250.4,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",3363,ml_anomaly,
+stage1,reorder,5,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+stage1,reorder,5,on,ok,isoforest.joblib,6,3450,3281,0.9510,6,89,0.1917,464.3,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",3265,ml_anomaly,
+stage1,reorder,10,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+stage1,reorder,10,on,ok,isoforest.joblib,6,3450,3116,0.9032,6,166,0.1917,866.1,"ML anomaly score # ≥ # (driver: interarrival_jitter_ms, z=#)",2930,ml_anomaly,
+px4,fifo,0,off,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,fifo,0,on,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,fifo,1,off,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,fifo,1,on,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,fifo,2,off,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,fifo,2,on,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,fifo,5,off,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,fifo,5,on,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,fifo,10,off,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,fifo,10,on,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,reorder,0,off,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,reorder,0,on,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,reorder,1,off,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,reorder,1,on,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,reorder,2,off,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,reorder,2,on,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,reorder,5,off,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,reorder,5,on,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,reorder,10,off,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+px4,reorder,10,on,n/a,none,,,,,,,,,,,,"the px4_sitl profile is calibrated for PX4 SITL traffic (sysid 3, ~378 msg/s); the simulator emits sysid 1 at ~28 msg/s, so 'rogue telemetry source' fires on every decision and the cell measures the mismatch, not the profile. Measure this profile on PX4 SITL replays (#27 items 3-4)."
+ardupilot,fifo,0,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+ardupilot,fifo,0,on,n/a,none,,,,,,,,,,,,no ArduPilot-benign ML model exists; the Stage-1 model is documented not to transfer to ArduPilot (docs/ARDUPILOT_SITL.md) - pass --model-ardupilot to force a model
+ardupilot,fifo,1,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+ardupilot,fifo,1,on,n/a,none,,,,,,,,,,,,no ArduPilot-benign ML model exists; the Stage-1 model is documented not to transfer to ArduPilot (docs/ARDUPILOT_SITL.md) - pass --model-ardupilot to force a model
+ardupilot,fifo,2,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+ardupilot,fifo,2,on,n/a,none,,,,,,,,,,,,no ArduPilot-benign ML model exists; the Stage-1 model is documented not to transfer to ArduPilot (docs/ARDUPILOT_SITL.md) - pass --model-ardupilot to force a model
+ardupilot,fifo,5,off,ok,none,6,3450,1,0.0003,1,1,0.1917,5.2,implausible acceleration # m/s²,1,physics_consistency,
+ardupilot,fifo,5,on,n/a,none,,,,,,,,,,,,no ArduPilot-benign ML model exists; the Stage-1 model is documented not to transfer to ArduPilot (docs/ARDUPILOT_SITL.md) - pass --model-ardupilot to force a model
+ardupilot,fifo,10,off,ok,none,6,3450,1,0.0003,1,1,0.1917,5.2,implausible acceleration # m/s²,1,physics_consistency,
+ardupilot,fifo,10,on,n/a,none,,,,,,,,,,,,no ArduPilot-benign ML model exists; the Stage-1 model is documented not to transfer to ArduPilot (docs/ARDUPILOT_SITL.md) - pass --model-ardupilot to force a model
+ardupilot,reorder,0,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+ardupilot,reorder,0,on,n/a,none,,,,,,,,,,,,no ArduPilot-benign ML model exists; the Stage-1 model is documented not to transfer to ArduPilot (docs/ARDUPILOT_SITL.md) - pass --model-ardupilot to force a model
+ardupilot,reorder,1,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+ardupilot,reorder,1,on,n/a,none,,,,,,,,,,,,no ArduPilot-benign ML model exists; the Stage-1 model is documented not to transfer to ArduPilot (docs/ARDUPILOT_SITL.md) - pass --model-ardupilot to force a model
+ardupilot,reorder,2,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+ardupilot,reorder,2,on,n/a,none,,,,,,,,,,,,no ArduPilot-benign ML model exists; the Stage-1 model is documented not to transfer to ArduPilot (docs/ARDUPILOT_SITL.md) - pass --model-ardupilot to force a model
+ardupilot,reorder,5,off,ok,none,6,3450,0,0.0000,0,0,0.1917,0.0,-,0,-,
+ardupilot,reorder,5,on,n/a,none,,,,,,,,,,,,no ArduPilot-benign ML model exists; the Stage-1 model is documented not to transfer to ArduPilot (docs/ARDUPILOT_SITL.md) - pass --model-ardupilot to force a model
+ardupilot,reorder,10,off,ok,none,6,3450,1,0.0003,1,1,0.1917,5.2,implausible acceleration # m/s²,1,physics_consistency,
+ardupilot,reorder,10,on,n/a,none,,,,,,,,,,,,no ArduPilot-benign ML model exists; the Stage-1 model is documented not to transfer to ArduPilot (docs/ARDUPILOT_SITL.md) - pass --model-ardupilot to force a model

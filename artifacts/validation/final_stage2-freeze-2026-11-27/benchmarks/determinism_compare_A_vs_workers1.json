@@ -1,0 +1,24 @@
+{
+  "a": "artifacts\\validation\\final_stage2-freeze-2026-11-27\\benchmarks\\extended_ml_on",
+  "b": "<scratch>\\w27\\det_w1",
+  "decisions_rows": [
+    69600,
+    69600
+  ],
+  "decisions_csv_md5": [
+    "477a2eb732fe3b33d06c360175d72b7d",
+    "477a2eb732fe3b33d06c360175d72b7d"
+  ],
+  "decisions_identical": true,
+  "differing_decision_rows": 0,
+  "sessions_csv_md5": [
+    "5c66cacb78eb17962dab782e6a9f2d3f",
+    "5c66cacb78eb17962dab782e6a9f2d3f"
+  ],
+  "sessions_csv_identical": true,
+  "results_json_identical_modulo_timing_and_workers": true,
+  "workers": [
+    4,
+    1
+  ]
+}

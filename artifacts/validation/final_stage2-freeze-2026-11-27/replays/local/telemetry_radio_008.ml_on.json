@@ -1,0 +1,107 @@
+{
+  "tlog": "data/hardware/raw/telemetry_radio_008.tlog",
+  "config_dir": "configs (Stage-1 default)",
+  "ml_enabled": true,
+  "clock_offset_s_used_for_phases": 0.0,
+  "decisions": 313,
+  "threat_decisions": 294,
+  "alert_decisions": 15,
+  "alert_rate_per_decision": 0.04792,
+  "by_phase": {
+    "boot": {
+      "decisions": 313,
+      "threat": 294,
+      "alerts": 15
+    }
+  },
+  "detector_ge_0.5": {
+    "ml_anomaly": 294,
+    "protocol_rule": 138,
+    "physics_consistency": 5
+  },
+  "alert_types": {
+    "DOS": 15
+  },
+  "alert_evidence_top": [
+    [
+      "navigation: estimator reports no horizontal position solution (EKF_STATUS_REPORT",
+      14
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=-37.8)",
+      2
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=-40.7)",
+      1
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=-40.5)",
+      1
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=-38.9)",
+      1
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=-44.7)",
+      1
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=-35.6)",
+      1
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=-40.8)",
+      1
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=-37.9)",
+      1
+    ],
+    [
+      "GNSS fix lost: fix_type=3, satellites=4 for 9 decisions",
+      1
+    ],
+    [
+      "ML anomaly score 1.00 \u2265 0.62 (driver: interarrival_jitter_ms, z=-40.6)",
+      1
+    ],
+    [
+      "GNSS fix lost: fix_type=2, satellites=3 for 29 decisions",
+      1
+    ]
+  ],
+  "run_provenance": {
+    "schema": "aegisflight.run_manifest/1",
+    "status": "REPRODUCIBLE",
+    "reproducible": true,
+    "commit": "8e5800381c4abddc970cbf134d1e95e035a3becf",
+    "working_tree_dirty": false,
+    "dirty_paths": [],
+    "detector_profile_dir": "configs",
+    "detector_profile_sha256": "ff7ed01ac5cfbf8310aa17ddefd4ed3269b3f99334c7132894a48e40ad2f7bf4",
+    "firmware_allowlist_sha256": "63b01f5fe0cbb69e11b7e5a4fd1fe944bbe1756e3dcbe7e0113d63fd104788ad",
+    "model_path": "models/isoforest.joblib",
+    "model_sha256": "3fe74cddf3689e169610ffd783b109b6539cc6c03629bd1e4bb8b1d3842939c4",
+    "ml_enabled": true,
+    "px4_git_describe": null,
+    "ardupilot_version": null,
+    "python": "3.13.15",
+    "packages": {
+      "aegisflight": "0.1.0",
+      "pymavlink": "2.4.50",
+      "numpy": "2.5.3",
+      "scikit-learn": "1.9.1",
+      "joblib": "1.6.0",
+      "scipy": "1.18.1",
+      "pyyaml": "6.0.3",
+      "fastapi": "0.142.2",
+      "pyserial": "3.5"
+    },
+    "command_line": "scripts/ardupilot/replay_ap_tlog.py data/hardware/raw/telemetry_radio_008.tlog --json <scratch>/w27b/local/telemetry_radio_008.ml_on.json",
+    "started_utc": "2026-11-23T17:42:43.579988+00:00",
+    "ended_utc": "2026-11-23T17:42:43.598049+00:00",
+    "not_reproducible_reason": null
+  }
+}
