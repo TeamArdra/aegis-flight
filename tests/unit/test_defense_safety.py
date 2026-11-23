@@ -41,7 +41,7 @@ def _snap(t: float, *, armed: bool | None = True, mode: str | None = "AUTO", gs:
 
 
 def _frame(snap: TelemetrySnapshot, commands: list[CommandEvent] | None = None) -> FeatureFrame:
-    return FeatureFrame(t=snap.t, snapshot=snap, gps_seen=True, gps_raw_seen=True, heartbeat_seen=True,
+    return FeatureFrame(autopilot_id=3, mav_type=2, t=snap.t, snapshot=snap, gps_seen=True, gps_raw_seen=True, heartbeat_seen=True,
                         msg_rate_hz=10.0, commands_recent=commands or [])
 
 
@@ -102,6 +102,7 @@ def test_live_engine_transmits_counter_frames_only_in_active_ips(tmp_path, monke
         monkeypatch.setattr(engine, "feed", type("Feed", (), {"transport": tr})())
         engine.set_defense_mode(mode)
         engine.mitigation.set_mode("active-ips")  # produce a counter frame in every case
+        engine.mitigation.actuator.set_vehicle_dialect(3, 2)  # explicit ArduCopter dialect (no heartbeat => fail-closed)
         engine.defense_override("safe_hold")
         assert engine._last_mitigation_action.counter_frames, "safe_hold should produce a counter frame"
         engine.mitigation.set_mode(mode)
@@ -123,6 +124,7 @@ def test_live_engine_never_transmits_on_a_serial_device(tmp_path, monkeypatch):
         tr = _RecordingTransport()
         monkeypatch.setattr(engine, "feed", type("Feed", (), {"transport": tr})())
         engine.mitigation.set_mode("active-ips")  # simulate a bypass of the public guards
+        engine.mitigation.actuator.set_vehicle_dialect(3, 2)  # explicit ArduCopter dialect (no heartbeat => fail-closed)
         engine.defense_override("safe_hold")
         assert engine._last_mitigation_action.counter_frames, "safe_hold should still PRODUCE a counter frame"
         assert tr.sent == []
@@ -215,6 +217,7 @@ def test_ips_bridge_cli_refuses_active_ips_on_a_serial_device(capsys):
 
 def test_encode_set_mode_refuses_unknown_modes():
     act = MavlinkActuator()
+    act.set_vehicle_dialect(3, 2)  # explicit ArduCopter dialect: no heartbeat => fail-closed (no DO_SET_MODE)
     assert act.knows_mode("ALT_HOLD") and not act.knows_mode("AUTO/LOITER") and not act.knows_mode(None)
     with pytest.raises(ValueError):
         act.encode_set_mode("AUTO/LOITER")  # a PX4 name must not become ArduCopter AUTO (3)
