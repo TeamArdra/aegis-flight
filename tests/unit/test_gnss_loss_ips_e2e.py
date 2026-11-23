@@ -45,13 +45,19 @@ def _set_mode_custom(frame: bytes) -> int | None:
     return int(struct.unpack_from("<7f", payload, 0)[1])
 
 
+_PX4_MODE_NAMES = frozenset({"AUTO_LOITER", "POSCTL", "AUTO_MISSION", "AUTO_RTL", "OFFBOARD", "ALTCTL", "MANUAL"})
+
+
 def _frame(t: float, *, mode: str | None, armed: bool | None = True, rate: float = 370.0,
            fix: int | None = 0, sats: int | None = 2) -> FeatureFrame:
     snap = TelemetrySnapshot(t=t, lat=18.92, lon=72.83, alt_msl=25.0, rel_alt=25.0, vx=0.0, vy=5.0, vz=0.0,
                              groundspeed=5.0, roll=0.0, pitch=0.0, yaw=0.0, heading=90.0, flight_mode=mode,
                              armed=armed, battery_remaining=90.0, gps_fix_type=fix, satellites=sats)
-    return FeatureFrame(t=t, snapshot=snap, gps_seen=True, gps_raw_seen=True, heartbeat_seen=True,
-                        msg_rate_hz=rate)
+    # D4 (#91, on main via #81) refuses DO_SET_MODE until a vehicle HEARTBEAT binds the dialect, so each frame carries
+    # the vehicle's own: PX4 (autopilot 12) for PX4 mode names, ArduCopter quad (autopilot 3, MAV_TYPE 2) otherwise.
+    autopilot = 12 if (mode or "").upper() in _PX4_MODE_NAMES else 3
+    return FeatureFrame(autopilot_id=autopilot, mav_type=2, t=t, snapshot=snap, gps_seen=True, gps_raw_seen=True,
+                        heartbeat_seen=True, msg_rate_hz=rate)
 
 
 def _asmt(t: float, attack: AttackType, evidence: list[str]) -> ThreatAssessment:
