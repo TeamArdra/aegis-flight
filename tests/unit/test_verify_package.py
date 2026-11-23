@@ -456,3 +456,39 @@ def test_link_stress_missing_from_both_layouts_fails(pkg):
     (pkg / "artifacts/validation/final_x/link_stress/sweep_table.md").unlink()
     write_manifest(pkg)
     assert any("[link-stress]" in m for m in messages(run(pkg), "required"))
+
+
+# --- false passes found by probing the verifier --------------------------------------------------------------
+
+def test_host_only_companion_run_does_not_satisfy_pi_run(pkg):
+    # main has artifacts/hardware/companion_host_<date>/ (a workstation run); #30 needs the target board.
+    (pkg / "artifacts/hardware/companion_pi_x/paced.json").unlink()
+    write(pkg, "artifacts/hardware/companion_host_20261118/paced.json", "{}\n")
+    write_manifest(pkg)
+    assert any("[pi-run]" in m for m in messages(run(pkg), "required"))
+
+
+def test_nested_frontend_dist_is_forbidden(pkg):
+    write(pkg, "source/frontend/dist/index.html", "<html></html>\n")
+    write_manifest(pkg)
+    assert any("source/frontend/dist/" in m for m in messages(run(pkg), "forbidden"))
+
+
+def test_comment_inside_code_fence_is_not_a_reproduce_heading(pkg):
+    topics = ("Walk test", "Pi run", "Link-stress sweep", "Restricted-visibility injection", "Telemetry SITL")
+    text = "\n".join(f"# Reproduce\n\n## {t}\n\n```\ncommand for {t}\n```\n" for t in topics)
+    text += "\n## Appendix\n\n```bash\n# firmware SITL run\necho hi\n```\n"
+    write(pkg, "REPRODUCE.md", text)
+    write_manifest(pkg)
+    found = messages(run(pkg), "reproduce")
+    assert any("firmware SITL" in m for m in found), found
+
+
+def test_allow_waives_secret_content_as_a_visible_warning(pkg):
+    marker = "-----BEGIN " + "RSA PRIVATE KEY-----"
+    write(pkg, "tests/automation/test_fixture.py", f'PEM = "{marker}"\n')
+    write_manifest(pkg)
+    assert any("test_fixture.py" in m for m in messages(run(pkg), "forbidden"))
+    res = run(pkg, allow=["tests/automation/test_fixture.py"])
+    assert not any("test_fixture.py" in m for m in messages(res, "forbidden"))
+    assert any("waived by --allow" in m for m in messages(res, "forbidden", "warnings"))

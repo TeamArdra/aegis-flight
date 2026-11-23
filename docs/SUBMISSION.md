@@ -33,10 +33,10 @@ The package is a directory (zip it last). The right-hand column is the verifier'
   artifacts/benchmarks_extended/summary.md      #27 regenerated extended benchmark               (benchmark-extended)
   artifacts/validation/stage2_metrics_<tag>/    #28 metrics (metrics.json, metrics.md)           (stage2-metrics)
   artifacts/hardware/**/*.sha256                SHA-256 manifests of the #29/#30 captures        (capture-hashes)
-  artifacts/hardware/companion_*/paced.json     #30 paced-replay output                          (pi-run)
+  artifacts/hardware/companion_<board>_*/paced.json #30 paced-replay output (companion_host_* does not count) (pi-run)
 ```
 
-Not in the package (the verifier fails on them; `--allow PATTERN` lets a human-approved file through):
+Not in the package (the verifier fails on them; `--allow PATTERN` lets a human-approved file through, and also waives a secret-like match in that file, such as a test fixture's PEM header, reporting it as a warning):
 
 | Item | Why | If the team decides otherwise |
 |---|---|---|

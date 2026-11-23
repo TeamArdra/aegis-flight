@@ -84,6 +84,11 @@ REQUIRED: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
      ("artifacts/hardware/**/*.sha256", "artifacts/hardware/**/*sha256*.txt")),
     ("pi-run", "#30", "companion-computer paced-replay output", ("artifacts/hardware/companion_*/**/*.json",)),
 )
+# Matches that do NOT satisfy a requirement: a host-only (workstation) companion run is not the target-board
+# run #30 asks for.
+REQUIRED_EXCLUDE: dict[str, tuple[str, ...]] = {
+    "pi-run": ("artifacts/hardware/companion_host_*/*",),
+}
 
 # (label, regex for the heading text) : each needs a REPRODUCE.md section with a command (#34)
 REPRODUCE_TOPICS: tuple[tuple[str, str], ...] = (
@@ -180,7 +185,7 @@ def scan_tree(root: Path, allow: list[str]) -> tuple[list[str], list[str]]:
             rel = str(rel_dir / d)
             if Path(dirpath, d).is_symlink():
                 problems.append(f"{rel}: symlink (a package must not point outside itself)")
-            elif d in FORBIDDEN_DIRS or rel in FORBIDDEN_DIR_PATHS:
+            elif d in FORBIDDEN_DIRS or any(rel == fp or rel.endswith("/" + fp) for fp in FORBIDDEN_DIR_PATHS):
                 problems.append(f"{rel}/: forbidden directory")
             else:
                 keep.append(d)
@@ -234,7 +239,10 @@ def parse_sha_file(path: Path) -> tuple[list[tuple[str, str, int]], list[str]]:
 def check_required(root: Path, res: Result) -> None:
     res.start("required")
     for ident, issue, desc, patterns in REQUIRED:
-        if not any(glob_files(root, p) for p in patterns):
+        excl = REQUIRED_EXCLUDE.get(ident, ())
+        hits = [f for p in patterns for f in glob_files(root, p)
+                if not any(fnmatch.fnmatchcase(f, e) for e in excl)]
+        if not hits:
             res.fail("required", f"[{ident}] missing ({issue}): {desc}; looked for {', '.join(patterns)}")
 
 
@@ -292,7 +300,8 @@ def check_manifest(root: Path, files: list[str], res: Result) -> None:
         _hash_entries(root / "models", entries, "models/MODELS.sha256", res, must_exist=False)
 
 
-def check_forbidden(root: Path, files: list[str], problems: list[str], res: Result) -> None:
+def check_forbidden(root: Path, files: list[str], problems: list[str], res: Result,
+                    allow: list[str] | None = None) -> None:
     res.start("forbidden")
     for p in problems:
         res.fail("forbidden", p)
@@ -309,7 +318,10 @@ def check_forbidden(root: Path, files: list[str], problems: list[str], res: Resu
             m = pat.search(data)
             if m:
                 line = data.count(b"\n", 0, m.start()) + 1
-                res.fail("forbidden", f"{rel}:{line}: looks like a {label} (text not shown)")
+                if any(fnmatch.fnmatchcase(rel, pat) for pat in allow or ()):
+                    res.warn("forbidden", f"{rel}:{line}: looks like a {label} (text not shown); waived by --allow")
+                else:
+                    res.fail("forbidden", f"{rel}:{line}: looks like a {label} (text not shown)")
 
 
 def check_placeholders(root: Path, files: list[str], extra: list[str], res: Result) -> None:
@@ -366,8 +378,11 @@ def check_reproduce(root: Path, res: Result) -> None:
         return                                    # already a 'required' failure
     sections: list[tuple[str, str]] = []          # (heading text, body)
     head, body = "", []
+    fence = False
     for line in read_text(path).splitlines():
-        if re.match(r"^#{1,6}\s", line):
+        if line.lstrip().startswith("```"):
+            fence = not fence
+        if not fence and re.match(r"^#{1,6}\s", line):
             sections.append((head, "\n".join(body)))
             head, body = line.lstrip("# ").strip(), []
         else:
@@ -579,7 +594,7 @@ def verify(root: Path, *, reports: list[str] | None = None, allow: list[str] | N
     files, problems = scan_tree(root, allow or [])
     check_required(root, res)
     check_manifest(root, files, res)
-    check_forbidden(root, files, problems, res)
+    check_forbidden(root, files, problems, res, allow or [])
     check_placeholders(root, files, extra_scan or [], res)
     check_junit(root, res)
     check_reproduce(root, res)
