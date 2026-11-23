@@ -1115,9 +1115,12 @@ def test_counter_commands_are_stamped_from_observed_traffic_not_the_wall_clock()
     b.pump_once()
     assert b.policy.max_signed_ts == future
     verifier = MavlinkSignatureVerifier(KEY_F)
+    b.controller.actuator.set_vehicle_dialect(3, 2)  # explicit ArduCopter dialect (no heartbeat => fail-closed)
     frames = [b.controller.actuator.encode_set_mode("ALT_HOLD"), b.controller.actuator.encode_set_mode("LOITER")]
     stamps = [verifier.verify_frame(f).timestamp_10us for f in frames]
     assert all(verifier.verify_frame(f).signed for f in frames)
     assert stamps[0] > future and stamps[1] > stamps[0]                       # above everything seen, strictly increasing
-    plain = MavlinkActuator(secret_key=KEY_F)                                 # without a source it still signs from the clock
+    plain = MavlinkActuator(secret_key=KEY_F)
+    plain.set_vehicle_dialect(3, 2)  # explicit ArduCopter dialect (no heartbeat => fail-closed)
+    # without a source it still signs from the clock
     assert MavlinkSignatureVerifier(KEY_F).verify_frame(plain.encode_set_mode("ALT_HOLD")).signed

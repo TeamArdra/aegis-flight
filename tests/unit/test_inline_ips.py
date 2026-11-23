@@ -274,6 +274,7 @@ def test_statustext_counter_frame_goes_to_the_gcs_and_commands_go_to_the_fc():
     from aegisflight.mitigation.actuator import MavlinkActuator
 
     enc = MavlinkActuator(sysid=1, compid=192)
+    enc.set_vehicle_dialect(3, 2)  # explicit ArduCopter dialect: no heartbeat => fail-closed (no DO_SET_MODE)
     warn, alt_hold = enc.encode_statustext("AEGIS: GPS unreliable - do not trust position"), enc.encode_set_mode("ALT_HOLD")
     b, fc, gcs = make_bridge("active-ips")
     b.pipeline = SimpleNamespace(process_tick=lambda tick: SimpleNamespace(is_alert=False), last_frame=object())
