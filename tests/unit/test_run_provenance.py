@@ -191,6 +191,19 @@ def test_dirty_tree_exits_with_status_2_and_prints_the_reason(repo: Path, capsys
 
 # ---- re-review F1 / F3 (PR #50) -------------------------------------------------------------------------------- #
 
+def _not_in_git_checkout() -> bool:
+    from aegisflight import run_provenance as rp
+
+    return rp.code_repo() is None
+
+
+needs_git_checkout = pytest.mark.skipif(
+    _not_in_git_checkout(),
+    reason="needs the test session to run from a git checkout; an extracted archive is not one",
+)
+
+
+@needs_git_checkout
 def test_entry_script_from_another_checkout_is_not_judged_by_the_package_checkout(tmp_path: Path, monkeypatch) -> None:
     """A script run from checkout A while ``aegisflight`` is imported from checkout B must not get B's commit."""
     import types
@@ -208,6 +221,7 @@ def test_entry_script_from_another_checkout_is_not_judged_by_the_package_checkou
     assert rp.tree_state()["dirty"] is True  # cannot be proved clean -> never REPRODUCIBLE
 
 
+@needs_git_checkout
 def test_entry_script_inside_the_package_checkout_is_accepted(monkeypatch) -> None:
     import types
 
