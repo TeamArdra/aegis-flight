@@ -39,7 +39,7 @@ feature distribution → **retrain the ML model** (`aegis train`) and re-benchma
   with no unauthenticated blind settle window; opt-in `> 0` only if needed),
   `unsigned_allowed` (default `[]` — no source exempt unless explicitly pinned),
   `gnss_never_acquired_policy`
-  (`coverage` | `dos`; default `coverage` for D4 never-acquired GNSS policy), `startup_grace_s`
+  (`coverage` | `dos`; D4 never-acquired GNSS policy. The Stage-1 default is `dos` (`config.py`, `configs/detector.yaml`); `configs/px4_sitl`, `configs/ardupilot_copter` and `configs/universal_flight` set `coverage`), `startup_grace_s`
   (0; optional - ignore the "no heartbeat/GPS seen yet" sentinel for the first N seconds).
 - `physics.pos_residual_min_streak` (1 = Stage-1: alert on the first frame above `gps_pos_residual_m`;
   optional key, every shipped profile uses 1, including `configs/universal_flight`). The position-residual
