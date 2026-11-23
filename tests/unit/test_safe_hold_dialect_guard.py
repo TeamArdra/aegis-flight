@@ -17,7 +17,9 @@ def _frame(t: float, mode: str, armed: bool | None) -> FeatureFrame:
     snap = TelemetrySnapshot(t=t, lat=18.92, lon=72.83, alt_msl=25.0, rel_alt=25.0, vx=0.0, vy=5.0, vz=0.0,
                              groundspeed=5.0, roll=0.0, pitch=0.0, yaw=0.0, heading=90.0, flight_mode=mode,
                              armed=armed, battery_remaining=90.0)
-    return FeatureFrame(t=t, snapshot=snap, gps_seen=True, gps_raw_seen=True, heartbeat_seen=True,
+    # The frame carries an observed ArduCopter dialect (autopilot 3, MAV_TYPE_QUADROTOR 2): since D4b the actuator
+    # fails closed on DO_SET_MODE until a vehicle heartbeat has bound the dialect. PX4-named modes stay refused.
+    return FeatureFrame(autopilot_id=3, mav_type=2, t=t, snapshot=snap, gps_seen=True, gps_raw_seen=True, heartbeat_seen=True,
                         msg_rate_hz=10.0, pos_residual_m=0.0, commands_recent=[])
 
 
