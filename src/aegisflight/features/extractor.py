@@ -264,6 +264,7 @@ class FeatureExtractor:
         *,
         learn_baro_offset: bool = False,
         baro_offset_alpha: float = 0.05,
+        accel_min_dt_s: float = 0.0,
     ) -> None:
         if not 0 <= reorder_window <= 127:
             raise ValueError(f"reorder_window must be in [0, 127], got {reorder_window}")
@@ -272,6 +273,9 @@ class FeatureExtractor:
         self.reorder_window = int(reorder_window)
         self.learn_baro_offset = bool(learn_baro_offset)
         self.baro_offset_alpha = max(0.001, min(1.0, float(baro_offset_alpha)))
+        # Minimum time base for |dv|/dt (0 = last two samples, the Stage-1 behaviour). Link jitter or reordering can
+        # deliver two velocity samples a few ms apart; over so short a base a normal velocity step reads as 50+ m/s2.
+        self.accel_min_dt_s = max(0.0, float(accel_min_dt_s))
         self.reset()
 
     def reset(self) -> None:
@@ -993,6 +997,14 @@ class FeatureExtractor:
             return 0.0, 0.0
         (t0, vx0, vy0), (t1, vx1, vy1) = self._vel_hist[-2], self._vel_hist[-1]
         dt = t1 - t0
+        if self.accel_min_dt_s > 0.0 and dt < self.accel_min_dt_s:
+            # Reach back to the newest sample at least ``accel_min_dt_s`` older; with none, keep the last value.
+            for ts, vxs, vys in reversed(list(self._vel_hist)[:-1]):
+                if t1 - ts >= self.accel_min_dt_s:
+                    t0, vx0, vy0, dt = ts, vxs, vys, t1 - ts
+                    break
+            else:
+                return (self._accel_prev[1] if self._accel_prev is not None else 0.0), 0.0
         if dt <= 1e-6:
             return 0.0, 0.0
         accel = math.hypot(vx1 - vx0, vy1 - vy0) / dt
@@ -1003,6 +1015,22 @@ class FeatureExtractor:
                 jerk = abs(accel - pa) / (t1 - pt)
         self._accel_prev = (t1, accel)
         return accel, jerk
+
+    @property
+    def signing_context(self) -> dict[str, object]:
+        """Read-only view of the per-decision-window signing/source state for ``ProtocolDetector``.
+
+        Keys: ``unsigned_events``, ``sig_invalid_streams`` / ``sig_verified_streams`` (``None`` when the source
+        reports no per-stream signing data), ``source_msgs``. The live window containers are returned, not
+        copies; callers must not mutate them (``clear_window_counts`` rebinds them each decision).
+        """
+        tracked = self._sig_streams_tracked
+        return {
+            "unsigned_events": self._unsigned_window,
+            "sig_invalid_streams": self._sig_invalid_streams_window if tracked else None,
+            "sig_verified_streams": self._sig_verified_streams_window if tracked else None,
+            "source_msgs": self._source_msgs_window,
+        }
 
     # window reset between the rate window drops handled by deque + filtering
     def clear_window_counts(self) -> None:

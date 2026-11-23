@@ -52,6 +52,7 @@ class IDSPipeline:
             reorder_window=int(det.get("features", {}).get("reorder_window", 16)),
             learn_baro_offset=bool(det.get("features", {}).get("learn_baro_offset", False)),
             baro_offset_alpha=float(det.get("features", {}).get("baro_offset_alpha", 0.05)),
+            accel_min_dt_s=float(det.get("features", {}).get("accel_min_dt_s", 0.0)),
         )
         self.protocol = ProtocolDetector(det["protocol"])
         self.physics = PhysicsDetector(det["physics"])
@@ -117,16 +118,7 @@ class IDSPipeline:
         t0 = time.perf_counter()
         frame = self.extractor.extract(tick.t)
         self.last_frame = frame
-        self.protocol.observe_signing_context(
-            unsigned_events=self.extractor._unsigned_window,
-            sig_invalid_streams=(
-                self.extractor._sig_invalid_streams_window if self.extractor._sig_streams_tracked else None
-            ),
-            sig_verified_streams=(
-                self.extractor._sig_verified_streams_window if self.extractor._sig_streams_tracked else None
-            ),
-            source_msgs=self.extractor._source_msgs_window,
-        )
+        self.protocol.observe_signing_context(**self.extractor.signing_context)
         r_proto = self.protocol.process(frame)
         if self.crossend is not None:
             self._merge_crossend(r_proto, tick.t)

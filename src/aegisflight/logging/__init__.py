@@ -8,6 +8,7 @@ from .anchors import (
     build_anchor_record,
     compute_anchor_hmac,
     default_anchors_path,
+    find_diverted_anchor_files,
     verify_anchors,
 )
 from .store import ChainStatus, EventStore
@@ -22,5 +23,6 @@ __all__ = [
     "build_anchor_record",
     "compute_anchor_hmac",
     "default_anchors_path",
+    "find_diverted_anchor_files",
     "verify_anchors",
 ]

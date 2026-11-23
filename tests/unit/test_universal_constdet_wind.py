@@ -41,3 +41,41 @@ def test_universal_heading_yaw_tolerance_clears_benign_turbulence_and_stage1_is_
     # benign SITL turbulence flight: VFR_HUD vs ATTITUDE yaw disagreement observed up to 15 deg
     assert float(load_config("configs/universal_flight").detector["physics"]["heading_yaw_tolerance_deg"]) >= 15.0 * 1.25
     assert float(load_config(None).detector["physics"].get("heading_yaw_tolerance_deg", 10.0)) == 10.0
+
+
+def _gpi(ext, t: float, vx_cm: int) -> None:
+    from aegisflight.core.types import MessageEnvelope
+
+    ext.update(MessageEnvelope(t, 1, 1, 33, "GLOBAL_POSITION_INT", int(t * 100) % 256, False, 36, {
+        "lat": 191334000, "lon": 729133000, "alt": 50_000, "relative_alt": 40_000, "vx": vx_cm, "vy": 0, "vz": 0}))
+
+
+def test_accel_min_dt_ignores_jitter_compressed_velocity_samples() -> None:
+    """Two velocity samples 5 ms apart (link jitter/reorder) must not read as a 60 m/s2 acceleration."""
+    from aegisflight.features.extractor import FeatureExtractor
+
+    def feed(ext) -> float:
+        _gpi(ext, 0.0, 0)
+        _gpi(ext, 0.2, 30)
+        _gpi(ext, 0.205, 60)  # 0.3 m/s step arriving 5 ms after the previous sample
+        accel, _ = ext._accel_jerk(0.205)
+        return accel
+
+    assert feed(FeatureExtractor()) > 50.0  # Stage-1 definition (default 0.0) is unchanged
+    assert feed(FeatureExtractor(accel_min_dt_s=0.15)) < 3.0
+
+
+def test_accel_min_dt_still_sees_a_spoofed_velocity_step() -> None:
+    from aegisflight.features.extractor import FeatureExtractor
+
+    ext = FeatureExtractor(accel_min_dt_s=0.15)
+    _gpi(ext, 0.0, 0)
+    _gpi(ext, 0.2, 0)
+    _gpi(ext, 0.4, 1500)  # 15 m/s step in one 0.2 s update
+    accel, _ = ext._accel_jerk(0.4)
+    assert accel > 70.0
+
+
+def test_universal_profile_sets_accel_min_dt_and_stage1_default_is_off() -> None:
+    assert load_config("configs/universal_flight").detector["features"]["accel_min_dt_s"] == 0.15
+    assert load_config(None).detector["features"]["accel_min_dt_s"] == 0.0

@@ -97,6 +97,10 @@ def test_review_workflow_publishes_the_trusted_record_from_base_tooling():
     assert 'git archive "origin/${BASE_REF}" scripts/aegis_automation' in load_step
     build = by_name["Build the review record"]
     assert build["env"]["RESULT"] == "${{ steps.review.outputs.structured_output }}"
+    # The action's execution log explains a missing result (issue #119); it is a file path,
+    # never interpolated into the script.
+    assert build["env"]["EXECUTION_FILE"] == "${{ steps.review.outputs.execution_file }}"
+    assert "EXECUTION_FILE" not in build["run"]
     assert "always()" in build["if"]
     upload = by_name["Upload the trusted review record"]
     assert upload["with"]["name"] == policy().review_record_artifact

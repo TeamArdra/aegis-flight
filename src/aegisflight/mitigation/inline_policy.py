@@ -771,7 +771,7 @@ class InlinePolicy:
 
     def _load_state(self) -> None:
         assert self._verifier is not None and self._state_path is not None
-        with contextlib.suppress(OSError, ValueError, KeyError, TypeError):
+        with contextlib.suppress(OSError, ValueError, KeyError, TypeError, AttributeError):
             data = json.loads(self._state_path.read_text(encoding="utf-8"))
             for k, ts in data.get("streams", {}).items():
                 link, sysid, compid = (int(x) for x in k.split(":"))

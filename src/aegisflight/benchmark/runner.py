@@ -56,6 +56,8 @@ class SessionResult:
     n_decisions: int
     wall_time_s: float
     compute_latency_ms: list[float]
+    ml_loaded: bool = False  # the ML detector actually loaded a model (not merely requested)
+    ml_sha256: str | None = None  # SHA-256 of the model file that was loaded
 
     @property
     def throughput_msgs_per_s(self) -> float:
@@ -158,6 +160,8 @@ def run_session(
         n_decisions=len(records),
         wall_time_s=wall,
         compute_latency_ms=latencies,
+        ml_loaded=pipe.ml_available,
+        ml_sha256=pipe.anomaly.loaded_sha256,
     )
 
 

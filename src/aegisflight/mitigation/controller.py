@@ -476,6 +476,11 @@ class MitigationController:
             mode_differs = (bool(fm) and str(fm).upper() != "UNKNOWN" and self.golden.trusted_mode is not None
                             and fm != self.golden.trusted_mode)
             safe_hold_ok = self._gps_episode or (asmt.attack_type == AttackType.COMMAND_INJECTION and mode_differs)
+            # Same vehicle gate as the GPS ladder: ALT_HOLD is an ArduCopter mode number, so it is sent only
+            # while the vehicle reports an ArduCopter mode the actuator can encode (never to PX4, whose
+            # decoded mode names are not ArduCopter names) and only to a vehicle known to be armed.
+            safe_hold_ok = (safe_hold_ok and self.actuator.knows_mode(fm)
+                            and frame.snapshot.armed is True)
             if (self.state == MitigationState.SAFE_HOLD and safe_hold_ok
                     and frame.snapshot.armed is True
                     and not self._safe_hold_alt_hold_sent

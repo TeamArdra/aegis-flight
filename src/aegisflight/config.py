@@ -84,6 +84,8 @@ DEFAULT_DETECTOR: dict[str, Any] = {
         # Ground-learned static baro-vs-GPS altitude bias calibration (off for Stage-1 SIM).
         "learn_baro_offset": False,
         "baro_offset_alpha": 0.05,
+        # Minimum time base for |dv|/dt in seconds; 0 keeps the Stage-1 two-sample definition.
+        "accel_min_dt_s": 0.0,
     },
     "protocol": {
         "expected_sysids": [1],

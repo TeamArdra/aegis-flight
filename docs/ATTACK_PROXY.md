@@ -317,7 +317,7 @@ frame and is fed only bytes + decoded envelope (header-first, via the existing
   `_loopback_only()` guard (`src/aegisflight/sources/mavlink_live.py`): `bind=(None, port)`
   defaults to `127.0.0.1`; wildcard (`0.0.0.0`/`::`) requires explicit
   `allow_wildcard=True`, which this proxy's default config must never set. The upstream
-  leg (`connect=(wsl_ip, 14550)`) targets only the discovered WSL NAT address (opt-in `--allow-private-upstream`; it must lie in a local interface's subnet, loopback otherwise; see `docs/STAGE2_RUNBOOK.md`) — never
+  leg (`connect=(wsl_ip, 14550)`) targets only the discovered WSL NAT address (opt-in `--allow-private-upstream`; it must lie in the subnet of a virtual host-only/NAT adapter such as the WSL `vEthernet`, `docker0`, `virbr*`, never a physical Wi-Fi/Ethernet NIC, and the virtual network must be no wider than /16 (IPv4) / /64 (IPv6); `%`-scoped addresses are refused; loopback otherwise; see `docs/STAGE2_RUNBOOK.md`) — never
   hard-coded, per `.claude/CLAUDE.md` — and only the PX4 GCS port.
 - **Single-partner guarantee.** Because PX4's UDP link "locks to the first sender and
   never re-learns," the proxy becomes PX4's *only* GCS partner by being the first and
@@ -385,3 +385,5 @@ Implemented in `src/aegisflight/proxy/attacks_live_telemetry.py` and driven by
 
 All hooks are unit-tested without SITL hardware in `tests/unit/test_proxy_telemetry_and_firmware.py`;
 same-team authorship of attack hooks and detectors is disclosed here.
+
+A dry run of these scenarios (2026-11-19, under `artifacts/sitl/`) exists. It is an **unsupported dry run**: not reproducible and not validated evidence, so it supports no detection, false-positive-rate or reproducibility claim (see `UNSUPPORTED.md` in that directory).

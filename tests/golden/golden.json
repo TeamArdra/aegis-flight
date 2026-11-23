@@ -3196,7 +3196,7 @@
  },
  "recorded_env": {
   "ml": {
-   "PyYAML": "6.0.3",
+   "PyYAML": "6.0.4",
    "arch": "arm64",
    "joblib": "1.6.0",
    "numpy": "2.5.5",
