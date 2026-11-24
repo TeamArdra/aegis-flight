@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import select
 import sys
-import termios
 import time
 
 import pytest
@@ -18,6 +17,7 @@ if sys.platform == "win32":
     pytest.skip("PTY tests skip on Windows", allow_module_level=True)
 
 import pty
+import termios
 
 from pymavlink.dialects.v20 import common as mav
 
