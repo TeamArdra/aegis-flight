@@ -585,6 +585,13 @@ class InlineIpsBridge:
                     out = [fr.raw]
             if down:
                 self.frames_down += 1
+                if fr.msgid == 77:
+                    with contextlib.suppress(Exception):
+                        hdr = 10 if fr.raw[:1] == b"\xfd" else 6
+                        if len(fr.raw) >= hdr + 3:
+                            cmd = int.from_bytes(fr.raw[hdr : hdr + 2], "little")
+                            res = fr.raw[hdr + 2]
+                            self.controller.record_command_ack(cmd, res, t=stamp / 1e9)
             else:
                 self.frames_up += 1
             if not out:
