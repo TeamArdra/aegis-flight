@@ -52,6 +52,8 @@ QUICKSTART  →  HANDOFF  →  ARCHITECTURE  →  END_TO_END_FLOW  →  FILE_REF
 - [STAGE2_PROGRESS.md](STAGE2_PROGRESS.md) — Stage 2 engineering ledger and implementation progress.
 - [STAGE2_SECURITY_AND_FEATURE_RATIONALE.md](STAGE2_SECURITY_AND_FEATURE_RATIONALE.md) — reviewer guide explaining how all preserved Stage-2 and Universal Flight-Hardening features satisfy security boundaries across PRs #79–#82.
 - [STAGE2_RUNBOOK.md](STAGE2_RUNBOOK.md) — SITL integration, automated verification, and regression test suites.
+- [SUBMISSION.md](SUBMISSION.md) — Stage-2 submission package (#34): layout, commands that regenerate each evidence item, the human-only checklist, and `scripts/submission/verify_package.py` (offline verifier; preparation only, no package assembled).
+- [DEMO_VIDEO_CHECKLIST.md](DEMO_VIDEO_CHECKLIST.md) — demonstration video (#33): capture order, on-screen commands, the environment tag and claim class to state, what must not be claimed (preparation only, nothing recorded); detail in [demo/DEMO_SCRIPT.md](demo/DEMO_SCRIPT.md).
 - [stage2_report_draft.md](stage2_report_draft.md) — withdrawn report draft; rebuild from VALIDATION_EVIDENCE.md.
 - [SKILLS_REGISTRY.md](SKILLS_REGISTRY.md) — policy notice for third-party agent skills (unverified external skill catalogue removed).
 - [TESTING.md](TESTING.md) — the test suite and the pre-release gate.
