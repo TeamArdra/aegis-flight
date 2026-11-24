@@ -3,10 +3,18 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
+  ACTION_TIMELINE_CAPTION,
+  CONTROLLER_SUMMARY_CAPTION,
   DECISION_COMPUTE_LABEL,
   DEFENSE_LIMITS,
   MODE_OPTIONS,
+  controllerSummaryLabel,
+  emptyTimelineText,
+  internalStateCaption,
+  internalStateTitle,
   ladderStates,
+  mitigationPresentation,
+  overrideFallback,
   postureBanner,
   quietThreatText,
   summaryFallback,
@@ -99,6 +107,164 @@ test("defense limits keep the three disclosures", () => {
   assert.match(all, /uplink filter.*off by default/i);
   assert.match(all, /20 s after the bridge starts/);
   assert.match(all, /only the downlink/);
+});
+
+/* ----------------------------------- internal state vs executed actions (#181) */
+const THREATS = [
+  { label: "none", t: { threat: false, attack_type: "none", severity: "none" } },
+  { label: "low", t: { threat: true, attack_type: "gps_spoofing", severity: "low" } },
+  { label: "high", t: { threat: true, attack_type: "command_injection", severity: "high" } },
+];
+const QUEUED: Array<number | null | undefined> = [undefined, null, 0, 3];
+// Affirmative claims that something was transmitted or acted on.
+const ACTED = /\b(sent|transmitted|dispatched|emitted|executed|engaged)\b/i;
+const NEGATION = /\b(no|not|nothing|never|none)\b/i;
+/** Every sentence mentioning an "acted" verb must be negated: "not transmitted" is fine, "was sent" is not. */
+function affirmativeClaims(text: string): string[] {
+  return text.split(/(?<=[.;])\s+/).filter((s) => ACTED.test(s) && !NEGATION.test(s));
+}
+
+type Rows = ReturnType<typeof mitigationPresentation>;
+function allRows(): Array<{ key: string; rows: Rows }> {
+  const out: Array<{ key: string; rows: Rows }> = [];
+  for (const mode of MODES) for (const state of STATES) for (const th of THREATS) for (const env of ENVS) for (const q of QUEUED) {
+    out.push({ key: `${mode}/${state}/${th.label}/${env}/${q}`, rows: mitigationPresentation({ mode, state, environment: env, threat: th.t, queuedFrames: q }) });
+  }
+  return out;
+}
+const row = (rows: Rows, id: string) => rows.find((r) => r.id === id)!;
+
+test("mitigation presentation: four labelled rows for every mode x state x threat x environment", () => {
+  for (const { key, rows } of allRows()) {
+    assert.deepEqual(rows.map((r) => r.id), ["threat", "internal", "mode", "transmission"], key);
+    for (const r of rows) {
+      assert.ok(r.label && r.value, `${key}/${r.id}`);
+      assert.doesNotMatch(`${r.label} ${r.value}`, OVERCLAIM, `${key}/${r.id}`);
+    }
+  }
+});
+
+test("mitigation presentation: threat row reports the assessment only", () => {
+  const mk = (t: (typeof THREATS)[number]["t"]) => row(mitigationPresentation({ mode: "passive", state: "NOMINAL", threat: t }), "threat").value;
+  assert.equal(mk(THREATS[0].t), "No threat detected");
+  assert.match(mk(THREATS[1].t), /gps spoofing.*severity low/);
+  assert.match(mk(THREATS[2].t), /command injection.*severity high/);
+  assert.equal(row(mitigationPresentation({ mode: "passive", state: "NOMINAL" }), "threat").value, "No threat detected");
+});
+
+test("mitigation presentation: internal state is always labelled as the controller's own state", () => {
+  for (const { key, rows } of allRows()) {
+    const r = row(rows, "internal");
+    assert.match(r.label, /[Ii]nternal/, key);
+    assert.match(r.label, /[Cc]ontroller/, key);
+    assert.match(r.value, /internal state, not proof of an executed action/, key);
+  }
+  const missing = row(mitigationPresentation({ mode: "passive", state: null }), "internal");
+  assert.match(missing.label, /[Ii]nternal/);
+  assert.match(missing.value, /Not reported/);
+});
+
+test("mitigation presentation: configured mode row", () => {
+  assert.equal(row(mitigationPresentation({ mode: "passive", state: "NOMINAL" }), "mode").value, "PASSIVE");
+  assert.equal(row(mitigationPresentation({ mode: "advisory", state: "NOMINAL" }), "mode").value, "ADVISORY");
+  assert.equal(row(mitigationPresentation({ mode: "active-ips", state: "NOMINAL" }), "mode").value, "ACTIVE IPS");
+});
+
+test("mitigation presentation: PASSIVE transmission is none, even in a mitigating state or without a payload", () => {
+  const passive = allRows().filter((x) => x.key.startsWith("passive/"));
+  assert.ok(passive.length > 0);
+  for (const { key, rows } of passive) {
+    assert.equal(row(rows, "transmission").value, "None: PASSIVE never transmits", key);
+  }
+  assert.equal(row(mitigationPresentation({ mode: "passive", state: null }), "transmission").value, "None: PASSIVE never transmits");
+});
+
+test("mitigation presentation: ADVISORY sends no counter-command and makes no affirmative transmission claim", () => {
+  const advisory = allRows().filter((x) => x.key.startsWith("advisory/"));
+  assert.ok(advisory.length > 0);
+  for (const { key, rows } of advisory) {
+    const v = row(rows, "transmission").value;
+    assert.match(v, /No counter-command or mode command is sent/, key);
+    assert.match(v, /nothing to the flight controller/, key);
+    assert.match(v, /STATUSTEXT alert notifications .* not reported by this API/, key);
+    assert.deepEqual(affirmativeClaims(v), [], `${key}: ${v}`);
+    assert.doesNotMatch(v, /none at all|alerts? (was|were|have been) (sent|delivered)/i, key);
+  }
+  assert.match(row(mitigationPresentation({ mode: "advisory", state: null }), "transmission").value, /^No counter-command/);
+});
+
+test("mitigation presentation: ACTIVE IPS in SIM/REPLAY is modelled only", () => {
+  for (const env of ["SIM", "REPLAY"] as const) {
+    for (const q of QUEUED) {
+      const v = row(mitigationPresentation({ mode: "active-ips", state: "SAFE_HOLD", environment: env, queuedFrames: q }), "transmission").value;
+      assert.equal(v, "None: no live transport in SIM/REPLAY (modelled only)", `${env}/${q}`);
+    }
+  }
+});
+
+test("mitigation presentation: ACTIVE IPS on SITL/BENCH/unknown environment is not reported, even with queued frames", () => {
+  for (const env of ["SITL", "BENCH", null] as const) {
+    for (const state of STATES) {
+      const at = (q: number | null | undefined) => row(mitigationPresentation({ mode: "active-ips", state, environment: env, queuedFrames: q }), "transmission").value;
+      const v3 = at(3);
+      assert.equal(v3, "Not reported by the API (3 frames queued by the controller)", `${env}/${state}`);
+      assert.deepEqual(affirmativeClaims(v3), [], v3);
+      assert.equal(at(1), "Not reported by the API (1 frame queued by the controller)");
+      assert.equal(at(0), "Not reported by the API (0 frames queued by the controller)");
+      for (const q of [undefined, null]) {
+        assert.equal(at(q), "Not reported by the API (queued frame count not reported)", `${env}/${state}/${q}`);
+      }
+    }
+  }
+});
+
+test("mitigation presentation: ACTIVE IPS without a mitigation payload is unknown", () => {
+  for (const env of ENVS) {
+    for (const state of [null, undefined]) {
+      const v = row(mitigationPresentation({ mode: "active-ips", state, environment: env, queuedFrames: 2 }), "transmission").value;
+      assert.match(v, /^Unknown/, `${env}/${state}`);
+    }
+  }
+});
+
+test("internal-state, summary, timeline and override wording never claims an executed action", () => {
+  for (const mode of MODES) {
+    assert.match(internalStateTitle(mode), /CONTROLLER INTERNAL/);
+    assert.match(internalStateCaption(mode), /internal state machine/);
+    assert.match(internalStateCaption(mode), /not proof that any action was executed/);
+    assert.match(controllerSummaryLabel(mode), /CONTROLLER SUMMARY/);
+    const empty = emptyTimelineText(mode);
+    assert.doesNotMatch(empty, /armed|dispatched|ready/i, `${mode}: ${empty}`);
+    for (const text of [internalStateTitle(mode), internalStateCaption(mode), controllerSummaryLabel(mode), empty]) {
+      assert.doesNotMatch(text, OVERCLAIM);
+      assert.deepEqual(affirmativeClaims(text), [], text);
+    }
+  }
+  assert.match(CONTROLLER_SUMMARY_CAPTION, /controller, not a confirmed action/);
+  assert.match(ACTION_TIMELINE_CAPTION, /controller decisions, not confirmed transmissions/);
+  assert.match(overrideFallback("safe_hold"), /accepted by the controller \(not confirmed on a vehicle\)/);
+  assert.doesNotMatch(overrideFallback("safe_hold"), /executed/);
+});
+
+test("reworded banners and ladder no longer imply executed actions", () => {
+  const ipsAttack = postureBanner("active-ips", true, "gps_spoofing", "SITL");
+  assert.doesNotMatch(ipsAttack.desc, /lists what was dropped or sent/);
+  assert.match(ipsAttack.desc, /not confirmed transmissions/);
+  assert.doesNotMatch(postureBanner("advisory", true, "dos").desc, /Alert raised for the GCS/);
+  assert.equal(summaryFallback("active-ips"), "ACTIVE IPS: no controller action recorded");
+  const adv = ladderStates("advisory")[1].desc;
+  assert.doesNotMatch(adv, /raised for the GCS/);
+  assert.match(adv, /nothing executed/);
+  for (const s of ladderStates("active-ips").slice(1)) assert.match(s.desc, /controller|internal state/);
+});
+
+test("DefensePanel renders the four-row block and no longer hard-codes transmission claims", () => {
+  const panel = readFileSync(join(import.meta.dirname, "..", "src", "components", "DefensePanel.tsx"), "utf8");
+  assert.match(panel, /data-testid="mitigation-presentation"/);
+  assert.match(panel, /mitigation-row-\$\{r\.id\}/);
+  assert.doesNotMatch(panel, /0 BYTES SENT/);
+  assert.doesNotMatch(panel, /STATUSTEXT \(Active\)|Alert Frames Emitted|Last Advisory Sent|\(DROPPED\)|TX\)|dispatched|armed and ready|executed`/);
+  assert.doesNotMatch(panel, /speedBias > 0\.5|batteryBias > 0\.1/);
 });
 
 /* -------------------------------------------------------- source grep gate */

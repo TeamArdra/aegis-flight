@@ -4,7 +4,23 @@ import { describe, selectTopology } from "../lib/topology";
 import { ActiveIpsDialog } from "./ActiveIpsDialog";
 import { HoldConfirmButton } from "./HoldConfirmButton";
 import { needsActiveIpsDialog, signingText, type SigningInfo } from "../lib/posture";
-import { DECISION_COMPUTE_LABEL, DEFENSE_LIMITS, MODE_OPTIONS, ladderStates as getLadderStates, postureBanner, summaryFallback } from "../lib/wording";
+import {
+  ACTION_TIMELINE_CAPTION,
+  CONTROLLER_SUMMARY_CAPTION,
+  DECISION_COMPUTE_LABEL,
+  DEFENSE_LIMITS,
+  MODE_OPTIONS,
+  controllerSummaryLabel,
+  emptyTimelineText,
+  internalStateCaption,
+  internalStateTitle,
+  ladderStates as getLadderStates,
+  mitigationPresentation,
+  overrideFallback,
+  postureBanner,
+  summaryFallback,
+  transmissionText,
+} from "../lib/wording";
 import type { DefenseMode, Environment, MitigationActionItem, MitigationInfo, Telemetry, Threat, TopologyInfo } from "../types";
 
 interface Props {
@@ -92,11 +108,13 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
   const batteryBias = outputs?.battery_bias_v ?? params?.battery_bias_v ?? 0;
   const latOffsetDeg = params?.lat_offset_deg ?? 0;
   const targetRestoreMode = outputs?.target_restore_mode ?? params?.target_restore_mode ?? null;
-  const counterFramesSent = outputs?.counter_frames_sent ?? mitigation?.counter_frames_sent ?? 0;
+  // Controller decisions, not confirmed effects: absent stays null ("not reported"), never 0/false.
+  // counter_frames_sent counts frames the controller encoded/queued, not frames transmitted.
+  const queuedFrames: number | null = outputs?.counter_frames_sent ?? mitigation?.counter_frames_sent ?? null;
 
-  const ekfSwitched = outputs?.ekf_switched ?? mitigation?.ekf_switched ?? false;
-  const sanitizeGps = outputs?.sanitize_gps ?? mitigation?.sanitize_gps ?? false;
-  const sanitizeAlt = outputs?.sanitize_alt ?? mitigation?.sanitize_alt ?? false;
+  const ekfSwitched: boolean | null = outputs?.ekf_switched ?? mitigation?.ekf_switched ?? null;
+  const sanitizeGps: boolean | null = outputs?.sanitize_gps ?? mitigation?.sanitize_gps ?? null;
+  const sanitizeAlt: boolean | null = outputs?.sanitize_alt ?? mitigation?.sanitize_alt ?? null;
   const lastCommand = outputs?.last_command_sent ?? mitigation?.last_command_sent ?? null;
 
   const trustedLat = inputs?.trusted_lat ?? params?.trusted_lat;
@@ -106,6 +124,8 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
   // Posture statement: factual, evidence-bounded (lib/wording.ts)
   const isAttackActive = Boolean(threat?.threat);
   const { cls: resClass, title: resTitle, desc: resDesc, badge: resBadge } = postureBanner(activeMode, isAttackActive, threat?.attack_type, environment);
+  const mitigationRows = mitigationPresentation({ mode: activeMode, state: mitigation?.state ?? null, environment, threat, queuedFrames });
+  const transmission = transmissionText(activeMode, environment, queuedFrames, Boolean(mitigation?.state));
 
   const applyMode = async (newMode: DefenseMode, allowUnsigned?: boolean) => {
     setOptimisticMode(newMode);
@@ -141,7 +161,7 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
     setOverrideMsg(null);
     try {
       const res = await api.defenseOverride(action);
-      setOverrideMsg(res.mitigation?.summary || `Action ${action} executed`);
+      setOverrideMsg(res.mitigation?.summary || overrideFallback(action));
     } catch (err) {
       setOverrideMsg(`Override failed: ${err}`);
     } finally {
@@ -178,7 +198,7 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
           {activeMode === "passive"
             ? "Passive intrusion detection (IDS) · nothing sent to the flight controller"
             : activeMode === "advisory"
-            ? "Pilot-in-the-loop advisory alerting · alerts to the GCS only"
+            ? "Pilot-in-the-loop advisory alerting · nothing sent to the flight controller"
             : "Intrusion prevention (IPS) · verified in ArduCopter SITL only, not flight-validated"}
         </div>
       </div>
@@ -192,6 +212,16 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
           </div>
         </div>
         <div className="res-badge" data-testid="defense-badge">{resBadge}</div>
+      </div>
+      <div className="topo-card" data-testid="mitigation-presentation">
+        <div className="topo-rows">
+          {mitigationRows.map((r) => (
+            <div key={r.id} className="topo-row" data-testid={`mitigation-row-${r.id}`}>
+              <span>{r.label}</span>
+              <b className="topo-muted">{r.value}</b>
+            </div>
+          ))}
+        </div>
       </div>
       <ul className="topo-reasons" data-testid="defense-limits">
         {DEFENSE_LIMITS.map((l) => <li key={l}>{l}</li>)}
@@ -230,13 +260,8 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
 
       {/* 2. 4-State Escalation Ladder (Mode-Adaptive) */}
       <div className="def-section">
-        <div className="def-section-title">
-          {activeMode === "passive"
-            ? "IDS ESCALATION STATE MACHINE"
-            : activeMode === "advisory"
-            ? "ADVISORY ESCALATION STATE MACHINE"
-            : "CLOSED-LOOP IPS ESCALATION LADDER"}
-        </div>
+        <div className="def-section-title" data-testid="internal-state-title">{internalStateTitle(activeMode)}</div>
+        <div className="topo-note" data-testid="internal-state-caption">{internalStateCaption(activeMode)}</div>
         <div className="fsm-ladder">
           {ladderStates.map((s, idx) => {
             const isCurrent = stateId === s.id;
@@ -346,8 +371,8 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
               <div className="forensics-data">
                 <div className="data-row">
                   <span className="lbl">Transmission Policy</span>
-                  <span className="val mono" style={{ color: "var(--ok)", fontWeight: 700 }}>
-                    0 BYTES SENT (Strict Passive IDS)
+                  <span className="val mono" style={{ color: "var(--ok)", fontWeight: 700 }} data-testid="transmission-policy">
+                    {transmission}
                   </span>
                 </div>
                 <div className="data-row">
@@ -386,17 +411,25 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
               <div className="forensics-data">
                 <div className="data-row">
                   <span className="lbl">HUD Alert Channel</span>
-                  <span className="val mono" style={{ color: "var(--ok)" }}>
-                    MAVLink STATUSTEXT (Active)
+                  <span className="val mono">
+                    MAVLink STATUSTEXT (prepared by the controller; delivery not reported)
                   </span>
                 </div>
                 <div className="data-row">
-                  <span className="lbl">Alert Frames Emitted</span>
-                  <span className="val mono">{counterFramesSent} frames</span>
+                  <span className="lbl">Alert Frames Queued</span>
+                  <span className="val mono">
+                    {queuedFrames === null ? "Not reported" : `${queuedFrames} queued by the controller, not transmitted by the mitigation path`}
+                  </span>
                 </div>
                 <div className="data-row">
-                  <span className="lbl">Last Advisory Sent</span>
+                  <span className="lbl">Last Advisory Prepared</span>
                   <span className="val mono">{lastCommand || "Standby"}</span>
+                </div>
+                <div className="data-row">
+                  <span className="lbl">Transmission</span>
+                  <span className="val mono" style={{ color: "var(--muted)", fontSize: "11px" }} data-testid="transmission-advisory">
+                    {transmission}
+                  </span>
                 </div>
                 <div className="data-row">
                   <span className="lbl">Control Surfaces</span>
@@ -425,33 +458,35 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
             <div className="forensics-col output-col">
               <div className="col-header">
                 <span className="col-tag">OUTPUTS</span>
-                <span className="col-title">Counter-Actuation & Sanitization</span>
+                <span className="col-title">Controller Decisions (Counter-Actuation & Sanitization)</span>
               </div>
               <div className="forensics-data">
                 <div className="data-row">
-                  <span className="lbl">EKF Navigation Source</span>
-                  <span className="val mono" style={{ color: ekfSwitched ? "var(--warn)" : "var(--ok)" }}>
-                    {ekfSwitched ? "SOURCE 2 (OptFlow / Non-GPS DR)" : "SOURCE 1 (Primary GPS)"}
+                  <span className="lbl">EKF Source Request (controller)</span>
+                  <span className="val mono" style={{ color: ekfSwitched ? "var(--warn)" : undefined }}>
+                    {ekfSwitched === null
+                      ? "Not reported"
+                      : ekfSwitched
+                      ? "SOURCE 2 (OptFlow / Non-GPS DR) requested"
+                      : "No switch requested (SOURCE 1, Primary GPS)"}
                   </span>
                 </div>
                 <div className="data-row">
-                  <span className="lbl">Inline Frame Sanitizer</span>
+                  <span className="lbl">Sanitizer Flag (controller)</span>
                   <span className="val mono" style={{ color: sanitizeGps || sanitizeAlt ? "var(--warn)" : undefined }}>
                     {sanitizeGps
-                      ? `ACTIVE (Δlat=${fmtNum(latOffsetDeg, 5)}°)`
+                      ? `FLAGGED (Δlat=${fmtNum(latOffsetDeg, 5)}°), not confirmed applied`
                       : sanitizeAlt
-                      ? `ACTIVE (Alt -${fmtNum(altBias)}m)`
-                      : speedBias > 0.5
-                      ? `ACTIVE (Spd -${fmtNum(speedBias)}m/s)`
-                      : batteryBias > 0.1
-                      ? `ACTIVE (Batt Clamped)`
-                      : "STANDBY"}
+                      ? `FLAGGED (Alt -${fmtNum(altBias)}m), not confirmed applied`
+                      : sanitizeGps === null && sanitizeAlt === null
+                      ? "Not reported"
+                      : "Not flagged"}
                   </span>
                 </div>
                 <div className="data-row">
-                  <span className="lbl">Quarantined SysIDs</span>
+                  <span className="lbl">Quarantined SysIDs (controller)</span>
                   <span className="val mono" style={{ color: quarantined.length > 0 ? "var(--crit)" : undefined }}>
-                    {quarantined.length > 0 ? `[${quarantined.join(", ")}] (DROPPED)` : "None"}
+                    {quarantined.length > 0 ? `[${quarantined.join(", ")}] (drop requested by the controller)` : "None"}
                   </span>
                 </div>
                 <div className="data-row">
@@ -461,10 +496,16 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
                   </span>
                 </div>
                 <div className="data-row">
-                  <span className="lbl">Last Counter Command</span>
+                  <span className="lbl">Last Counter Command (controller)</span>
                   <span className="val mono">
                     {lastCommand || "None"}
-                    {counterFramesSent > 0 && ` (${counterFramesSent} TX)`}
+                    {queuedFrames !== null && queuedFrames > 0 && ` (${queuedFrames} queued)`}
+                  </span>
+                </div>
+                <div className="data-row">
+                  <span className="lbl">Transmission confirmed</span>
+                  <span className="val mono" style={{ color: "var(--muted)" }} data-testid="transmission-confirmed">
+                    {transmission}
                   </span>
                 </div>
                 <div className="data-row">
@@ -488,17 +529,12 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
             ? "IDS AUDIT LOG TIMELINE"
             : activeMode === "advisory"
             ? "ADVISORY ALERT TIMELINE"
-            : "TACTICAL MITIGATION ACTION TIMELINE"}
+            : "MITIGATION CONTROLLER DECISION LOG"}
         </div>
+        <div className="topo-note" data-testid="timeline-caption">{ACTION_TIMELINE_CAPTION}</div>
         <div className="action-timeline">
           {actions.length === 0 ? (
-            <div className="empty-timeline">
-              {activeMode === "passive"
-                ? "Passive IDS stream active — no intrusions logged yet."
-                : activeMode === "advisory"
-                ? "Advisory monitor armed — no HUD alerts dispatched yet."
-                : "No counter-actions logged yet."}
-            </div>
+            <div className="empty-timeline">{emptyTimelineText(activeMode)}</div>
           ) : (
             actions.slice().reverse().map((act, i) => (
               <div key={actions.length - 1 - i} className="timeline-item">
@@ -513,10 +549,8 @@ function DefensePanelImpl({ mode, mitigation, threat, telemetry, topologyInfo, b
 
       {/* 6. Summary Banner */}
       <div className="def-summary-bar">
-        <span className="summary-lbl">
-          {activeMode === "passive" ? "IDS STATUS:" : activeMode === "advisory" ? "ADV STATUS:" : "IPS STATUS:"}
-        </span>
-        <span className="summary-txt">
+        <span className="summary-lbl" title={CONTROLLER_SUMMARY_CAPTION}>{controllerSummaryLabel(activeMode)}</span>
+        <span className="summary-txt" title={CONTROLLER_SUMMARY_CAPTION}>
           {mitigation?.summary || summaryFallback(activeMode)}
         </span>
       </div>
