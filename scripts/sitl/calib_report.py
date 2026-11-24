@@ -9,6 +9,7 @@ feature_shift / sim_sanity). Nothing is typed by hand.
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -74,7 +75,8 @@ def splice_doc(blocks: dict[str, list[str]]) -> None:
     print("spliced", doc)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
     cal, held = load("evaluation_calib.json"), load("evaluation_heldout.json")
     der, side = load("derivation.json"), load("isoforest_px4_training.json")

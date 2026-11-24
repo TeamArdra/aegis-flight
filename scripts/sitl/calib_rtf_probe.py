@@ -13,6 +13,7 @@ assumption). Calibration flights only. Output: ``artifacts/sitl/calibration/rtf_
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -35,7 +36,8 @@ def _load_bundle():
     return load_verified_bundle(cc.resolve(cc.PX4_MODEL))
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
     cfg = cc.cfg_for("px4_sitl")
     prot = cfg.detector["protocol"]

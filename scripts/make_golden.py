@@ -41,6 +41,7 @@ depend on the installed numpy / scikit-learn; regenerate only from a known-good 
 
 from __future__ import annotations
 
+import argparse
 import enum
 import hashlib
 import json
@@ -673,8 +674,19 @@ def _write(gold: dict) -> None:
 PORTABLE = ("frame_r", "detectors_r")
 
 
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    """Parse the command line BEFORE any work: ``--help`` (and a bad flag) must never compute or write the fixture."""
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--rewrite-all", action="store_true", help="replace the whole fixture with this host's results")
+    ap.add_argument("--check", action="store_true", help="recompute and compare, exit 1 on any difference")
+    ap.add_argument("--ml-only", action="store_true", help="rewrite only the ML-on section")
+    ap.add_argument("--add-portable", action="store_true", help="add the rounded layers where every exact digest matches")
+    return ap.parse_args(argv)
+
+
 def main(argv: list[str]) -> int:
-    if "--add-portable" in argv:
+    args = _parse_args(argv)
+    if args.add_portable:
         gold = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
         _migrate_format1(gold)
         verified, failed = [], []
@@ -707,7 +719,7 @@ def main(argv: list[str]) -> int:
             _write(gold)
             print(f"added {PORTABLE} to {GOLDEN_PATH} for {verified}")
         return 1 if failed else 0
-    if "--ml-only" in argv:
+    if args.ml_only:
         if not MODEL_PATH.exists():
             print(f"{MODEL_PATH} is missing; train it first (aegis train)")
             return 1
@@ -719,7 +731,7 @@ def main(argv: list[str]) -> int:
         _write(gold)
         print(f"rewrote the ml section of {GOLDEN_PATH} ({len(gold['ml'])} cases, model {gold['ml_model_sha256']})")
         return 0
-    if "--check" in argv:
+    if args.check:
         gold = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
         bad = 0
         for key, ml in (("no_ml", False), ("ml", True)):
@@ -732,7 +744,7 @@ def main(argv: list[str]) -> int:
                     print("MISMATCH", key, name)
         print("golden check:", "FAILED" if bad else "ok")
         return 1 if bad else 0
-    if GOLDEN_PATH.exists() and "--rewrite-all" not in argv:
+    if GOLDEN_PATH.exists() and not args.rewrite_all:
         # A full rewrite replaces every bit-exact digest (and recorded_env) with this host's values. The ML-off ones
         # were recorded on another host and are not reproducible bit for bit here, so never do that by accident.
         print(f"{GOLDEN_PATH} exists; not rewritten. Use --check, --ml-only or --add-portable, or --rewrite-all to "

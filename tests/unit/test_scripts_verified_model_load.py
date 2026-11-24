@@ -109,11 +109,11 @@ def test_calib_rtf_probe_refuses_unverified_model(probe, monkeypatch, request, f
     model, marker = request.getfixturevalue(fixture_name)
     monkeypatch.setattr(probe.cc, "PX4_MODEL", str(model))
     with pytest.raises(RuntimeError, match=r"mismatch|no entry"):
-        probe.main()
+        probe.main([])
     assert not marker.exists(), "the pickle payload ran: the model was deserialised before verification"
 
 
 def test_calib_rtf_probe_missing_model_fails_closed(probe, monkeypatch, tmp_path):
     monkeypatch.setattr(probe.cc, "PX4_MODEL", str(tmp_path / "nope.joblib"))
     with pytest.raises(RuntimeError, match="not found"):
-        probe.main()
+        probe.main([])

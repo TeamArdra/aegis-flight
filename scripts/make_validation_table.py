@@ -14,6 +14,7 @@ of the AttackType enum (the official template may number them differently).
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -36,7 +37,8 @@ def _p(x) -> str:
     return "—" if x is None else f"{100 * float(x):.1f} %"
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     base = _load("artifacts/benchmarks/results.json")
     noml = _load("artifacts/benchmarks_ablation_no_ml/results.json")
     ext = _load("artifacts/benchmarks_extended/results.json")

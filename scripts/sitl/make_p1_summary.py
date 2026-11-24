@@ -10,6 +10,7 @@ Environment tags: SITL (live UDP) and SITL (replayed tlog). Attack: NONE.
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -21,7 +22,8 @@ def jl(p: Path):
     return json.loads(p.read_text())
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     L: list[str] = ["# P1 summary - benign PX4 SITL (generated; do not edit)", "",
                     "Environment: **SITL**. Attack: **NONE**. Claim class: none (reference / false-alarm measurement).",
                     "Regenerate: `.venv/Scripts/python.exe scripts/sitl/make_p1_summary.py`.", ""]

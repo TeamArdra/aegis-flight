@@ -37,6 +37,7 @@ no heartbeat / no GPS message has been seen yet (extractor sentinel 999 s).
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import platform
@@ -195,7 +196,8 @@ def derive(flights: dict[str, dict]) -> tuple[dict, dict]:
     return D, po
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
     flights = load_flights()
     D, po = derive(flights)

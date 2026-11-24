@@ -14,6 +14,7 @@ sentinels and a no-fix GPS legitimately trip rules there.
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -47,7 +48,8 @@ def phase_totals(by_phase: dict, names: set[str]) -> dict:
     return {"decisions": d, "alert_decisions": al}
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     cfg = load_config(None)
     rate = float(cfg.simulation.get("sample_rate_hz", 10.0))
     out: dict = {"schema": "aegisflight.ardupilot_baseline_summary/1",
