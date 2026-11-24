@@ -22,11 +22,11 @@ detector score is their max); each casts a vote for the attack it implies:
 | Rule | Threshold (config `protocol.*`) | Votes |
 |---|---|---|
 | Message flood | `msg_rate ≥ max_msg_rate_hz` (400) → 1.0; `> spike_factor×nominal` (84) → ramp | DOS |
-| Sequence gaps | `max_seq_gap > max_seq_gap` (30); late frames within `features.reorder_window` (default 16; `configs/universal_flight` sets 24 for jittery ~370 msg/s PX4 links: candidate (24), not validated until a fresh SITL rerun; it also means a sequence jump that stays within 24 behind the high-water mark is not flagged. The committed evidence, `artifacts/sitl/px4_netem_reorder_window/README.md`, was computed at 48 and is superseded pending the rerun) behind the per-source high-water mark are counted in `reorder_count` rather than as `256 - k` gaps | DOS if rate high, else MAVLINK_ANOMALY |
+| Sequence gaps | `max_seq_gap > max_seq_gap` (30); late frames within `features.reorder_window` (default 16; `configs/universal_flight` sets 24 for jittery ~370 msg/s PX4 links: candidate (24), not validated until a fresh SITL rerun; it also means a sequence jump that stays within 24 behind the high-water mark is not flagged. The committed evidence, `artifacts/sitl/px4_netem_reorder_window/README.md`, was computed at 48 and is superseded pending the rerun) behind the per-source high-water mark are counted in `reorder_count` rather than as `256 - k` gaps. A replay within `R` frames is treated as reorder, so the sequence rule alone does not flag it; MAVLink-2 signing and command-cadence checks still apply | DOS if rate high, else MAVLINK_ANOMALY |
 | Rogue telemetry source | sysid ∉ expected & not a command source | MAVLINK_ANOMALY |
 | Heartbeat stale | `heartbeat_age > heartbeat_timeout_s` (3); never received: elapsed monitoring time `> heartbeat_timeout_s` and past `startup_grace_s` (0 = off) | DOS |
 | GPS dropout | `gps_age > gps_dropout_s` (2); never received: coverage line only (score 0) unless `require_global_position`, then elapsed `> gps_dropout_s` and past `startup_grace_s` | DOS |
-| GNSS fix loss | `fix_type < min_gnss_fix_type` (3) or `satellites < min_gnss_satellites` (5; skipped when the count is unknown, see below) for `≥ gnss_loss_ticks` (5) consecutive decisions → `coverage` note (score 0) when never acquired under `gnss_never_acquired_policy: coverage` (default), or `DOS` 0.7 when `dos` or after a valid fix | DOS |
+| GNSS fix loss | `fix_type < min_gnss_fix_type` (3) or `satellites < min_gnss_satellites` (5; skipped when the count is unknown, see below) for `≥ gnss_loss_ticks` (5) consecutive decisions → `coverage` note (score 0) when never acquired under `gnss_never_acquired_policy: coverage` (set by `configs/px4_sitl`, `configs/ardupilot_copter` and `configs/universal_flight`; the Stage-1 default in `configs/detector.yaml` and `config.py` is `dos`), or `DOS` 0.7 when `dos` or after a valid fix | DOS |
 | Command provenance | command from sysid ∉ `expected_gcs_sysids`; sensitive cmd / burst | COMMAND_INJECTION |
 | Signing | `require_signing` and unsigned present | MAVLINK_ANOMALY |
 | Disarm while armed (`COMMAND_LONG` 400, param1 = 0) | force-disarm (param2 = 21196) while `armed` is True: **always on**, not behind `cadence_guard_enabled`, from **any** sysid including an expected GCS → 0.95. A plain (non-force) in-flight disarm (groundspeed > 1 m/s or rel_alt > 0.5 m) is checked **only** when `cadence_guard_enabled` is true (default false) | COMMAND_INJECTION |
@@ -66,9 +66,9 @@ arrived yet.
 | GPS / heartbeat lost after being received | unchanged | unchanged: `GPS dropout 2.4s > 2.0s`, `heartbeat stale 4.2s > 3.0s` |
 | Age below threshold (stale-but-recent) | unchanged: 0, no evidence | none |
 | GNSS fix bad, a valid fix (fix ≥ 3 and sats ≥ 5) seen earlier since start/`reset()` | unchanged: DOS, 0.7 | unchanged: `GNSS fix lost: fix_type=0, satellites=0 for 5 decisions` (parsed by `scripts/sitl/make_p2n_summary.py`) |
-| GNSS fix bad, no valid fix ever seen (e.g. cold receiver, no sky view; also no receiver at all) | **D4 default (`gnss_never_acquired_policy: coverage`)**: score 0, no vote (`dos` opt-in restores `DOS` 0.7) | `coverage: GNSS fix never acquired (fix_type=0, satellites=0 for 5 decisions; no valid fix since monitoring began); not attack evidence under this profile` (`dos` opt-in: `GNSS fix never acquired: ...`) |
+| GNSS fix bad, no valid fix ever seen (e.g. cold receiver, no sky view; also no receiver at all) | **D4 live-profile policy (`gnss_never_acquired_policy: coverage`**, set by `configs/px4_sitl`, `configs/ardupilot_copter` and `configs/universal_flight`; the Stage-1 default is `dos`)**: score 0, no vote (the `dos` policy gives `DOS` 0.7) | `coverage: GNSS fix never acquired (fix_type=0, satellites=0 for 5 decisions; no valid fix since monitoring began); not attack evidence under this profile` (`dos` policy: `GNSS fix never acquired: ...`) |
 
-**Security consequence of `gnss_never_acquired_policy: coverage` (disclosed, not mitigated).** Under the default `coverage` policy, jamming from power-on *before any valid 3D fix is ever observed* is reported as a score-0 coverage condition rather than a `DOS` attack (pre-arm GPS checks outside the IDS still block flight). Once a valid 3D fix (`fix_type >= 3`, `satellites >= 5` or unknown) has been seen, subsequent loss always votes `DOS` 0.7.
+**Security consequence of `gnss_never_acquired_policy: coverage` (disclosed, not mitigated).** Under the `coverage` policy (the shipped live profiles; the Stage-1 default `configs/detector.yaml` is `dos` and votes `DOS` 0.7 even before a first fix), jamming from power-on *before any valid 3D fix is ever observed* is reported as a score-0 coverage condition rather than a `DOS` attack (pre-arm GPS checks outside the IDS still block flight). Once a valid 3D fix (`fix_type >= 3`, `satellites >= 5` or unknown) has been seen, subsequent loss always votes `DOS` 0.7.
 
 **First-sample physics guards (issue #15).** `PhysicsDetector` requires at least 2 fresh valid samples (`_LINK_GAP_S` freshness window) before scoring `battery_v_rise` (ignoring `0.0 V` power-on placeholders), `alt_rate_ms` (ignoring initial `0.0 m` origin placeholders), and `pos_residual_m` (and `FeatureExtractor` anchors `_last_fix` on the first valid non-null-island coordinate instead of integrating `(0, 0) -> home`).
 
@@ -489,10 +489,13 @@ feature vectors, and `dos:latency` (`median jitter 32.4 ms`) overlaps benign sim
   (`msg_rate_hz < semantic_link_min_rate_hz` or GPS also stale).
   **Strict-attribution trade-off (environment `SIM`, claim class: link-level detection):** on the
   fresh-seed extended benchmark (`master_seed=20261119`), enabling `semantic_link_attribution`
-  raises `mavlink_anomaly:packet_loss` strict accuracy from `0.0000` to `0.9531`, while reducing
-  `dos:blackout` strict accuracy from `0.7641` to `0.6410` during partial-window transition ticks
+  raises `mavlink_anomaly:packet_loss` strict accuracy from `0.0000` to `0.9508`, while reducing
+  `dos:blackout` strict accuracy from `0.7952` to `0.6676` during partial-window transition ticks
   where heartbeats have been stale for >3 s while residual non-heartbeat frames in the sliding
-  rate window keep `msg_rate_hz >= 5.0` and `gps_age_s <= 2.0`.
+  rate window keep `msg_rate_hz >= 5.0` and `gps_age_s <= 2.0`. Reproduce with
+  `python scripts/eval_link_attribution.py --seed 20261119` (ML off, no model; `before` / `after_semantic`
+  keys of its JSON output, re-run on the head of this change: binary recall `0.5687` -> `0.5687`, benign FPR
+  `0.0` -> `0.0`).
 - **Hierarchical link-layer metric (`metrics/scoring.py:hierarchical_link_summary`):**
   groups `DOS` and `MAVLINK_ANOMALY` under `LINK_LAYER_DISRUPTION` so overlapping link-layer
   transport faults (`rate_spike`, `latency`, `packet_loss`, `flood`) are reported as a coarse
