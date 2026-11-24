@@ -56,6 +56,10 @@ No mock/demo data — every number comes from the backend.
   `/ws` to the backend on :8000 (no CORS friction).
 - `wsUrl()` derives ws/wss from `location`, so the same code works in dev
   (proxied) and when served by FastAPI (same-origin).
+- `aegis serve` serves the untracked local `frontend/dist`; rebuild it after any UI change.
+- Each build writes `build-info.json` (UI source hash and commit; served at `/build-info.json`).
+  `node frontend/scripts/provenance.mjs --check frontend/dist` verifies that the bundle matches
+  the current source and contains no banned wording.
 
 ## Simulation labelling
 The header shows a persistent **● Simulation** badge and the footer states all

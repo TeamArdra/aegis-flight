@@ -1,5 +1,10 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { fileURLToPath } from "node:url";
+import { buildInfo } from "./scripts/provenance.mjs";
+
+// The config file's own directory: build-info.json hashes this tree no matter where vite is launched from.
+const frontendRoot = fileURLToPath(new URL(".", import.meta.url));
 
 const backendPort = process.env.VITE_BACKEND_PORT || "8000";
 
@@ -15,7 +20,17 @@ export default defineConfig(({ command, mode }) => {
     );
   }
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      // Build only: record which UI source this bundle was built from (served at /build-info.json; verify with scripts/provenance.mjs --check).
+      {
+        name: "aegis-build-info",
+        apply: "build",
+        generateBundle() {
+          this.emitFile({ type: "asset", fileName: "build-info.json", source: JSON.stringify(buildInfo(frontendRoot), null, 2) + "\n" });
+        },
+      },
+    ],
     server: {
       port: 5173,
       proxy: {
