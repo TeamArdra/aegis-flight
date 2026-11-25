@@ -344,6 +344,11 @@ class MitigationController:
                         actions=list(self.action_history),
                         summary=summary,
                     )
+            elif self.state == MitigationState.GCS_TAKEOVER:
+                self._clean_streak += 1
+                if self.sanitizer.active:
+                    self.sanitizer.configure(active=False)
+                self._sanitize_gps_latched = False
 
             params = AttackParameters(
                 trusted_lat=self.golden.effective_lat or self.golden.trusted_lat,
@@ -465,9 +470,11 @@ class MitigationController:
                     self._add_action(t, "VETO_DISARM", "Flagged motor arm/disarm command burst in flight (not blocked)")
 
                 if (frame.snapshot.armed is None and not self._gps_episode and not self._estop_episode
+                        and not self._gps_cancelled and self.state != MitigationState.GCS_TAKEOVER
                         and self.actuator.knows_mode(params.target_restore_mode)):
                     self._note_armed_unknown(t, f"RESTORE_{params.target_restore_mode}")
                 if (frame.snapshot.armed is True and not self._gps_episode and not self._estop_episode
+                        and not self._gps_cancelled and self.state != MitigationState.GCS_TAKEOVER
                         and self.actuator.knows_mode(params.target_restore_mode)
                         and self._can_send_command(f"RESTORE_{params.target_restore_mode}", t)):
                     counter_frames.append(self.actuator.encode_set_mode(params.target_restore_mode))
@@ -665,8 +672,16 @@ class MitigationController:
             summary = "[AEGIS DEF] MANUAL OVERRIDE: Reset quarantined sysids"
             self._add_action(t, "RESET_QUARANTINE", "Pilot flushed quarantined system IDs")
         elif action == "ack_takeover":
-            self._gps_cancelled = True
-            self._safe_hold_alt_hold_sent = True
+            self.sanitizer.configure(active=False)
+            self._sanitize_gps_latched = False
+            self._safe_hold_alt_hold_sent = False
+            self._ekf_switched = False
+            self._episode_counter_cmds = 0
+            self._estop_episode = False
+            self._clean_streak = 0
+            self._attack_streak = 0
+            self._dos_streak = 0
+            self._reset_gps_episode()
             self.state = MitigationState.NOMINAL
             summary = "[AEGIS DEF] MANUAL OVERRIDE: Acknowledged pilot takeover (IPS mode commands cancelled)"
             self._add_action(t, "ACK_TAKEOVER", "Pilot acknowledged takeover -> Reset to nominal baseline")

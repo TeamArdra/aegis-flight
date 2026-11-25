@@ -76,6 +76,7 @@ _MSG_GLOBAL_POSITION_INT = 33
 _MSG_MISSION_ITEM = 39
 _MSG_MISSION_COUNT = 44
 _MSG_MISSION_CLEAR_ALL = 45
+_MSG_MANUAL_CONTROL = 69
 _MSG_RC_CHANNELS_OVERRIDE = 70
 _MSG_MISSION_ITEM_INT = 73
 _MSG_COMMAND_INT = 75
@@ -89,6 +90,11 @@ CONTROL_MSGIDS = frozenset({
     _MSG_SET_MODE, _MSG_PARAM_SET, _MSG_MISSION_ITEM, _MSG_MISSION_COUNT, _MSG_MISSION_CLEAR_ALL,
     _MSG_RC_CHANNELS_OVERRIDE, _MSG_MISSION_ITEM_INT, _MSG_SET_POSITION_TARGET_LOCAL_NED,
     _MSG_SET_POSITION_TARGET_GLOBAL_INT, _MSG_SET_ATTITUDE_TARGET,
+})
+#: high-rate streaming pilot/offboard control messages whose payload legitimately stays constant across 8-bit seq wraparound
+_STREAMING_CONTROL_MSGIDS = frozenset({
+    _MSG_MANUAL_CONTROL, _MSG_RC_CHANNELS_OVERRIDE, _MSG_SET_ATTITUDE_TARGET,
+    _MSG_SET_POSITION_TARGET_LOCAL_NED, _MSG_SET_POSITION_TARGET_GLOBAL_INT,
 })
 _COMMAND_MSGIDS = frozenset({_MSG_COMMAND_LONG, _MSG_COMMAND_INT})
 
@@ -645,7 +651,13 @@ class InlinePolicy:
             t = self._seq.get(key)
             if t is None:
                 if len(self._seq) >= 256:
-                    self._seq.pop(next(iter(self._seq)))
+                    evict = next((k for k in self._seq if k[0] not in self.trusted_sysids), None)
+                    if evict is not None:
+                        self._seq.pop(evict)
+                    elif ctx.sysid not in self.trusted_sysids:
+                        return "unknown"
+                    else:
+                        self._seq.pop(next(iter(self._seq)))
                 t = self._seq[key] = SeqProvenance(self.provenance_window)
             before = t.resyncs
             verdict = t.observe(ctx.seq, self._clock())
@@ -662,7 +674,13 @@ class InlinePolicy:
             ring = self._recent.get(key)
             if ring is None:
                 if len(self._recent) >= 256:
-                    self._recent.pop(next(iter(self._recent)))
+                    evict = next((k for k in self._recent if k[0] not in self.trusted_sysids), None)
+                    if evict is not None:
+                        self._recent.pop(evict)
+                    elif ctx.sysid not in self.trusted_sysids:
+                        return
+                    else:
+                        self._recent.pop(next(iter(self._recent)))
                 ring = self._recent[key] = deque(maxlen=32)
             hit = False
             for t, s, ph in ring:
@@ -687,7 +705,7 @@ class InlinePolicy:
 
     def _replay_filter(self, ctx: FrameContext, out: list[bytes]) -> list[bytes]:
         """Drop a byte-identical repeat (same sysid, compid, seq, payload) of a frame already forwarded."""
-        if not out:
+        if not out or ctx.msgid in _STREAMING_CONTROL_MSGIDS:
             return out
         h = hashlib.blake2b(
             bytes((ctx.sysid, ctx.compid, ctx.seq & 0xFF)) + (_payload(ctx.raw) or ctx.raw), digest_size=16).digest()
