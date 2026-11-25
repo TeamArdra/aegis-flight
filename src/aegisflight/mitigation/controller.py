@@ -55,7 +55,6 @@ class MitigationController:
         self.max_counter_cmds_per_min = max(1, int(max_counter_cmds_per_min))
         self.max_counter_cmds_per_episode = max(1, int(max_counter_cmds_per_episode))
         self.ekf_secondary_available: bool = False
-        self.rc_present: bool = True
         self.recovery_clean_ticks = recovery_clean_ticks
         self.command_cooldown_s = command_cooldown_s
 
@@ -124,31 +123,38 @@ class MitigationController:
             for c in frame.commands_recent
         )
 
-    def set_capabilities(
-        self,
-        ekf_secondary: bool | None = None,
-        rc_present: bool | None = None,
-    ) -> None:
+    def set_capabilities(self, ekf_secondary: bool | None = None) -> None:
         """Declare what the aircraft has; None (unknown) counts as not available."""
-        if ekf_secondary is not None:
-            self.ekf_secondary_available = bool(ekf_secondary)
-        if rc_present is not None:
-            self.rc_present = bool(rc_present)
+        self.ekf_secondary_available = bool(ekf_secondary)
 
-    def record_command_ack(self, command: int, result: int, t: float | None = None) -> None:
-        """Record a MAVLink COMMAND_ACK; if PX4 rejects ALTCTL, arm LAND fallback."""
+    def record_command_ack(
+        self,
+        command: int,
+        result: int,
+        t: float | None = None,
+        *,
+        target_sysid: int | None = None,
+    ) -> None:
+        """Record a validated vehicle COMMAND_ACK; arm LAND fallback only on permanent ALTCTL rejection."""
         if (
-            command == 176
-            and result in (1, 2, 3, 4)
-            and self._ips_requested_mode is not None
-            and self._ips_requested_mode[0].upper() == "ALTCTL"
+            command != 176
+            or result not in (2, 3, 4)  # DENIED/UNSUPPORTED/FAILED only; exclude 1 (TEMPORARILY_REJECTED)
+            or self._ips_requested_mode is None
+            or self._ips_requested_mode[0].upper() != "ALTCTL"
         ):
-            self._gps_altctl_rejected = True
-            self._add_action(
-                t if t is not None else self._last_t,
-                "ALTCTL_REJECTED",
-                f"PX4 rejected ALTCTL (MAV_RESULT={result}) -> falling back to controlled vertical descent",
-            )
+            return
+        if target_sysid is not None and target_sysid != 0 and target_sysid != self.actuator.sysid:
+            return
+        ack_t = t if t is not None else self._last_t
+        age_s = ack_t - self._ips_requested_mode[1]
+        if age_s < 0.0 or age_s > 5.0:
+            return
+        self._gps_altctl_rejected = True
+        self._add_action(
+            ack_t,
+            "ALTCTL_REJECTED",
+            f"PX4 rejected ALTCTL (MAV_RESULT={result}) -> falling back to controlled vertical descent",
+        )
 
     def _controlled_descent_mode_name(self) -> str | None:
         """Return a controlled vertical-descent mode (never RTL or TERMINATION)."""
@@ -673,18 +679,6 @@ class MitigationController:
         if frame.snapshot.armed is None and dependent and safe_mode is not None:
             self._note_armed_unknown(t, f"SET_MODE_{safe_mode}")
         if frame.snapshot.armed is not True or not dependent or safe_mode is None or not self.actuator.knows_mode(safe_mode):
-            return
-        if safe_mode.upper() == "ALTCTL" and (not self.rc_present or self._gps_altctl_rejected):
-            land_mode = self._controlled_descent_mode_name()
-            if land_mode is not None and self._can_send_command(f"SET_MODE_{land_mode}", t):
-                frame_bytes = self.actuator.encode_set_mode(land_mode)
-                if frame_bytes:
-                    counter_frames.append(frame_bytes)
-                    self._record_command(f"SET_MODE_{land_mode}", t)
-                    self._ips_requested_mode = (land_mode, t)
-                    self._gps_land_sent = True
-                    self._gps_alt_hold_sent = True
-                    self._add_action(t, "GPS_LAND_FALLBACK", f"no RC manual-control source -> {land_mode} (controlled vertical descent)")
             return
         if self._can_send_command(f"SET_MODE_{safe_mode}", t):
             counter_frames.append(self.actuator.encode_set_mode(safe_mode))

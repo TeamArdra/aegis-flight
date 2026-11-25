@@ -585,13 +585,21 @@ class InlineIpsBridge:
                     out = [fr.raw]
             if down:
                 self.frames_down += 1
-                if fr.msgid == 77:
+                if fr.msgid == 77 and out and fr.sysid in policy.vehicle_sysids:
                     with contextlib.suppress(Exception):
-                        hdr = 10 if fr.raw[:1] == b"\xfd" else 6
-                        if len(fr.raw) >= hdr + 3:
-                            cmd = int.from_bytes(fr.raw[hdr : hdr + 2], "little")
-                            res = fr.raw[hdr + 2]
-                            self.controller.record_command_ack(cmd, res, t=stamp / 1e9)
+                        sig_ok = True
+                        if self._secret_key is not None:
+                            from aegisflight.mavlink.signing import MavlinkSignatureVerifier
+
+                            sig_ok = bool(fr.signed) and MavlinkSignatureVerifier(self._secret_key).verify_frame(fr.raw).valid
+                        if sig_ok:
+                            hdr = 10 if fr.raw[:1] == b"\xfd" else 6
+                            plen = fr.raw[1] if len(fr.raw) > 1 else 0
+                            if plen >= 3 and len(fr.raw) >= hdr + 3:
+                                cmd = int.from_bytes(fr.raw[hdr : hdr + 2], "little")
+                                res = fr.raw[hdr + 2]
+                                tgt_sys = fr.raw[hdr + 8] if (fr.raw[:1] == b"\xfd" and plen >= 9 and len(fr.raw) >= hdr + 9) else None
+                                self.controller.record_command_ack(cmd, res, t=stamp / 1e9, target_sysid=tgt_sys)
             else:
                 self.frames_up += 1
             if not out:
