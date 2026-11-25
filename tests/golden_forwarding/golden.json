@@ -295,17 +295,17 @@
    }
   },
   "fuzz_1|active-ips": {
-   "digest": "73a824b2c00b4f36989e5becc4017647f154e6f24e0ebca5048b5840c74a8d56",
+   "digest": "f7e71032862955900f8eb659c40a83fa28a602d716a6e11a07408dd498121222",
    "summary": {
-    "down_sha": "0b1d1a961ef19f11",
+    "down_sha": "b50dca4587133fc2",
     "dropped_down": 14,
-    "dropped_up": 37,
+    "dropped_up": 36,
     "hook_errors": 0,
-    "mgmt": 84,
+    "mgmt": 83,
     "tap": 769,
-    "to_fc": 62,
-    "to_gcs": 740,
-    "up_sha": "9239e4c7a7d97365"
+    "to_fc": 63,
+    "to_gcs": 739,
+    "up_sha": "32f8f0cb2001c5ab"
    }
   },
   "fuzz_1|advisory": {
@@ -337,17 +337,17 @@
    }
   },
   "fuzz_2|active-ips": {
-   "digest": "a2e4f4b4704986865d9e09225b95ff15b684bb37428406a55573fc720f7dd6d9",
+   "digest": "f7c1e65611a2eff9e1c39f065b2ac7bbe50b13bc1939d69b57cf7c0c76f65fdf",
    "summary": {
-    "down_sha": "af610f5e4d6e2226",
+    "down_sha": "8d9ed2883e82c388",
     "dropped_down": 27,
-    "dropped_up": 50,
+    "dropped_up": 43,
     "hook_errors": 0,
-    "mgmt": 106,
+    "mgmt": 102,
     "tap": 758,
-    "to_fc": 82,
-    "to_gcs": 705,
-    "up_sha": "e91b9b98ec2e0a81"
+    "to_fc": 89,
+    "to_gcs": 701,
+    "up_sha": "b15e80e83b800e64"
    }
   },
   "fuzz_2|advisory": {
@@ -379,17 +379,17 @@
    }
   },
   "fuzz_3|active-ips": {
-   "digest": "990aa5d3eb0eca638219682a272e24c5806841461ea9eeae95ec5115f6b27f81",
+   "digest": "08832b365b95092f5e72dd36c61abfea57edb9a7e2e050017035560085f2835c",
    "summary": {
-    "down_sha": "1057b034bbcc70c6",
+    "down_sha": "5603ac9649422c36",
     "dropped_down": 30,
-    "dropped_up": 34,
+    "dropped_up": 32,
     "hook_errors": 0,
-    "mgmt": 92,
+    "mgmt": 90,
     "tap": 734,
-    "to_fc": 58,
-    "to_gcs": 704,
-    "up_sha": "af22739d496fa92b"
+    "to_fc": 60,
+    "to_gcs": 702,
+    "up_sha": "b5a6e8eedfbecb5b"
    }
   },
   "fuzz_3|advisory": {
@@ -841,7 +841,7 @@
    }
   },
   "signed_no_key|active-ips": {
-   "digest": "c1f0fc8248bbb4282c3cf8d804b9176bbd8beb0af15dbe51e45c0775a2e0863e",
+   "digest": "15795461c2c79372884326f40e2d7b38ec3f549964a86de614aef2ee2d91f823",
    "summary": {
     "down_sha": "8d367ef791a168fb",
     "dropped_down": 0,
@@ -1009,7 +1009,7 @@
    }
   },
   "trusted_cmds_ground|active-ips": {
-   "digest": "978abc1490223a0e246f5b81a7d68b935d8894d0a29f6675670b45539fa2ec22",
+   "digest": "9ed390a9fd157952241a090bdf3437349e7a0b97ad61f39cd8b85ffed9e00f43",
    "summary": {
     "down_sha": "8ec2c7f27bbcdb36",
     "dropped_down": 0,
@@ -1051,7 +1051,7 @@
    }
   },
   "trusted_cmds_inflight|active-ips": {
-   "digest": "0797b36158101e7ba046692ce2ad8e297876cf7baaabf7c0995ea7b58d37e74a",
+   "digest": "28d75fb7f54974815138e1157fa3cf1283e0c184b79b1108cc006dd5cfde31b1",
    "summary": {
     "down_sha": "eac3af08d54a9d4f",
     "dropped_down": 0,
