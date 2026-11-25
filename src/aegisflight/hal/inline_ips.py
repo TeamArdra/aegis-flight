@@ -597,7 +597,10 @@ class InlineIpsBridge:
                     lbl = f"fail_closed:msgid={fr.msgid}:{type(fail_closed_exc).__name__}"
                     action_name = "fail_closed_drop"
                 else:
-                    lbl = drop_label(fr.raw, fr.sysid, fr.msgid, direction)
+                    try:
+                        lbl = drop_label(fr.raw, fr.sysid, fr.msgid, direction)
+                    except Exception:  # noqa: BLE001 - label formatting must never abort pump_once()
+                        lbl = f"MSG{fr.msgid} sys{fr.sysid}"
                     action_name = "drop_frame"
                 if self._mgmt_active():
                     with contextlib.suppress(Exception):
