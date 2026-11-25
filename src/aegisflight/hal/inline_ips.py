@@ -185,6 +185,14 @@ class InlineIpsBridge:
         self._override_interval_s = 0.5
         self._override_next = 0.0
         self._secret_key = secret_key
+        # Persistent verifier for downlink COMMAND_ACK replay protection (separate from policy's uplink verifier).
+        # Fail-safe note: after an FC reboot, PX4 signing timestamps may restart lower; ACKs fail safe (no LAND
+        # fallback) until the bridge or _ack_verifier is reset.
+        from aegisflight.mavlink.signing import MavlinkSignatureVerifier
+
+        self._ack_verifier: MavlinkSignatureVerifier | None = (
+            MavlinkSignatureVerifier(secret_key) if secret_key is not None else None
+        )
         self.cfg = cfg or load_config(config_dir)
         proto = self.cfg.detector.get("protocol", {})
         if proto.get("auto_rate_baseline") is None:  # unset = auto: on for a live link
@@ -588,10 +596,8 @@ class InlineIpsBridge:
                 if fr.msgid == 77 and out and fr.sysid in policy.vehicle_sysids:
                     with contextlib.suppress(Exception):
                         sig_ok = True
-                        if self._secret_key is not None:
-                            from aegisflight.mavlink.signing import MavlinkSignatureVerifier
-
-                            sig_ok = bool(fr.signed) and MavlinkSignatureVerifier(self._secret_key).verify_frame(fr.raw).valid
+                        if self._ack_verifier is not None:
+                            sig_ok = bool(fr.signed) and self._ack_verifier.verify_frame(fr.raw).valid
                         if sig_ok:
                             hdr = 10 if fr.raw[:1] == b"\xfd" else 6
                             plen = fr.raw[1] if len(fr.raw) > 1 else 0

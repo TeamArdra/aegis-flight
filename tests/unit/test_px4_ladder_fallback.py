@@ -145,3 +145,28 @@ def test_inline_ips_bridge_validates_downlink_command_ack_sender_and_signature()
     raw_good = sign_mavlink2_frame(raw_unsigned, key, link_id=0, timestamp_10us=300)
     bridge._handle(2_000_000_000, raw_good, "down")
     assert bridge.controller._gps_altctl_rejected is True
+
+
+def test_inline_ips_bridge_rejects_replayed_signed_command_ack() -> None:
+    """Review R4: persistent _ack_verifier rejects replayed or lower-timestamp signed ACKs."""
+    key = b"\x22" * 32
+    bridge = InlineIpsBridge(fc=_DummyLink(), gcs=_DummyLink(), mode=DefenseMode.ACTIVE_IPS, secret_key=key)  # type: ignore[arg-type]
+    bridge.controller._ips_requested_mode = ("ALTCTL", 1.0)
+
+    mav_veh = mav2.MAVLink(None, srcSystem=1, srcComponent=1)
+    raw_unsigned = mav_veh.command_ack_encode(176, 4).pack(mav_veh)
+    raw_good = sign_mavlink2_frame(raw_unsigned, key, link_id=0, timestamp_10us=500)
+
+    # First delivery succeeds
+    bridge._handle(2_000_000_000, raw_good, "down")
+    assert bridge.controller._gps_altctl_rejected is True
+
+    # Reset flag and replay exact same signed ACK within 5 s window -> must be rejected
+    bridge.controller._gps_altctl_rejected = False
+    bridge._handle(3_000_000_000, raw_good, "down")
+    assert bridge.controller._gps_altctl_rejected is False
+
+    # Lower timestamp (e.g. FC reboot before verifier reset) -> fails safe (rejected)
+    raw_lower_ts = sign_mavlink2_frame(raw_unsigned, key, link_id=0, timestamp_10us=100)
+    bridge._handle(3_500_000_000, raw_lower_ts, "down")
+    assert bridge.controller._gps_altctl_rejected is False
