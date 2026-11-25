@@ -597,7 +597,12 @@ class InlineIpsBridge:
                     with contextlib.suppress(Exception):
                         sig_ok = True
                         if self._ack_verifier is not None:
-                            sig_ok = bool(fr.signed) and self._ack_verifier.verify_frame(fr.raw).valid
+                            if fr.signed:
+                                sig_ok = self._ack_verifier.verify_frame(fr.raw).valid
+                            else:
+                                # Unsigned FC downlink ACK is allowed when the FC is not a signing source
+                                # (mirroring LiveMavlinkSource unsigned_allowed_sysids / policy._down_forged).
+                                sig_ok = not policy.is_downlink_signed_source(fr.sysid, fr.compid, stamp)
                         if sig_ok:
                             hdr = 10 if fr.raw[:1] == b"\xfd" else 6
                             plen = fr.raw[1] if len(fr.raw) > 1 else 0

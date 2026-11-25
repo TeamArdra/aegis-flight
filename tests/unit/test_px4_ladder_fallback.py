@@ -98,13 +98,52 @@ def test_px4_altctl_rejected_sends_zero_frames_when_disarmed() -> None:
         assert len(act_disarmed.counter_frames) == 0
 
 
-def test_command_ack_rejects_transient_result1_stale_and_wrong_target() -> None:
-    """Review R2: result=1 (TEMPORARILY_REJECTED), stale ACK, and other-GCS target_sysid must not arm LAND."""
+def test_px4_altctl_temporarily_rejected_result1_triggers_armed_land_fallback() -> None:
+    """Must-fix #18: PX4 refuses ALTCTL without RC using MAV_RESULT=1 (TEMPORARILY_REJECTED)."""
+    with patch.object(MavlinkActuator, "ALLOW_NON_COPTER_DIALECTS", True):
+        ctrl = _px4_controller()
+        ctrl.set_capabilities(ekf_secondary=False)
+        ctrl.step(FeatureFrame(t=1.0, snapshot=_snap(1.0), pos_residual_m=35.0), _gps_threat(1.0))
+        ctrl.step(FeatureFrame(t=2.0, snapshot=_snap(2.0), pos_residual_m=35.0), _gps_threat(2.0))
+        ctrl.step(FeatureFrame(t=4.0, snapshot=_snap(4.0), pos_residual_m=35.0), _gps_threat(4.0))
+        assert ctrl._gps_alt_hold_sent is True
+        assert ctrl._ips_requested_mode is not None and ctrl._ips_requested_mode[0] == "ALTCTL"
+
+        # MAV_RESULT_ACCEPTED (0) and MAV_RESULT_IN_PROGRESS (5) must NOT arm LAND
+        ctrl.record_command_ack(176, 0, t=4.2)
+        ctrl.record_command_ack(176, 5, t=4.3)
+        assert ctrl._gps_altctl_rejected is False
+
+        # PX4 rejects DO_SET_MODE(ALTCTL) without RC with MAV_RESULT_TEMPORARILY_REJECTED (1)
+        ctrl.record_command_ack(176, 1, t=4.5)
+        assert ctrl._gps_altctl_rejected is True
+
+        # Disarmed vehicle still receives 0 frames
+        act_disarmed = ctrl.step(
+            FeatureFrame(t=5.0, snapshot=_snap(5.0, armed=False), pos_residual_m=35.0),
+            _gps_threat(5.0),
+        )
+        assert ctrl._gps_land_sent is False
+        assert len(act_disarmed.counter_frames) == 0
+
+        # Armed vehicle dispatches AUTO_LAND fallback
+        act_land = ctrl.step(
+            FeatureFrame(t=5.5, snapshot=_snap(5.5, armed=True), pos_residual_m=35.0),
+            _gps_threat(5.5),
+        )
+        assert ctrl._gps_land_sent is True
+        assert ctrl._ips_requested_mode[0] in ("AUTO_LAND", "AUTO.LAND", "LAND")
+        assert len(act_land.counter_frames) >= 1
+
+
+def test_command_ack_rejects_accepted_in_progress_stale_and_wrong_target() -> None:
+    """Non-rejection results (0 ACCEPTED, 5 IN_PROGRESS), stale ACK, and other-GCS target_sysid must not arm LAND."""
     ctrl = _px4_controller()
     ctrl._ips_requested_mode = ("ALTCTL", 10.0)
 
-    # Result 1 (TEMPORARILY_REJECTED)
-    ctrl.record_command_ack(176, 1, t=10.5)
+    # Result 0 (ACCEPTED) and Result 5 (IN_PROGRESS)
+    ctrl.record_command_ack(176, 0, t=10.5)
+    ctrl.record_command_ack(176, 5, t=10.6)
     assert ctrl._gps_altctl_rejected is False
 
     # Stale ACK (> 5.0 s after request) and predating ACK (< request time)
@@ -118,7 +157,7 @@ def test_command_ack_rejects_transient_result1_stale_and_wrong_target() -> None:
 
 
 def test_inline_ips_bridge_validates_downlink_command_ack_sender_and_signature() -> None:
-    """Review R2: forged sysid and unsigned/bad-sig ACKs on a keyed bridge must not arm LAND."""
+    """Review R2 + hal-5: forged sysid, bad-sig, and unsigned ACKs from a signing FC must not arm LAND."""
     key = b"\x22" * 32
     wrong_key = b"\x99" * 32
     bridge = InlineIpsBridge(fc=_DummyLink(), gcs=_DummyLink(), mode=DefenseMode.ACTIVE_IPS, secret_key=key)  # type: ignore[arg-type]
@@ -130,20 +169,40 @@ def test_inline_ips_bridge_validates_downlink_command_ack_sender_and_signature()
     bridge._handle(2_000_000_000, raw_rogue, "down")
     assert bridge.controller._gps_altctl_rejected is False
 
-    # 2. Unsigned ACK from vehicle sysid 1 on keyed bridge
+    # 2. Wrong-key signed ACK from vehicle sysid 1 on keyed bridge
     mav_veh = mav2.MAVLink(None, srcSystem=1, srcComponent=1)
     raw_unsigned = mav_veh.command_ack_encode(176, 4).pack(mav_veh)
-    bridge._handle(2_000_000_000, raw_unsigned, "down")
-    assert bridge.controller._gps_altctl_rejected is False
-
-    # 3. Wrong-key signed ACK from vehicle sysid 1 on keyed bridge
     raw_badsig = sign_mavlink2_frame(raw_unsigned, wrong_key, link_id=0, timestamp_10us=200)
     bridge._handle(2_000_000_000, raw_badsig, "down")
     assert bridge.controller._gps_altctl_rejected is False
 
+    # 3. Unsigned ACK from vehicle sysid 1 when FC is observed signing downlink -> rejected
+    for i in range(bridge.policy.SIGNED_SOURCE_MIN):
+        hb = sign_mavlink2_frame(
+            mav_veh.heartbeat_encode(2, 12, 0, 0, 4).pack(mav_veh),
+            key,
+            link_id=0,
+            timestamp_10us=210 + i,
+        )
+        bridge._handle(2_000_000_000 + i * 1_000_000, hb, "down")
+    bridge._handle(2_100_000_000, raw_unsigned, "down")
+    assert bridge.controller._gps_altctl_rejected is False
+
     # 4. Validly signed ACK from vehicle sysid 1 within freshness window -> arms fallback
     raw_good = sign_mavlink2_frame(raw_unsigned, key, link_id=0, timestamp_10us=300)
-    bridge._handle(2_000_000_000, raw_good, "down")
+    bridge._handle(2_200_000_000, raw_good, "down")
+    assert bridge.controller._gps_altctl_rejected is True
+
+
+def test_inline_ips_bridge_honors_unsigned_fc_command_ack_when_fc_downlink_unsigned() -> None:
+    """hal-5: on a keyed bridge with unsigned FC downlink (exempted vehicle_sysids), unsigned FC COMMAND_ACK arms LAND."""
+    key = b"\x22" * 32
+    bridge = InlineIpsBridge(fc=_DummyLink(), gcs=_DummyLink(), mode=DefenseMode.ACTIVE_IPS, secret_key=key)  # type: ignore[arg-type]
+    bridge.controller._ips_requested_mode = ("ALTCTL", 1.0)
+
+    mav_veh = mav2.MAVLink(None, srcSystem=1, srcComponent=1)
+    raw_unsigned = mav_veh.command_ack_encode(176, 1).pack(mav_veh)
+    bridge._handle(2_000_000_000, raw_unsigned, "down")
     assert bridge.controller._gps_altctl_rejected is True
 
 

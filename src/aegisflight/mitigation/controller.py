@@ -135,10 +135,10 @@ class MitigationController:
         *,
         target_sysid: int | None = None,
     ) -> None:
-        """Record a validated vehicle COMMAND_ACK; arm LAND fallback only on permanent ALTCTL rejection."""
+        """Record a validated vehicle COMMAND_ACK; arm LAND fallback on ALTCTL rejection."""
         if (
             command != 176
-            or result not in (2, 3, 4)  # DENIED/UNSUPPORTED/FAILED only; exclude 1 (TEMPORARILY_REJECTED)
+            or result not in (1, 2, 3, 4)  # TEMPORARILY_REJECTED/DENIED/UNSUPPORTED/FAILED (PX4 returns 1 without RC)
             or self._ips_requested_mode is None
             or self._ips_requested_mode[0].upper() != "ALTCTL"
         ):
