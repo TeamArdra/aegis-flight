@@ -21,6 +21,7 @@ from aegisflight.detectors.crossend import (
     MARKER_TYPE,
     MARKER_VER,
     MEMORY_VECT_MSGID,
+    REBOOT_BACKWARD_MS,
     SILENCE_S,
     CrossEndMonitor,
     pack_summary,
@@ -121,6 +122,98 @@ def test_crossend_surfaces_unmatched_evictions_in_score_and_evidence() -> None:
     assert res is not None and res.score >= 0.3
     assert res.votes.get(AttackType.MAVLINK_ANOMALY, 0.0) >= 0.3
     assert any("unmatched" in ev.lower() for ev in res.evidence)
+
+
+def test_crossend_small_backward_and_exact_replay_still_rejected() -> None:
+    key = bytes(range(32))
+    mon = CrossEndMonitor(key)
+    prev = 100_000
+    mon.update(_gpi_env(10.0, prev))
+    mon.update(_summary_env(10.0, prev, key=key))
+    assert mon.replays == 0
+    assert mon.compared == 1
+    assert mon._last_summary_t == 10.0
+
+    # Exact replay (tbm == prev) -> rejected, does not reset _last_summary_t
+    mon.update(_summary_env(11.0, prev, key=key))
+    assert mon.replays == 1
+    assert mon._last_summary_t == 10.0
+    assert mon._last_summary_tbm == prev
+
+    # Small backward replay (tbm == prev - 1000) -> rejected, does not reset _last_summary_t
+    mon.update(_summary_env(12.0, prev - 1_000, key=key))
+    assert mon.replays == 2
+    assert mon._last_summary_t == 10.0
+    assert mon._last_summary_tbm == prev
+
+    # Boundary backward jump (diff == REBOOT_BACKWARD_MS) -> still rejected as replay
+    mon.update(_summary_env(13.0, prev - REBOOT_BACKWARD_MS, key=key))
+    assert mon.replays == 3
+    assert mon._last_summary_t == 10.0
+    assert mon._last_summary_tbm == prev
+
+
+def test_crossend_rebaselines_on_fc_reboot() -> None:
+    key = bytes(range(32))
+    mon = CrossEndMonitor(key)
+    mon.update(_gpi_env(1.0, 500_000))
+    mon.update(_summary_env(1.0, 500_000, key=key))
+    # Leave a stale pre-reboot pending summary to verify it is cleared on reboot
+    mon.update(_summary_env(1.5, 500_500, key=key))
+    assert 500_500 in mon._pending
+    assert mon.compared == 1
+    assert mon.replays == 0
+
+    # FC reboots: time_boot_ms drops from 500_500 to 1_000
+    mon.update(_gpi_env(2.0, 1_000))
+    mon.update(_summary_env(2.0, 1_000, key=key))
+    assert mon.replays == 0
+    assert mon._last_summary_tbm == 1_000
+    assert mon._last_summary_t == 2.0
+    assert 500_500 not in mon._pending
+    assert mon.compared == 2
+    res = mon.assess(2.0)
+    assert res is not None and res.score == 0.0
+
+    # Subsequent authentic summaries continue to compare normally (including catching tamper)
+    mon.update(_gpi_env(3.0, 2_000, lat=473977420))
+    mon.update(_summary_env(3.0, 2_000, lat=473977420, key=key))
+    assert mon.compared == 3
+    assert mon.mismatches == 0
+
+    mon.update(_gpi_env(4.0, 3_000, lat=473999999))
+    mon.update(_summary_env(4.0, 3_000, lat=473977420, key=key))
+    assert mon.compared == 4
+    assert mon.mismatches == 1
+    res_tamper = mon.assess(4.0)
+    assert res_tamper is not None and res_tamper.score == 0.9
+
+
+def test_crossend_rebaselines_on_uint32_wraparound() -> None:
+    key = bytes(range(32))
+    mon = CrossEndMonitor(key)
+    near_max = 0xFFFF_FE00
+    mon.update(_gpi_env(1.0, near_max))
+    mon.update(_summary_env(1.0, near_max, key=key))
+    assert mon.compared == 1
+    assert mon.replays == 0
+
+    # uint32 time_boot_ms wraps past 2**32 ms (~49.7 days) to 500
+    mon.update(_gpi_env(2.0, 500))
+    mon.update(_summary_env(2.0, 500, key=key))
+    assert mon.replays == 0
+    assert mon._last_summary_tbm == 500
+    assert mon._last_summary_t == 2.0
+    assert mon.compared == 2
+    res = mon.assess(2.0)
+    assert res is not None and res.score == 0.0
+
+    # Subsequent post-wrap summary advances and compares normally
+    mon.update(_gpi_env(3.0, 1_500))
+    mon.update(_summary_env(3.0, 1_500, key=key))
+    assert mon.replays == 0
+    assert mon.compared == 3
+    assert mon.mismatches == 0
 
 
 # --------------------------------------------------------------------------- #

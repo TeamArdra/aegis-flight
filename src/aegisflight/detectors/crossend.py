@@ -46,6 +46,9 @@ _GPI_STRUCT = struct.Struct("<IiiiihhhH")  # full GLOBAL_POSITION_INT payload (2
 MISMATCH_HOLD_S = 3.0
 SILENCE_S = 5.0
 _KEEP = 60
+#: A backward jump in ``time_boot_ms`` larger than this is treated as an FC reboot
+#: or uint32 wraparound (~49.7 days) and re-baselines the monotonicity watermark.
+REBOOT_BACKWARD_MS = 60_000
 
 
 def load_signing_key(path: str) -> bytes:
@@ -175,13 +178,18 @@ class CrossEndMonitor:
             return  # never compare against an unauthenticated summary
         tbm = vals[0]
         if self._last_summary_tbm is not None and tbm <= self._last_summary_tbm:
-            self.replays += 1
-            self._replay = (
-                msg.recv_time,
-                f"bridge cross-end summary replay/non-advancing time_boot_ms "
-                f"({tbm} <= {self._last_summary_tbm})",
-            )
-            return  # reject replayed/non-advancing summary without resetting _last_summary_t
+            if self._last_summary_tbm - tbm > REBOOT_BACKWARD_MS:
+                # FC reboot or uint32 time_boot_ms wraparound (~49.7 days):
+                # re-baseline watermark and drop stale pre-reboot pending summaries.
+                self._pending.clear()
+            else:
+                self.replays += 1
+                self._replay = (
+                    msg.recv_time,
+                    f"bridge cross-end summary replay/non-advancing time_boot_ms "
+                    f"({tbm} <= {self._last_summary_tbm})",
+                )
+                return  # reject replayed/non-advancing summary without resetting _last_summary_t
         self._last_summary_tbm = tbm
         self._last_summary_t = msg.recv_time
         if tbm in self._gpi:
