@@ -76,8 +76,22 @@ def test_manual_ack_takeover_yields_with_zero_counter_commands() -> None:
     ctrl.actuator.set_vehicle_dialect(3, 2)
     ctrl.set_capabilities(ekf_secondary=False)
 
+    # 1. Enter active mitigation in AUTO, then transition to GCS_TAKEOVER via pilot RC switch
     ctrl.step(FeatureFrame(t=1.0, snapshot=_snap(1.0, "AUTO"), pos_residual_m=35.0), _gps_threat(1.0))
+    assert ctrl.state == MitigationState.AUTO_MITIGATING
 
+    ctrl.step(FeatureFrame(t=2.0, snapshot=_snap(2.0, "STABILIZE"), pos_residual_m=35.0), _gps_threat(2.0))
+    assert ctrl.state == MitigationState.GCS_TAKEOVER
+
+    # 2. Manual ack_takeover must transition GCS_TAKEOVER -> NOMINAL with 0 counter-commands
     act = ctrl.manual_override("ack_takeover")
+    assert act.state == MitigationState.NOMINAL
     assert ctrl.state == MitigationState.NOMINAL
     assert len(act.counter_frames) == 0
+    assert ctrl._gps_cancelled is True
+    assert ctrl._safe_hold_alt_hold_sent is True
+    assert any(entry["tag"] == "ACK_TAKEOVER" for entry in act.actions)
+
+    # 3. Subsequent GPS threat ticks remain yielded (0 counter-commands even past gps_escalate_s)
+    act_after = ctrl.step(FeatureFrame(t=8.0, snapshot=_snap(8.0, "AUTO"), pos_residual_m=35.0), _gps_threat(8.0))
+    assert len(act_after.counter_frames) == 0
