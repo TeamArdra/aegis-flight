@@ -674,14 +674,8 @@ class MitigationController:
         elif action == "ack_takeover":
             self.sanitizer.configure(active=False)
             self._sanitize_gps_latched = False
-            self._safe_hold_alt_hold_sent = False
-            self._ekf_switched = False
-            self._episode_counter_cmds = 0
-            self._estop_episode = False
-            self._clean_streak = 0
-            self._attack_streak = 0
-            self._dos_streak = 0
-            self._reset_gps_episode()
+            self._gps_cancelled = True
+            self._safe_hold_alt_hold_sent = True
             self.state = MitigationState.NOMINAL
             summary = "[AEGIS DEF] MANUAL OVERRIDE: Acknowledged pilot takeover (IPS mode commands cancelled)"
             self._add_action(t, "ACK_TAKEOVER", "Pilot acknowledged takeover -> Reset to nominal baseline")

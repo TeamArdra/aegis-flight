@@ -194,8 +194,8 @@ def test_gps_spoof_rc_takeover_clean_ticks_deactivates_sanitizer_and_stops_gpi_s
     assert unshifted == [raw_gpi]
 
 
-def test_ack_takeover_deactivates_sanitizer_and_clears_latches() -> None:
-    """ack_takeover must disable FrameSanitizer, stop GPI shifting, and clear stale GPS/mitigation latches."""
+def test_ack_takeover_deactivates_sanitizer_and_preserves_gps_cancellation() -> None:
+    """ack_takeover must disable FrameSanitizer and stop GPI shifting while preserving IPS mode cancellation."""
     clock = _Clock()
     ctrl = MitigationController(mode=DefenseMode.ACTIVE_IPS)
     pol = InlinePolicy(ctrl.sanitizer, clock=clock)
@@ -215,25 +215,27 @@ def test_ack_takeover_deactivates_sanitizer_and_clears_latches() -> None:
     assert ctrl.state == MitigationState.GCS_TAKEOVER
     assert ctrl.sanitizer.active is True
 
-    # Pilot acknowledges takeover -> NOMINAL, sanitizer off, latches cleared
+    # Pilot acknowledges takeover -> NOMINAL, sanitizer off, IPS mode commands stay cancelled
     act_ack = ctrl.manual_override("ack_takeover")
     pol.touch()
     assert act_ack.state == MitigationState.NOMINAL
     assert ctrl.state == MitigationState.NOMINAL
     assert ctrl.sanitizer.active is False
     assert ctrl._sanitize_gps_latched is False
-    assert ctrl._gps_cancelled is False
-    assert ctrl._safe_hold_alt_hold_sent is False
+    assert ctrl._gps_cancelled is True
+    assert ctrl._safe_hold_alt_hold_sent is True
 
     raw_gpi = _gpi_frame(lat=18.9250)
     assert pol.down(_ctx(raw_gpi, direction="down")) == [raw_gpi]
 
-    # A fresh subsequent threat must enter AUTO_MITIGATING cleanly (not stuck in GCS_TAKEOVER)
-    act_new = ctrl.step(
-        _frame(_snap(10.0, lat=18.9280, flight_mode="AUTO"), pos_residual_m=300.0),
-        _asmt(10.0, AttackType.GPS_SPOOFING, evidence=["horizontal position divergence > 200m"]),
-    )
-    assert act_new.state == MitigationState.AUTO_MITIGATING
+    # A subsequent GPS threat tick must emit 0 counter-commands because IPS mode commands remain cancelled
+    for k in range(6):
+        t = 10.0 + k * 2.0
+        act_new = ctrl.step(
+            _frame(_snap(t, lat=18.9280, flight_mode="AUTO"), pos_residual_m=300.0),
+            _asmt(t, AttackType.GPS_SPOOFING, evidence=["horizontal position divergence > 200m"]),
+        )
+        assert act_new.counter_frames == []
 
 
 # --- mitigation-2: Command-injection RESTORE must not fight pilot RC takeover ---
@@ -280,7 +282,8 @@ def test_command_injection_restore_stops_after_pilot_rc_takeover() -> None:
 
 
 def test_streaming_rc_override_survives_seq_wraparound_while_commands_still_blocked() -> None:
-    """300+ constant RC_CHANNELS_OVERRIDE frames across 8-bit seq wraparound must all forward; replays of
+    """300+ constant RC_CHANNELS_OVERRIDE frames at 50 Hz across 8-bit seq wraparound must all forward,
+    immediate back-to-back duplicates within the 2 s TTL must be dropped as replays, and replays of
     COMMAND_LONG and SET_MODE must still be dropped."""
     clock = _Clock()
     pol = InlinePolicy(clock=clock, cadence_s=0.0)
@@ -288,9 +291,10 @@ def test_streaming_rc_override_survives_seq_wraparound_while_commands_still_bloc
     pol.armed = True
     pol.rel_alt_m = 30.0
 
-    # Stream 320 identical RC_CHANNELS_OVERRIDE payloads across 8-bit seq wraparound (256 frames)
+    # Stream 320 identical RC_CHANNELS_OVERRIDE payloads at 50 Hz (0.02 s step; 256 frames = 5.12 s >= 2.0 s TTL)
     forwarded = 0
     for i in range(320):
+        clock.t += 0.02
         m = _enc(255, 190, i)
         raw = bytes(m.rc_channels_override_encode(1, 1, 1500, 1500, 1500, 1500, 0, 0, 0, 0).pack(m))
         out = pol.up(_ctx(raw))
@@ -299,16 +303,18 @@ def test_streaming_rc_override_survives_seq_wraparound_while_commands_still_bloc
     assert forwarded == 320
     assert pol.dropped_replay_unsigned == 0
 
-    # Also verify SET_ATTITUDE_TARGET / SET_POSITION_TARGET_LOCAL_NED / SET_POSITION_TARGET_GLOBAL_INT
-    # survive identical-payload seq wraparound
+    # Also verify SET_ATTITUDE_TARGET survives identical-payload seq wraparound at 50 Hz
+    clock.t += 0.02
     m_att1 = _enc(255, 190, 64)
     att_raw = bytes(m_att1.set_attitude_target_encode(100, 1, 1, 0, [1.0, 0.0, 0.0, 0.0], 0.0, 0.0, 0.0, 0.5).pack(m_att1))
     assert pol.up(_ctx(att_raw)) == [att_raw]
-    # Advance seq all the way around to 64 again using RC_CHANNELS_OVERRIDE
+    # Advance seq all the way around to 64 again using RC_CHANNELS_OVERRIDE at 50 Hz
     for s in range(65, 65 + 255):
+        clock.t += 0.02
         m_rc = _enc(255, 190, s)
         rc = bytes(m_rc.rc_channels_override_encode(1, 1, 1500, 1500, 1500, 1500, 0, 0, 0, 0).pack(m_rc))
         assert pol.up(_ctx(rc)) == [rc]
+    clock.t += 0.02
     assert pol.up(_ctx(att_raw)) == [att_raw]
     assert pol.dropped_replay_unsigned == 0
 
@@ -318,26 +324,65 @@ def test_streaming_rc_override_survives_seq_wraparound_while_commands_still_bloc
     assert pol.up(_ctx(rogue_rc)) == []
     assert pol.dropped_untrusted_control == 1
 
-    # Replayed COMMAND_LONG is STILL blocked by _replay_filter
+    # Replayed COMMAND_LONG is STILL blocked by _replay_filter (even well past 2 s)
+    clock.t += 0.02
     m_cmd = _enc(255, 190, 65)
     cmd_raw = bytes(m_cmd.command_long_encode(1, 1, MAV_CMD_DO_SET_MODE, 0, 1.0, 4.0, 0, 0, 0, 0, 0).pack(m_cmd))
     assert pol.up(_ctx(cmd_raw)) == [cmd_raw]
     # Advance seq around the 8-bit ring so seq=65 is provenance-consistent again
     for s in range(66, 66 + 255):
+        clock.t += 0.02
         m_hb = _enc(255, 190, s)
         pol.up(_ctx(bytes(m_hb.heartbeat_encode(6, 8, 0, 0, 4).pack(m_hb))))
+    clock.t += 0.02
     assert pol.up(_ctx(cmd_raw)) == []
     assert pol.dropped_replay_unsigned == 1
 
     # Replayed SET_MODE is STILL blocked by _replay_filter
+    clock.t += 0.02
     m_sm = _enc(255, 190, 66)
     sm_raw = bytes(m_sm.set_mode_encode(1, 1, 4).pack(m_sm))
     assert pol.up(_ctx(sm_raw)) == [sm_raw]
     for s in range(67, 67 + 255):
+        clock.t += 0.02
         m_hb = _enc(255, 190, s)
         pol.up(_ctx(bytes(m_hb.heartbeat_encode(6, 8, 0, 0, 4).pack(m_hb))))
+    clock.t += 0.02
     assert pol.up(_ctx(sm_raw)) == []
     assert pol.dropped_replay_unsigned == 2
+
+
+def test_streaming_rc_override_back_to_back_duplicate_is_dropped_within_ttl() -> None:
+    """An immediate back-to-back exact duplicate of RC_CHANNELS_OVERRIDE within the 2 s TTL must be dropped."""
+    clock = _Clock()
+    pol = InlinePolicy(clock=clock, cadence_s=0.0)
+    pol.set_enforce(True)
+    pol.armed = False  # ground: provenance does not drop duplicate seq, so _replay_filter is exercised directly
+
+    m = _enc(255, 190, 10)
+    raw = bytes(m.rc_channels_override_encode(1, 1, 1500, 1500, 1500, 1500, 0, 0, 0, 0).pack(m))
+    assert pol.up(_ctx(raw)) == [raw]
+    assert pol.dropped_replay_unsigned == 0
+
+    # Immediate duplicate (0.05 s later, within 2.0 s TTL) -> dropped as unsigned replay
+    clock.t += 0.05
+    assert pol.up(_ctx(raw)) == []
+    assert pol.dropped_replay_unsigned == 1
+
+    # Still within 2.0 s TTL (1.5 s after original) -> dropped
+    clock.t += 1.45
+    assert pol.up(_ctx(raw)) == []
+    assert pol.dropped_replay_unsigned == 2
+
+    # Once >= 2.0 s has elapsed, same frame is allowed through again and refreshes its TTL
+    clock.t += 0.55
+    assert pol.up(_ctx(raw)) == [raw]
+    assert pol.dropped_replay_unsigned == 2
+
+    # Immediate duplicate right after refresh is dropped again
+    clock.t += 0.1
+    assert pol.up(_ctx(raw)) == []
+    assert pol.dropped_replay_unsigned == 3
 
 
 # --- mitigation-5: Untrusted heartbeat flood cannot evict trusted GCS SeqProvenance ---
