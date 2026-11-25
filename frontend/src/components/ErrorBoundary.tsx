@@ -40,7 +40,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <h3 style={{ color: "var(--crit, #ef4444)", margin: "0 0 0.5rem 0", fontSize: "0.95rem" }}>
             {this.props.fallbackTitle || "Component Error"}
           </h3>
-          <p style={{ color: "var(--text-dim, #94a3b8)", fontSize: "0.82rem", margin: "0 0 0.5rem 0" }}>
+          <p style={{ color: "var(--muted, #94a3b8)", fontSize: "0.82rem", margin: "0 0 0.5rem 0" }}>
             {this.state.error?.message || "An unexpected error occurred while rendering."}
           </p>
           <button
