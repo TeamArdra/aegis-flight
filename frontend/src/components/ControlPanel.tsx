@@ -196,7 +196,7 @@ function ControlPanelImpl({ activeAttack, controls, environment }: {
                     padding: "4px 8px",
                     borderRadius: 4,
                     background: selectedSubMode === sm.id ? "var(--accent)" : "rgba(255,255,255,0.06)",
-                    color: selectedSubMode === sm.id ? "#0a0f15" : "var(--fg)",
+                    color: selectedSubMode === sm.id ? "#0a0f15" : "var(--text)",
                     fontWeight: selectedSubMode === sm.id ? 700 : 400,
                     border: "none",
                     cursor: "pointer",

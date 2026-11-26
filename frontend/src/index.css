@@ -250,7 +250,7 @@ svg.spark { width: 100%; height: 78px; display: block; }
 
 /* ============================ incidents =============================== */
 .incidents { list-style: none; margin: 0; padding: 0; max-height: 560px; overflow-y: auto; }
-.incidents.empty-wrap, .empty {
+.empty {
   color: var(--muted); font-size: 12.5px; padding: 14px 2px; line-height: 1.5;
 }
 .incident {
@@ -958,6 +958,11 @@ button.attack.active .a-name { font-weight: 600; }
   color: #38bdf8;
   border: 1px solid #38bdf8;
 }
+.res-advisory .res-badge {
+  background: rgba(249, 115, 22, 0.2);
+  color: #fb923c;
+  border: 1px solid #f97316;
+}
 
 .action-timeline {
   display: flex;
@@ -1216,4 +1221,25 @@ dialog.aegis-modal {
 }
 @media (max-width: 720px) {
   .bench-wizard .setup-split-note { grid-template-columns: 1fr; }
+}
+
+/* ============================================================================
+   Accessibility: Keyboard Focus & Reduced Motion
+   ========================================================================== */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
