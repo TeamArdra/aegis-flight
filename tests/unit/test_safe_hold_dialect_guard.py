@@ -56,10 +56,11 @@ class Rig:
             self.t = round(self.t + 0.2, 6)
 
 
-# PX4 flight-mode names as decoded by sources.mavlink_live.decode_px4_mode, plus names that are not
+# PX4-only flight-mode names as decoded by sources.mavlink_live.decode_px4_mode, plus names that are not
 # ArduCopter modes at all: unknown/blank/padded strings must also never unlock the ArduCopter command.
+# (Shared names like ACRO exist in both PX4 and ArduCopter and are gated by the vehicle HEARTBEAT dialect below.)
 PX4_MODES = ["POSCTL", "ALTCTL", "AUTO/MISSION", "AUTO/LOITER", "OFFBOARD", "STABILIZED", "MANUAL",
-             "ACRO", "RATTITUDE", "MAIN_9", "UNKNOWN", "", " RTL", "RTL "]
+             "RATTITUDE", "MAIN_9", "UNKNOWN", "", " RTL", "RTL "]
 
 
 @pytest.mark.parametrize("attack_mode", PX4_MODES)
@@ -112,10 +113,11 @@ def test_copter_safe_hold_alt_hold_respects_the_counter_command_budget():
 # D4: the dialect comes from the vehicle HEARTBEAT, not from the mode name. A PX4 heartbeat (autopilot 12)
 # or no bound dialect at all must refuse DO_SET_MODE even when the reported mode names look like ArduCopter's.
 @pytest.mark.parametrize("dialect", [(12, 2), (None, None)], ids=["px4_heartbeat", "no_heartbeat"])
+@pytest.mark.parametrize("mode", ["RTL", "ACRO"])
 @pytest.mark.parametrize("sub,attack", [(AttackSubMode.CMD_MODE_FLIP, AttackType.COMMAND_INJECTION),
                                         (AttackSubMode.DOS_GNSS_JAMMING, AttackType.GPS_SPOOFING)])
-def test_non_copter_dialect_sends_no_set_mode_even_with_copter_mode_names(dialect, sub, attack):
+def test_non_copter_dialect_sends_no_set_mode_even_with_copter_mode_names(dialect, mode, sub, attack):
     r = Rig(sub, max_counter_cmds_per_episode=100, max_counter_cmds_per_min=100)
     r.run(5, AttackType.BENIGN, "LOITER", True, dialect)
-    r.run(40, attack, "RTL", True, dialect)
-    assert r.set_modes == [], f"DO_SET_MODE sent with dialect {dialect}: {r.set_modes}"
+    r.run(40, attack, mode, True, dialect)
+    assert r.set_modes == [], f"DO_SET_MODE sent with dialect {dialect} in {mode}: {r.set_modes}"

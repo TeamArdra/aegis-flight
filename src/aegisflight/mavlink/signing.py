@@ -18,6 +18,9 @@ MAVLINK_CRC_LEN = 2
 MAVLINK_SIGNATURE_LEN = 13
 # MAVLink 2 signature epoch: 2015-01-01 00:00:00 UTC
 MAVLINK_EPOCH_UNIX_S = 1_420_070_400
+# MAVLink 2 signing spec: a first-seen (link_id, sysid, compid) stream must not be more than 60s
+# behind the highest accepted timestamp across streams (60s in 10us units).
+MAVLINK_SIGNING_NEW_STREAM_WINDOW_10US = 6_000_000
 
 
 # X.25 / MCRF4XX (reflected CRC-16, poly 0x1021, init 0xFFFF) computed by the C implementation of the non-reflected
@@ -135,6 +138,7 @@ class MavlinkSignatureVerifier:
         self.secret_key = secret_key
         self.unsigned_allowed_msgids = unsigned_allowed_msgids
         self._last_timestamps: dict[tuple[int, int, int], int] = {}
+        self._max_timestamp_10us: int = 0
         self._tx_timestamp_10us: int = int(max(1.0, time.time() - MAVLINK_EPOCH_UNIX_S) * 100_000)
         self.valid_count: int = 0
         self.invalid_count: int = 0
@@ -142,6 +146,7 @@ class MavlinkSignatureVerifier:
 
     def reset(self) -> None:
         self._last_timestamps.clear()
+        self._max_timestamp_10us = 0
         self.valid_count = 0
         self.invalid_count = 0
         self.replay_count = 0
@@ -243,6 +248,7 @@ class MavlinkSignatureVerifier:
             )
 
         # 2. Strict timestamp monotonicity (anti-replay: tau_frame > tau_last)
+        #    and MAVLink-2 60s floor for first-seen streams when prior timestamps exist.
         stream_key = (link_id, sysid, compid)
         last_ts = self._last_timestamps.get(stream_key)
         if last_ts is not None and timestamp_10us <= last_ts:
@@ -259,10 +265,28 @@ class MavlinkSignatureVerifier:
                 link_id=link_id,
                 timestamp_10us=timestamp_10us,
             )
+        if last_ts is None and self._last_timestamps:
+            floor_ts = self._max_timestamp_10us - MAVLINK_SIGNING_NEW_STREAM_WINDOW_10US
+            if timestamp_10us < floor_ts:
+                self.invalid_count += 1
+                self.replay_count += 1
+                return SignatureCheckResult(
+                    valid=False,
+                    signed=True,
+                    replayed=True,
+                    reason="replay_timestamp_too_old",
+                    sysid=sysid,
+                    compid=compid,
+                    msgid=msgid,
+                    link_id=link_id,
+                    timestamp_10us=timestamp_10us,
+                )
 
         if stream_key not in self._last_timestamps and len(self._last_timestamps) >= 1024:
             self._last_timestamps.pop(next(iter(self._last_timestamps)))
         self._last_timestamps[stream_key] = timestamp_10us
+        if timestamp_10us > self._max_timestamp_10us:
+            self._max_timestamp_10us = timestamp_10us
         self.valid_count += 1
         return SignatureCheckResult(
             valid=True,
