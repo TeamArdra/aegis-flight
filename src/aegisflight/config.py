@@ -253,7 +253,12 @@ class AegisConfig:
     @classmethod
     def load(cls, config_dir: Path | str | None = None) -> AegisConfig:
         """Load config from YAML, deep-merged over the built-in defaults."""
-        cfg_dir = Path(config_dir) if config_dir else CONFIG_DIR
+        if config_dir is not None:
+            cfg_dir = Path(config_dir)
+            if not cfg_dir.is_dir():
+                raise FileNotFoundError(f"Config directory does not exist: {cfg_dir}")
+        else:
+            cfg_dir = CONFIG_DIR
         sim = _deep_merge(DEFAULT_SIMULATION, _read_yaml(cfg_dir / "simulation.yaml"))
         det_yaml = _read_yaml(cfg_dir / "detector.yaml")
         det = _deep_merge(DEFAULT_DETECTOR, det_yaml)

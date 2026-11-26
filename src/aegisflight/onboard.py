@@ -15,9 +15,10 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,7 @@ from .hal.status_server import BridgeStatusServer
 from .hal.watchdog import SystemdNotifier
 from .integrity.allowlist import (
     ALLOWLIST_KEY_ENV,
+    AllowlistError,
     FirmwareAllowlist,
     compute_allowlist_hmac,
     default_allowlist_path,
@@ -134,6 +136,25 @@ def _clean_opt_str(val: Any) -> str | None:
     return s or None
 
 
+_TRUE_STRINGS = frozenset({"true", "yes", "1", "on"})
+_FALSE_STRINGS = frozenset({"false", "no", "0", "off"})
+_KNOWN_TOP_KEYS = frozenset(f.name for f in fields(OnboardConfig))
+_KNOWN_RETENTION_KEYS = frozenset(f.name for f in fields(RetentionConfig))
+_KNOWN_DASHBOARD_KEYS = frozenset(f.name for f in fields(DashboardConfig))
+
+
+def _parse_bool(val: Any, key: str) -> bool:
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, str):
+        s = val.strip().lower()
+        if s in _TRUE_STRINGS:
+            return True
+        if s in _FALSE_STRINGS:
+            return False
+    raise ValueError(f"invalid boolean for {key!r}: {val!r} (expected true/false)")
+
+
 def _parse_baud(val: Any, default: int) -> int | str:
     if val is None:
         return default
@@ -150,9 +171,20 @@ def load_onboard_config(path: str | Path | None = None) -> OnboardConfig:
     if not isinstance(raw, dict):
         raise ValueError(f"onboard config {path} must be a YAML mapping")
 
+    unknown_top = sorted(str(k) for k in raw if k not in _KNOWN_TOP_KEYS)
+    if unknown_top:
+        raise ValueError(
+            f"unknown onboard config key(s) in {path}: {', '.join(unknown_top)}"
+        )
+
     ret_raw = raw.get("retention") or {}
     if not isinstance(ret_raw, dict):
         raise ValueError("retention must be a YAML mapping")
+    unknown_ret = sorted(str(k) for k in ret_raw if k not in _KNOWN_RETENTION_KEYS)
+    if unknown_ret:
+        raise ValueError(
+            f"unknown retention config key(s) in {path}: {', '.join(unknown_ret)}"
+        )
     ret = RetentionConfig(
         max_db_bytes=int(ret_raw.get("max_db_bytes", 50 * 1024 * 1024)),
         max_jsonl_bytes=int(ret_raw.get("max_jsonl_bytes", 50 * 1024 * 1024)),
@@ -164,42 +196,51 @@ def load_onboard_config(path: str | Path | None = None) -> OnboardConfig:
     dash_raw = raw.get("dashboard") or {}
     if not isinstance(dash_raw, dict):
         raise ValueError("dashboard must be a YAML mapping")
+    unknown_dash = sorted(str(k) for k in dash_raw if k not in _KNOWN_DASHBOARD_KEYS)
+    if unknown_dash:
+        raise ValueError(
+            f"unknown dashboard config key(s) in {path}: {', '.join(unknown_dash)}"
+        )
     dash = DashboardConfig(
-        enabled=bool(dash_raw.get("enabled", False)),
+        enabled=_parse_bool(dash_raw.get("enabled", False), "dashboard.enabled"),
         host=str(dash_raw.get("host", "127.0.0.1")),
         port=int(dash_raw.get("port", 8000)),
     )
 
     gcs_alerts_raw = raw.get("gcs_alerts")
-    gcs_alerts = None if gcs_alerts_raw is None else bool(gcs_alerts_raw)
+    gcs_alerts = None if gcs_alerts_raw is None else _parse_bool(gcs_alerts_raw, "gcs_alerts")
 
     return OnboardConfig(
         topology=str(raw.get("topology", "side-tap")).strip().lower() or "side-tap",
         fc_port=str(raw.get("fc_port", "/dev/ttyAMA0")),
         fc_baud=_parse_baud(raw.get("fc_baud"), 921600),
-        fc_rtscts=bool(raw.get("fc_rtscts", False)),
+        fc_rtscts=_parse_bool(raw.get("fc_rtscts", False), "fc_rtscts"),
         gcs_port=str(raw.get("gcs_port", "/dev/ttyUSB0")),
         gcs_baud=_parse_baud(raw.get("gcs_baud"), 57600),
-        gcs_rtscts=bool(raw.get("gcs_rtscts", False)),
-        allow_url=bool(raw.get("allow_url", False)),
+        gcs_rtscts=_parse_bool(raw.get("gcs_rtscts", False), "gcs_rtscts"),
+        allow_url=_parse_bool(raw.get("allow_url", False), "allow_url"),
         defense_mode=str(raw.get("defense_mode", "passive")),
-        fail_closed_uplink_commands=bool(raw.get("fail_closed_uplink_commands", True)),
-        semantic_firewall_enabled=bool(raw.get("semantic_firewall_enabled", True)),
+        fail_closed_uplink_commands=_parse_bool(
+            raw.get("fail_closed_uplink_commands", True), "fail_closed_uplink_commands"
+        ),
+        semantic_firewall_enabled=_parse_bool(
+            raw.get("semantic_firewall_enabled", True), "semantic_firewall_enabled"
+        ),
         config_dir=_clean_opt_str(raw.get("config_dir")),
         run_root=str(raw.get("run_root", DEFAULT_RUN_ROOT)),
-        archive_enabled=bool(raw.get("archive_enabled", True)),
-        allow_dirty=bool(raw.get("allow_dirty", True)),
+        archive_enabled=_parse_bool(raw.get("archive_enabled", True), "archive_enabled"),
+        allow_dirty=_parse_bool(raw.get("allow_dirty", True), "allow_dirty"),
         db_name=str(raw.get("db_name", "events.sqlite")),
-        anchors_enabled=bool(raw.get("anchors_enabled", True)),
+        anchors_enabled=_parse_bool(raw.get("anchors_enabled", True), "anchors_enabled"),
         anchor_interval_s=float(raw.get("anchor_interval_s", 30.0)),
         signing_key_file=_clean_opt_str(raw.get("signing_key_file")),
         signing_state=_clean_opt_str(raw.get("signing_state")),
-        signing_permissive=bool(raw.get("signing_permissive", False)),
+        signing_permissive=_parse_bool(raw.get("signing_permissive", False), "signing_permissive"),
         signing_max_age_s=(
             None if raw.get("signing_max_age_s") is None else float(raw["signing_max_age_s"])
         ),
-        allow_unsigned=bool(raw.get("allow_unsigned", False)),
-        mgmt_enable=bool(raw.get("mgmt_enable", False)),
+        allow_unsigned=_parse_bool(raw.get("allow_unsigned", False), "allow_unsigned"),
+        mgmt_enable=_parse_bool(raw.get("mgmt_enable", False), "mgmt_enable"),
         mgmt_key_file=_clean_opt_str(raw.get("mgmt_key_file")),
         mgmt_state=_clean_opt_str(raw.get("mgmt_state")),
         mgmt_max_age_s=float(raw.get("mgmt_max_age_s", 300.0)),
@@ -208,7 +249,9 @@ def load_onboard_config(path: str | Path | None = None) -> OnboardConfig:
         gcs_alerts=gcs_alerts,
         mgmt_status_interval_s=float(raw.get("mgmt_status_interval_s", 2.0)),
         crossend_interval_s=float(raw.get("crossend_interval_s", 1.0)),
-        vehicle_uplink_filter=bool(raw.get("vehicle_uplink_filter", False)),
+        vehicle_uplink_filter=_parse_bool(
+            raw.get("vehicle_uplink_filter", False), "vehicle_uplink_filter"
+        ),
         filter_override_file=_clean_opt_str(raw.get("filter_override_file")),
         filter_lockout_failopen_s=(
             None
@@ -218,7 +261,7 @@ def load_onboard_config(path: str | Path | None = None) -> OnboardConfig:
         firmware_dir=_clean_opt_str(raw.get("firmware_dir")),
         firmware_allowlist=_clean_opt_str(raw.get("firmware_allowlist")),
         firmware_recheck_s=float(raw.get("firmware_recheck_s", 30.0)),
-        ekf_secondary=bool(raw.get("ekf_secondary", False)),
+        ekf_secondary=_parse_bool(raw.get("ekf_secondary", False), "ekf_secondary"),
         contested_policy=str(raw.get("contested_policy", "alert")),
         replay_memory=int(raw.get("replay_memory", 4096)),
         status_host=str(raw.get("status_host", "127.0.0.1")),
@@ -462,9 +505,16 @@ def run_enroll_firmware(
         return 2
 
     out = Path(out_path)
-    out.parent.mkdir(parents=True, exist_ok=True)
     doc: dict[str, Any] = {"schema": "aegisflight.firmware_allowlist/1", "vehicles": []}
     if out.is_file():
+        try:
+            load_firmware_allowlist(out)
+        except (AllowlistError, OSError) as exc:
+            print(
+                f"aegis onboard --enroll-firmware: refusing to modify existing allowlist {out}: {exc}",
+                file=sys.stderr,
+            )
+            return 2
         existing = yaml.safe_load(out.read_text(encoding="utf-8")) or {}
         if isinstance(existing, dict) and isinstance(existing.get("vehicles"), list):
             doc["vehicles"] = [v for v in existing["vehicles"] if isinstance(v, dict)]
@@ -485,7 +535,19 @@ def run_enroll_firmware(
     key_env = os.environ.get(ALLOWLIST_KEY_ENV)
     if key_env:
         doc["hmac_sha256"] = compute_allowlist_hmac(doc, key_env)
-    out.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    rendered = yaml.safe_dump(doc, sort_keys=False)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{out.name}.", suffix=".tmp", dir=str(out.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(rendered)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_name, out)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
     print(f"aegis onboard --enroll-firmware: pinned {vehicle_name!r} -> {out} (signed={bool(key_env)})", flush=True)
     return 0
 
