@@ -51,7 +51,8 @@ in PX4 SITL, `artifacts/sitl/P4_signing_summary.md`), not a better threshold. Al
 
 ## 4. Reading the output and the defense (≈1 min)
 Walk the alert: class, score, evidence strings, contributing detectors, timestamp, hash. Click **Verify SHA-256 Chain** and run
-`aegis verify-log <scratch>/demo_sim.sqlite` in a terminal. The chain detects edits and deletions; it is **not signed**.
+`aegis verify-log <scratch>/demo_sim.sqlite` in a terminal. The chain detects edits, insertions and deletions **inside** a run; it does not detect deleting the newest alerts or a whole run
+(that needs the anchors, `docs/EVENT_LOGGING.md`), and it is **not signed**.
 Defense: in this software-only demo "ACTIVE IPS" is shown as a **SIM model**. On live sources the default `passive` posture sends nothing; the
 `active-ips` posture and the inline bridge (`docs/INLINE_IPS.md`) exist but were verified only on ArduCopter SITL / loopback, never on a real
 vehicle. Do not show it as a working prevention capability, and do not quote its "detour" figure: no prevention metric was measured.

@@ -100,7 +100,11 @@ Example (REPLAY of the BENCH capture 007 at its end; scratch run, 2026-10-20):
  "threat":true,"severity":"SUSPICIOUS","attack_type":"DOS","threat_score":0.6176,
  "integrity_status":"UNKNOWN","distance_m":0.0,"run_id":"replay-20261020-222114-1"}
 ```
-`threat/severity/attack_type/threat_score` reflect the **last decision**. Before
+`threat/severity/attack_type/threat_score` reflect the **last decision**. They can
+differ from the newest row of `/api/events`, which holds only persisted **alerts**:
+an alert is written at most once per `fusion.cooldown_s` (4.0 s) per attack type
+(`fusion/engine.py`), so a decision inside that window, even a CRITICAL one, shows
+in `/api/status` but is never written to the event log. Before
 the first decision `integrity_status` is `VALID` for SIM and `UNKNOWN` otherwise.
 `sim_time_s` is the source's tick clock (replay / monitor time for non-SIM).
 
@@ -190,6 +194,20 @@ runtime state, and starts a **new run id** (its own hash chain). Historical audi
 records from earlier runs are preserved. These endpoints are `async` so the
 loop restart runs on the event loop.
 
+**Clear semantics (SIM, `{"attack":"none"}`).** Clearing is lighter than a reset
+(`LiveEngine._apply_pending_attack` in `backend/engine.py`). It stops the injection
+and resets the mitigation controller only. It does **not**:
+- restore the firmware fixture: after `firmware_integrity`, the tampered file stays
+  tampered and keeps reporting INVALID until `/api/simulation/reset`
+  (`FirmwareVerifier.restore_fixture` runs only on reset);
+- clear detector state. Rolling windows decay on their own. In particular, after a
+  GPS spoof is cleared, the reported position snaps back to truth, and the position
+  residual (`features/extractor.py`, `_RESID_WINDOW = 15` position fixes, about 3 s at the
+  simulator's 5 Hz `GLOBAL_POSITION_INT` rate, `configs/simulation.yaml`) can push the fused score **higher** for a few seconds before it returns to
+  normal. This is expected, not a stuck state.
+
+Use reset, not clear, when a clean baseline is needed.
+
 Example:
 ```bash
 curl -X POST localhost:8000/api/simulation/attack \
@@ -197,7 +215,9 @@ curl -X POST localhost:8000/api/simulation/attack \
 ```
 
 ## WebSocket — `GET /ws/telemetry`
-One JSON message per tick (~10 Hz):
+One JSON message per tick (`simulation.sample_rate_hz`, default 10 Hz). Exception: in SIM, while the
+mitigation state is not `NOMINAL`, ticks without a decision are not broadcast (`backend/engine.py`, "Compact
+telemetry optimization"), so the message rate drops to about the decision rate:
 ```json
 {"type":"update","sim":true,"environment":"SIM","source":{…},"link":{…},
  "run_id":"live-20261020-…","t":42.5,

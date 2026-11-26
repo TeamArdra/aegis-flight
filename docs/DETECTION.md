@@ -492,7 +492,12 @@ feature vectors, and `dos:latency` (`median jitter 32.4 ms`) overlaps benign sim
   raises `mavlink_anomaly:packet_loss` strict accuracy from `0.0000` to `0.9508`, while reducing
   `dos:blackout` strict accuracy from `0.7952` to `0.6676` during partial-window transition ticks
   where heartbeats have been stale for >3 s while residual non-heartbeat frames in the sliding
-  rate window keep `msg_rate_hz >= 5.0` and `gps_age_s <= 2.0`. Reproduce with
+  rate window keep `msg_rate_hz >= 5.0` and `gps_age_s <= 2.0`.
+  "Strict accuracy" here is attribution accuracy **among detected decisions** (`strict_acc` =
+  exact-label matches / detected; `scripts/eval_link_attribution.py`), not recall. Detection is
+  unchanged by the flag: `mavlink_anomaly:packet_loss` is detected on 61 of 493 attack decisions
+  (12.4%), so `0.9508` is 58 of those 61; `dos:blackout` is detected on 376 of 497 (299 → 251
+  correctly labelled). Re-run on main `67e5a6b`, 2026-11-26, identical figures. Reproduce with
   `python scripts/eval_link_attribution.py --seed 20261119` (ML off, no model; `before` / `after_semantic`
   keys of its JSON output, re-run on the head of this change: binary recall `0.5687` -> `0.5687`, benign FPR
   `0.0` -> `0.0`).

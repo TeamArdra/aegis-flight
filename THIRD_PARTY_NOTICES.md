@@ -43,6 +43,13 @@ Optional extras: **pyserial** 3.5 (BSD; `serial` / `dev` extras; used for the re
 **pyulog** (`external` extra, PX4 ULog adapter) 1.3.0: **BSD-3-Clause** (`License-Expression` in the wheel's `METADATA`; `LICENSE.md` present in the wheel). Read 2026-10-29 from the wheel downloaded with `pip download pyulog --no-deps` into a scratch directory; it is not installed in the project environment. Its own dependencies were not walked.
 **uvloop** (`uvicorn[standard]` on Linux/macOS only) 0.23.0: **MIT** (`License: MIT License`; `LICENSE-MIT` and `LICENSE-APACHE` present in the manylinux wheel, i.e. dual MIT / Apache-2.0 files). Read from the downloaded wheel metadata; not installed on Windows.
 Dev-only (not shipped), read with `importlib.metadata` from the project environment: pytest 9.1.1 MIT, pytest-asyncio 1.4.0 Apache-2.0, httpx 0.28.1 BSD-3-Clause (httpcore 1.0.9 BSD-3-Clause), ruff 0.16.10 MIT, mypy 2.4.0 MIT (its wheel also bundles typeshed, which has its own `LICENSE` file inside the wheel; not audited). Declared metadata only.
+Added 2026-11-26. These are dev-only, not shipped, read the same way (`License-Expression` from `importlib.metadata`, CPython 3.13.15 project environment), and declared metadata only:
+- hypothesis 6.170.17 **MPL-2.0** (file-level copyleft; imported only by `tests/`, never by `src/`, `backend/` or `scripts/`);
+- pytest-cov 7.1.0 MIT;
+- pytest-bdd 9.0.1 MIT;
+- coverage 7.17.5 Apache-2.0 (pulled in by pytest-cov).
+
+`mutation` extra (run by hand; `docs/HARDWARE_FLIGHT_READINESS.md`): mutmut 3.8.1 **BSD-3-Clause** (`License-Expression` in the wheel's `METADATA`; `LICENSE` present in the wheel). Read from the wheel downloaded with `pip download mutmut==3.8.1 --no-deps`. It is not installed in the project environment, and its dependencies were not walked.
 
 ## 2. Frontend (`frontend/package.json`, `package-lock.json`)
 

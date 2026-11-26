@@ -3,6 +3,21 @@
 As of 2026-11-23 (main `2bae45a`). Code freeze tag `stage2-freeze-2026-11-27`; submission 2 Dec. The plan is in `STAGE2_DELIVERY_PLAN.md` and the
 findings are in `STAGE2_AUDIT.md`.
 
+## 0. Status update 2026-11-26 (main `67e5a6b`; the sections below are the 2026-11-23 snapshot)
+
+Each line below was checked live on 2026-11-26 against GitHub and git.
+- **Freeze tag** `stage2-freeze-2026-11-27` → `8e58003` exists locally and on `origin` (H4 done).
+  - Nothing under `src/`, `configs/` or `models/` differs between the tag and main. Since the tag, main has changed only `artifacts/`, `docs/`, `frontend/`, `scripts/` and `tests/`.
+  - CI (`ci.yml`, push) is green on `67e5a6b`; the nightly `stage1-regression.yml` is green on `67e5a6b` (2026-11-25).
+- **H1 merges done:** #81, #82, #154, #160, the D-fix-ups (#162–#168) and #177 (#27 evidence) merged by 2026-11-23. #157, #159, #178, #179 and #183 merged on 2026-11-24.
+- **Open PRs:**
+  - #182 (frontend bundle provenance, #180), #184 (test only) and #186 (frontend CSS) touch no frozen path.
+  - #185, #187, #188, #189 and #190 change `src/` after the freeze. #189 and #190 change frozen-list paths (`features/`, `mavlink/`, `detectors/`, `config.py`). They are held for the submission; see the PR comments.
+- **Still not done, all human-only:**
+  - H5 SITL campaign (#26): no `artifacts/sitl/final_*` yet. A read-only preflight on 2026-11-26 found the PX4 tree clean at `v1.18.0-rc1-27-gc239c63807`, the models matching `models/MODELS.sha256`, and the campaign plan listing 160 trials (16 scenarios × 10) from a clean checkout of the tag.
+  - H6 walk (#29), H7 Pi run (#30), H8 video (#33), H10 signatures and H11 package (#34). No comment on #29, #30, #33 or #34 yet.
+- **New defect:** `scripts/verify_stage2.py` stops at suite 5 on both the tag and main (#191). It is a demo on hand-built inputs, not evidence, but the README lists it under quick verification.
+
 Status words: **code-complete** (merged or mergeable, tests green); **evidence-complete** (a committed artifact with a regenerating
 command, from the freeze tag); **submission-ready** (both of those, plus the report states it correctly).
 
