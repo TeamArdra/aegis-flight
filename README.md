@@ -351,19 +351,21 @@ For deployment directly on a physical drone companion computer connected to a Pi
 
 ### E. Quick Verification (All Operating Systems)
 
-Run the test and audit suites to ensure your local installation is 100% operational:
+Run the test and lint suites to check a local installation:
 ```bash
-# 1. Full 8-suite Stage 2 automated audit (~40 ms):
+# 1. Stage 2 defense demo on hand-built inputs (SIM, not evidence).
+#    KNOWN ISSUE (2026-11-26): stops at suite 5 with "ValueError: unknown mode 'AUTO'" on the
+#    freeze tag and on main; see issue #191. Suites 1-4 print [PASS] before it stops.
 python scripts/verify_stage2.py
 
-# 2. Fast unit verification (34 tests, < 1 s):
-pytest tests/unit/test_mitigation.py tests/unit/test_hal.py -q
+# 2. Fast unit verification (35 tests on main 67e5a6b, 2026-11-26):
+python -m pytest tests/unit/test_mitigation.py tests/unit/test_hal.py
 
 # 3. Full test suite (`python -m pytest` prints the count):
-pytest
+python -m pytest
 
-# 4. Code quality & linting:
-ruff check src tests scripts
+# 4. Code quality & linting (the same command CI runs):
+ruff check src tests scripts backend
 ```
 
 ---

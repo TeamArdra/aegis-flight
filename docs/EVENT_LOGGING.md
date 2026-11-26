@@ -1,8 +1,11 @@
 # AegisFlight — Event Logging
 
 Alerts are persisted to SQLite by `EventStore` (`logging/store.py`) in a
-**tamper-evident, per-run SHA-256 hash chain**: any post-hoc edit, insertion, or
-deletion breaks the chain and is detected by `verify_chain`.
+**tamper-evident, per-run SHA-256 hash chain**: a post-hoc edit, insertion, or
+deletion **inside** a run's chain breaks it and is detected by `verify_chain`.
+`verify_chain` alone does **not** detect deleting the newest rows of a run, deleting
+a whole run, or appending rows whose hashes were recomputed (the chain is unkeyed);
+see "What happens if an event is modified" and the anchors section below.
 
 ## Schema
 
@@ -60,10 +63,21 @@ store.get_events(limit=20)         # list of dicts (JSON fields decoded)
 
 ## What happens if an event is modified
 Editing any field (e.g. lowering a `threat_score` to hide an incident), deleting
-a row, or inserting one recomputes to a different hash → `verify_chain` returns
-`ok=False` with the offending index. This gives the forensic log the integrity a
-UAV incident investigation needs. Tested by
+a row from the middle of a run, or inserting one recomputes to a different hash →
+`verify_chain` returns `ok=False` with the offending index. Tested by
 `tests/unit/test_integrity_and_logging.py::test_hash_chain_detects_tamper`.
+
+What `verify_chain` alone does **not** detect (it re-walks each run from the genesis
+hash, and `_hash` in `logging/store.py` is plain SHA-256 with no key):
+- deleting the newest `k` rows of a run: the remaining prefix is still a valid chain;
+- deleting every row of a run: no chain is left to check;
+- appending rows: anyone with write access to the database can compute valid hashes.
+
+A probe on scratch databases (2026-11-26, main `67e5a6b`) confirmed the first two:
+deleting an interior row gave `ok=False`, while deleting the newest row or a whole
+run gave `ok=True`. Tail truncation and whole-run deletion are covered only by the
+external anchors below (`aegis verify-log <db> --anchors …`), and anchors resist
+forgery only when `AEGIS_ANCHOR_KEY` is set.
 
 ## External Chain-Head Anchors (`<db>.anchors.jsonl`, #21)
 To detect **tail truncation** (deleting the newest `k` rows or an entire run),

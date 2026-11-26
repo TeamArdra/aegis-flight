@@ -40,7 +40,7 @@ The suite covers raw serial framing and MAVLink parsing up to the SIM-only defen
 ## Test Commands
 | Command | Purpose | Typical Runtime |
 |---|---|---|
-| `python scripts/verify_stage2.py` | Demo of the 8 defense code paths on hand-built inputs (SIM; not validation evidence) | seconds |
+| `python scripts/verify_stage2.py` | Demo of the 8 defense code paths on hand-built inputs (SIM; not validation evidence). **Known issue (2026-11-26):** stops at suite 5 (`ValueError: unknown mode 'AUTO'`) on the freeze tag and on main; see #191 | seconds |
 | `pytest tests/unit/test_mitigation.py tests/unit/test_hal.py` | Core Stage 2 autonomous defense and HAL tests | < 2 s |
 | `pytest tests/unit -q` | Fast unit test suite (600+ tests) | ~15 s |
 | `pytest tests/integration -q` | Multi-mode attack detection and pipeline tests | ~30 s |
