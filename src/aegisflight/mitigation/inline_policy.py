@@ -464,6 +464,13 @@ class InlinePolicy:
     SIGNED_SOURCE_MIN = 20  # valid signed frames before a source counts as "signs its frames"
     SIGNING_LAPSE_NS = 10_000_000_000  # no valid signed frame for this long: the source no longer counts as signing
 
+    def is_downlink_signed_source(self, sysid: int, compid: int, recv_ns: int) -> bool:
+        """True iff ``(sysid, compid)`` has been observed signing its downlink and has not lapsed."""
+        src = (sysid, compid)
+        if self._down_signed.get(src, 0) < self.SIGNED_SOURCE_MIN:
+            return False
+        return (recv_ns - self._down_signed_t.get(src, recv_ns)) <= self.SIGNING_LAPSE_NS
+
     def _down_forged(self, ctx: FrameContext) -> str | None:
         """Signed link: a source that has been signing its frames and now sends an unsigned (or badly signed) one is a forgery.
 
