@@ -25,15 +25,34 @@ from pymavlink.dialects.v20 import common as mav
 from ..core.geo import offset_latlon
 from ..core.types import FlightState, MessageEnvelope
 
-# ArduCopter custom_mode <-> name mapping (subset we use).
+# ArduCopter custom_mode <-> name mapping (complete ArduCopter COPTER_MODE table).
 COPTER_MODES: dict[str, int] = {
     "STABILIZE": 0,
+    "ACRO": 1,
     "ALT_HOLD": 2,
     "AUTO": 3,
     "GUIDED": 4,
     "LOITER": 5,
     "RTL": 6,
+    "CIRCLE": 7,
     "LAND": 9,
+    "DRIFT": 11,
+    "SPORT": 13,
+    "FLIP": 14,
+    "AUTOTUNE": 15,
+    "POSHOLD": 16,
+    "BRAKE": 17,
+    "THROW": 18,
+    "AVOID_ADSB": 19,
+    "GUIDED_NOGPS": 20,
+    "SMART_RTL": 21,
+    "FLOWHOLD": 22,
+    "FOLLOW": 23,
+    "ZIGZAG": 24,
+    "SYSTEMID": 25,
+    "AUTOROTATE": 26,
+    "AUTO_RTL": 27,
+    "TURTLE": 28,
     "TAKEOFF": 4,  # takeoff is flown in GUIDED on ArduCopter
 }
 MODE_NAMES: dict[int, str] = {v: k for k, v in COPTER_MODES.items() if k != "TAKEOFF"}
@@ -95,10 +114,35 @@ COPTER_MAV_TYPES = frozenset({2, 3, 4, 13, 14, 15, 29})
 VTOL_MAV_TYPES = frozenset({19, 20, 21, 22, 23, 24, 25})
 ROVER_MAV_TYPES = frozenset({10, 11})
 FIXED_WING_MAV_TYPE = 1
+MAV_AUTOPILOT_INVALID = 8
+# MAV_TYPE values for ground stations, companions, gimbals, cameras, sensors, and other non-vehicle peripherals.
+NON_VEHICLE_MAV_TYPES = frozenset({
+    5,   # MAV_TYPE_ANTENNA_TRACKER
+    6,   # MAV_TYPE_GCS
+    18,  # MAV_TYPE_ONBOARD_CONTROLLER
+    26,  # MAV_TYPE_GIMBAL
+    27,  # MAV_TYPE_ADSB
+    30,  # MAV_TYPE_CAMERA
+    31,  # MAV_TYPE_CHARGING_STATION
+    32,  # MAV_TYPE_FLARM
+    33,  # MAV_TYPE_SERVO
+    34,  # MAV_TYPE_ODID
+    36,  # MAV_TYPE_BATTERY
+    37,  # MAV_TYPE_PARACHUTE
+    38,  # MAV_TYPE_LOG
+    39,  # MAV_TYPE_OSD
+    40,  # MAV_TYPE_IMU
+    41,  # MAV_TYPE_GPS
+    42,  # MAV_TYPE_WINCH
+    44,  # MAV_TYPE_ILLUMINATOR
+    48,  # MAV_TYPE_GRIPPER
+})
 
 
 def decode_flight_mode(autopilot: int | None, mav_type: int | None, custom_mode: int) -> str:
     """Decode ``HEARTBEAT.custom_mode`` according to autopilot stack and frame type."""
+    if autopilot == MAV_AUTOPILOT_INVALID or mav_type in NON_VEHICLE_MAV_TYPES:
+        return "UNKNOWN"
     if autopilot == 12:  # MAV_AUTOPILOT_PX4
         main_m = (custom_mode >> 16) & 0xFF
         sub_m = (custom_mode >> 24) & 0xFF

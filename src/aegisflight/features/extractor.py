@@ -26,7 +26,7 @@ from pymavlink.dialects.v20 import ardupilotmega as _apm
 from ..core.geo import EARTH_RADIUS_M, wrap_deg_180
 from ..core.gps_health import satellites_or_none
 from ..core.types import MessageEnvelope, TelemetrySnapshot
-from ..mavlink.codec import decode_flight_mode
+from ..mavlink.codec import MAV_AUTOPILOT_INVALID, NON_VEHICLE_MAV_TYPES, decode_flight_mode
 from .mission import MissionTracker
 
 # Position-residual sliding window (in position fixes; GPS ≈ 5 Hz => ~3 s).
@@ -500,24 +500,26 @@ class FeatureExtractor:
             )
         elif name == "HEARTBEAT":
             m_type = int(f.get("type", 0))
-            if m_type != 6:  # Ignore GCS heartbeats for vehicle state
-                self._last_heartbeat_t = t
-                self.snapshot.armed = bool(f.get("base_mode", 0) & 128)
-                cm = int(f.get("custom_mode", 0))
-                autopilot = int(f.get("autopilot", 0))
-                # Bind the dialect to ONE primary vehicle source (first non-GCS autopilot heartbeat). Heartbeats
-                # from other sysid/compid (spoofed, companion, gimbal...) never switch the mode table.
+            autopilot = int(f.get("autopilot", 0))
+            # Ignore GCS and peripheral/companion heartbeats (MAV_AUTOPILOT_INVALID=8 or non-vehicle MAV_TYPE)
+            if autopilot != MAV_AUTOPILOT_INVALID and m_type not in NON_VEHICLE_MAV_TYPES:
+                # Bind vehicle state and dialect to ONE primary vehicle source (first non-GCS/non-peripheral
+                # autopilot heartbeat). Heartbeats from other sysid/compid (spoofed, companion, gimbal, ...)
+                # never overwrite armed, flight_mode, _last_heartbeat_t, or the mode table.
                 src = (int(msg.sysid), int(msg.compid))
-                if self._primary_vehicle_src is None and autopilot != 8:  # 8 = MAV_AUTOPILOT_INVALID
+                if self._primary_vehicle_src is None:
                     self._primary_vehicle_src = src
                 if self._primary_vehicle_src == src:
+                    self._last_heartbeat_t = t
+                    self.snapshot.armed = bool(f.get("base_mode", 0) & 128)
                     self._autopilot_id = autopilot
                     self._mav_type = m_type
-                if autopilot == 12 or cm >= 65536:
-                    from ..sources.mavlink_live import decode_px4_mode
-                    self.snapshot.flight_mode = decode_px4_mode(cm)
-                else:
-                    self.snapshot.flight_mode = decode_flight_mode(autopilot, m_type, cm)
+                    cm = int(f.get("custom_mode", 0))
+                    if autopilot == 12 or cm >= 65536:
+                        from ..sources.mavlink_live import decode_px4_mode
+                        self.snapshot.flight_mode = decode_px4_mode(cm)
+                    else:
+                        self.snapshot.flight_mode = decode_flight_mode(autopilot, m_type, cm)
         elif name == "GLOBAL_POSITION_INT":
             if _all_finite(f.get("lat"), f.get("lon"), f.get("alt"), f.get("relative_alt"), f.get("vx"), f.get("vy"), f.get("vz")):
                 self._last_gps_t = t
@@ -624,11 +626,20 @@ class FeatureExtractor:
                 vv, pv, cv = f["velocity_variance"], f["pos_horiz_variance"], f["compass_variance"]
                 if _all_finite(vv, pv, cv):
                     self._ekf_vars = (float(vv), float(pv), float(cv))
-        elif name == "COMMAND_LONG":
-            params = tuple(
-                float(v) if _all_finite(v := f.get(f"param{i}", 0.0)) else 0.0
-                for i in range(1, 8)
-            )
+        elif name in ("COMMAND_LONG", "COMMAND_INT"):
+            if name == "COMMAND_LONG":
+                raw_params = (f.get(f"param{i}", 0.0) for i in range(1, 8))
+            else:
+                raw_params = (
+                    f.get("param1", 0.0),
+                    f.get("param2", 0.0),
+                    f.get("param3", 0.0),
+                    f.get("param4", 0.0),
+                    f.get("x", 0.0),
+                    f.get("y", 0.0),
+                    f.get("z", 0.0),
+                )
+            params = tuple(float(v) if _all_finite(v) else 0.0 for v in raw_params)
             cmd_raw = f.get("command", 0)
             cmd_id = int(cmd_raw) if _all_finite(cmd_raw) else 0
             self._commands.append(
