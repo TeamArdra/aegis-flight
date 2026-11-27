@@ -185,6 +185,14 @@ class InlineIpsBridge:
         self._override_interval_s = 0.5
         self._override_next = 0.0
         self._secret_key = secret_key
+        # Persistent verifier for downlink COMMAND_ACK replay protection (separate from policy's uplink verifier).
+        # Fail-safe note: after an FC reboot, PX4 signing timestamps may restart lower; ACKs fail safe (no LAND
+        # fallback) until the bridge or _ack_verifier is reset.
+        from aegisflight.mavlink.signing import MavlinkSignatureVerifier
+
+        self._ack_verifier: MavlinkSignatureVerifier | None = (
+            MavlinkSignatureVerifier(secret_key) if secret_key is not None else None
+        )
         self.cfg = cfg or load_config(config_dir)
         proto = self.cfg.detector.get("protocol", {})
         if proto.get("auto_rate_baseline") is None:  # unset = auto: on for a live link
@@ -585,6 +593,24 @@ class InlineIpsBridge:
                     out = [fr.raw]
             if down:
                 self.frames_down += 1
+                if fr.msgid == 77 and out and fr.sysid in policy.vehicle_sysids:
+                    with contextlib.suppress(Exception):
+                        sig_ok = True
+                        if self._ack_verifier is not None:
+                            if fr.signed:
+                                sig_ok = self._ack_verifier.verify_frame(fr.raw).valid
+                            else:
+                                # Unsigned FC downlink ACK is allowed when the FC is not a signing source
+                                # (mirroring LiveMavlinkSource unsigned_allowed_sysids / policy._down_forged).
+                                sig_ok = not policy.is_downlink_signed_source(fr.sysid, fr.compid, stamp)
+                        if sig_ok:
+                            hdr = 10 if fr.raw[:1] == b"\xfd" else 6
+                            plen = fr.raw[1] if len(fr.raw) > 1 else 0
+                            if plen >= 3 and len(fr.raw) >= hdr + 3:
+                                cmd = int.from_bytes(fr.raw[hdr : hdr + 2], "little")
+                                res = fr.raw[hdr + 2]
+                                tgt_sys = fr.raw[hdr + 8] if (fr.raw[:1] == b"\xfd" and plen >= 9 and len(fr.raw) >= hdr + 9) else None
+                                self.controller.record_command_ack(cmd, res, t=stamp / 1e9, target_sysid=tgt_sys)
             else:
                 self.frames_up += 1
             if not out:
