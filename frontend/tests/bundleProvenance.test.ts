@@ -45,7 +45,9 @@ test("a production build emits verifiable provenance and no banned wording", () 
     assert.ok(existsSync(infoPath), "build-info.json must be emitted");
     const raw = readFileSync(infoPath, "utf8");
     const info = JSON.parse(raw);
-    assert.equal(info.schema, 1);
+    assert.equal(info.schema, 2);
+    assert.ok(info.files && Object.keys(info.files).includes("index.html"), "build-info.json must carry an output manifest with index.html");
+    assert.ok(!("build-info.json" in info.files), "the manifest does not list build-info.json itself");
     assert.equal(info.source_hash, sourceHash(root));
     assert.match(info.source_hash, /^[0-9a-f]{64}$/);
     assert.ok(!Number.isNaN(Date.parse(info.built_at)), "built_at must be an ISO timestamp");
@@ -73,8 +75,60 @@ test("a production build emits verifiable provenance and no banned wording", () 
     assert.notEqual(banned.status, 0, "banned wording must fail --check");
     assert.match(banned.stderr, /banned wording/i);
 
+    // (e) fail closed on a tampered, incomplete or malformed bundle (each case on a fresh copy of the good build).
+    const fresh = () => {
+      rmSync(copy, { recursive: true, force: true });
+      cpSync(out, copy, { recursive: true });
+    };
+    const mustFail = (label: string, want: RegExp, code?: number) => {
+      const r = check(copy);
+      assert.notEqual(r.status, 0, `${label} must fail --check`);
+      if (code !== undefined) assert.equal(r.status, code, `${label}: exit code`);
+      assert.match(r.stderr, want, `${label}: message`);
+      assert.doesNotMatch(r.stderr, /TypeError|\n\s+at /, `${label}: must be a clean message, not a stack trace`);
+    };
+    const jsFile = () => [...walk(copy)].find((f) => f.endsWith(".js"))!;
+
     rmSync(join(copy, "build-info.json"));
-    assert.equal(check(copy).status, 2, "a missing build-info.json must exit 2");
+    mustFail("a missing build-info.json", /build-info\.json is missing/, 2);
+
+    const missingDir = check(join(copy, "does-not-exist"));
+    assert.equal(missingDir.status, 2, "a missing dist directory must exit 2");
+    assert.match(missingDir.stderr, /bundle directory not found/);
+
+    for (const [label, body] of [["null", "null"], ["an array", "[]"], ["an empty object", "{}"], ["truncated JSON", '{"schema":2']] as const) {
+      fresh();
+      writeFileSync(join(copy, "build-info.json"), body);
+      mustFail(`build-info.json that is ${label}`, /not valid JSON|malformed/, 1);
+    }
+    fresh();
+    writeFileSync(join(copy, "build-info.json"), JSON.stringify({ ...info, schema: 1 }));
+    mustFail("an old schema (no manifest guarantee)", /unsupported schema/, 1);
+    fresh();
+    const { built_at: _drop, ...noTime } = info;
+    writeFileSync(join(copy, "build-info.json"), JSON.stringify(noTime));
+    mustFail("a missing built_at", /built_at/, 1);
+    fresh();
+    writeFileSync(join(copy, "build-info.json"), JSON.stringify({ ...info, files: undefined }));
+    mustFail("a missing output manifest", /files/, 1);
+
+    fresh();
+    writeFileSync(jsFile(), `${readFileSync(jsFile(), "utf8")}
+/* harmless edit */
+`);
+    mustFail("a bundle file modified after the build", /modified after build/, 1);
+    fresh();
+    rmSync(join(copy, "index.html"));
+    mustFail("a missing index.html", /missing: index\.html/, 1);
+    fresh();
+    rmSync(jsFile());
+    mustFail("a missing JS bundle", /missing: assets\//, 1);
+    fresh();
+    writeFileSync(join(copy, "stray.txt"), "left over from an older build");
+    mustFail("a file that is not in the manifest", /not in build-info\.json: stray\.txt/, 1);
+    fresh();
+    for (const f of [...walk(copy)]) if (!f.endsWith("build-info.json")) rmSync(f);
+    mustFail("a bundle holding only build-info.json", /missing: index\.html/, 1);
   } finally {
     rmSync(out, { recursive: true, force: true });
     rmSync(copy, { recursive: true, force: true });
