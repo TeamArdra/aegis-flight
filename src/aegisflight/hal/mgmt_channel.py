@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import secrets
 import struct
@@ -904,7 +905,10 @@ def _target_mode(raw: bytes, msgid: int, cmd: dict[str, Any] | None) -> str | No
     """ArduCopter mode name a dropped DO_SET_MODE / SET_MODE asked for (so 'blocked DO_SET_MODE(LAND)' says what the
     forger wanted, not only the message type); ``None`` for anything else or an unknown mode number."""
     if cmd is not None and cmd["command"] == 176:  # MAV_CMD_DO_SET_MODE: param2 = custom mode
-        return _COPTER_MODES.get(int(cmd["params"][1]))
+        p = cmd["params"][1]
+        if not math.isfinite(p):
+            return None
+        return _COPTER_MODES.get(int(p))
     if msgid == 11 and len(raw) >= 10:  # SET_MODE: custom_mode u32 first in the payload
         return _COPTER_MODES.get(int.from_bytes(_payload(raw, 6)[:4], "little"))
     return None
