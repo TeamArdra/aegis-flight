@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { INTEGRATION_TAGLINE, TIER_LABEL, VALIDATION_FOOT, VAL_ROWS } from "../lib/evalCopy";
 import type { Metrics } from "../types";
 
 /* Formatting helpers ------------------------------------------------------ */
@@ -167,7 +168,7 @@ function IntegrationPanelImpl() {
         <span className="panel-note">Stage 2 Architecture</span>
       </header>
       <div className="integ-tagline">
-        Modular MAVLink-based cyber-physical shield with zero-interference flight safety.
+        {INTEGRATION_TAGLINE}
       </div>
       <div className="integ-cols">
         <div className="integ-col">
@@ -194,36 +195,6 @@ function IntegrationPanelImpl() {
 /* -------------------------------------------------------------- validation
    BENCHMARK / VALIDATION evidence — clearly labelled, never presented as live
    telemetry. Figures are quoted verbatim from committed artifacts/**. */
-type ValTier = "sim" | "expanded" | "sitl" | "replay";
-const TIER_LABEL: Record<ValTier, string> = {
-  sim: "Simulated",
-  expanded: "Expanded sim",
-  sitl: "SITL",
-  replay: "Replay",
-};
-const VAL_ROWS: Array<{ tier: ValTier; metric: string; value: string }> = [
-  {
-    tier: "sim",
-    metric: "Baseline accuracy (SIM, ML-on · artifacts/benchmarks/summary.md)",
-    value: "99.7% (6535/4/16826/65)  ·  23,430 decisions  ·  link-level",
-  },
-  {
-    tier: "expanded",
-    metric: "Expanded v2 accuracy (SIM · artifacts/benchmarks_extended/summary.md)",
-    value: "97.7% (5 s grace)  ·  97.0% (no grace)  ·  link-level",
-  },
-  {
-    tier: "sitl",
-    metric: "PX4 SITL calibrated (SITL, ML-off · artifacts/sitl/calibration/evaluation_heldout.json)",
-    value: "1 / 2,805 held-out false alarms  ·  false-alarm only (no attacks)",
-  },
-  {
-    tier: "replay",
-    metric: "ArduPilot ALFA replay (REPLAY, ML-off · artifacts/external/alfa_calibrated/results.json)",
-    value: "Calibrated nominal-rate replay  ·  physical faults only (no cyber attacks)",
-  },
-];
-
 function ValidationPanelImpl() {
   return (
     <div className="panel">
@@ -247,9 +218,7 @@ function ValidationPanelImpl() {
         </table>
       </div>
       <div className="val-foot">
-        Reproducible results from committed <code>artifacts/**</code>. Benchmark
-        CPU ~99% reflects a saturated measurement loop, not steady-state efficiency;
-        no embedded / Jetson figures are claimed.
+        {VALIDATION_FOOT}
       </div>
     </div>
   );

@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node --test tests/source.test.ts tests/geo.test.ts tests/backend.test.ts tests/topology.test.ts tests/posture.test.ts tests/bridgeRemote.test.ts tests/stable.test.ts tests/wording.test.ts tests/dualModeAndSecurity.test.ts tests/bundleLeak.test.ts tests/bundleProvenance.test.ts"
+    "test": "node --test tests/source.test.ts tests/geo.test.ts tests/backend.test.ts tests/topology.test.ts tests/posture.test.ts tests/bridgeRemote.test.ts tests/stable.test.ts tests/wording.test.ts tests/evalCopy.test.ts tests/dualModeAndSecurity.test.ts tests/bundleLeak.test.ts tests/bundleProvenance.test.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

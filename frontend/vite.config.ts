@@ -1,7 +1,9 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildInfo } from "./scripts/provenance.mjs";
+import { buildInfo, outputManifest } from "./scripts/provenance.mjs";
 
 // The config file's own directory: build-info.json hashes this tree no matter where vite is launched from.
 const frontendRoot = fileURLToPath(new URL(".", import.meta.url));
@@ -26,8 +28,11 @@ export default defineConfig(({ command, mode }) => {
       {
         name: "aegis-build-info",
         apply: "build",
-        generateBundle() {
-          this.emitFile({ type: "asset", fileName: "build-info.json", source: JSON.stringify(buildInfo(frontendRoot), null, 2) + "\n" });
+        // writeBundle (not generateBundle): the manifest hashes the files as they are on disk, including index.html and public/.
+        writeBundle(options) {
+          if (!options.dir) throw new Error("aegis-build-info: no output directory");
+          const info = { ...buildInfo(frontendRoot), files: outputManifest(options.dir) };
+          writeFileSync(join(options.dir, "build-info.json"), JSON.stringify(info, null, 2) + "\n");
         },
       },
     ],

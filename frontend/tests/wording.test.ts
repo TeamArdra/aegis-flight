@@ -22,7 +22,7 @@ import {
 import type { DefenseMode, Environment, MitigationState } from "../src/types/index.ts";
 
 // Phrases that overstate what the evidence supports (issue #23).
-const OVERCLAIM = /NEUTRALI[SZ]|holding flight integrity|armed and ready|protecting flight|golden tracking|loitering/i;
+const OVERCLAIM = /NEUTRALI[SZ]|holding flight integrity|armed and ready|protecting flight|golden tracking|loitering|zero-interference|cyber-physical shield/i;
 
 const MODES: DefenseMode[] = ["passive", "advisory", "active-ips"];
 const ENVS: Array<Environment | null> = ["SIM", "REPLAY", "SITL", "BENCH", null];
