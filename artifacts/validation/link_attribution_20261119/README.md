@@ -12,7 +12,7 @@
 PYTHONPATH=src python scripts/eval_link_attribution.py --seed 20261119 > artifacts/validation/link_attribution_20261119/eval_link_attribution_seed20261119.json
 ```
 
-The script has no `--out` option; it prints its JSON to stdout, so the file is the shell-redirected stdout, byte for byte, not edited. Wall time about 26 s. Run twice: the two outputs were byte-identical (`cmp`). sha256 of the JSON: `539be4beb1ed05d3b83374de257ccc9fe504772917dac8e270385c10d857ecdb`.
+The script has no `--out` option; it prints its JSON to stdout, so the file is the shell-redirected stdout, byte for byte, not edited. Wall time about 26 s. Run twice: the two outputs were byte-identical (`cmp`). Python on Windows wrote CRLF line endings; `.gitattributes` (`* text=auto eol=lf`) normalises them to LF on commit, so the only difference between the raw stdout and the committed file is line endings. sha256 of the raw stdout (CRLF): `539be4beb1ed05d3b83374de257ccc9fe504772917dac8e270385c10d857ecdb`; sha256 of the committed file (LF): `d4d741229da27a0bd7ecaa220c47463d95ce21b6d7129e7b7c5bc726ca70f663`.
 
 ## Result (copied from the JSON; keys `before` and `after_semantic`)
 

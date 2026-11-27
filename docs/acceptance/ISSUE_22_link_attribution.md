@@ -58,7 +58,7 @@ Output (keys `before` / `after_semantic`; `strict_acc` and `hierarchical_acc` ar
 | `dos:flood` (control) | 501 | 500 | 1.0000 | 1.0000 | 1.0000 |
 
 Binary recall (five-mode subset) 0.5687 -> 0.5687; benign FPR 0.0 -> 0.0. 24 sessions, ML off. The committed copy of this output, with provenance, is
-`artifacts/validation/link_attribution_20261119/` (JSON sha256 `539be4be...c857ecdb`). That artifact is stdout redirected by the
+`artifacts/validation/link_attribution_20261119/` (committed JSON sha256 `d4d74122...ca70f663`, LF; raw CRLF stdout `539be4be...c857ecdb`). That artifact is stdout redirected by the
 shell, because the script has no output option and was not changed. It closes the open item "no before/after artifact committed".
 
 Observations that the audit trail needs:
