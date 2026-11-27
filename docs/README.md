@@ -48,6 +48,7 @@ QUICKSTART  →  HANDOFF  →  ARCHITECTURE  →  END_TO_END_FLOW  →  FILE_REF
 - [BENCHMARKING.md](BENCHMARKING.md) — how metrics are produced + results (baseline, ablation, extended v2).
 - [EXTERNAL_DATA.md](EXTERNAL_DATA.md) — public real-flight datasets (40 PX4 logs + 41 ALFA logs), feature compatibility, external validation.
 - [VALIDATION_EVIDENCE.md](VALIDATION_EVIDENCE.md) — empirical validation table (TC-01…TC-06) + evidence levels.
+- [acceptance/ISSUE_49_inflight_false_alerts.md](acceptance/ISSUE_49_inflight_false_alerts.md) — issue #49 acceptance audit: recomputed per-hour false-alert bounds, re-fusion versus fresh-run classification, lock and approval findings, and the pending D1/D2/B5 maintainer decisions (`SITL`, link-level; documentation only).
 - [REPORT_ALIGNMENT.md](REPORT_ALIGNMENT.md) — competition report mapping & compliance matrix.
 - [STAGE2_PROGRESS.md](STAGE2_PROGRESS.md) — Stage 2 engineering ledger and implementation progress.
 - [STAGE2_SECURITY_AND_FEATURE_RATIONALE.md](STAGE2_SECURITY_AND_FEATURE_RATIONALE.md) — reviewer guide explaining how all preserved Stage-2 and Universal Flight-Hardening features satisfy security boundaries across PRs #79–#82.
