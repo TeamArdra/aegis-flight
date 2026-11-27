@@ -11,8 +11,11 @@ whole flow (build manifest -> tamper -> detect) runs offline and reproducibly.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
+import os
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -93,7 +96,23 @@ class FirmwareVerifier:
             "version": "1.0",
             "components": files,
         }
-        self.manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        self.manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps(manifest, indent=2)
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f".{self.manifest_path.name}.",
+            suffix=".tmp",
+            dir=str(self.manifest_path.parent),
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(payload)
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp_name, self.manifest_path)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_name)
+            raise
         return manifest
 
     def ensure_fixture(self) -> None:
@@ -135,8 +154,22 @@ class FirmwareVerifier:
                 status=IntegrityStatus.UNKNOWN,
                 evidence=["no firmware manifest present"],
             )
-        manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
-        expected: dict[str, str] = manifest.get("components", {})
+        try:
+            manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+            if not isinstance(manifest, dict):
+                raise TypeError("manifest root must be a JSON object")
+            expected = manifest["components"]
+            if not isinstance(expected, dict):
+                raise TypeError("manifest 'components' must be a JSON object")
+            for name, exp_hash in expected.items():
+                if not isinstance(name, str) or not isinstance(exp_hash, str):
+                    raise TypeError("manifest component names and hashes must be strings")
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError, TypeError, KeyError) as exc:
+            return IntegrityReport(
+                status=IntegrityStatus.INVALID,
+                tampered=[self.manifest_path.name],
+                evidence=[f"corrupt or unreadable firmware manifest ({type(exc).__name__}: {exc})"],
+            )
         on_disk = {p.name: p for p in self.firmware_dir.glob("*.bin")}
 
         tampered, missing, unexpected, evidence = [], [], [], []
@@ -145,7 +178,12 @@ class FirmwareVerifier:
                 missing.append(name)
                 evidence.append(f"component missing: {name}")
                 continue
-            actual = sha256_file(on_disk[name])
+            try:
+                actual = sha256_file(on_disk[name])
+            except OSError as exc:
+                tampered.append(name)
+                evidence.append(f"unreadable component {name}: {exc}")
+                continue
             if actual != exp_hash:
                 tampered.append(name)
                 evidence.append(

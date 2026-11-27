@@ -46,6 +46,9 @@ _GPI_STRUCT = struct.Struct("<IiiiihhhH")  # full GLOBAL_POSITION_INT payload (2
 MISMATCH_HOLD_S = 3.0
 SILENCE_S = 5.0
 _KEEP = 60
+#: A backward jump in ``time_boot_ms`` larger than this is treated as an FC reboot
+#: or uint32 wraparound (~49.7 days) and re-baselines the monotonicity watermark.
+REBOOT_BACKWARD_MS = 60_000
 
 
 def load_signing_key(path: str) -> bytes:
@@ -120,12 +123,16 @@ class CrossEndMonitor:
         self._pending: OrderedDict[int, tuple[int, ...]] = OrderedDict()
         self._now = 0.0
         self._last_summary_t: float | None = None
+        self._last_summary_tbm: int | None = None
         self._mismatch: tuple[float, str] | None = None
         self._bad_auth: tuple[float, str] | None = None
+        self._replay: tuple[float, str] | None = None
+        self._unmatched_alert: tuple[float, str] | None = None
         self.summaries = 0
         self.compared = 0
         self.mismatches = 0
         self.unmatched = 0
+        self.replays = 0
         self.bad_auth = 0
 
     def stats(self) -> dict:
@@ -163,20 +170,40 @@ class CrossEndMonitor:
     def _summary(self, msg: MessageEnvelope) -> None:
         vals, tag_ok = unpack_summary(list(msg.fields["value"]), self.key)
         self.summaries += 1
-        self._last_summary_t = msg.recv_time
         if self.key is not None and not (tag_ok and msg.signed):
+            self._last_summary_t = msg.recv_time
             self.bad_auth += 1
             why = "bad tag" if not tag_ok else "frame not signed"
             self._bad_auth = (msg.recv_time, f"bridge cross-end summary not authentic ({why})")
             return  # never compare against an unauthenticated summary
         tbm = vals[0]
+        if self._last_summary_tbm is not None and tbm <= self._last_summary_tbm:
+            if self._last_summary_tbm - tbm > REBOOT_BACKWARD_MS:
+                # FC reboot or uint32 time_boot_ms wraparound (~49.7 days):
+                # re-baseline watermark and drop stale pre-reboot pending summaries.
+                self._pending.clear()
+            else:
+                self.replays += 1
+                self._replay = (
+                    msg.recv_time,
+                    f"bridge cross-end summary replay/non-advancing time_boot_ms "
+                    f"({tbm} <= {self._last_summary_tbm})",
+                )
+                return  # reject replayed/non-advancing summary without resetting _last_summary_t
+        self._last_summary_tbm = tbm
+        self._last_summary_t = msg.recv_time
         if tbm in self._gpi:
             self._compare(vals, msg.recv_time)
         else:
             self._pending[tbm] = vals
             while len(self._pending) > _KEEP:
-                self._pending.popitem(last=False)
+                evicted_tbm, _ = self._pending.popitem(last=False)
                 self.unmatched += 1
+                self._unmatched_alert = (
+                    msg.recv_time,
+                    f"bridge cross-end summaries unmatched ({self.unmatched} evicted without matching GPI, "
+                    f"latest time_boot_ms={evicted_tbm})",
+                )
 
     def _compare(self, summary: tuple[int, ...], t: float) -> None:
         self.compared += 1
@@ -191,7 +218,7 @@ class CrossEndMonitor:
     # -- verdict -------------------------------------------------------------- #
 
     def assess(self, t: float = 0.0) -> CrossEndResult | None:  # noqa: ARG002 - envelope time base is used
-        if self._last_summary_t is None:
+        if self.summaries == 0:
             return None
         score = 0.0
         votes: dict[AttackType, float] = {}
@@ -204,7 +231,15 @@ class CrossEndMonitor:
             score = max(score, 0.3)
             votes[AttackType.MAVLINK_ANOMALY] = max(votes.get(AttackType.MAVLINK_ANOMALY, 0.0), 0.3)
             ev.append(self._bad_auth[1])
-        if self._now - self._last_summary_t > SILENCE_S:
+        if self._replay and self._now - self._replay[0] <= MISMATCH_HOLD_S:
+            score = max(score, 0.3)
+            votes[AttackType.MAVLINK_ANOMALY] = max(votes.get(AttackType.MAVLINK_ANOMALY, 0.0), 0.3)
+            ev.append(self._replay[1])
+        if self._unmatched_alert and self._now - self._unmatched_alert[0] <= MISMATCH_HOLD_S:
+            score = max(score, 0.3)
+            votes[AttackType.MAVLINK_ANOMALY] = max(votes.get(AttackType.MAVLINK_ANOMALY, 0.0), 0.3)
+            ev.append(self._unmatched_alert[1])
+        if self._last_summary_t is not None and self._now - self._last_summary_t > SILENCE_S:
             score = max(score, 0.3)
             votes[AttackType.MAVLINK_ANOMALY] = max(votes.get(AttackType.MAVLINK_ANOMALY, 0.0), 0.3)
             ev.append(f"bridge cross-end summaries silent for {self._now - self._last_summary_t:.0f} s")

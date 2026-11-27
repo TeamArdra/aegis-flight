@@ -13,7 +13,7 @@ from typing import Any
 
 from pymavlink.dialects.v20 import ardupilotmega as apm
 
-from ..config import load_config
+from ..config import CONFIG_DIR, load_config
 from ..core.types import MessageEnvelope
 from ..hal.inline_ips import FrameContext, InlineIpsBridge
 from ..mavlink.signing import sign_mavlink2_frame
@@ -140,7 +140,7 @@ def _drill_semantic_param_fence_block() -> dict[str, Any]:
 
 def _drill_gps_spoof_escalation() -> dict[str, Any]:
     t0 = time.perf_counter()
-    cfg = load_config("configs/universal_flight")
+    cfg = load_config(CONFIG_DIR / "universal_flight")
     pipe = IDSPipeline(cfg, model_path=None)
     lat = 19.1334
     lon = 72.9133
@@ -174,7 +174,7 @@ def _drill_gps_spoof_escalation() -> dict[str, Any]:
 
 def _drill_clock_skew_sdr_spoof() -> dict[str, Any]:
     t0 = time.perf_counter()
-    cfg = load_config("configs/universal_flight")
+    cfg = load_config(CONFIG_DIR / "universal_flight")
     pipe = IDSPipeline(cfg, model_path=None)
     alerts: list[str] = []
     base_unix = 1_760_000_000_000_000  # valid Unix usec
