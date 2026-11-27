@@ -1,0 +1,99 @@
+{
+  "master_seed": 20261119,
+  "modes_declared": [
+    "gps_spoofing",
+    "mavlink_anomaly",
+    "command_injection",
+    "telemetry_manipulation",
+    "dos",
+    "firmware_integrity"
+  ],
+  "spec_count": 24,
+  "sample_spec": {
+    "idx": 0,
+    "kind": "benign",
+    "scenario": "benign",
+    "mode": "",
+    "seed": 30000,
+    "route": "survey_box",
+    "speed": 8.730591247295004,
+    "alt": 50.989249638976126,
+    "noise_scale": 1.2133223079781232,
+    "onset": 32.21715188314025,
+    "duration": 19.546121142970144,
+    "offset2": 0.0,
+    "link": {}
+  },
+  "before": {
+    "binary_recall": 0.5687,
+    "benign_fpr": 0.0,
+    "modes": {
+      "dos:blackout": {
+        "n_pos": 497,
+        "detected": 376,
+        "strict_acc": 0.7952,
+        "hierarchical_acc": 0.8005
+      },
+      "dos:flood": {
+        "n_pos": 501,
+        "detected": 500,
+        "strict_acc": 1.0,
+        "hierarchical_acc": 1.0
+      },
+      "dos:latency": {
+        "n_pos": 554,
+        "detected": 15,
+        "strict_acc": 0.0,
+        "hierarchical_acc": 0.0
+      },
+      "mavlink_anomaly:packet_loss": {
+        "n_pos": 493,
+        "detected": 61,
+        "strict_acc": 0.0,
+        "hierarchical_acc": 0.9508
+      },
+      "mavlink_anomaly:rate_spike": {
+        "n_pos": 508,
+        "detected": 500,
+        "strict_acc": 0.0,
+        "hierarchical_acc": 1.0
+      }
+    }
+  },
+  "after_semantic": {
+    "binary_recall": 0.5687,
+    "benign_fpr": 0.0,
+    "modes": {
+      "dos:blackout": {
+        "n_pos": 497,
+        "detected": 376,
+        "strict_acc": 0.6676,
+        "hierarchical_acc": 0.8005
+      },
+      "dos:flood": {
+        "n_pos": 501,
+        "detected": 500,
+        "strict_acc": 1.0,
+        "hierarchical_acc": 1.0
+      },
+      "dos:latency": {
+        "n_pos": 554,
+        "detected": 15,
+        "strict_acc": 0.0,
+        "hierarchical_acc": 0.0
+      },
+      "mavlink_anomaly:packet_loss": {
+        "n_pos": 493,
+        "detected": 61,
+        "strict_acc": 0.9508,
+        "hierarchical_acc": 0.9508
+      },
+      "mavlink_anomaly:rate_spike": {
+        "n_pos": 508,
+        "detected": 500,
+        "strict_acc": 0.0,
+        "hierarchical_acc": 1.0
+      }
+    }
+  }
+}
