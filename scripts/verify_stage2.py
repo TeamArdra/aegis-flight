@@ -10,6 +10,7 @@ they exercise; nothing here measures a vehicle, a SITL link or a benchmark. It e
 5. MAVLink-2 Cryptographic Signing (0x01), Strict Anti-Replay & Cadence Guard (AF-SEC-01) in IDS & IPS.
 6. 2D Vector CUSUM Micro-Drift Integrator (< 0.3 m/s) vs Zero-Mean Turbulence (AF-SEC-02) in IDS & IPS.
 7. Control-Plane Signed-Request Auth (HMAC, nonce, timestamp) & Cross-Origin Lockdown.
+8. Closed-loop flight twin across the 20 attack sub-modes, PASSIVE vs ACTIVE_IPS, and the read-only topology API.
 """
 
 from __future__ import annotations
@@ -35,6 +36,11 @@ from aegisflight.mitigation.actuator import MavlinkActuator, x25_crc
 from aegisflight.mitigation.controller import MitigationController
 from aegisflight.mitigation.submode_classifier import AttackSubModeClassifier
 from aegisflight.mitigation.types import AttackSubMode, DefenseMode
+
+# Vehicle dialect a live HEARTBEAT would report (MAV_AUTOPILOT_ARDUPILOTMEGA=3, MAV_TYPE_QUADROTOR=2). The IPS only
+# actuates mode commands for this dialect (MavlinkActuator.ALLOW_NON_COPTER_DIALECTS is False).
+_ARDUCOPTER_AUTOPILOT = 3
+_QUADROTOR_MAV_TYPE = 2
 
 
 def _print_header(title: str) -> None:
@@ -227,6 +233,16 @@ def audit_mavlink2_signing_and_replay() -> None:
     _print_header("5. MAVLink-2 Cryptographic Signing (0x01) & Replay Guard (AF-SEC-01)")
     key = os.urandom(32)  # throwaway per-run key; no key material is committed
     act = MavlinkActuator(secret_key=key, link_id=3)
+    # The actuator fails closed until a vehicle dialect is bound (#148): with autopilot/mav_type unknown it refuses
+    # DO_SET_MODE. The live path binds it from the vehicle HEARTBEAT; here we bind ArduCopter explicitly, the only
+    # dialect enabled for mode actuation.
+    try:
+        act.encode_set_mode("AUTO")
+    except ValueError:
+        _pass("Unbound actuator refuses DO_SET_MODE (fail-closed until a vehicle dialect is observed)")
+    else:
+        _fail("Unbound actuator encoded DO_SET_MODE without a known vehicle dialect")
+    act.set_vehicle_dialect(_ARDUCOPTER_AUTOPILOT, _QUADROTOR_MAV_TYPE)
     verifier = MavlinkSignatureVerifier(secret_key=key)
 
     f1 = act.encode_ekf_source_switch(source_set=2)
@@ -248,18 +264,21 @@ def audit_mavlink2_signing_and_replay() -> None:
         evidence=["MAVLink-2 replay timestamp regression: 100 <= 100", "unauthorized mode change"],
     )
     ctrl_ids = MitigationController(mode=DefenseMode.PASSIVE, secret_key=key)
+    # MitigationController binds the actuator dialect from frame.autopilot_id / frame.mav_type (the extractor fills
+    # them from the HEARTBEAT); without them the IPS would correctly withhold the mode-restore counter-command.
+    dialect = {"autopilot_id": _ARDUCOPTER_AUTOPILOT, "mav_type": _QUADROTOR_MAV_TYPE}
     ctrl_ids.step(
-        FeatureFrame(t=0.0, snapshot=TelemetrySnapshot(t=0.0, lat=19.1334, lon=72.9133, groundspeed=10.0, heading=0.0, flight_mode="AUTO", armed=True)),
+        FeatureFrame(t=0.0, snapshot=TelemetrySnapshot(t=0.0, lat=19.1334, lon=72.9133, groundspeed=10.0, heading=0.0, flight_mode="AUTO", armed=True), **dialect),
         _make_asmt(t=0.0, threat=False),
     )
-    act_ids = ctrl_ids.step(FeatureFrame(t=10.05, snapshot=snap), asmt_rep)
+    act_ids = ctrl_ids.step(FeatureFrame(t=10.05, snapshot=snap, **dialect), asmt_rep)
 
     ctrl_ips = MitigationController(mode=DefenseMode.ACTIVE_IPS, secret_key=key)
     ctrl_ips.step(
-        FeatureFrame(t=0.0, snapshot=TelemetrySnapshot(t=0.0, lat=19.1334, lon=72.9133, groundspeed=10.0, heading=0.0, flight_mode="AUTO", armed=True)),
+        FeatureFrame(t=0.0, snapshot=TelemetrySnapshot(t=0.0, lat=19.1334, lon=72.9133, groundspeed=10.0, heading=0.0, flight_mode="AUTO", armed=True), **dialect),
         _make_asmt(t=0.0, threat=False),
     )
-    act_ips = ctrl_ips.step(FeatureFrame(t=10.05, snapshot=snap), asmt_rep)
+    act_ips = ctrl_ips.step(FeatureFrame(t=10.05, snapshot=snap, **dialect), asmt_rep)
 
     if (
         act_ids.sub_mode == AttackSubMode.CMD_MODE_FLIP

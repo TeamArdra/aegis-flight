@@ -96,7 +96,8 @@ what a counter-action would do, using the dashboard's cyber-physical twin. **Det
 
 ### Stage 2 defense demo (`scripts/verify_stage2.py`)
 A demo of the defense code paths on **hand-built inputs** (SIM). It is not validation evidence and measures no
-vehicle, link or benchmark.
+vehicle, link or benchmark. It runs 8 suites and exits non-zero if any check fails; it is guarded by
+`tests/unit/test_verify_stage2_runs_all_suites.py`.
 
 ---
 
@@ -148,7 +149,7 @@ The `src/aegisflight/hal/` module abstracts serial communication, companion comp
 ├── artifacts/                      # Benchmark evidence & evaluation outputs
 ├── docs/                           # Comprehensive technical documentation
 ├── scripts/                        # Automated audit & benchmark runners
-│   └── verify_stage2.py            # 8-suite automated Stage 2 verification gate
+│   └── verify_stage2.py            # 8-suite Stage 2 defense demo (hand-built SIM inputs; not evidence)
 └── tests/                          # unit, integration and E2E tests (`python -m pytest` prints the count)
 ```
 
@@ -353,9 +354,8 @@ For deployment directly on a physical drone companion computer connected to a Pi
 
 Run the test and lint suites to check a local installation:
 ```bash
-# 1. Stage 2 defense demo on hand-built inputs (SIM, not evidence).
-#    KNOWN ISSUE (2026-11-26): stops at suite 5 with "ValueError: unknown mode 'AUTO'" on the
-#    freeze tag and on main; see issue #191. Suites 1-4 print [PASS] before it stops.
+# 1. Stage 2 defense demo on hand-built inputs (SIM, not evidence): runs 8 suites, exits 0 when all pass.
+#    (Until #191 it stopped at suite 5 with "ValueError: unknown mode 'AUTO'"; fixed in the script only.)
 python scripts/verify_stage2.py
 
 # 2. Fast unit verification (35 tests on main 67e5a6b, 2026-11-26):
