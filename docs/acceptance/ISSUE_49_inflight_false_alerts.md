@@ -7,7 +7,7 @@ and no PX4 were run. This page changes no number; it re-derives them and lists w
 
 Environment tag for every figure below: `SITL` (benign streams; the PX4 rows are `SITL (replayed tlog)`).
 Claim class: **link-level detection**, used only as a benign false-alarm reference. It is not flight-hour evidence, not a
-real-vehicle result and not an estimator or physical-deviation result. Exposure is 0.04 to 0.25 h per row.
+real-vehicle result and not an estimator or physical-deviation result. Exposure is 0.04 to 0.27 h per row (0.04444 h smallest, the pooled all-phase row 0.26628 h largest).
 
 ## 1. Verdict in one paragraph
 
@@ -26,7 +26,7 @@ not be described as "0 false alerts per hour" in the report.
 | Command | Result |
 |---|---|
 | `python -m pytest tests/unit/test_inflight_fa_per_hour.py tests/unit/test_calib_derive_profile.py` | `9 passed in 1.26s` |
-| `python scripts/evaluate_inflight_fa_per_hour.py --out-dir <scratch>/out --ap-calib-dir <scratch>/calib` (both outputs redirected outside the repo; a fresh scratch lock means `--burned` is not needed; `git status` clean afterwards) | Wrote scratch `metrics.json` and `summary.md`. Every number in `metrics.json`, `evaluation_calib.json`, `evaluation_heldout.json` equals the committed copy; `summary.md` is identical except the `held_out_burned` token. Only `generated_utc` and the `frozen_inputs` hashes differ (the current files hash differently from the ones at commit time, section 5) |
+| `python scripts/evaluate_inflight_fa_per_hour.py --out-dir <scratch>/out --ap-calib-dir <scratch>/calib` (both outputs redirected outside the repo; a fresh scratch lock means `--burned` is not needed; `git status` clean afterwards) | Wrote scratch `metrics.json` and `summary.md`. Every number in `metrics.json`, `evaluation_calib.json`, `evaluation_heldout.json` equals the committed copy; `summary.md` is identical after line-ending normalisation (the scratch copy is written with CRLF; `tr -d ''` then `diff` shows no difference, including the `held_out_burned: False` line). In `metrics.json` and the evaluation JSONs only `generated_utc` and the `frozen_inputs` hashes differ (the current files hash differently from the ones at commit time, section 5) |
 | Poisson bound recomputation (section 4) | Every committed `fa_per_hour_poisson95_upper` reproduced to 2 decimals |
 | `git show <commit>:<path> | sha256sum` and `sha256sum <path>` for the five locked inputs | Section 5 |
 | Full `python -m pytest` and `ruff check src tests scripts backend` | Section 9 |
@@ -42,10 +42,10 @@ not be described as "0 false alerts per hour" in the report.
 | C5 | PX4 calibration: 2 events, 52.13/h (> 50/h) | **Confirmed arithmetic; the event count is inferred** | Both false-alarm decisions are in one flight (`benign_001.tlog`, evidence "sequence gap # > #", `artifacts/sitl/calibration/evaluation_calib.json`). 6.2958/0.120778 h = 52.13/h exceeds the 50/h target by 4.3%. If the two decisions fell inside one 4.0 s cooldown the count would be 1 event and the bound 39.28/h; the evaluation JSON has no decision timestamps, so this cannot be decided from committed files |
 | C6 | ArduPilot calibration bound 42.49/h, held-out 31.13/h, pooled 17.97/h | **Confirmed** | Section 4 (airborne; from-arm bounds are 28.68, 21.26, 12.21) |
 | C7 | PX4 event counts were inferred from decisions by cooldown grouping | **Partly refuted: not grouped, and two different rules** | `scripts/evaluate_inflight_fa_per_hour.py:214-221`. If a condition has 5 or fewer false-alarm decisions (conditions B, C), events are set equal to the false-alarm **decision count** (labelled "exact", assuming isolated decisions more than 4.0 s apart; not checked, no timestamps). Otherwise (condition A, saturated) events = per flight `max(1, round(false_alarm_decisions * 0.2 / 4.2))`, a duration heuristic, not a count: condition A has 100% of decisions flagged (2760/2760 calib, 2805/2805 held-out). No decision rows are read; the script reads only the committed evaluation JSONs. The ArduPilot rows are different: they count recorded `alert` flags (before) or `FusionEngine.is_alert` events (after), which do include the 4.0 s per-attack-type cooldown (`configs/detector.yaml:143`) |
-| C8 | Which "after" results are fresh versus re-fusion | See section 6 | No new live flights were flown for #49: all 14 ArduPilot runs were collected 2026-10-06 to 2026-10-10 (`artifacts/validation/stage2_metrics_2026-11-17/metrics.md:16-25`), before the issue (2026-11-17) and before the approval comment (2026-11-18) |
-| C9 | A pre-onset alert in `drift_002` | **Confirmed, benign-timeline alert not included in the benign exposure** | `metrics.json` `drift_attack_regression`, trial `ap_attack_drift_002`, `profile_pre_onset_inflight_alerts: 1` (`summary.md` section 3, last-but-one row; the table shows `1` with no comment). Reproduced: `physics_consistency` = 1.0, type `GPS_SPOOFING`, phase `arm`, t = 10.0 s, onset 61.13 s. It is present in the recorded run as well, so the profile did not cause it. The original `evaluation.json` records 0 pre-onset in-flight alerts because it counts a narrower phase set. Sensitivity (computed here, command in section 4): adding the 6 drift flights' pre-onset from-arm time (0.0806 h, 1451 decisions) to the 7 benign runs gives 1 event in 0.32594 h, 3.07/h, upper 14.55/h; airborne only gives 0 events, upper 15.73/h. Still within 50/h, but "0 from-arm events" does not hold for that pooling |
+| C8 | Which "after" results are fresh versus re-fusion | See section 6 | No new live flights were flown for #49: the 13 ArduPilot runs the evidence uses (7 benign + 6 drift) were all collected on 2026-10-10 (`collected_utc` in `artifacts/validation/stage2_metrics_2026-11-17/metrics.md:16-25` for 10 of them, and in `artifacts/ardupilot/ap_attack_drift_00{1,2,3}/manifest.json` for the other three). The 2026-10-06 date belongs to the PX4 calibration evaluation (`artifacts/sitl/calibration/`), before the issue (2026-11-17) and before the approval comment (2026-11-18) |
+| C9 | A pre-onset alert in `drift_002` | **Confirmed, benign-timeline alert not included in the benign exposure** | `metrics.json` `drift_attack_regression`, trial `ap_attack_drift_002`, `profile_pre_onset_inflight_alerts: 1` (`summary.md` section 3, last-but-one row; the table shows `1` with no comment). Reproduced: `physics_consistency` = 1.0, type `GPS_SPOOFING`, phase `arm`, t = 10.0 s, onset 61.13 s. It is present in the recorded run as well, so the profile did not cause it. The original `evaluation.json` records 0 pre-onset in-flight alerts because it counts a narrower phase set. Sensitivity (computed here, command in section 4, "C9 sensitivity command"): adding the 6 drift flights' pre-onset from-arm time (0.0806 h, 1451 decisions) to the 7 benign runs gives 1 event in 0.32594 h, 3.07/h, upper 14.55/h; airborne only gives 0 events, upper 15.73/h. Still within 50/h, but "0 from-arm events" does not hold for that pooling |
 | C10 | Stale locks and `held_out_burned: false` | **Confirmed** | Section 5 |
-| C11 | Maintainer approval before tuning is not documented | **Partly confirmed**: an approval comment exists and precedes the commit by 6 minutes, but it is by the implementer's account and not linked to a maintainer message | Section 7.1 |
+| C11 | Maintainer approval before tuning is not documented | **Partly confirmed**: an approval comment exists and precedes the commit by 8 minutes 1 second, but it is by the implementer's account and not linked to a maintainer message | Section 7.1 |
 | C12 | Reporting disclosures missing | **Confirmed** | Section 8 |
 
 ## 4. Recomputed Poisson upper bounds
@@ -86,10 +86,41 @@ From-arm and all-phase figures (same method, same sources):
 
 Sensitivity for C5 (computed here): 1 event in 0.120778 h gives 4.7439 / 0.120778 = 39.28/h.
 
+### C9 sensitivity command
+
+Run from the repository root (`PYTHONPATH=src`); it reads only committed `decisions.jsonl` and `evaluation.json` files, writes nothing,
+and uses the benign pooled from-arm and airborne exposure of `after_profile_all_7runs` (883.2 s and 600.2 s):
+
+```python
+import json
+import sys
+
+sys.path.insert(0, "scripts")
+import evaluate_inflight_fa_per_hour as e
+from aegisflight.metrics import stage2 as m
+
+pre_all, ev_all, pre_air, ev_air = 0, 0, 0, 0
+for name in e.AP_DRIFT_RUNS:
+    onset = float(json.load(open(f"artifacts/ardupilot/{name}/evaluation.json"))["window_decision_time"]["onset_t_s"])
+    rows = [r for r in e._load_ap_decisions(name) if r.get("phase") != "post_link"]
+    ref = e._refuse_under_profile(rows, profile_dir="configs/ardupilot_copter")
+    pre = [r for r in ref if r["phase"] not in e.BEFORE_ARM and r["t"] < onset]
+    air = [r for r in pre if r["phase"] in e.AIRBORNE_PHASES]
+    pre_all += len(pre); ev_all += sum(r["alert"] for r in pre)
+    pre_air += len(air); ev_air += sum(r["alert"] for r in air)
+print("drift pre-onset from-arm decisions", pre_all, "hours", round(pre_all * 0.2 / 3600, 4), "events", ev_all)
+for label, k, s in (("from-arm", ev_all, 883.2 + pre_all * 0.2), ("airborne", ev_air, 600.2 + pre_air * 0.2)):
+    print(label, "events", k, "exposure_h", round(s / 3600, 5), "rate", round(m.rate_per_hour(k, s), 2),
+          "upper95", round(m.rate_upper_per_hour(k, s), 2))
+```
+
+Output when run on this branch: `drift pre-onset from-arm decisions 1451 hours 0.0806 events 1`, then `from-arm events 1 exposure_h 0.32594
+rate 3.07 upper95 14.55` and `airborne events 0 exposure_h 0.19044 rate 0.0 upper95 15.73`.
+
 ## 5. Held-out lock and `held_out_burned`
 
 Locked inputs in `artifacts/ardupilot/calibration/heldout_lock.json` (also copied into `metrics.json` and both evaluation JSONs)
-against `8bdb380` (the commit that created the lock, 2026-11-18T23:59:53Z), the freeze tag `8e58003` and this worktree:
+against `8bdb380` (the commit that created the lock, `2026-11-19T05:31:53+05:30` = 2026-11-19T00:01:53Z), the freeze tag `8e58003` and this worktree:
 
 | Input | Lock value | At `8bdb380` | At `8e58003` and `024baab` | Match at tag |
 |---|---|---|---|---|
@@ -136,7 +167,7 @@ Findings:
 | `#177` PX4 held-out on the tag | `calib_evaluate.py --set heldout`, output redirected | No | Yes, on `8e58003` | Held-out only; not pristine; B/B2/C = 0 of 2805 |
 
 No new live SITL flight was flown for #49. The issue's step 1 asked to "re-run" the benign ArduPilot SITL (n >= 3) and the PX4
-set; the evidence reuses the 2026-10-06/10 recordings instead (stated in the `#49` closure check, not in the artifact header).
+set; the evidence reuses the 2026-10-10 ArduPilot recordings and the 2026-10-06 PX4 evaluation instead (stated in the `#49` closure check, not in the artifact header).
 
 ## 7. Maintainer decisions required: D1 / D2 / B5
 
@@ -161,12 +192,12 @@ Timeline (all UTC; sources: `gh api repos/TeamArdra/aegis-flight/issues/49/comme
 | 23:53:54 | `needs:human-approval` removed, `agent-ready` added | implementer |
 | 23:53:59 / 23:54:01 / 23:54:02 | claim comment, assignment, `status:in-progress` | implementer |
 | 23:59:32 | lock written and evaluation generated (`locked_utc`, `generated_utc`) | script |
-| 23:59:53 | commit `8bdb380` (profile, script, `src/` gate, artifacts, tests, docs in one commit) | implementer |
+| 2026-11-19 00:01:53 | commit `8bdb380` (profile, script, `src/` gate, artifacts, tests, docs in one commit) | implementer |
 | 2026-11-19 00:02:00 | `status:in-review` | implementer |
 | 2026-11-22 10:00:56 | first comment by the maintainer account (`RajTib`): closure check | maintainer |
 
 What is documented: an approval statement with the target and the option exists and is timestamped **before** the commit
-(by 6 minutes 1 second). The issue body already named the options. The 2026-11-22 closure check treats it as the approval.
+(by 8 minutes 1 second; about 2 minutes 20 seconds after the lock and evaluation were generated). The issue body already named the options. The 2026-11-22 closure check treats it as the approval.
 
 What is not documented:
 
@@ -175,7 +206,7 @@ What is not documented:
    source. `AGENTS.md` section 7 requires approval of the approach **before** code for `needs:human-approval` issues.
 2. The target is stated as an outcome ("0 events ... <= 50/h"), not as a number derived from a requirement. The 50/h value has
    no cited source.
-3. Whether the ML-gating design existed before the comment cannot be shown; the only time anchor is the single commit 6
+3. Whether the ML-gating design existed before the comment cannot be shown; the only time anchor is the single commit 8
    minutes later. The profile-only precursors (`xmsg_checks`, `yaw_course_enabled`) were in `main` from `6ef7600`
    (2026-11-18 11:58 UTC, #39), earlier than the approval.
 4. `8bdb380` also added `startup_grace_s: 3.0` and `battery_rise_v: 1.05` to the profile. These are threshold-type choices that are
@@ -189,8 +220,12 @@ Recommendation on D1/D2: record, on the issue and from the maintainer account, t
 
 ### 7.2 B5: the 52.13/h exception and the lock
 
+"B5" is the label this item carries in the team's Stage-2 maintainer decision sheet, which is kept outside the repository; it is
+described in full below so this page stands alone. B5a: accept or reject the PX4 calibration-set 52.13/h versus the 50/h target.
+B5b: annotate the stale locks versus refresh them with `--burned`. The sheet's recommendation matches the one given here.
+
 **Decision B5a: PX4 calibration-set airborne bound 52.13/h versus D1's 50/h.** Options: accept the exception, or reject it.
-Recommended (decision sheet row B5): **report it as missing the target**, together with the in-sample status (the PX4 profile was
+Recommended: **report it as missing the target**, together with the in-sample status (the PX4 profile was
 fitted on those five flights), the 2-decision basis (C5, C7) and the held-out 24.32/h and `#177` 0/2805 results. Do not round it
 to "about 50".
 
@@ -226,14 +261,14 @@ wording "0 false alerts per hour".
 1. Exposure is small: ArduPilot 0.1667 h airborne pooled, PX4 about 0.12 h per set. A 0-event result with 0.1667 h can only
    support an upper bound of 17.97/h, and the bound is not a flight-hour rate. Decisions at 5 Hz are autocorrelated; events are
    cooldown-deduplicated only for the ArduPilot rows.
-2. Recorded runs only: ArduPilot SITL runs collected 2026-10-06 to 2026-10-10 on one host, one scripted route (`--stream six`
-   or `groups`, `--profile flight`); PX4 five-plus-five flights of one scripted route on one host (`docs/CALIBRATION_PX4.md`).
+2. Recorded runs only: ArduPilot SITL runs collected on 2026-10-10 on one host, one scripted route (`--stream six`
+   or `groups`, `--profile flight`); PX4 five-plus-five flights of one scripted route on one host (`docs/CALIBRATION_PX4.md`), evaluated 2026-10-06.
 3. The ML-off ArduPilot runs were selected as a comparison after the ML-on runs misbehaved (`docs/VALIDATION_EVIDENCE.md:76`
    already says 0/2,329 is selected-on-data).
 4. The PX4 calibration set is in-sample; its 52.13/h is not a held-out figure and the held-out figure is not a fit to it.
 5. The "after" ArduPilot figures measure fusion gating on Stage-1 detector scores; they do not validate the profile's protocol and
    physics overrides.
-6. Stale locks, `held_out_burned` flag semantics, 6-minute approval-to-commit gap (sections 5 and 7).
+6. Stale locks, `held_out_burned` flag semantics, 8-minute approval-to-commit gap (sections 5 and 7).
 7. Link-level detection on `SITL`; nothing here is real-vehicle, real-RF, estimator-compromise or physical-deviation evidence.
 
 ### Reporting disclosures missing from the docs
@@ -253,8 +288,8 @@ Checked: `docs/stage2_report_draft.md`, `docs/VALIDATION_EVIDENCE.md`, `docs/CAL
 ## 10. Report disclosure text for #31 (draft, not applied)
 
 > **In-flight false-alarm rate on SITL (link-level, benign streams).** On five recorded ArduPilot SITL benign runs the
-> Stage-1 Isolation Forest, scored on the SITL link, produced all 171 post-boot alert events (981 per hour airborne; 95%
-> one-sided Poisson upper bound 1142 per hour over 0.12 h). Under the ArduCopter profile (ML disabled, any ML vote requiring
+> Stage-1 Isolation Forest, scored on the SITL link, produced 171 post-boot alert events, all ML-only (120 airborne: 981 per
+> hour, 95% one-sided Poisson upper bound 1142 per hour over 0.12 h). Under the ArduCopter profile (ML disabled, any ML vote requiring
 > corroboration) the same recorded detector scores re-fused through the fusion engine give 0 airborne alert events across seven
 > runs, upper bound 17.97 per hour over 0.167 h (calibration runs 42.49, held-out runs 31.13). These are re-scorings of runs
 > recorded in October 2026, not new flights and not a re-run of the protocol and physics detectors; start-up alerts
@@ -273,4 +308,5 @@ Sources: `artifacts/validation/inflight_fa_per_hour_20261119/{metrics.json,summa
 
 - `python -m pytest`: `3127 passed, 80 skipped, 129 warnings in 499.67s (0:08:19)`.
 - `ruff check src tests scripts backend`: `All checks passed!`.
+- After the review corrections (docs only): `pytest tests/unit/test_inflight_fa_per_hour.py tests/unit/test_calib_derive_profile.py` gave `9 passed in 3.91s`; `ruff check src tests scripts backend` gave `All checks passed!`. The full suite was not repeated for the text-only changes.
 - Stage-1 benchmark: not run (this change touches only `docs/`; section 7.3 cites the freeze-tag result).
