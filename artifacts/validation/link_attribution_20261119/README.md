@@ -2,7 +2,7 @@
 
 - **Environment tag:** `SIM` (in-process simulator, ML off: `model_path=None`).
 - **Claim class:** link-level detection (attribution of detected link-layer attack decisions to a class). Nothing here says anything about a vehicle, an estimator, a flight or real RF.
-- **Seed:** `master_seed=20261119` (24 sessions: 4 benign plus 4 sessions for each of `mavlink_anomaly:packet_loss`, `mavlink_anomaly:rate_spike`, `dos:latency`, `dos:flood`, `dos:blackout`).
+- **Seed:** `master_seed=20261119` (new relative to the committed grid, but also PR #74's development seed for the rule, so **not held out** from its design; 24 sessions: 4 benign plus 4 sessions for each of `mavlink_anomaly:packet_loss`, `mavlink_anomaly:rate_spike`, `dos:latency`, `dos:flood`, `dos:blackout`).
 - **Code under test:** `024baab3791a29ee24b1e04f50bfa2bfb8aafba1` (`origin/main`), clean tracked tree. `git diff 8e58003 024baab --stat -- src configs models` is empty, so `src/`, `configs/` and `models/` are identical to the freeze tag `stage2-freeze-2026-11-27` (`8e58003`). The script and the modules it uses (`benchmark/`, `metrics/`) are identical too.
 - **Interpreter:** CPython 3.13.15, scikit-learn 1.9.1, numpy 2.5.3, pandas 3.0.6 (the model is not loaded).
 
