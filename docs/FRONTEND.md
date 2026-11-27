@@ -57,9 +57,21 @@ No mock/demo data — every number comes from the backend.
 - `wsUrl()` derives ws/wss from `location`, so the same code works in dev
   (proxied) and when served by FastAPI (same-origin).
 - `aegis serve` serves the untracked local `frontend/dist`; rebuild it after any UI change.
-- Each build writes `build-info.json` (UI source hash and commit; served at `/build-info.json`).
-  `node frontend/scripts/provenance.mjs --check frontend/dist` verifies that the bundle matches
-  the current source and contains no banned wording.
+- Each build writes `build-info.json` (schema 2: UI source hash, commit, dirty flag, build time and a sha256
+  manifest of every emitted file; served at `/build-info.json`).
+  `node frontend/scripts/provenance.mjs --check frontend/dist` fails (non-zero exit, message on stderr) when the
+  directory or `build-info.json` is missing or malformed, the bundle was built from a different UI source than the
+  current checkout, any emitted file is missing, extra or modified after the build (including a bundle with no
+  `index.html` or JS), or a file contains banned overclaim wording. The commit and dirty flag are informational:
+  the source hash is the contract. A pass is an **integrity check only** (which UI source this bundle came from); it is
+  not evidence of detection performance and the UI/backend never present it as such.
+- After pulling a change to `frontend/`, rebuild the untracked local bundle and verify it:
+  `npm --prefix frontend ci && npm --prefix frontend run build && node frontend/scripts/provenance.mjs --check frontend/dist`.
+  A `dist` built before schema 2 (or before #183) fails the check until rebuilt.
+- The Integration and Validation Evidence panels are static reference copy (`src/lib/evalCopy.ts`, shown in demo mode
+  only). The dashboard displays no campaign or trial results; every figure in the Validation panel is quoted from a
+  committed artifact with its environment tag and claim class, and `tests/evalCopy.test.ts` pins each figure to
+  that artifact.
 
 ## Simulation labelling
 The header shows a persistent **● Simulation** badge and the footer states all

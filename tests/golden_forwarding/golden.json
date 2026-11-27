@@ -295,17 +295,17 @@
    }
   },
   "fuzz_1|active-ips": {
-   "digest": "73a824b2c00b4f36989e5becc4017647f154e6f24e0ebca5048b5840c74a8d56",
+   "digest": "c101a28bdd7c1f30c788adae35ff0673d563248fa513594d253c0d786fc4fbfc",
    "summary": {
-    "down_sha": "0b1d1a961ef19f11",
+    "down_sha": "b50dca4587133fc2",
     "dropped_down": 14,
-    "dropped_up": 37,
+    "dropped_up": 36,
     "hook_errors": 0,
-    "mgmt": 84,
+    "mgmt": 83,
     "tap": 769,
-    "to_fc": 62,
-    "to_gcs": 740,
-    "up_sha": "9239e4c7a7d97365"
+    "to_fc": 63,
+    "to_gcs": 739,
+    "up_sha": "32f8f0cb2001c5ab"
    }
   },
   "fuzz_1|advisory": {
@@ -337,17 +337,17 @@
    }
   },
   "fuzz_2|active-ips": {
-   "digest": "a2e4f4b4704986865d9e09225b95ff15b684bb37428406a55573fc720f7dd6d9",
+   "digest": "917ca74d6c165e43bcb674d9bdf64a2f3b58db5529884cdd7b7066e359207626",
    "summary": {
-    "down_sha": "af610f5e4d6e2226",
+    "down_sha": "73422e7e1458895f",
     "dropped_down": 27,
-    "dropped_up": 50,
+    "dropped_up": 45,
     "hook_errors": 0,
-    "mgmt": 106,
+    "mgmt": 101,
     "tap": 758,
-    "to_fc": 82,
-    "to_gcs": 705,
-    "up_sha": "e91b9b98ec2e0a81"
+    "to_fc": 87,
+    "to_gcs": 700,
+    "up_sha": "770cfbe791d4e2ea"
    }
   },
   "fuzz_2|advisory": {
@@ -379,17 +379,17 @@
    }
   },
   "fuzz_3|active-ips": {
-   "digest": "990aa5d3eb0eca638219682a272e24c5806841461ea9eeae95ec5115f6b27f81",
+   "digest": "1586d79be5864bf0933421ba22833632b59b75f382ef8afae8057a3f0d92d8f2",
    "summary": {
-    "down_sha": "1057b034bbcc70c6",
+    "down_sha": "c379701c70905caf",
     "dropped_down": 30,
-    "dropped_up": 34,
+    "dropped_up": 33,
     "hook_errors": 0,
-    "mgmt": 92,
+    "mgmt": 91,
     "tap": 734,
-    "to_fc": 58,
-    "to_gcs": 704,
-    "up_sha": "af22739d496fa92b"
+    "to_fc": 59,
+    "to_gcs": 703,
+    "up_sha": "4ef13319d4e93ab0"
    }
   },
   "fuzz_3|advisory": {

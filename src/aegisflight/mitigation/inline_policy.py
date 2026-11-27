@@ -76,6 +76,7 @@ _MSG_GLOBAL_POSITION_INT = 33
 _MSG_MISSION_ITEM = 39
 _MSG_MISSION_COUNT = 44
 _MSG_MISSION_CLEAR_ALL = 45
+_MSG_MANUAL_CONTROL = 69
 _MSG_RC_CHANNELS_OVERRIDE = 70
 _MSG_MISSION_ITEM_INT = 73
 _MSG_COMMAND_INT = 75
@@ -90,6 +91,13 @@ CONTROL_MSGIDS = frozenset({
     _MSG_RC_CHANNELS_OVERRIDE, _MSG_MISSION_ITEM_INT, _MSG_SET_POSITION_TARGET_LOCAL_NED,
     _MSG_SET_POSITION_TARGET_GLOBAL_INT, _MSG_SET_ATTITUDE_TARGET,
 })
+#: high-rate streaming pilot/offboard control messages whose payload legitimately stays constant across 8-bit seq wraparound
+_STREAMING_CONTROL_MSGIDS = frozenset({
+    _MSG_MANUAL_CONTROL, _MSG_RC_CHANNELS_OVERRIDE, _MSG_SET_ATTITUDE_TARGET,
+    _MSG_SET_POSITION_TARGET_LOCAL_NED, _MSG_SET_POSITION_TARGET_GLOBAL_INT,
+})
+#: short replay TTL for streaming control messages (blocks immediate duplicates / replay bursts while allowing 8-bit seq wraparound at 20-50 Hz)
+_STREAMING_REPLAY_TTL_S = 2.0
 _COMMAND_MSGIDS = frozenset({_MSG_COMMAND_LONG, _MSG_COMMAND_INT})
 
 MAV_CMD_NAV_RETURN_TO_LAUNCH = 20
@@ -464,6 +472,13 @@ class InlinePolicy:
     SIGNED_SOURCE_MIN = 20  # valid signed frames before a source counts as "signs its frames"
     SIGNING_LAPSE_NS = 10_000_000_000  # no valid signed frame for this long: the source no longer counts as signing
 
+    def is_downlink_signed_source(self, sysid: int, compid: int, recv_ns: int) -> bool:
+        """True iff ``(sysid, compid)`` has been observed signing its downlink and has not lapsed."""
+        src = (sysid, compid)
+        if self._down_signed.get(src, 0) < self.SIGNED_SOURCE_MIN:
+            return False
+        return (recv_ns - self._down_signed_t.get(src, recv_ns)) <= self.SIGNING_LAPSE_NS
+
     def _down_forged(self, ctx: FrameContext) -> str | None:
         """Signed link: a source that has been signing its frames and now sends an unsigned (or badly signed) one is a forgery.
 
@@ -645,7 +660,13 @@ class InlinePolicy:
             t = self._seq.get(key)
             if t is None:
                 if len(self._seq) >= 256:
-                    self._seq.pop(next(iter(self._seq)))
+                    evict = next((k for k in self._seq if k[0] not in self.trusted_sysids), None)
+                    if evict is not None:
+                        self._seq.pop(evict)
+                    elif ctx.sysid not in self.trusted_sysids:
+                        return "unknown"
+                    else:
+                        self._seq.pop(next(iter(self._seq)))
                 t = self._seq[key] = SeqProvenance(self.provenance_window)
             before = t.resyncs
             verdict = t.observe(ctx.seq, self._clock())
@@ -662,7 +683,13 @@ class InlinePolicy:
             ring = self._recent.get(key)
             if ring is None:
                 if len(self._recent) >= 256:
-                    self._recent.pop(next(iter(self._recent)))
+                    evict = next((k for k in self._recent if k[0] not in self.trusted_sysids), None)
+                    if evict is not None:
+                        self._recent.pop(evict)
+                    elif ctx.sysid not in self.trusted_sysids:
+                        return
+                    else:
+                        self._recent.pop(next(iter(self._recent)))
                 ring = self._recent[key] = deque(maxlen=32)
             hit = False
             for t, s, ph in ring:
@@ -686,19 +713,27 @@ class InlinePolicy:
         return [ctx.raw]
 
     def _replay_filter(self, ctx: FrameContext, out: list[bytes]) -> list[bytes]:
-        """Drop a byte-identical repeat (same sysid, compid, seq, payload) of a frame already forwarded."""
+        """Drop a byte-identical repeat (same sysid, compid, seq, payload) of a frame already forwarded.
+
+        High-rate streaming control messages (``_STREAMING_CONTROL_MSGIDS``) legitimately repeat the same
+        payload after an 8-bit ``seq`` wraparound, so they use a short TTL (``_STREAMING_REPLAY_TTL_S``)
+        that still drops immediate duplicates / replay bursts while allowing constant streaming frames.
+        """
         if not out:
             return out
         h = hashlib.blake2b(
             bytes((ctx.sysid, ctx.compid, ctx.seq & 0xFF)) + (_payload(ctx.raw) or ctx.raw), digest_size=16).digest()
         now = self._clock()
+        streaming = ctx.msgid in _STREAMING_CONTROL_MSGIDS
         with self._lock:
             t = self._seen.get(h)
-            # count-bounded, no time limit: a frame replayed after the 8-bit counter wrapped is still caught. Known or
-            # not, an exact (sysid, compid, seq, payload) already forwarded is never forwarded twice.
-            if t is not None:
+            # Non-streaming: count-bounded, no time limit: a frame replayed after the 8-bit counter wrapped is still
+            # caught. Streaming: drop exact repeats within _STREAMING_REPLAY_TTL_S, allow again after >= TTL.
+            if t is not None and (not streaming or (now - t) < _STREAMING_REPLAY_TTL_S):
                 self.dropped_replay_unsigned += 1
                 return []
+            if t is not None:
+                self._seen.pop(h, None)
             self._seen[h] = now
             while len(self._seen) > self.replay_memory:
                 self._seen.pop(next(iter(self._seen)))

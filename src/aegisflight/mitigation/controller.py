@@ -90,6 +90,8 @@ class MitigationController:
         self._gps_confirm_t: float | None = None
         self._gps_switch_t: float | None = None
         self._gps_alt_hold_sent = False
+        self._gps_altctl_rejected = False
+        self._gps_land_sent = False
         self._gps_cancelled = False
 
     def _corroborated(self, asmt: ThreatAssessment) -> ThreatAssessment:
@@ -124,6 +126,42 @@ class MitigationController:
     def set_capabilities(self, ekf_secondary: bool | None = None) -> None:
         """Declare what the aircraft has; None (unknown) counts as not available."""
         self.ekf_secondary_available = bool(ekf_secondary)
+
+    def record_command_ack(
+        self,
+        command: int,
+        result: int,
+        t: float | None = None,
+        *,
+        target_sysid: int | None = None,
+    ) -> None:
+        """Record a validated vehicle COMMAND_ACK; arm LAND fallback on ALTCTL rejection."""
+        if (
+            command != 176
+            or result not in (1, 2, 3, 4)  # TEMPORARILY_REJECTED/DENIED/UNSUPPORTED/FAILED (PX4 returns 1 without RC)
+            or self._ips_requested_mode is None
+            or self._ips_requested_mode[0].upper() != "ALTCTL"
+        ):
+            return
+        if target_sysid is not None and target_sysid != 0 and target_sysid != self.actuator.sysid:
+            return
+        ack_t = t if t is not None else self._last_t
+        age_s = ack_t - self._ips_requested_mode[1]
+        if age_s < 0.0 or age_s > 5.0:
+            return
+        self._gps_altctl_rejected = True
+        self._add_action(
+            ack_t,
+            "ALTCTL_REJECTED",
+            f"PX4 rejected ALTCTL (MAV_RESULT={result}) -> falling back to controlled vertical descent",
+        )
+
+    def _controlled_descent_mode_name(self) -> str | None:
+        """Return a controlled vertical-descent mode (never RTL or TERMINATION)."""
+        for candidate in ("AUTO_LAND", "AUTO.LAND", "LAND"):
+            if self.actuator.knows_mode(candidate):
+                return candidate
+        return None
 
     def _add_action(self, t: float, tag: str, detail: str) -> None:
         if self.action_history and self.action_history[-1]["tag"] == tag and abs(t - self.action_history[-1]["t"]) < 1.0:
@@ -344,6 +382,11 @@ class MitigationController:
                         actions=list(self.action_history),
                         summary=summary,
                     )
+            elif self.state == MitigationState.GCS_TAKEOVER:
+                self._clean_streak += 1
+                if self.sanitizer.active:
+                    self.sanitizer.configure(active=False)
+                self._sanitize_gps_latched = False
 
             params = AttackParameters(
                 trusted_lat=self.golden.effective_lat or self.golden.trusted_lat,
@@ -465,9 +508,11 @@ class MitigationController:
                     self._add_action(t, "VETO_DISARM", "Flagged motor arm/disarm command burst in flight (not blocked)")
 
                 if (frame.snapshot.armed is None and not self._gps_episode and not self._estop_episode
+                        and not self._gps_cancelled and self.state != MitigationState.GCS_TAKEOVER
                         and self.actuator.knows_mode(params.target_restore_mode)):
                     self._note_armed_unknown(t, f"RESTORE_{params.target_restore_mode}")
                 if (frame.snapshot.armed is True and not self._gps_episode and not self._estop_episode
+                        and not self._gps_cancelled and self.state != MitigationState.GCS_TAKEOVER
                         and self.actuator.knows_mode(params.target_restore_mode)
                         and self._can_send_command(f"RESTORE_{params.target_restore_mode}", t)):
                     counter_frames.append(self.actuator.encode_set_mode(params.target_restore_mode))
@@ -612,7 +657,19 @@ class MitigationController:
                 self._gps_switch_t = t
                 self._add_action(t, "EKF_SWITCH", "Autopilot commanded to switch EKF to the declared non-GPS source set")
             return
+        if self._gps_land_sent:
+            return
         if self._gps_alt_hold_sent:
+            if self._gps_altctl_rejected and frame.snapshot.armed is True:
+                land_mode = self._controlled_descent_mode_name()
+                if land_mode is not None and self._can_send_command(f"SET_MODE_{land_mode}", t):
+                    frame_bytes = self.actuator.encode_set_mode(land_mode)
+                    if frame_bytes:
+                        counter_frames.append(frame_bytes)
+                        self._record_command(f"SET_MODE_{land_mode}", t)
+                        self._ips_requested_mode = (land_mode, t)
+                        self._gps_land_sent = True
+                        self._add_action(t, "GPS_LAND_FALLBACK", f"ALTCTL rejected -> {land_mode} (controlled vertical descent)")
             return
         if self._gps_switch_t is not None:
             # still in the threat branch here, so the threat persists; residual only documents it
@@ -665,6 +722,8 @@ class MitigationController:
             summary = "[AEGIS DEF] MANUAL OVERRIDE: Reset quarantined sysids"
             self._add_action(t, "RESET_QUARANTINE", "Pilot flushed quarantined system IDs")
         elif action == "ack_takeover":
+            self.sanitizer.configure(active=False)
+            self._sanitize_gps_latched = False
             self._gps_cancelled = True
             self._safe_hold_alt_hold_sent = True
             self.state = MitigationState.NOMINAL

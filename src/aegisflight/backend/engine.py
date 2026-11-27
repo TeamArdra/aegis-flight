@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import math
 import shutil
 import tempfile
@@ -43,6 +44,8 @@ from ..mitigation.types import AttackSubMode
 from ..pipeline import IDSPipeline
 from ..sources.stream import SimulatedTelemetrySource, TelemetryTick
 from .sources import LiveFeed, SourceSpec
+
+logger = logging.getLogger(__name__)
 
 # Long "live" duration so the survey pattern flies continuously for a demo.
 _LIVE_DURATION_S = 100_000.0
@@ -158,6 +161,7 @@ class LiveEngine:
         self._subscribers: set[asyncio.Queue] = set()
         self._task: asyncio.Task | None = None
         self.running = False
+        self._loop_error: str | None = None
 
         self._active_attack_name: str | None = None
         self._pending_attack: str | None = "__none__"  # sentinel: no change pending
@@ -299,9 +303,11 @@ class LiveEngine:
             raise RuntimeError("engine is closed")
         if self.running:
             return
+        self._loop_error = None
         self.running = True
         if self.is_sim:
             self._task = asyncio.create_task(self._loop())
+            self._task.add_done_callback(self._on_task_done)
             return
         if self.feed is None or self.feed.ended:
             self.feed = LiveFeed(self.spec, 1.0 / self.dt,
@@ -325,6 +331,32 @@ class LiveEngine:
                 and self.spec.transmit_allowed):
             self.gcs_notifier.transport = self.feed.transport
         self._task = asyncio.create_task(self._live_loop())
+        self._task.add_done_callback(self._on_task_done)
+
+    def _on_task_done(self, task: asyncio.Task) -> None:
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            msg = f"{type(exc).__name__}: {exc}"
+            logger.error("LiveEngine background loop failed unexpectedly: %s", msg, exc_info=exc)
+            self._loop_error = msg
+            self.running = False
+
+    async def _handle_loop_failure(self, loop_name: str, exc: Exception) -> None:
+        msg = f"{loop_name} failed: {type(exc).__name__}: {exc}"
+        logger.exception("LiveEngine %s crashed", loop_name)
+        self._loop_error = msg
+        self.running = False
+        if self.feed is not None:
+            with contextlib.suppress(Exception):
+                await asyncio.to_thread(self.feed.close)
+        try:
+            last = self._latest_update or self._make_update(self._sim_t, None)
+            self._latest_update = {**last, "link": self.link_status(), "error": self._loop_error}
+            await self._broadcast(self._latest_update)
+        except Exception:  # noqa: BLE001
+            logger.exception("LiveEngine failed to broadcast crash state")
 
     def _record_actuator_action(self, action: str, target: str, detail: str) -> None:
         if self._closed:
@@ -381,6 +413,7 @@ class LiveEngine:
         if not self.is_sim:
             raise RuntimeError("reset is simulation-only")
         self.running = False
+        self._loop_error = None
         self._active_attack_name = None
         self._pending_attack = "__none__"
         self._pending_attack_mode = None
@@ -634,32 +667,43 @@ class LiveEngine:
     # -- main loop ---------------------------------------------------------- #
 
     async def _loop(self) -> None:
-        while self.running:
-            t0 = time.perf_counter()
-            self._apply_pending_attack()
-            try:
-                tick = next(self._gen)
-            except StopIteration:
-                self.source = SimulatedTelemetrySource(self.cfg, self.source.attack, seed=42)
-                self._gen = self.source.stream()
-                continue
+        try:
+            while self.running:
+                t0 = time.perf_counter()
+                self._apply_pending_attack()
+                try:
+                    tick = next(self._gen)
+                except StopIteration:
+                    self.source = SimulatedTelemetrySource(self.cfg, self.source.attack, seed=42)
+                    self._gen = self.source.stream()
+                    continue
 
-            await self._process(tick)
-            await asyncio.sleep(max(0.0, self.dt - (time.perf_counter() - t0)))
+                await self._process(tick)
+                await asyncio.sleep(max(0.0, self.dt - (time.perf_counter() - t0)))
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            await self._handle_loop_failure("_loop", exc)
 
     async def _live_loop(self) -> None:
         """Consume ticks from the background feed (REPLAY / SITL / BENCH); the feed paces itself."""
         assert self._queue is not None
-        while self.running:
-            tick = await self._queue.get()
-            if tick is None:  # finite source finished (replay) or the producer failed
-                self._feed_ended = True
-                # also when no tick ever arrived (e.g. the port never opened): subscribers must see the end state
-                last = self._latest_update or self._make_update(self._sim_t, None)
-                self._latest_update = {**last, "link": self.link_status()}
-                await self._broadcast(self._latest_update)
-                return
-            await self._process(tick)
+        try:
+            while self.running:
+                tick = await self._queue.get()
+                if tick is None:  # finite source finished (replay) or the producer failed
+                    self._feed_ended = True
+                    self.running = False
+                    # also when no tick ever arrived (e.g. the port never opened): subscribers must see the end state
+                    last = self._latest_update or self._make_update(self._sim_t, None)
+                    self._latest_update = {**last, "link": self.link_status()}
+                    await self._broadcast(self._latest_update)
+                    return
+                await self._process(tick)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            await self._handle_loop_failure("_live_loop", exc)
 
     async def _process(self, tick: TelemetryTick) -> None:
         """One tick through the shared pipeline -> event store -> subscribers (every source)."""
@@ -731,7 +775,9 @@ class LiveEngine:
         """Honest connection / freshness state (see LinkMonitor). SIM is always ``simulated``."""
         snap = self.link.snapshot()
         transport = self.feed.transport_stats() if self.feed is not None else None
-        if self.is_sim:
+        if self._loop_error:
+            state = "error"
+        elif self.is_sim:
             state = "simulated"
         elif self.feed is not None and self.feed.error:
             state = "error"  # the producer raised (or a port could not be opened with reconnect off)
@@ -745,8 +791,8 @@ class LiveEngine:
             state = "stale"
         else:
             state = "live"
-        return {"state": state, **snap, "transport": transport,
-                "error": self.feed.error if self.feed is not None else None}
+        err = self._loop_error or (self.feed.error if self.feed is not None else None)
+        return {"state": state, **snap, "transport": transport, "error": err}
 
     # -- runtime metrics ---------------------------------------------------- #
 
@@ -1107,6 +1153,7 @@ class LiveEngine:
         source_desc["defense_mode"] = self.mitigation.mode.value
         return {
             "running": self.running,
+            "error": self._loop_error,
             "sim": self.is_sim,
             "environment": self.spec.environment,
             "source": source_desc,

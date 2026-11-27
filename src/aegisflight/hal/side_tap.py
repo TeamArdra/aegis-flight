@@ -161,11 +161,15 @@ class SideTapRunner:
             return EventStore(old.db_path)
 
     def _run_loop(self) -> None:
+        proto = self.cfg.detector.get("protocol", {})
+        expected = proto.get("expected_sysids")
+        unsigned_allowed = frozenset(int(s) for s in expected) if expected else frozenset((1,))
         self._source = LiveMavlinkSource(
             self.fc,
             sample_rate_hz=self.rate_hz,
             origin="start",
             secret_key=self._secret_key,
+            unsigned_allowed_sysids=unsigned_allowed,
         )
         try:
             for tick in self._source.stream():

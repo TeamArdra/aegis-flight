@@ -2,7 +2,8 @@
 //
 // frontend/dist is untracked and served by `aegis serve`, so a stale local build can silently
 // ship old UI. This module records which UI source a bundle was built from (build-info.json,
-// emitted by vite.config.ts) and can verify a bundle against the current source.
+// written by vite.config.ts together with a sha256 manifest of every emitted file) and can verify a bundle
+// against the current source. Integrity only: it never says anything about detection performance.
 //
 //   node frontend/scripts/provenance.mjs                       print the current build info
 //   node frontend/scripts/provenance.mjs --check <distDir>     verify a built bundle
@@ -15,7 +16,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Must stay in step with OVERCLAIM in frontend/tests/wording.test.ts (phrases that overstate the evidence, issue #23).
-export const BANNED = /NEUTRALI[SZ]|holding flight integrity|armed and ready|protecting flight|golden tracking|loitering/i;
+export const BANNED = /NEUTRALI[SZ]|holding flight integrity|armed and ready|protecting flight|golden tracking|loitering|zero-interference|cyber-physical shield/i;
 
 // UI source inputs. vite.config.ts and scripts/ are deliberately excluded: the hash identifies the UI source, not the tooling.
 export const UI_SOURCE_INPUTS = [
@@ -89,10 +90,21 @@ export function gitInfo(frontendRoot) {
   return { commit: head.trim(), dirty };
 }
 
+// sha256 of every emitted file (raw bytes), keyed by posix path relative to distDir; build-info.json itself is excluded.
+export function outputManifest(distDir) {
+  const files = {};
+  for (const f of walk(distDir)) {
+    const rel = relative(distDir, f).split(sep).join("/");
+    if (rel === "build-info.json") continue;
+    files[rel] = createHash("sha256").update(readFileSync(f)).digest("hex");
+  }
+  return files;
+}
+
 export function buildInfo(frontendRoot) {
   const g = gitInfo(frontendRoot);
   return {
-    schema: 1,
+    schema: 2,
     source_hash: sourceHash(frontendRoot),
     source_commit: g.commit,
     source_dirty: g.dirty,
@@ -100,8 +112,27 @@ export function buildInfo(frontendRoot) {
   };
 }
 
-// Exit 0 only when build-info.json matches the current source and no emitted file contains banned wording.
+// Problems with the shape of build-info.json (an empty list means it is well formed).
+function infoProblems(info) {
+  if (info === null || typeof info !== "object" || Array.isArray(info)) return ["build-info.json is not a JSON object"];
+  const p = [];
+  if (info.schema !== 2) p.push(`unsupported schema ${JSON.stringify(info.schema)} (expected 2; rebuild with this tooling)`);
+  if (typeof info.source_hash !== "string" || !/^[0-9a-f]{64}$/.test(info.source_hash)) p.push("source_hash is not a sha256 hex digest");
+  if (typeof info.built_at !== "string" || Number.isNaN(Date.parse(info.built_at))) p.push("built_at is not an ISO timestamp");
+  if (info.files === null || typeof info.files !== "object" || Array.isArray(info.files) || Object.keys(info.files).length === 0) {
+    p.push("files (the output manifest) is missing or empty");
+  }
+  return p;
+}
+
+// Exit 0 only when build-info.json is well formed and matches the current source, every emitted file matches its recorded
+// sha256 (none missing, none extra, index.html and a JS bundle present) and no emitted file contains banned wording.
+// Integrity only: a pass says which UI source this bundle was built from. It says nothing about detection performance.
 function check(distDir) {
+  if (!existsSync(distDir) || !statSync(distDir).isDirectory()) {
+    console.error(`FAIL: bundle directory not found: ${distDir}. Build it: npm --prefix frontend run build`);
+    return 2;
+  }
   const infoPath = join(distDir, "build-info.json");
   if (!existsSync(infoPath)) {
     console.error("FAIL: build-info.json is missing from the bundle (not built with this tooling). Rebuild: npm --prefix frontend run build");
@@ -115,6 +146,11 @@ function check(distDir) {
     console.error(`FAIL: build-info.json is not valid JSON (${e.message})`);
     return 1;
   }
+  const problems = infoProblems(info);
+  if (problems.length > 0) {
+    console.error(`FAIL: build-info.json is malformed:\n  ${problems.join("\n  ")}\nRebuild: npm --prefix frontend run build`);
+    return 1;
+  }
   let failed = false;
   const current = sourceHash(frontendRoot);
   if (info.source_hash === current) {
@@ -122,8 +158,27 @@ function check(distDir) {
   } else {
     failed = true;
     console.error(
-      `FAIL: bundle was built from a different UI source (bundle ${String(info.source_hash).slice(0, 12)}, current ${current.slice(0, 12)}). Rebuild: npm --prefix frontend run build`,
+      `FAIL: bundle was built from a different UI source (bundle ${info.source_hash.slice(0, 12)}, current ${current.slice(0, 12)}). Rebuild: npm --prefix frontend run build`,
     );
+  }
+  const actual = outputManifest(distDir);
+  const missing = Object.keys(info.files).filter((k) => !(k in actual));
+  const extra = Object.keys(actual).filter((k) => !(k in info.files));
+  const changed = Object.keys(info.files).filter((k) => k in actual && actual[k] !== info.files[k]);
+  const required = [];
+  if (!("index.html" in info.files)) required.push("index.html");
+  if (!Object.keys(info.files).some((k) => k.endsWith(".js"))) required.push("a .js bundle");
+  if (missing.length + extra.length + changed.length + required.length === 0) {
+    console.log(`OK: ${Object.keys(actual).length} bundle file(s) match their recorded sha256`);
+  } else {
+    failed = true;
+    const lines = [
+      ...missing.map((k) => `missing: ${k}`),
+      ...extra.map((k) => `not in build-info.json: ${k}`),
+      ...changed.map((k) => `modified after build: ${k}`),
+      ...required.map((k) => `manifest has no ${k}`),
+    ];
+    console.error(`FAIL: bundle does not match its build-info.json manifest:\n  ${lines.join("\n  ")}\nRebuild: npm --prefix frontend run build`);
   }
   const hits = [];
   let scanned = 0;
@@ -139,7 +194,8 @@ function check(distDir) {
     console.error(`FAIL: banned wording in bundle:\n  ${hits.join("\n  ")}`);
   }
   if (info.source_dirty) console.log("note: bundle was built from a working tree with uncommitted UI changes");
-  console.log(`built from commit ${info.source_commit ?? "unknown"} at ${info.built_at ?? "unknown"}`);
+  console.log(`built from commit ${info.source_commit ?? "unknown"} at ${info.built_at}`);
+  console.log("note: integrity check only (which UI source this bundle came from); it is not evidence of detection performance");
   return failed ? 1 : 0;
 }
 

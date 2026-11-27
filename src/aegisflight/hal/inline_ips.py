@@ -166,9 +166,14 @@ class InlineIpsBridge:
         actuator_ts_state_path: str | None = None,
         model_path: str | None = None,
         allow_unverified_model: bool = False,
+        allow_active_on_hardware: bool = False,
     ) -> None:
         self.fc, self.gcs = fc, gcs
         self._mgmt_in_passive = bool(mgmt_enable)
+        # IPS on a real serial flight controller is a deliberate, construction-time opt-in (never a run-time switch) and needs
+        # a signing key; PASSIVE / ADVISORY (the IDS) are unaffected and never write to the FC either way
+        self._allow_hw_active = bool(allow_active_on_hardware)
+        self._hw_active_key_present = secret_key is not None
         self._refuse_active_on_device(mode)
         # receive-only-compatible filtering of the uplink (docs/VEHICLE_UPLINK_FILTER.md): fixed at construction, never a
         # posture, and nothing at run time (status API, management channel) can switch it on or off
@@ -185,6 +190,14 @@ class InlineIpsBridge:
         self._override_interval_s = 0.5
         self._override_next = 0.0
         self._secret_key = secret_key
+        # Persistent verifier for downlink COMMAND_ACK replay protection (separate from policy's uplink verifier).
+        # Fail-safe note: after an FC reboot, PX4 signing timestamps may restart lower; ACKs fail safe (no LAND
+        # fallback) until the bridge or _ack_verifier is reset.
+        from aegisflight.mavlink.signing import MavlinkSignatureVerifier
+
+        self._ack_verifier: MavlinkSignatureVerifier | None = (
+            MavlinkSignatureVerifier(secret_key) if secret_key is not None else None
+        )
         self.cfg = cfg or load_config(config_dir)
         proto = self.cfg.detector.get("protocol", {})
         if proto.get("auto_rate_baseline") is None:  # unset = auto: on for a live link
@@ -419,10 +432,24 @@ class InlineIpsBridge:
 
     def _refuse_active_on_device(self, mode: DefenseMode | str) -> None:
         """Receive-only boundary: ACTIVE_IPS (dropping and counter-commanding) is refused when the FC side is a
-        serial device, which may be a physical flight controller. SITL runs over socket:// links."""
-        if DefenseMode(mode) == DefenseMode.ACTIVE_IPS and may_reach_vehicle(getattr(self.fc, "port", None)):
+        serial device, which may be a physical flight controller, unless the operator opted in at construction
+        (``allow_active_on_hardware``) AND the link is signed. SITL runs over socket:// links and is unaffected."""
+        if DefenseMode(mode) != DefenseMode.ACTIVE_IPS or not may_reach_vehicle(getattr(self.fc, "port", None)):
+            return
+        if not getattr(self, "_allow_hw_active", False):   # default closed, also for partially-built objects
             raise ValueError(f"active-ips is refused on FC port {self.fc.port!r}: a serial device may be a physical "
-                             "flight controller (receive-only); use a socket:// SITL link")
+                             "flight controller (receive-only); use a socket:// SITL link, or opt in explicitly with "
+                             "allow_active_on_hardware / --allow-hardware-active-ips")
+        if not getattr(self, "_hw_active_key_present", False):
+            raise ValueError(f"active-ips on the physical FC port {self.fc.port!r} requires a signing key: an unsigned "
+                             "link cannot stop a counter-tracking forger and the bridge would act on spoofable evidence")
+
+    def _ips_may_write_fc(self) -> bool:
+        """Single choke point for every IPS-originated FC write (counter-commands). The IDS postures (PASSIVE /
+        ADVISORY) can never pass it, and on a serial FC it additionally needs the hardware opt-in."""
+        if self.controller.mode != DefenseMode.ACTIVE_IPS:
+            return False
+        return self._allow_hw_active or not may_reach_vehicle(getattr(self.fc, "port", None))
 
     def _apply_enforcement(self) -> None:
         """ACTIVE_IPS = full enforcement. vehicle_filter = the uplink rules only (no downlink change, no counter-commands: those are
@@ -585,6 +612,24 @@ class InlineIpsBridge:
                     out = [fr.raw]
             if down:
                 self.frames_down += 1
+                if fr.msgid == 77 and out and fr.sysid in policy.vehicle_sysids:
+                    with contextlib.suppress(Exception):
+                        sig_ok = True
+                        if self._ack_verifier is not None:
+                            if fr.signed:
+                                sig_ok = self._ack_verifier.verify_frame(fr.raw).valid
+                            else:
+                                # Unsigned FC downlink ACK is allowed when the FC is not a signing source
+                                # (mirroring LiveMavlinkSource unsigned_allowed_sysids / policy._down_forged).
+                                sig_ok = not policy.is_downlink_signed_source(fr.sysid, fr.compid, stamp)
+                        if sig_ok:
+                            hdr = 10 if fr.raw[:1] == b"\xfd" else 6
+                            plen = fr.raw[1] if len(fr.raw) > 1 else 0
+                            if plen >= 3 and len(fr.raw) >= hdr + 3:
+                                cmd = int.from_bytes(fr.raw[hdr : hdr + 2], "little")
+                                res = fr.raw[hdr + 2]
+                                tgt_sys = fr.raw[hdr + 8] if (fr.raw[:1] == b"\xfd" and plen >= 9 and len(fr.raw) >= hdr + 9) else None
+                                self.controller.record_command_ack(cmd, res, t=stamp / 1e9, target_sysid=tgt_sys)
             else:
                 self.frames_up += 1
             if not out:
@@ -597,7 +642,10 @@ class InlineIpsBridge:
                     lbl = f"fail_closed:msgid={fr.msgid}:{type(fail_closed_exc).__name__}"
                     action_name = "fail_closed_drop"
                 else:
-                    lbl = drop_label(fr.raw, fr.sysid, fr.msgid, direction)
+                    try:
+                        lbl = drop_label(fr.raw, fr.sysid, fr.msgid, direction)
+                    except Exception:  # noqa: BLE001 - label formatting must never abort pump_once()
+                        lbl = f"MSG{fr.msgid} sys{fr.sysid}"
                     action_name = "drop_frame"
                 if self._mgmt_active():
                     with contextlib.suppress(Exception):
@@ -703,6 +751,9 @@ class InlineIpsBridge:
                 # (the FC does not relay a STATUSTEXT it receives), so it goes to the GCS side only
                 link = self.gcs if is_txt else self.fc
                 target_link = "gcs" if link is self.gcs else "fc"
+                if link is self.fc and not self._ips_may_write_fc():
+                    self.send_failures += 1
+                    continue  # defence in depth: an IPS write to the FC that the gate does not permit is never sent
                 t = self._clock_ns()
                 ok = link.send(frame)
                 if self.archive is not None:
