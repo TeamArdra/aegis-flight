@@ -226,9 +226,15 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
         print("aegis ips-bridge: --fc-port and --gcs-port must differ", file=sys.stderr)
         return 2
     if args.defense_mode == "active-ips" and may_reach_vehicle(args.fc_port):
-        print(f"aegis ips-bridge: refusing --defense-mode active-ips on --fc-port {args.fc_port}: a serial device may "
-              "be a physical flight controller, which is receive-only. Use a socket:// SITL link.", file=sys.stderr)
-        return 2
+        if not args.allow_hardware_active_ips:
+            print(f"aegis ips-bridge: refusing --defense-mode active-ips on --fc-port {args.fc_port}: a serial device may "
+                  "be a physical flight controller, which is receive-only by default. Use a socket:// SITL link, or opt in "
+                  "explicitly with --allow-hardware-active-ips (needs --signing-key-file).", file=sys.stderr)
+            return 2
+        if args.allow_unsigned:
+            print("aegis ips-bridge: --allow-unsigned is refused with active-ips on a physical FC port; provision a "
+                  "--signing-key-file.", file=sys.stderr)
+            return 2
     try:
         fc = SerialMavlinkTransport(args.fc_port, baudrate=args.fc_baud, allow_url=args.allow_url,
                                     accept_unverified_ids=True)
@@ -346,6 +352,7 @@ def _cmd_ips_bridge(args: argparse.Namespace) -> int:
                                  mgmt_max_bytes_per_s=args.mgmt_max_bytes_per_s, mgmt_key=mgmt_key,
                                  mgmt_state_path=args.mgmt_state, lock_posture_file=args.lock_posture_file,
                                  mgmt_max_cmd_age_s=args.mgmt_max_age_s,
+                                 allow_active_on_hardware=args.allow_hardware_active_ips,
                                  audit_log_path=args.audit_log,
                                  mgmt_enable=bool(args.mgmt_enable),
                                  unsigned_acknowledged=args.allow_unsigned and key is None and args.defense_mode == "active-ips",
@@ -591,6 +598,9 @@ def build_parser() -> argparse.ArgumentParser:
                          "sensitive/control frames from that source in flight (can block the real pilot; forced disarm passes)")
     ib.add_argument("--replay-memory", type=int, default=4096,
                     help="unsigned link: number of forwarded sensitive frames remembered for the byte-identical replay filter")
+    ib.add_argument("--allow-hardware-active-ips", action="store_true",
+                    help="explicit opt-in: allow --defense-mode active-ips (drops, rewrites, counter-commands) on a physical "
+                         "serial FC port. Requires --signing-key-file. PASSIVE / ADVISORY never write to the FC regardless.")
     ib.add_argument("--gcs-alerts", choices=["on", "off"], default="on",
                     help="send IDS alerts / IPS actions as short AEGIS: STATUSTEXTs to the GCS side (never the FC)")
     ib.add_argument("--mgmt-enable", action="store_true",
